@@ -1,6 +1,9 @@
 <template>
     <div class="max-w-4xl mx-auto p-6 bg-white shadow-lg rounded-lg mt-10">
         <h2 class="text-2xl font-bold mb-4">Invoices</h2>
+        <div class="mb-4">
+            <button @click="addInvoice" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">Add Invoice</button>
+        </div>
         <table class="min-w-full border border-gray-300">
             <thead>
                 <tr>
@@ -17,6 +20,7 @@
                     <td class="border-b px-4 py-2">{{ new Date(invoice.created_at).toLocaleDateString() }}</td>
                     <td class="border-b px-4 py-2">
                         <button @click="viewInvoice(invoice.id)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">View</button>
+                        <button @click="editInvoice(invoice.id)" class="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600">Edit</button>
                         <button @click="deleteInvoice(invoice.id)" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600">Delete</button>
                     </td>
                 </tr>
@@ -26,7 +30,6 @@
 </template>
 
 <script>
-import { ref } from 'vue';
 import { Inertia } from '@inertiajs/inertia';
 
 export default {
@@ -34,9 +37,16 @@ export default {
         invoices: Array,
     },
     setup() {
+        const addInvoice = () => {
+            Inertia.visit('/invoices/create');
+        };
+
         const viewInvoice = (id) => {
-            // Handle viewing invoice logic
             Inertia.visit(`/invoices/${id}`);
+        };
+
+        const editInvoice = (id) => {
+            Inertia.visit(`/invoices/${id}/edit`);
         };
 
         const deleteInvoice = (id) => {
@@ -45,7 +55,7 @@ export default {
             }
         };
 
-        return { viewInvoice, deleteInvoice };
+        return { addInvoice, viewInvoice, editInvoice, deleteInvoice };
     },
 };
 </script>
