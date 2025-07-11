@@ -3,6 +3,8 @@
 namespace App\Providers;
 use App\Models\Campus;
 use App\Policies\CampusPolicy;
+use App\Models\Building;
+use App\Policies\BuildingPolicy;
 
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -16,6 +18,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Campus::class => CampusPolicy::class,
+        Building::class => BuildingPolicy::class,
     ];
 
     /**

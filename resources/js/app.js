@@ -23,6 +23,7 @@ window.axios = axios
 
 //Setting Up
 import Campus from './components/Campus/CampusPage.vue'
+import BuildingPage from './components/Building/BuildingPage.vue'
 
 //Dashboard
 import Dashboard from './components/Dashboard.vue'
@@ -42,6 +43,7 @@ import Datatable from './components/Reusable/Datatable.vue'
 
 //Setting Up
  app.component('campus-page', Campus)
+ app.component('building-page', BuildingPage)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)

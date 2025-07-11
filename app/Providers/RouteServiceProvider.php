@@ -38,5 +38,6 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         Route::model('campus', \App\Models\Campus::class);
+        Route::model('building', \App\Models\Building::class);
     }
 }

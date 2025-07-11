@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\CampusController;
 use App\Models\Campus;
 
+use App\Http\Controllers\BuildingController;
+use App\Models\Building;
+
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -46,6 +49,10 @@ Route::middleware(['auth'])->group(function () {
     // Campuses
     Route::get('/campuses', [CampusController::class, 'index'])
         ->name('campuses.index')->middleware('can:viewAny,' . Campus::class);
+
+    // Buildings
+    Route::get('/buildings', [BuildingController::class, 'index'])
+        ->name('buildings.index')->middleware('can:viewAny,' . Building::class);
 
 });
 require __DIR__.'/auth.php';

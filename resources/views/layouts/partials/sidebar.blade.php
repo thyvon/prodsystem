@@ -246,6 +246,7 @@
                 $settingActive = request()->is('settings*') 
                     || request()->is('currency*')
                     || request()->is('campus*')
+                    || request()->is('buildings*')
                     || request()->is('division*')
                     || request()->is('department*')
                     || request()->is('toca-policy*')
@@ -268,8 +269,8 @@
                             <span class="nav-link-text">Campus</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('building*') ? 'active' : '' }}">
-                        <a href="{{ url('building') }}" title="Building" data-filter-tags="building">
+                    <li class="{{ request()->is('buildings*') ? 'active' : '' }}">
+                        <a href="{{ url('buildings') }}" title="Building" data-filter-tags="building">
                             <span class="nav-link-text">Building</span>
                         </a>
                     </li>

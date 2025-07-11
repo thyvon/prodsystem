@@ -10,6 +10,9 @@ use App\Http\Controllers\UserController;
 use App\Models\Campus;
 use App\Http\Controllers\CampusController;
 
+use App\Models\Building;
+use App\Http\Controllers\BuildingController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -55,4 +58,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/campuses', [CampusController::class, 'store'])->middleware('can:create,' . Campus::class);
     Route::put('/campuses/{campus}', [CampusController::class, 'update'])->middleware('can:update,campus');
     Route::delete('/campuses/{campus}', [CampusController::class, 'destroy'])->middleware('can:delete,campus');
+
+    // Buildings
+    Route::get('/buildings', [BuildingController::class, 'getBuildings'])->middleware('can:viewAny,' . Building::class);
+    Route::get('/buildings/{building}/edit', [BuildingController::class, 'edit'])->middleware('can:update,building');
+    Route::post('/buildings', [BuildingController::class, 'store'])->middleware('can:create,' . Building::class);
+    Route::put('/buildings/{building}', [BuildingController::class, 'update'])->middleware('can:update,building');
+    Route::delete('/buildings/{building}', [BuildingController::class, 'destroy'])->middleware('can:delete,building');
 });
