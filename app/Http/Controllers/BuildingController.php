@@ -2,57 +2,64 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Building;
 use App\Models\Campus;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class BuildingController extends Controller
 {
+    /**
+     * Display the buildings index view.
+     *
+     * @return \Illuminate\View\View
+     */
     public function index()
     {
         $this->authorize('viewAny', Building::class);
-        return view('building.index'); // Return the view for buildings index
+        return view('building.index');
     }
 
-    public function getBuildings(Request $request)
+    /**
+     * Retrieve paginated buildings with optional search and sort.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getBuildings(Request $request): \Illuminate\Http\JsonResponse
     {
-        \Log::info('getBuildings called', $request->all());
-
         $this->authorize('viewAny', Building::class);
-        $query = Building::query()->with('campus'); // Eager load campus relationship
 
-        if ($search = $request->get('search')) {
-            \Log::info('Search term', ['search' => $search]);
+        $query = Building::query()->with('campus');
+
+        // Handle search
+        if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('short_name', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%")
-                  ->orWhereHas('campus', function ($q) use ($search) {
-                      $q->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('short_name', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhereHas('campus', function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
+        // Handle sorting
         $allowedSortColumns = ['name', 'short_name', 'address', 'is_active', 'created_at', 'campus_id'];
-        $sortColumn = $request->get('sortColumn', 'created_at');
-        $sortDirection = $request->get('sortDirection', 'desc');
+        $sortColumn = $request->input('sortColumn', 'created_at');
+        $sortDirection = strtolower($request->input('sortDirection', 'desc'));
 
-        if (!in_array($sortColumn, $allowedSortColumns)) {
-            \Log::warning('Invalid sort column', ['sortColumn' => $sortColumn]);
-            $sortColumn = 'created_at';
-        }
-        if (!in_array(strtolower($sortDirection), ['asc', 'desc'])) {
-            \Log::warning('Invalid sort direction', ['sortDirection' => $sortDirection]);
-            $sortDirection = 'desc';
-        }
+        $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'created_at';
+        $sortDirection = in_array($sortDirection, ['asc', 'desc']) ? $sortDirection : 'desc';
 
         $query->orderBy($sortColumn, $sortDirection);
-        $limit = max(1, intval($request->get('limit', 10)));
+
+        // Handle pagination
+        $limit = max(1, (int) $request->input('limit', 10));
         $buildings = $query->paginate($limit);
 
-        $data = collect($buildings->items())->map(function ($building) {
+        $data = $buildings->getCollection()->map(function (Building $building) {
             return [
                 'id' => $building->id,
                 'short_name' => $building->short_name,
@@ -60,23 +67,26 @@ class BuildingController extends Controller
                 'address' => $building->address,
                 'is_active' => (bool) $building->is_active,
                 'campus_id' => $building->campus_id,
-                'campus_name' => $building->campus ? $building->campus->name : null,
-                'created_at' => $building->created_at ? $building->created_at->toDateTimeString() : null,
+                'campus_name' => $building->campus?->name,
+                'created_at' => $building->created_at?->toDateTimeString(),
             ];
         });
 
-        $response = [
+        return response()->json([
             'data' => $data,
             'recordsTotal' => $buildings->total(),
             'recordsFiltered' => $buildings->total(),
-            'draw' => intval($request->get('draw', 1)),
-        ];
-
-        \Log::info('getBuildings response', $response);
-        return response()->json($response);
+            'draw' => (int) $request->input('draw', 1),
+        ]);
     }
 
-    private function buildingValidationRules($buildingId = null)
+    /**
+     * Get validation rules for building creation/update.
+     *
+     * @param int|null $buildingId
+     * @return array
+     */
+    private function buildingValidationRules(?int $buildingId = null): array
     {
         return [
             'short_name' => [
@@ -92,10 +102,16 @@ class BuildingController extends Controller
         ];
     }
 
-    public function store(Request $request)
+    /**
+     * Store a new building.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $this->authorize('create', Building::class);
-        $validated = validator($request->all(), $this->buildingValidationRules())->validate();
+        $validated = Validator::make($request->all(), $this->buildingValidationRules())->validate();
 
         DB::beginTransaction();
         try {
@@ -108,23 +124,12 @@ class BuildingController extends Controller
             ]);
             DB::commit();
 
-            Log::info('Building created', [
-                'id' => $building->id,
-                'name' => $building->name,
-                'campus_id' => $building->campus_id,
-            ]);
-
             return response()->json([
                 'message' => 'Building created successfully.',
                 'data' => $building
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Building creation failed', [
-                'error' => $e->getMessage(),
-                'request_data' => $request->all()
-            ]);
-
             return response()->json([
                 'message' => 'Failed to create building',
                 'error' => $e->getMessage()
@@ -132,7 +137,13 @@ class BuildingController extends Controller
         }
     }
 
-    public function edit(Building $building)
+    /**
+     * Get a building for editing.
+     *
+     * @param Building $building
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function edit(Building $building): \Illuminate\Http\JsonResponse
     {
         $this->authorize('update', $building);
         return response()->json([
@@ -140,10 +151,17 @@ class BuildingController extends Controller
         ]);
     }
 
-    public function update(Request $request, Building $building)
+    /**
+     * Update an existing building.
+     *
+     * @param Request $request
+     * @param Building $building
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function update(Request $request, Building $building): \Illuminate\Http\JsonResponse
     {
         $this->authorize('update', $building);
-        $validated = validator($request->all(), $this->buildingValidationRules($building->id))->validate();
+        $validated = Validator::make($request->all(), $this->buildingValidationRules($building->id))->validate();
 
         DB::beginTransaction();
         try {
@@ -156,23 +174,12 @@ class BuildingController extends Controller
             ]);
             DB::commit();
 
-            Log::info('Building updated', [
-                'id' => $building->id,
-                'name' => $building->name,
-                'campus_id' => $building->campus_id,
-            ]);
-
             return response()->json([
                 'message' => 'Building updated successfully.',
                 'data' => $building
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Building update failed', [
-                'error' => $e->getMessage(),
-                'request_data' => $request->all()
-            ]);
-
             return response()->json([
                 'message' => 'Failed to update building',
                 'error' => $e->getMessage()
@@ -180,21 +187,21 @@ class BuildingController extends Controller
         }
     }
 
-    public function destroy(Building $building)
+    /**
+     * Delete a building.
+     *
+     * @param Building $building
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function destroy(Building $building): \Illuminate\Http\JsonResponse
     {
         $this->authorize('delete', $building);
         try {
             $building->delete();
-
             return response()->json([
                 'message' => 'Building deleted successfully.'
             ]);
         } catch (\Exception $e) {
-            Log::error('Building deletion failed', [
-                'error' => $e->getMessage(),
-                'building_id' => $building->id
-            ]);
-
             return response()->json([
                 'message' => 'Failed to delete building',
                 'error' => $e->getMessage()

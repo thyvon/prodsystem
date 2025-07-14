@@ -13,6 +13,18 @@ use App\Http\Controllers\CampusController;
 use App\Models\Building;
 use App\Http\Controllers\BuildingController;
 
+use App\Models\Division;
+use App\Http\Controllers\DivisionController;
+
+use App\Models\Department;
+use App\Http\Controllers\DepartmentController;
+
+use App\Models\TocaPolicy;
+use App\Http\Controllers\TocaController;
+
+use App\Models\TocaAmount;
+use App\Http\Controllers\TocaAmountController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -65,4 +77,32 @@ Route::middleware('auth')->group(function () {
     Route::post('/buildings', [BuildingController::class, 'store'])->middleware('can:create,' . Building::class);
     Route::put('/buildings/{building}', [BuildingController::class, 'update'])->middleware('can:update,building');
     Route::delete('/buildings/{building}', [BuildingController::class, 'destroy'])->middleware('can:delete,building');
+
+    // Divisions
+    Route::get('/divisions', [DivisionController::class, 'getDivisions'])->middleware('can:viewAny,' . Division::class);
+    Route::get('/divisions/{division}/edit', [DivisionController::class, 'edit'])->middleware('can:update,division');
+    Route::post('/divisions', [DivisionController::class, 'store'])->middleware('can:create,' . Division::class);
+    Route::put('/divisions/{division}', [DivisionController::class, 'update'])->middleware('can:update,division');
+    Route::delete('/divisions/{division}', [DivisionController::class, 'destroy'])->middleware('can:delete,division');
+
+    // Departments
+    Route::get('/departments', [DepartmentController::class, 'getDepartments'])->middleware('can:viewAny,' . Department::class);
+    Route::get('/departments/{department}/edit', [DepartmentController::class, 'edit'])->middleware('can:update,department');
+    Route::post('/departments', [DepartmentController::class, 'store'])->middleware('can:create,' . Department::class);
+    Route::put('/departments/{department}', [DepartmentController::class, 'update'])->middleware('can:update,department');
+    Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->middleware('can:delete,department');
+
+    // Toca Policies
+    Route::get('/toca-policies', [TocaController::class, 'getTocaPolicies'])->middleware('can:viewAny,' . TocaPolicy::class);
+    Route::get('/toca-policies/{tocaPolicy}/edit', [TocaController::class, 'edit'])->middleware('can:update,tocaPolicy');
+    Route::post('/toca-policies', [TocaController::class, 'store'])->middleware('can:create,' . TocaPolicy::class);
+    Route::put('/toca-policies/{tocaPolicy}', [TocaController::class, 'update'])->middleware('can:update,tocaPolicy');
+    Route::delete('/toca-policies/{tocaPolicy}', [TocaController::class, 'destroy'])->middleware('can:delete,tocaPolicy');
+
+    // Toca Amounts
+    Route::get('/toca-amounts', [TocaAmountController::class, 'getTocaAmounts'])->middleware('can:viewAny,' . TocaAmount::class);
+    Route::get('/toca-amounts/{tocaAmount}/edit', [TocaAmountController::class, 'edit'])->middleware('can:update,tocaAmount');
+    Route::post('/toca-amounts', [TocaAmountController::class, 'store'])->middleware('can:create,' . TocaAmount::class);
+    Route::put('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'update'])->middleware('can:update,tocaAmount');
+    Route::delete('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'destroy'])->middleware('can:delete,tocaAmount');
 });

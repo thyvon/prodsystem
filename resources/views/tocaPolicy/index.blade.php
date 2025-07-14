@@ -1,8 +1,8 @@
-@php($header = 'Building')
+@php($header = 'Toca')
 @extends('layouts.main')
 
 @section('content')
-  <building-page :page-length="{{ $pageLength ?? 10 }}" />
+  <toca-page :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')
@@ -10,11 +10,9 @@
 @endpush
 
 @push('styles')
-  <link rel="stylesheet" media="screen, print" href="{{ asset('template/css/formplugins/select2/select2.bundle.css') }}">
   <link rel="stylesheet" href="{{ asset('template/css/datagrid/datatables/datatables.bundle.css') }}">
 @endpush
 
 @push('scripts')
-  <script src="{{ asset('template/js/formplugins/select2/select2.bundle.js') }}"></script>
   <script src="{{ asset('template/js/datagrid/datatables/datatables.bundle.js') }}"></script>
 @endpush

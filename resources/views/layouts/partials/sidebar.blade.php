@@ -247,9 +247,10 @@
                     || request()->is('currency*')
                     || request()->is('campus*')
                     || request()->is('buildings*')
-                    || request()->is('division*')
-                    || request()->is('department*')
-                    || request()->is('toca-policy*')
+                    || request()->is('divisions*')
+                    || request()->is('departments*')
+                    || request()->is('toca-policies*')
+                    || request()->is('toca-amounts*')
                     || request()->is('mvl*');
             @endphp
             <li class="nav-title">System Setting</li>
@@ -274,20 +275,32 @@
                             <span class="nav-link-text">Building</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('division*') ? 'active' : '' }}">
-                        <a href="{{ url('division') }}" title="Division" data-filter-tags="division">
+                    <li class="{{ request()->is('divisions*') ? 'active' : '' }}">
+                        <a href="{{ url('divisions') }}" title="Division" data-filter-tags="division">
                             <span class="nav-link-text">Division</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('department*') ? 'active' : '' }}">
-                        <a href="{{ url('department') }}" title="Department" data-filter-tags="department">
+                    <li class="{{ request()->is('departments*') ? 'active' : '' }}">
+                        <a href="{{ url('departments') }}" title="Department" data-filter-tags="department">
                             <span class="nav-link-text">Department</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('toca-policy*') ? 'active' : '' }}">
-                        <a href="{{ url('toca-policy') }}" title="TOCA Policy" data-filter-tags="toca policy">
-                            <span class="nav-link-text">TOCA Policy</span>
+                    <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">
+                        <a href="#" title="TOCA Policies" data-filter-tags="toca policies">
+                            <span class="nav-link-text">TOCA Policies</span>
                         </a>
+                        <ul>
+                            <li class="{{ request()->is('toca-policies') ? 'active' : '' }}">
+                                <a href="{{ url('toca-policies') }}" title="TOCA Policies List" data-filter-tags="toca policies list">
+                                    <span class="nav-link-text">TOCA Policies List</span>
+                                </a>
+                            </li>
+                            <li class="{{ request()->is('toca-amounts') ? 'active' : '' }}">
+                                <a href="{{ url('toca-amounts') }}" title="TOCA Amounts" data-filter-tags="toca amounts">
+                                    <span class="nav-link-text">TOCA Amount</span>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="{{ request()->is('mvl*') ? 'active' : '' }}">
                         <a href="{{ url('mvl') }}" title="MVL" data-filter-tags="mvl">

@@ -1,8 +1,8 @@
-@php($header = 'Building')
+@php($header = 'TOCA Policy Amount')
 @extends('layouts.main')
 
 @section('content')
-  <building-page :page-length="{{ $pageLength ?? 10 }}" />
+  <toca-amount-page :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')

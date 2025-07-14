@@ -14,6 +14,18 @@ use App\Models\Campus;
 use App\Http\Controllers\BuildingController;
 use App\Models\Building;
 
+use App\Http\Controllers\DivisionController;
+use App\Models\Division;
+
+use App\Http\Controllers\DepartmentController;
+use App\Models\Department;
+
+use App\Http\Controllers\TocaController;
+use App\Models\TocaPolicy;
+
+use App\Http\Controllers\TocaAmountController;
+use App\Models\TocaAmount;
+
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -53,6 +65,22 @@ Route::middleware(['auth'])->group(function () {
     // Buildings
     Route::get('/buildings', [BuildingController::class, 'index'])
         ->name('buildings.index')->middleware('can:viewAny,' . Building::class);
+
+    // Divisions
+    Route::get('/divisions', [DivisionController::class, 'index'])
+        ->name('divisions.index')->middleware('can:viewAny,' . Division::class);
+
+    // Departments
+    Route::get('/departments', [DepartmentController::class, 'index'])
+        ->name('departments.index')->middleware('can:viewAny,' . Department::class);
+
+    // Toca Policies
+    Route::get('/toca-policies', [TocaController::class, 'index'])
+        ->name('tocasPolicy.index')->middleware('can:viewAny,' . TocaPolicy::class);
+
+    // Toca Amounts
+    Route::get('/toca-amounts', [TocaAmountController::class, 'index'])
+        ->name('tocasPolicy.amount')->middleware('can:viewAny,' . TocaAmount::class);
 
 });
 require __DIR__.'/auth.php';

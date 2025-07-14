@@ -24,6 +24,10 @@ window.axios = axios
 //Setting Up
 import Campus from './components/Campus/CampusPage.vue'
 import BuildingPage from './components/Building/BuildingPage.vue'
+import DivisionPage from './components/Division/DivisionPage.vue'
+import DepartmentPage from './components/Department/DepartmentPage.vue'
+import TocaPage from './components/TocaPolicy/TocaPage.vue'
+import TocaAmountPage from './components/TocaPolicy/TocaAmountPage.vue'
 
 //Dashboard
 import Dashboard from './components/Dashboard.vue'
@@ -44,6 +48,10 @@ import Datatable from './components/Reusable/Datatable.vue'
 //Setting Up
  app.component('campus-page', Campus)
  app.component('building-page', BuildingPage)
+ app.component('division-page', DivisionPage)
+ app.component('department-page', DepartmentPage)
+ app.component('toca-page', TocaPage)
+ app.component('toca-amount-page', TocaAmountPage)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)

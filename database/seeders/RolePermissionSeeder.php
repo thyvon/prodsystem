@@ -17,6 +17,7 @@ class RolePermissionSeeder extends Seeder
             'invoice_entry'    => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
             'evaluation'       => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
             'campus'          => ['create', 'view', 'update', 'delete'],
+            'building'         => ['create', 'view', 'update', 'delete'],
         ];
 
         $permissions = [];

@@ -90,6 +90,11 @@ const renderColumnData = (key, val) => {
     const text = val ? 'Active' : 'Inactive';
     return `<span class="${badgeClass} text-center">${text}</span>`;
   }
+  if (key === 'toca_amounts' && Array.isArray(val)) {
+    return `<div class="text-start">` + 
+      val.map(amount => `<div class="mb-1">${amount}</div>`).join('') + 
+      `</div>`;
+  }
   return val ?? '';
 };
 

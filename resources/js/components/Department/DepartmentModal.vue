@@ -1,20 +1,20 @@
 <template>
   <BaseModal
     v-model="showModal"
-    id="buildingModal"
-    :title="isEditing ? 'Edit Building' : 'Create Building'"
+    id="departmentModal"
+    :title="isEditing ? 'Edit Department' : 'Create Department'"
     size="lg"
   >
     <template #body>
       <form @submit.prevent="submitForm">
         <div class="card border shadow-sm mb-0">
           <div class="card-header py-2 bg-light">
-            <h6 class="mb-0 font-weight-bold">Building Information</h6>
+            <h6 class="mb-0 font-weight-bold">Department Information</h6>
           </div>
           <div class="card-body">
             <div class="form-row">
               <div class="form-group col-md-6">
-                <label>Building Name</label>
+                <label>Department Name</label>
                 <input
                   v-model="form.name"
                   type="text"
@@ -33,26 +33,17 @@
               </div>
             </div>
             <div class="form-row">
-              <div class="form-group col-md-6">
-                <label>Address</label>
-                <input
-                  v-model="form.address"
-                  type="text"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="form-group col-md-6">
-                <label>Campus</label>
+              <div class="form-group col-md-12">
+                <label>Division</label>
                 <select
-                  ref="campusSelect"
-                  v-model="form.campus_id"
+                  ref="divisionSelect"
+                  v-model="form.division_id"
                   class="form-control"
                   required
                 >
-                  <option value="">Select Campus</option>
-                  <option v-for="campus in campuses" :key="campus.id" :value="campus.id">
-                    {{ campus.name }}
+                  <option value="">Select Division</option>
+                  <option v-for="division in divisions" :key="division.id" :value="division.id">
+                    {{ division.name }} ({{ division.short_name }})
                   </option>
                 </select>
               </div>
@@ -104,24 +95,23 @@ const emit = defineEmits(['submitted'])
 
 const showModal = ref(false)
 const isSubmitting = ref(false)
-const campuses = ref([])
-const campusSelect = ref(null)
+const divisions = ref([])
+const divisionSelect = ref(null)
 const form = ref({
   id: null,
   short_name: '',
   name: '',
-  address: '',
-  campus_id: null,
+  division_id: null,
   is_active: 1,
 })
 
-const fetchCampuses = async () => {
+const fetchDivisions = async () => {
   try {
-    const response = await axios.get('/api/campuses')
-    campuses.value = Array.isArray(response.data) ? response.data : response.data.data
+    const response = await axios.get('/api/divisions')
+    divisions.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
-    console.error('Failed to load campuses:', err)
-    showAlert('Error', 'Failed to load campuses.', 'danger')
+    console.error('Failed to load divisions:', err)
+    showAlert('Error', 'Failed to load divisions.', 'danger')
   }
 }
 
@@ -130,23 +120,21 @@ const resetForm = () => {
     id: null,
     short_name: '',
     name: '',
-    address: '',
-    campus_id: null,
+    division_id: null,
     is_active: 1,
   }
 }
 
-const show = async (building = null) => {
+const show = async (department = null) => {
   resetForm()
-  await fetchCampuses()
-  if (building) {
+  await fetchDivisions()
+  if (department) {
     form.value = {
-      id: building.id,
-      short_name: building.short_name ?? '',
-      name: building.name ?? '',
-      campus_id: building.campus_id ?? null,
-      address: building.address ?? '',
-      is_active: building.is_active !== undefined ? building.is_active : 1,
+      id: department.id,
+      short_name: department.short_name ?? '',
+      name: department.name ?? '',
+      division_id: department.division_id ?? null,
+      is_active: department.is_active !== undefined ? department.is_active : 1,
     }
   }
   await nextTick()
@@ -154,8 +142,8 @@ const show = async (building = null) => {
 }
 
 const hideModal = () => {
-  if (campusSelect.value) {
-    destroySelect2(campusSelect.value)
+  if (divisionSelect.value) {
+    destroySelect2(divisionSelect.value)
   }
   showModal.value = false
 }
@@ -166,54 +154,53 @@ const submitForm = async () => {
   try {
     const method = props.isEditing ? 'put' : 'post'
     const url = props.isEditing && form.value.id
-      ? `/api/buildings/${form.value.id}`
-      : '/api/buildings'
+      ? `/api/departments/${form.value.id}`
+      : '/api/departments'
 
     const payload = {
       short_name: form.value.short_name?.toString().trim() ?? '',
       name: form.value.name?.toString().trim() ?? '',
-      address: form.value.address?.toString().trim() ?? '',
+      division_id: form.value.division_id,
       is_active: form.value.is_active ? 1 : 0,
-      campus_id: form.value.campus_id,
     }
 
     await axios[method](url, payload)
     emit('submitted')
     hideModal()
-    showAlert('Success', `Building ${props.isEditing ? 'updated' : 'created'} successfully.`, 'success')
+    showAlert('Success', `Department ${props.isEditing ? 'updated' : 'created'} successfully.`, 'success')
   } catch (err) {
     console.error('Submit error:', err.response?.data || err)
-    showAlert('Error', err.response?.data?.message || err.message || 'Failed to save building.', 'danger')
+    showAlert('Error', err.response?.data?.message || err.message || 'Failed to save department.', 'danger')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Initialize Select2 for campus selection when modal is shown
+// Initialize Select2 for division selection when modal is shown
 watch(showModal, async (val) => {
   if (val) {
     await nextTick()
-    const $modal = window.$('#buildingModal')
-    initSelect2(campusSelect.value, {
-      placeholder: 'Select Campus',
+    const $modal = window.$('#departmentModal')
+    initSelect2(divisionSelect.value, {
+      placeholder: 'Select Division',
       width: '100%',
       allowClear: true,
       dropdownParent: $modal
-    }, v => form.value.campus_id = v)
+    }, v => form.value.division_id = v)
     // Set initial value if exists
     await nextTick()
-    window.$(campusSelect.value).val(form.value.campus_id).trigger('change')
+    window.$(divisionSelect.value).val(form.value.division_id).trigger('change')
   } else {
-    destroySelect2(campusSelect.value)
+    destroySelect2(divisionSelect.value)
   }
 })
 
 defineExpose({ show })
 
-onMounted(fetchCampuses)
+onMounted(fetchDivisions)
 onUnmounted(() => {
-  if (campusSelect.value) {
-    destroySelect2(campusSelect.value)
+  if (divisionSelect.value) {
+    destroySelect2(divisionSelect.value)
   }
 })
 </script>

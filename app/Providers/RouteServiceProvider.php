@@ -39,5 +39,9 @@ class RouteServiceProvider extends ServiceProvider
 
         Route::model('campus', \App\Models\Campus::class);
         Route::model('building', \App\Models\Building::class);
+        Route::model('division', \App\Models\Division::class);
+        Route::model('department', \App\Models\Department::class);
+        Route::model('tocaPolicy', \App\Models\TocaPolicy::class);
+        Route::model('tocaAmount', \App\Models\TocaAmount::class);
     }
 }

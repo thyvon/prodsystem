@@ -1,8 +1,8 @@
-@php($header = 'Building')
+@php($header = 'Department')
 @extends('layouts.main')
 
 @section('content')
-  <building-page :page-length="{{ $pageLength ?? 10 }}" />
+  <department-page :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')
