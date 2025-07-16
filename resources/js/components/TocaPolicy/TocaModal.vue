@@ -71,7 +71,7 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import axios from 'axios'
-import BaseModal from '@/components/reusable/BaseModal.vue'
+import BaseModal from '@/components/Reusable/BaseModal.vue'
 import { showAlert } from '@/Utils/bootbox'
 
 const props = defineProps({ isEditing: Boolean })
