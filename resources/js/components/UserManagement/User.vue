@@ -101,7 +101,7 @@ onMounted(async () => {
   }
 })
 
-// --- Select2 integration for roles (reusable) ---
+// --- Select2 integration for roles (Reusable) ---
 watch(showAssignRoleModal, async (val) => {
   if (val) {
     await nextTick()

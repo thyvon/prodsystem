@@ -97,7 +97,7 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
 import axios from 'axios'
-import BaseModal from '@/components/reusable/BaseModal.vue'
+import BaseModal from '@/components/Reusable/BaseModal.vue'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
