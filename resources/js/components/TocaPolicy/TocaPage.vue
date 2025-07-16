@@ -34,7 +34,7 @@
 import { ref, reactive } from 'vue'
 import axios from 'axios'
 import TocaModal from './TocaModal.vue'
-import { confirmAction, showAlert } from '@/utils/bootbox'
+import { confirmAction, showAlert } from '@/Utils/bootbox'
 
 // Refs and state
 const datatableRef = ref(null)
