@@ -19,6 +19,15 @@ use App\Policies\TocaPolicyPolicy;
 use App\Models\TocaAmount;
 use App\Policies\TocaAmountPolicy;
 
+
+// Product Management
+use App\Models\MainCategory;
+use App\Policies\MainCategoryPolicy;
+use App\Models\SubCategory;
+use App\Policies\SubCategoryPolicy;
+use App\Models\UnitOfMeasure;
+use App\Policies\UnitOfMeasurePolicy;
+
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -36,6 +45,9 @@ class AuthServiceProvider extends ServiceProvider
         Department::class => DepartmentPolicy::class,
         TocaPolicy::class => TocaPolicyPolicy::class,
         TocaAmount::class => TocaAmountPolicy::class,
+        MainCategory::class => MainCategoryPolicy::class,
+        SubCategory::class => SubCategoryPolicy::class,
+        UnitOfMeasure::class => UnitOfMeasurePolicy::class,
     ];
 
     /**

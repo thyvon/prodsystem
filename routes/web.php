@@ -26,6 +26,16 @@ use App\Models\TocaPolicy;
 use App\Http\Controllers\TocaAmountController;
 use App\Models\TocaAmount;
 
+// Product Management
+use App\Http\Controllers\MainCategoryController;
+use App\Models\MainCategory;
+
+use App\Http\Controllers\SubCategoryController;
+use App\Models\SubCategory;
+
+use App\Http\Controllers\UnitController;
+use App\Models\UnitOfMeasure;
+
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -81,6 +91,18 @@ Route::middleware(['auth'])->group(function () {
     // Toca Amounts
     Route::get('/toca-amounts', [TocaAmountController::class, 'index'])
         ->name('tocasPolicy.amount')->middleware('can:viewAny,' . TocaAmount::class);
+
+    // Main Categories
+    Route::get('/main-categories', [MainCategoryController::class, 'index'])
+        ->name('mainCategories.index')->middleware('can:viewAny,' . MainCategory::class);
+
+    // Sub Categories
+    Route::get('/sub-categories', [SubCategoryController::class, 'index'])
+        ->name('subCategories.index')->middleware('can:viewAny,' . SubCategory::class);
+
+    // Unit of Measure
+    Route::get('/unit-of-measures', [UnitController::class, 'index'])
+        ->name('unitsOfMeasure.index')->middleware('can:viewAny,' . UnitOfMeasure::class);
 
 });
 require __DIR__.'/auth.php';

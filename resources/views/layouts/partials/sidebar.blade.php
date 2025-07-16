@@ -55,7 +55,10 @@
             </li>
 
             @php
-                $productActive = request()->is('products*') || request()->is('brands*') || request()->is('categories*');
+                $productActive = request()->is('products*') || 
+                request()->is('sub-categories*') || 
+                request()->is('main-categories*') || 
+                request()->is('unit-of-measures*');
             @endphp
             <li class="{{ $productActive ? 'active open' : '' }}">
                 <a href="#" title="Product" data-filter-tags="product">
@@ -68,14 +71,19 @@
                             <span class="nav-link-text">Products</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('brands*') ? 'active' : '' }}">
-                        <a href="{{ url('brands') }}" title="Brands" data-filter-tags="brands">
-                            <span class="nav-link-text">Brands</span>
+                    <li class="{{ request()->is('main-categories*') ? 'active' : '' }}">
+                        <a href="{{ url('main-categories') }}" title="Categories" data-filter-tags="categories">
+                            <span class="nav-link-text">Main Categories</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('categories*') ? 'active' : '' }}">
-                        <a href="{{ url('categories') }}" title="Categories" data-filter-tags="categories">
-                            <span class="nav-link-text">Categories</span>
+                    <li class="{{ request()->is('sub-categories*') ? 'active' : '' }}">
+                        <a href="{{ url('sub-categories') }}" title="Sub Categories" data-filter-tags="sub categories">
+                            <span class="nav-link-text">Sub Categories</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('unit-of-measures*') ? 'active' : '' }}">
+                        <a href="{{ url('unit-of-measures') }}" title="Unit of Measures" data-filter-tags="unit of measures">
+                            <span class="nav-link-text">Unit of Measures</span>
                         </a>
                     </li>
                 </ul>

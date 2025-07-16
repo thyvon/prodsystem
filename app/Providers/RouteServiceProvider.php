@@ -43,5 +43,8 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('department', \App\Models\Department::class);
         Route::model('tocaPolicy', \App\Models\TocaPolicy::class);
         Route::model('tocaAmount', \App\Models\TocaAmount::class);
+        Route::model('mainCategory', \App\Models\MainCategory::class);
+        Route::model('subCategory', \App\Models\SubCategory::class);
+        Route::model('unitOfMeasure', \App\Models\UnitOfMeasure::class);
     }
 }

@@ -25,6 +25,16 @@ use App\Http\Controllers\TocaController;
 use App\Models\TocaAmount;
 use App\Http\Controllers\TocaAmountController;
 
+// Product Management
+use App\Models\MainCategory;
+use App\Http\Controllers\MainCategoryController;
+
+use App\Models\SubCategory;
+use App\Http\Controllers\SubCategoryController;
+
+use App\Models\UnitOfMeasure;
+use App\Http\Controllers\UnitController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -105,4 +115,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/toca-amounts', [TocaAmountController::class, 'store'])->middleware('can:create,' . TocaAmount::class);
     Route::put('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'update'])->middleware('can:update,tocaAmount');
     Route::delete('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'destroy'])->middleware('can:delete,tocaAmount');
+
+    // Product Management - Main Categories
+    Route::get('/main-categories', [MainCategoryController::class, 'getMainCategories'])->middleware('can:viewAny,' . MainCategory::class);
+    Route::get('/main-categories/{mainCategory}/edit', [MainCategoryController::class, 'edit'])->middleware('can:update,mainCategory');
+    Route::post('/main-categories', [MainCategoryController::class, 'store'])->middleware('can:create,' . MainCategory::class);
+    Route::put('/main-categories/{mainCategory}', [MainCategoryController::class, 'update'])->middleware('can:update,mainCategory');
+    Route::delete('/main-categories/{mainCategory}', [MainCategoryController::class, 'destroy'])->middleware('can:delete,mainCategory');
+
+    // Product Management - Sub Categories
+    Route::get('/sub-categories', [SubCategoryController::class, 'getSubCategories'])->middleware('can:viewAny,' . SubCategory::class);
+    Route::get('/sub-categories/{subCategory}/edit', [SubCategoryController::class, 'edit'])->middleware('can:update,subCategory');
+    Route::post('/sub-categories', [SubCategoryController::class, 'store'])->middleware('can:create,' . SubCategory::class);
+    Route::put('/sub-categories/{subCategory}', [SubCategoryController::class, 'update'])->middleware('can:update,subCategory');
+    Route::delete('/sub-categories/{subCategory}', [SubCategoryController::class, 'destroy'])->middleware('can:delete,subCategory');
+
+    // Product Management - Unit of Measure
+    Route::get('/unit-of-measures', [UnitController::class, 'getUnitsOfMeasure'])->middleware('can:viewAny,' . UnitOfMeasure::class);
+    Route::get('/unit-of-measures/{unitOfMeasure}/edit', [UnitController::class, 'edit'])->middleware('can:update,unitOfMeasure');
+    Route::post('/unit-of-measures', [UnitController::class, 'store'])->middleware('can:create,' . UnitOfMeasure::class);
+    Route::put('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'update'])->middleware('can:update,unitOfMeasure');
+    Route::delete('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'destroy'])->middleware('can:delete,unitOfMeasure');
 });
