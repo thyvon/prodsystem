@@ -73,7 +73,7 @@
 import { ref, nextTick, onMounted } from 'vue'
 import axios from 'axios'
 import BaseModal from '@/components/reusable/BaseModal.vue'
-import { showAlert } from '@/utils/bootbox'
+import { showAlert } from '@/Utils/bootbox'
 
 const props = defineProps({ isEditing: Boolean })
 const emit = defineEmits(['submitted'])

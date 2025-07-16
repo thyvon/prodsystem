@@ -87,8 +87,8 @@
 import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
 import BaseModal from '@/components/reusable/BaseModal.vue'
-import { showAlert } from '@/utils/bootbox'
-import { initSelect2, destroySelect2 } from '@/utils/select2'
+import { showAlert } from '@/Utils/bootbox'
+import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
 const props = defineProps({ isEditing: Boolean })
 const emit = defineEmits(['submitted'])
