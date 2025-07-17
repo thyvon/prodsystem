@@ -11,27 +11,75 @@ class RolePermissionSeeder extends Seeder
 {
     public function run()
     {
+        // Define features with human-readable names
         $features = [
-            'purchase_request' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            'purchase_order'   => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            'invoice_entry'    => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            'evaluation'       => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            'campus'          => ['create', 'view', 'update', 'delete'],
-            'building'         => ['create', 'view', 'update', 'delete'],
+            'purchase_request' => [
+                'name' => 'Purchase Request',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+            ],
+            'purchase_order' => [
+                'name' => 'Purchase Order',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+            ],
+            'invoice_entry' => [
+                'name' => 'Invoice Entry',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+            ],
+            'evaluation' => [
+                'name' => 'Evaluation',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+            ],
+            'campus' => [
+                'name' => 'Campus',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'building' => [
+                'name' => 'Building',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'department' => [
+                'name' => 'Department',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'division' => [
+                'name' => 'Division',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'mainCategory' => [
+                'name' => 'Main Category',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'subCategory' => [
+                'name' => 'Sub Category',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
         ];
+
+        // Update existing permissions with feature_name
+        foreach ($features as $feature => $data) {
+            Permission::where('name', 'like', "$feature.%")->update(['feature_name' => $data['name']]);
+        }
 
         $permissions = [];
 
         // Generate permissions dynamically
-        foreach ($features as $feature => $actions) {
-            foreach ($actions as $action) {
-                $permissions[] = "$feature.$action";
+        foreach ($features as $feature => $data) {
+            foreach ($data['actions'] as $action) {
+                $permissions[] = [
+                    'name' => "$feature.$action",
+                    'feature_name' => $data['name'],
+                ];
             }
         }
 
-        // Create permissions
+        // Create or update permissions with feature_name
         foreach ($permissions as $perm) {
-            Permission::firstOrCreate(['name' => $perm]);
+            $permission = Permission::firstOrCreate(
+                ['name' => $perm['name']],
+                ['guard_name' => 'web'] // Default guard
+            );
+            // Ensure feature_name is set
+            $permission->update(['feature_name' => $perm['feature_name']]);
         }
 
         // Create roles
@@ -43,7 +91,7 @@ class RolePermissionSeeder extends Seeder
         // Assign all permissions to admin
         $admin->syncPermissions(Permission::all());
 
-        // Example: Assign specific permissions to roles (customize as needed)
+        // Assign specific permissions to roles
         $purchaser->syncPermissions([
             'purchase_request.create',
             'purchase_request.view',
