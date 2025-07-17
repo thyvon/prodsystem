@@ -35,6 +35,13 @@ use App\Http\Controllers\SubCategoryController;
 use App\Models\UnitOfMeasure;
 use App\Http\Controllers\UnitController;
 
+use App\Models\Product;
+use App\Http\Controllers\ProductController;
+
+use App\Models\VariantAttribute;
+use App\Models\VariantValue;
+use App\Http\Controllers\ProductVariantController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -136,4 +143,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/unit-of-measures', [UnitController::class, 'store'])->middleware('can:create,' . UnitOfMeasure::class);
     Route::put('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'update'])->middleware('can:update,unitOfMeasure');
     Route::delete('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'destroy'])->middleware('can:delete,unitOfMeasure');
+
+    // Product Management - Products
+    Route::get('/products', [ProductController::class, 'getProducts'])->middleware('can:viewAny,' . Product::class);
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product');
+    Route::post('/products', [ProductController::class, 'store'])->middleware('can:create,' . Product::class);
+    Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product');
+    Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product');
+
+    // Product Management - Trashed
+    Route::get('/products/trashed', [ProductController::class, 'trashed'])->middleware('can:viewAny,' . Product::class);
+    Route::post('/products/{product}/restore', [ProductController::class, 'restore'])->middleware('can:restore,product');
+    Route::delete('/products/{product}/force', [ProductController::class, 'forceDelete'])->middleware('can:forceDelete,product');
+
+    // Product Variant Attributes
+    Route::get('/product-variant-attributes', [ProductVariantController::class, 'getProductVariantAttributes']);
+    Route::post('/product-variant-attributes', [ProductVariantController::class, 'store']);
+    Route::get('/product-variant-attributes/{productVariantAttribute}/edit', [ProductVariantController::class, 'edit']);
+    Route::put('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'update']);
+    Route::delete('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'destroy']);
+    Route::post('/product-variant-attributes/{productVariantAttribute}/values', [ProductVariantController::class, 'addValues']);
+    Route::get('/attributes-values', [ProductVariantController::class, 'getAttributesWithValues']);
 });

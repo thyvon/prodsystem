@@ -36,6 +36,13 @@ use App\Models\SubCategory;
 use App\Http\Controllers\UnitController;
 use App\Models\UnitOfMeasure;
 
+use App\Http\Controllers\ProductController;
+use App\Models\Product;
+
+use App\Models\VariantAttribute;
+use App\Models\VariantValue;
+use App\Http\Controllers\ProductVariantController;
+
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -103,6 +110,14 @@ Route::middleware(['auth'])->group(function () {
     // Unit of Measure
     Route::get('/unit-of-measures', [UnitController::class, 'index'])
         ->name('unitsOfMeasure.index')->middleware('can:viewAny,' . UnitOfMeasure::class);
+    
+    // Product Management
+    Route::get('/products', [ProductController::class, 'index'])
+        ->name('products.index')->middleware('can:viewAny,' . Product::class);
+
+    Route::get('/product-variant-attributes', [ProductVariantController::class, 'index'])
+        ->name('productVariantAttributes.index')
+        ->middleware('can:viewAny,' . ProductVariantAttribute::class);
 
 });
 require __DIR__.'/auth.php';

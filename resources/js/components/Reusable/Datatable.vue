@@ -90,11 +90,19 @@ const renderColumnData = (key, val) => {
     const text = val ? 'Active' : 'Inactive';
     return `<span class="${badgeClass} text-center">${text}</span>`;
   }
-  if (key === 'toca_amounts' && Array.isArray(val)) {
-    return `<div class="text-start">` + 
-      val.map(amount => `<div class="mb-1">${amount}</div>`).join('') + 
-      `</div>`;
+    if (key === 'has_variants') {
+    const badgeClass = val ? 'badge badge-primary' : 'badge badge-danger';
+    const text = val ? 'Yes' : 'No';
+    return `<span class="${badgeClass} text-center">${text}</span>`;
   }
+    if (key === 'toca_amounts' && Array.isArray(val)) {
+      return `<div class="text-start">` + 
+        val.map(amount => `<div class="mb-1">${amount}</div>`).join('') + 
+        `</div>`;
+    }
+    if (key === 'image' && val) {
+      return `<div class="text-center"><img src="/storage/${val}" alt="Product Image" style="max-width:60px;max-height:60px;" /></div>`;
+    }
   return val ?? '';
 };
 

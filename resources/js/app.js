@@ -33,6 +33,7 @@ import TocaAmountPage from './components/TocaPolicy/TocaAmountPage.vue'
 import MainCategoryPage from './components/Category/MainCategoryPage.vue'
 import SubCategoryPage from './components/Category/SubCategoryPage.vue'
 import UnitOfMeasurePage from './components/UnitOfMeasure/UnitOfMeasurePage.vue'
+import ProductPage from './components/Product/ProductPage.vue'
 
 //Dashboard
 import Dashboard from './components/Dashboard.vue'
@@ -62,6 +63,7 @@ import Datatable from './components/Reusable/Datatable.vue'
  app.component('main-category-page', MainCategoryPage)
  app.component('sub-category-page', SubCategoryPage)
  app.component('unit-of-measure-page', UnitOfMeasurePage)
+ app.component('product-page', ProductPage)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)

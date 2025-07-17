@@ -27,6 +27,10 @@ use App\Models\SubCategory;
 use App\Policies\SubCategoryPolicy;
 use App\Models\UnitOfMeasure;
 use App\Policies\UnitOfMeasurePolicy;
+use App\Models\Product;
+use App\Policies\ProductPolicy;
+use App\Models\VariantAttribute;
+use App\Policies\ProductVariantAttributePolicy;
 
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -48,6 +52,8 @@ class AuthServiceProvider extends ServiceProvider
         MainCategory::class => MainCategoryPolicy::class,
         SubCategory::class => SubCategoryPolicy::class,
         UnitOfMeasure::class => UnitOfMeasurePolicy::class,
+        Product::class => ProductPolicy::class,
+        VariantAttribute::class => ProductVariantAttributePolicy::class,
     ];
 
     /**

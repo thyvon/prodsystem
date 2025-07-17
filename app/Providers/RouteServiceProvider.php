@@ -46,5 +46,7 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('mainCategory', \App\Models\MainCategory::class);
         Route::model('subCategory', \App\Models\SubCategory::class);
         Route::model('unitOfMeasure', \App\Models\UnitOfMeasure::class);
+        Route::model('product', \App\Models\Product::class);
+        Route::model('variantAttribute', \App\Models\VariantAttribute::class);
     }
 }
