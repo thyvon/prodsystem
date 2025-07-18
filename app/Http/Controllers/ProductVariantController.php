@@ -36,12 +36,10 @@ class ProductVariantController extends Controller
             $query->select('id', 'variant_attribute_id', 'value', 'is_active');
         }]);
 
-        // Handle search
         if ($search = $request->input('search')) {
             $query->where('name', 'like', "%{$search}%");
         }
 
-        // Handle sorting
         $allowedSortColumns = ['name', 'ordinal', 'is_active', 'created_at'];
         $sortColumn = $request->input('sortColumn', 'created_at');
         $sortDirection = strtolower($request->input('sortDirection', 'desc'));
@@ -49,7 +47,6 @@ class ProductVariantController extends Controller
         $sortDirection = in_array($sortDirection, ['asc', 'desc']) ? $sortDirection : 'desc';
         $query->orderBy($sortColumn, $sortDirection);
 
-        // Handle pagination
         $limit = max(1, (int) $request->input('limit', 10));
         $productVariantAttributes = $query->paginate($limit);
 
@@ -91,9 +88,9 @@ class ProductVariantController extends Controller
                 'required',
                 'string',
                 'max:255',
-                'unique:product_variant_attributes,name' . ($productVariantAttributeId ? ',' . $productVariantAttributeId : ''),
+                'unique:variant_attributes,name' . ($productVariantAttributeId ? ',' . $productVariantAttributeId : ''),
             ],
-            'ordinal' => ['required', 'integer', 'min:0'],
+            'ordinal' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['integer', 'in:0,1'],
             'values' => ['sometimes', 'array'],
             'values.*.value' => [
@@ -103,10 +100,16 @@ class ProductVariantController extends Controller
                 'distinct',
                 function ($attribute, $value, $fail) use ($productVariantAttributeId) {
                     $exists = VariantValue::where('value', $value)
-                        ->where('variant_attribute_id', '!=', $productVariantAttributeId)
+                        ->where('variant_attribute_id', $productVariantAttributeId ?? 0)
                         ->exists();
                     if ($exists) {
-                        $fail("The $attribute has already been taken.");
+                        $fail("The $attribute already exists for this attribute.");
+                    }
+                    $existsAcross = VariantValue::where('value', $value)
+                        ->where('variant_attribute_id', '!=', $productVariantAttributeId ?? 0)
+                        ->exists();
+                    if ($existsAcross) {
+                        $fail("The $attribute has already been taken by another attribute.");
                     }
                 },
             ],
@@ -123,21 +126,35 @@ class ProductVariantController extends Controller
     private function valueValidationRules(int $productVariantAttributeId): array
     {
         return [
-            'values' => ['required', 'array', 'min:1'],
-            'values.*.value' => [
-                'required',
-                'string',
-                'max:255',
-                'distinct',
-                function ($attribute, $value, $fail) use ($productVariantAttributeId) {
-                    $exists = VariantValue::where('value', $value)
-                        ->where('variant_attribute_id', '!=', $productVariantAttributeId)
-                        ->exists();
-                    if ($exists) {
-                        $fail("The $attribute has already been taken.");
-                    }
-                },
-            ],
+            'value' => ['sometimes', 'string', 'max:255', function ($attribute, $value, $fail) use ($productVariantAttributeId) {
+                $exists = VariantValue::where('value', $value)
+                    ->where('variant_attribute_id', $productVariantAttributeId)
+                    ->exists();
+                if ($exists) {
+                    $fail("The $attribute already exists for this attribute.");
+                }
+                $existsAcross = VariantValue::where('value', $value)
+                    ->where('variant_attribute_id', '!=', $productVariantAttributeId)
+                    ->exists();
+                if ($existsAcross) {
+                    $fail("The $attribute has already been taken by another attribute.");
+                }
+            }],
+            'values' => ['sometimes', 'array', 'min:1'],
+            'values.*.value' => ['required', 'string', 'max:255', function ($attribute, $value, $fail) use ($productVariantAttributeId) {
+                $exists = VariantValue::where('value', $value)
+                    ->where('variant_attribute_id', $productVariantAttributeId)
+                    ->exists();
+                if ($exists) {
+                    $fail("The $attribute already exists for this attribute.");
+                }
+                $existsAcross = VariantValue::where('value', $value)
+                    ->where('variant_attribute_id', '!=', $productVariantAttributeId)
+                    ->exists();
+                if ($existsAcross) {
+                    $fail("The $attribute has already been taken by another attribute.");
+                }
+            }],
             'values.*.is_active' => ['integer', 'in:0,1'],
         ];
     }
@@ -152,13 +169,20 @@ class ProductVariantController extends Controller
     {
         $this->authorize('create', VariantAttribute::class);
 
-        $validated = Validator::make($request->all(), $this->validationRules())->validate();
+        $validator = Validator::make($request->all(), $this->validationRules());
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+        $validated = $validator->validated();
 
         DB::beginTransaction();
         try {
             $productVariantAttribute = VariantAttribute::create([
                 'name' => $validated['name'],
-                'ordinal' => $validated['ordinal'],
+                'ordinal' => $validated['ordinal'] ?? VariantAttribute::max('ordinal') + 1,
                 'is_active' => $validated['is_active'] ?? 1,
             ]);
 
@@ -172,7 +196,7 @@ class ProductVariantController extends Controller
                         'updated_at' => now(),
                     ];
                 }, $validated['values']);
-             VariantValue::insert($values);
+                VariantValue::insert($values);
             }
 
             $productVariantAttribute->load(['values' => function ($query) {
@@ -249,13 +273,20 @@ class ProductVariantController extends Controller
     {
         $this->authorize('update', $productVariantAttribute);
 
-        $validated = Validator::make($request->all(), $this->validationRules($productVariantAttribute->id))->validate();
+        $validator = Validator::make($request->all(), $this->validationRules($productVariantAttribute->id));
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+        $validated = $validator->validated();
 
         DB::beginTransaction();
         try {
             $productVariantAttribute->update([
                 'name' => $validated['name'],
-                'ordinal' => $validated['ordinal'],
+                'ordinal' => $validated['ordinal'] ?? VariantAttribute::max('ordinal') + 1,
                 'is_active' => $validated['is_active'] ?? 1,
             ]);
 
@@ -329,20 +360,37 @@ class ProductVariantController extends Controller
     {
         $this->authorize('update', $productVariantAttribute);
 
-        $validated = Validator::make($request->all(), $this->valueValidationRules($productVariantAttribute->id))->validate();
+        $validator = Validator::make($request->all(), $this->valueValidationRules($productVariantAttribute->id));
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+        $validated = $validator->validated();
 
         DB::beginTransaction();
         try {
-            $values = array_map(function ($valueData) use ($productVariantAttribute) {
-                return [
+            if (isset($validated['value'])) {
+                VariantValue::create([
                     'variant_attribute_id' => $productVariantAttribute->id,
-                    'value' => $valueData['value'],
-                    'is_active' => $valueData['is_active'] ?? 1,
+                    'value' => $validated['value'],
+                    'is_active' => $request->input('is_active', 1),
                     'created_at' => now(),
                     'updated_at' => now(),
-                ];
-            }, $validated['values']);
-         VariantValue::insert($values);
+                ]);
+            } elseif (isset($validated['values'])) {
+                $values = array_map(function ($valueData) use ($productVariantAttribute) {
+                    return [
+                        'variant_attribute_id' => $productVariantAttribute->id,
+                        'value' => $valueData['value'],
+                        'is_active' => $valueData['is_active'] ?? 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }, $validated['values']);
+                VariantValue::insert($values);
+            }
 
             $productVariantAttribute->load(['values' => function ($query) {
                 $query->select('id', 'variant_attribute_id', 'value', 'is_active');
@@ -350,7 +398,7 @@ class ProductVariantController extends Controller
 
             DB::commit();
             return response()->json([
-                'message' => 'Values added to Product Variant Attribute successfully.',
+                'message' => 'Value(s) added to Product Variant Attribute successfully.',
                 'data' => [
                     'id' => $productVariantAttribute->id,
                     'name' => $productVariantAttribute->name,

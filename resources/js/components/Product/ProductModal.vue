@@ -1,4 +1,3 @@
-
 <template>
   <BaseModal
     v-model="showModal"
@@ -124,10 +123,17 @@
           </div>
         </div>
 
-        <!-- Attributes -->
+        <!-- Attribute Management -->
         <div v-if="form.has_variants" class="card border shadow-sm mb-4">
-          <div class="card-header py-2 bg-light">
-            <h6 class="mb-0 font-weight-bold">Attribute Selection</h6>
+          <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 font-weight-bold">Attribute Management</h6>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              @click="openNewAttributeModal"
+            >
+              Add New Attribute
+            </button>
           </div>
           <div class="card-body">
             <div v-if="isAttributesLoading" class="text-center">Loading attributes...</div>
@@ -135,8 +141,15 @@
             <div v-else class="row">
               <div v-for="attr in availableAttributes" :key="attr.id" class="col-6 col-md-4 col-lg-3 mb-3">
                 <div class="card border h-100">
-                  <div class="card-header py-2">
+                  <div class="card-header py-2 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 font-weight-bold">{{ attr.name || 'Unknown Attribute' }}</h6>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-secondary"
+                      @click="openAddValueModal(attr)"
+                    >
+                      Add Value
+                    </button>
                   </div>
                   <div class="card-body py-2 px-3">
                     <div v-if="!attr.values?.length">No values for this attribute.</div>
@@ -275,6 +288,100 @@
             </div>
           </div>
         </div>
+
+        <!-- New Attribute Modal -->
+        <BaseModal
+          v-model="showNewAttributeModal"
+          id="newAttributeModal"
+          title="Add New Attribute"
+          size="md"
+        >
+          <template #body>
+            <div class="form-group">
+              <label>Attribute Name</label>
+              <input
+                v-model="newAttribute.name"
+                type="text"
+                class="form-control"
+                placeholder="Enter attribute name"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Ordinal (optional)</label>
+              <input
+                v-model.number="newAttribute.ordinal"
+                type="number"
+                min="0"
+                class="form-control"
+                placeholder="Enter ordinal value"
+              />
+            </div>
+            <div class="form-group">
+              <label>Attribute Values (comma-separated)</label>
+              <textarea
+                v-model="newAttribute.values"
+                class="form-control"
+                rows="3"
+                placeholder="Enter values separated by commas (e.g., Small, Medium, Large)"
+              ></textarea>
+            </div>
+          </template>
+          <template #footer>
+            <button type="button" class="btn btn-secondary" @click="showNewAttributeModal = false">Cancel</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="isSubmittingAttribute || !newAttribute.name"
+              @click="createAttribute"
+            >
+              <span v-if="isSubmittingAttribute" class="spinner-border spinner-border-sm mr-1"></span>
+              Create Attribute
+            </button>
+          </template>
+        </BaseModal>
+
+        <!-- Add Value to Attribute Modal -->
+        <BaseModal
+          v-model="showAddValueModal"
+          id="addValueModal"
+          title="Add Value to Attribute"
+          size="md"
+        >
+          <template #body>
+            <div class="form-group">
+              <label>Attribute</label>
+              <input
+                type="text"
+                class="form-control"
+                :value="currentAttribute?.name || ''"
+                disabled
+              />
+            </div>
+            <div class="form-group">
+              <label>New Value</label>
+              <input
+                v-model="newValue"
+                type="text"
+                class="form-control"
+                placeholder="Enter new value"
+                required
+              />
+            </div>
+          </template>
+          <template #footer>
+            <button type="button" class="btn btn-secondary" @click="showAddValueModal = false">Cancel</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="isSubmittingAttribute || !newValue"
+              @click="addValueToAttribute"
+            >
+              <span v-if="isSubmittingAttribute" class="spinner-border spinner-border-sm mr-1"></span>
+              Add Value
+            </button>
+          </template>
+        </BaseModal>
       </form>
     </template>
 
@@ -311,6 +418,7 @@ const emit = defineEmits(['submitted'])
 const showModal = ref(false)
 const isSubmitting = ref(false)
 const isAttributesLoading = ref(false)
+const isSubmittingAttribute = ref(false)
 const skipCategoryWatcher = ref(false)
 const mainCategories = ref([])
 const subCategories = ref([])
@@ -318,6 +426,11 @@ const units = ref([])
 const availableAttributes = ref([])
 const selectedAttributes = ref({})
 const generatedVariants = ref([])
+const showNewAttributeModal = ref(false)
+const showAddValueModal = ref(false)
+const newAttribute = ref({ name: '', values: '', ordinal: null })
+const newValue = ref('')
+const currentAttribute = ref(null)
 
 const form = ref({
   id: null,
@@ -398,6 +511,9 @@ const resetForm = () => {
   }
   selectedAttributes.value = {}
   generatedVariants.value = [createEmptyVariant()]
+  newAttribute.value = { name: '', values: '', ordinal: null }
+  newValue.value = ''
+  currentAttribute.value = null
 }
 
 const createEmptyVariant = () => ({
@@ -414,7 +530,6 @@ const show = async (product = null) => {
   resetForm()
   await Promise.all([loadInitialData(), loadAttributes()])
 
-  // Initialize selectedAttributes after attributes are loaded
   availableAttributes.value.forEach(attr => {
     if (attr.values?.length && !selectedAttributes.value[attr.id]) {
       selectedAttributes.value[attr.id] = []
@@ -456,7 +571,7 @@ const show = async (product = null) => {
   }
 
   showModal.value = true
-  await initSelect2Dropdowns() // Initialize dropdowns after form is set
+  await initSelect2Dropdowns()
 }
 
 const hideModal = () => {
@@ -464,6 +579,71 @@ const hideModal = () => {
   ;[barcodeSelect, unitSelect, categorySelect, subCategorySelect].forEach(select => {
     destroySelect2(select.value)
   })
+}
+
+const openNewAttributeModal = () => {
+  newAttribute.value = { name: '', values: '', ordinal: null }
+  showNewAttributeModal.value = true
+}
+
+const openAddValueModal = (attr) => {
+  currentAttribute.value = attr
+  newValue.value = ''
+  showAddValueModal.value = true
+}
+
+const createAttribute = async () => {
+  if (isSubmittingAttribute.value) return
+  isSubmittingAttribute.value = true
+
+  try {
+    const values = newAttribute.value.values
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v)
+      .map(value => ({ value, is_active: 1 }))
+
+    await axios.post('/api/product-variant-attributes', {
+      name: newAttribute.value.name,
+      ordinal: newAttribute.value.ordinal,
+      values: values.length ? values : undefined,
+      is_active: 1,
+    })
+
+    await loadAttributes()
+    showNewAttributeModal.value = false
+    showAlert('Success', 'Attribute created successfully.', 'success')
+  } catch (error) {
+    const message = error.response?.status === 422
+      ? Object.values(error.response.data.errors).flat().join(', ')
+      : error.response?.data?.message || 'Failed to create attribute.'
+    showAlert('Error', message, 'danger')
+  } finally {
+    isSubmittingAttribute.value = false
+  }
+}
+
+const addValueToAttribute = async () => {
+  if (isSubmittingAttribute.value || !currentAttribute.value) return
+  isSubmittingAttribute.value = true
+
+  try {
+    await axios.post(`/api/product-variant-attributes/${currentAttribute.value.id}/values`, {
+      value: newValue.value.trim(),
+      is_active: 1,
+    })
+
+    await loadAttributes()
+    showAddValueModal.value = false
+    showAlert('Success', 'Attribute value added successfully.', 'success')
+  } catch (error) {
+    const message = error.response?.status === 422
+      ? Object.values(error.response.data.errors).flat().join(', ')
+      : error.response?.data?.message || 'Failed to add attribute value.'
+    showAlert('Error', message, 'danger')
+  } finally {
+    isSubmittingAttribute.value = false
+  }
 }
 
 const toggleAttribute = (attrId, valId) => {
@@ -606,7 +786,7 @@ const initSelect2Dropdowns = async () => {
 
   await nextTick()
   window.$(categorySelect.value).val(form.value.category_id || '').trigger('change')
-  await nextTick() // Wait for filteredSubCategories to update
+  await nextTick()
   const exists = filteredSubCategories.value.some(cat => cat.id == form.value.sub_category_id)
   window.$(subCategorySelect.value).val(exists ? form.value.sub_category_id : '').trigger('change')
 }
@@ -619,7 +799,6 @@ const submitForm = async () => {
     const url = props.isEditing ? `/api/products/${form.value.id}` : '/api/products'
     const formData = new FormData()
 
-    // Append product fields
     Object.entries(form.value).forEach(([key, value]) => {
       if (key === 'variants') return
       if (key === 'image' && value instanceof File) formData.append('image', value)
@@ -627,7 +806,6 @@ const submitForm = async () => {
       else if (value !== null && value !== undefined) formData.append(key, value)
     })
 
-    // Append variants
     generatedVariants.value.forEach((variant, idx) => {
       Object.entries(variant).forEach(([key, value]) => {
         if (key === 'image' && value instanceof File) {
@@ -652,8 +830,10 @@ const submitForm = async () => {
     hideModal()
     showAlert('Success', `Product ${props.isEditing ? 'updated' : 'created'} successfully.`, 'success')
   } catch (error) {
-    console.error('Submit error:', error)
-    showAlert('Error', error.response?.data?.message || 'Failed to save product.', 'danger')
+    const message = error.response?.status === 422
+      ? Object.values(error.response.data.errors).flat().join(', ')
+      : error.response?.data?.message || 'Failed to save product.'
+    showAlert('Error', message, 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -677,13 +857,11 @@ watch(
   async (newVal, oldVal) => {
     if (skipCategoryWatcher.value) return
 
-    // Only reset sub_category_id if the current value is invalid for the new category
     const validSubCats = subCategories.value.filter(cat => cat.main_category_id === Number(newVal)).map(cat => cat.id)
     if (!validSubCats.includes(form.value.sub_category_id)) {
       form.value.sub_category_id = null
     }
 
-    // Reinitialize subCategorySelect after filteredSubCategories updates
     await nextTick()
     destroySelect2(subCategorySelect.value)
     initSelect2(

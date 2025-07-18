@@ -4,7 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\Api\AuthController;
+// use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\UserController;
 
 use App\Models\Campus;
@@ -54,7 +54,7 @@ use App\Http\Controllers\ProductVariantController;
 |
 */
 
-Route::post('/login', [AuthController::class, 'login']);
+// Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -146,7 +146,8 @@ Route::middleware('auth')->group(function () {
 
     // Product Management - Products
     Route::get('/products', [ProductController::class, 'getProducts'])->middleware('can:viewAny,' . Product::class);
-    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product');
+    Route::middleware('auth:sanctum')->get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product');
+
     Route::post('/products', [ProductController::class, 'store'])->middleware('can:create,' . Product::class);
     Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product');

@@ -112,9 +112,8 @@
             </li>
 
             @php
-                $PurchasingActive = request()->is('products*') 
-                || request()->is('brands*')
-                || request()->is('categories*');
+                $PurchasingActive = request()->is('purchase-requests*')
+                || request()->is('purchase-orders*');
             @endphp
             <!-- <li class="nav-title">Purchasing</li> -->
             <li class="{{ $PurchasingActive ? 'active open' : '' }}">

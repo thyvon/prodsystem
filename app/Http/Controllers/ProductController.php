@@ -166,97 +166,87 @@ class ProductController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(Request $request)
-    {
-        $this->authorize('create', Product::class);
+public function store(Request $request)
+{
+    $this->authorize('create', Product::class);
 
-        $validated = $request->validate($this->validationRules());
+    $validated = $request->validate($this->validationRules());
 
-        DB::beginTransaction();
+    DB::beginTransaction();
 
-        try {
-            $imagePath = $this->handleImageUpload($request, 'image', 'products');
+    try {
+        $imagePath = $this->handleImageUpload($request, 'image', 'products');
 
-            $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode();
+        $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode();
 
-            $product = Product::create([
+        $product = Product::create([
+            'item_code' => $baseItemCode,
+            'name' => $validated['name'],
+            'khmer_name' => $validated['khmer_name'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'has_variants' => $validated['has_variants'] ?? false,
+            'barcode' => $validated['barcode'] ?? null,
+            'category_id' => $validated['category_id'],
+            'sub_category_id' => $validated['sub_category_id'] ?? null,
+            'unit_id' => $validated['unit_id'],
+            'manage_stock' => $validated['manage_stock'] ?? true,
+            'image' => $imagePath,
+            'is_active' => $validated['is_active'] ?? true,
+            'created_by' => auth()->id(),
+            'updated_by' => auth()->id(),
+        ]);
+
+        if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
+            // Product has variants, create each variant
+            foreach ($validated['variants'] as $index => $variant) {
+                $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
+                $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
+
+                $createdVariant = ProductVariant::create([
+                    'product_id' => $product->id,
+                    'item_code' => $variantItemCode,
+                    'estimated_price' => $variant['estimated_price'] ?? null,
+                    'average_price' => $variant['average_price'] ?? null,
+                    'description' => $variant['description'] ?? null,
+                    'image' => $variantImagePath,
+                    'is_active' => $variant['is_active'] ?? 1,
+                    'updated_by' => auth()->id(),
+                ]);
+
+                if (!empty($variant['variant_value_ids'])) {
+                    $createdVariant->values()->sync($variant['variant_value_ids']);
+                }
+            }
+        } else {
+            // No variants - create one default variant for the base product
+            ProductVariant::create([
+                'product_id' => $product->id,
                 'item_code' => $baseItemCode,
-                'name' => $validated['name'],
-                'khmer_name' => $validated['khmer_name'] ?? null,
+                'estimated_price' => $validated['estimated_price'] ?? null,
+                'average_price' => $validated['average_price'] ?? null,
                 'description' => $validated['description'] ?? null,
-                'has_variants' => $validated['has_variants'] ?? false,
-                'barcode' => $validated['barcode'] ?? null,
-                'category_id' => $validated['category_id'],
-                'sub_category_id' => $validated['sub_category_id'] ?? null,
-                'unit_id' => $validated['unit_id'],
-                'manage_stock' => $validated['manage_stock'] ?? true,
                 'image' => $imagePath,
-                'is_active' => $validated['is_active'] ?? true,
-                'created_by' => auth()->id(),
+                'is_active' => $validated['is_active'] ?? 1,
                 'updated_by' => auth()->id(),
             ]);
-
-            if ($validated['has_variants'] && !empty($validated['variants'])) {
-                $variantsData = [];
-                $variantValues = [];
-
-                foreach ($validated['variants'] as $index => $variant) {
-                    $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
-                    $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
-
-                    $variantsData[] = [
-                        'product_id' => $product->id,
-                        'item_code' => $variantItemCode,
-                        'estimated_price' => $variant['estimated_price'] ?? null,
-                        'average_price' => $variant['average_price'] ?? null,
-                        'description' => $variant['description'] ?? null,
-                        'image' => $variantImagePath,
-                        'is_active' => $variant['is_active'] ?? 1,
-                        'updated_by' => auth()->id(),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-
-                    foreach ($variant['variant_value_ids'] ?? [] as $valueId) {
-                        $variantValues[] = [
-                            'product_variant_id' => null, // Will be updated after insert
-                            'variant_value_id' => $valueId,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ];
-                    }
-                }
-
-                // Batch insert variants
-                ProductVariant::insert($variantsData);
-
-                // Update variant values with product_variant_id
-                $insertedVariants = $product->variants()->pluck('id')->toArray();
-                $variantIndex = 0;
-                foreach ($variantValues as &$value) {
-                    $value['product_variant_id'] = $insertedVariants[$variantIndex];
-                    if (!isset($validated['variants'][$variantIndex]['variant_value_ids'])) {
-                        $variantIndex++;
-                    }
-                }
-                DB::table('product_variant_value')->insert($variantValues);
-            }
-
-            DB::commit();
-
-            return response()->json(['message' => 'Product created successfully'], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error creating product', [
-                'error_message' => $e->getMessage(),
-                'product_id' => $product->id ?? null,
-            ]);
-            return response()->json([
-                'message' => 'Failed to create product',
-                'error' => $e->getMessage(),
-            ], 500);
         }
+
+        DB::commit();
+
+        return response()->json(['message' => 'Product created successfully'], 201);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error creating product', [
+            'error_message' => $e->getMessage(),
+            'product_id' => $product->id ?? null,
+        ]);
+        return response()->json([
+            'message' => 'Failed to create product',
+            'error' => $e->getMessage(),
+        ], 500);
     }
+}
+
 
     /**
      * Retrieve a product for editing.
