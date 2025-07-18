@@ -121,7 +121,7 @@
               </div>
             </div>
             <!-- Price Fields for Non-Variant Products -->
-            <div v-if="!form.has_variants" class="form-row">
+            <!-- <div v-if="!form.has_variants" class="form-row">
               <div class="form-group col-md-6">
                 <label>Estimated Price <span class="text-danger">*</span></label>
                 <input
@@ -146,7 +146,7 @@
                   placeholder="Enter average price"
                 />
               </div>
-            </div>
+            </div> -->
           </div>
         </div>
 
@@ -836,11 +836,11 @@ const submitForm = async () => {
 
   try {
     // Validate prices for non-variant products
-    if (!form.value.has_variants && (form.value.estimated_price === null || form.value.average_price === null)) {
-      showAlert('Error', 'Estimated Price and Average Price are required for non-variant products.', 'danger')
-      isSubmitting.value = false
-      return
-    }
+    // if (!form.value.has_variants && (form.value.estimated_price === null || form.value.average_price === null)) {
+    //   showAlert('Error', 'Estimated Price and Average Price are required for non-variant products.', 'danger')
+    //   isSubmitting.value = false
+    //   return
+    // }
 
     // Validate variant prices
     if (form.value.has_variants) {
