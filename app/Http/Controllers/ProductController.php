@@ -40,7 +40,7 @@ class ProductController extends Controller
      */
     private function validationRules($productId = null, $variantIds = [])
     {
-        $existingVariantCodes = ProductVariant::pluck('item_code')->toArray(); // Cache item codes
+        $existingVariantCodes = ProductVariant::pluck('item_code')->toArray();
         return [
             'item_code' => [
                 'nullable',
@@ -73,8 +73,8 @@ class ProductController extends Controller
                     }
                 }
             ],
-            'variants.*.estimated_price' => 'nullable|numeric|min:0',
-            'variants.*.average_price' => 'nullable|numeric|min:0',
+            'variants.*.estimated_price' => 'required|numeric|min:0', // Made required
+            'variants.*.average_price' => 'required|numeric|min:0',   // Made required
             'variants.*.description' => 'nullable|string',
             'variants.*.image' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
             'variants.*.variant_value_ids' => 'array',
@@ -93,7 +93,6 @@ class ProductController extends Controller
     {
         $this->authorize('viewAny', Product::class);
 
-        // Validate request parameters
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string|in:name,khmer_name,description,created_at,updated_at',
@@ -102,19 +101,16 @@ class ProductController extends Controller
             'draw' => 'nullable|integer',
         ]);
 
-        // Build query with relationships
         $query = Product::with(['category', 'subCategory', 'unit', 'updatedBy', 'deletedBy']);
 
-        // Apply search filter
         if ($search = $validated['search'] ?? $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                ->orWhere('khmer_name', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+                  ->orWhere('khmer_name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
-        // Apply sorting
         $allowedSortColumns = ['name', 'khmer_name', 'description', 'created_at', 'updated_at'];
         $sortColumn = $validated['sortColumn'] ?? $request->input('sortColumn', 'created_at');
         $sortDirection = $validated['sortDirection'] ?? $request->input('sortDirection', 'desc');
@@ -124,16 +120,14 @@ class ProductController extends Controller
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        // Apply pagination
         $limit = max(1, min(100, (int) ($validated['limit'] ?? $request->input('limit', 10))));
         $products = $query->paginate($limit);
 
-        // Map products to desired format
         $data = $products->getCollection()->map(function (Product $product) {
             return [
                 'id' => $product->id,
                 'name' => $product->name,
-                'khmer_name' => $product->khmer_name, // Corrected from $product->name
+                'khmer_name' => $product->khmer_name,
                 'description' => $product->description,
                 'image' => $product->image,
                 'has_variants' => (bool) $product->has_variants,
@@ -151,11 +145,10 @@ class ProductController extends Controller
             ];
         });
 
-        // Return JSON response with mapped data
         return response()->json([
-            'data' => $data->all(), // Use mapped data instead of $products->items()
+            'data' => $data->all(),
             'recordsTotal' => $products->total(),
-            'recordsFiltered' => $products->total(), // Same as total since search is applied
+            'recordsFiltered' => $products->total(),
             'draw' => (int) ($validated['draw'] ?? $request->input('draw', 1)),
         ]);
     }
@@ -166,87 +159,87 @@ class ProductController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-public function store(Request $request)
-{
-    $this->authorize('create', Product::class);
+    public function store(Request $request)
+    {
+        $this->authorize('create', Product::class);
 
-    $validated = $request->validate($this->validationRules());
+        $validated = $request->validate($this->validationRules());
 
-    DB::beginTransaction();
+        DB::beginTransaction();
 
-    try {
-        $imagePath = $this->handleImageUpload($request, 'image', 'products');
+        try {
+            $imagePath = $this->handleImageUpload($request, 'image', 'products');
 
-        $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode();
+            $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode();
 
-        $product = Product::create([
-            'item_code' => $baseItemCode,
-            'name' => $validated['name'],
-            'khmer_name' => $validated['khmer_name'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'has_variants' => $validated['has_variants'] ?? false,
-            'barcode' => $validated['barcode'] ?? null,
-            'category_id' => $validated['category_id'],
-            'sub_category_id' => $validated['sub_category_id'] ?? null,
-            'unit_id' => $validated['unit_id'],
-            'manage_stock' => $validated['manage_stock'] ?? true,
-            'image' => $imagePath,
-            'is_active' => $validated['is_active'] ?? true,
-            'created_by' => auth()->id(),
-            'updated_by' => auth()->id(),
-        ]);
-
-        if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
-            // Product has variants, create each variant
-            foreach ($validated['variants'] as $index => $variant) {
-                $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
-                $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
-
-                $createdVariant = ProductVariant::create([
-                    'product_id' => $product->id,
-                    'item_code' => $variantItemCode,
-                    'estimated_price' => $variant['estimated_price'] ?? null,
-                    'average_price' => $variant['average_price'] ?? null,
-                    'description' => $variant['description'] ?? null,
-                    'image' => $variantImagePath,
-                    'is_active' => $variant['is_active'] ?? 1,
-                    'updated_by' => auth()->id(),
-                ]);
-
-                if (!empty($variant['variant_value_ids'])) {
-                    $createdVariant->values()->sync($variant['variant_value_ids']);
-                }
-            }
-        } else {
-            // No variants - create one default variant for the base product
-            ProductVariant::create([
-                'product_id' => $product->id,
+            $product = Product::create([
                 'item_code' => $baseItemCode,
-                'estimated_price' => $validated['estimated_price'] ?? null,
-                'average_price' => $validated['average_price'] ?? null,
+                'name' => $validated['name'],
+                'khmer_name' => $validated['khmer_name'] ?? null,
                 'description' => $validated['description'] ?? null,
+                'has_variants' => $validated['has_variants'] ?? false,
+                'barcode' => $validated['barcode'] ?? null,
+                'category_id' => $validated['category_id'],
+                'sub_category_id' => $validated['sub_category_id'] ?? null,
+                'unit_id' => $validated['unit_id'],
+                'manage_stock' => $validated['manage_stock'] ?? true,
                 'image' => $imagePath,
-                'is_active' => $validated['is_active'] ?? 1,
+                'is_active' => $validated['is_active'] ?? true,
+                'created_by' => auth()->id(),
                 'updated_by' => auth()->id(),
             ]);
+
+            if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
+                // Product has variants, create each variant
+                foreach ($validated['variants'] as $index => $variant) {
+                    $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
+                    $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
+
+                    $createdVariant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'item_code' => $variantItemCode,
+                        'estimated_price' => $variant['estimated_price'],
+                        'average_price' => $variant['average_price'],
+                        'description' => $variant['description'] ?? null,
+                        'image' => $variantImagePath,
+                        'is_active' => $variant['is_active'] ?? 1,
+                        'updated_by' => auth()->id(),
+                    ]);
+
+                    if (!empty($variant['variant_value_ids'])) {
+                        $createdVariant->values()->sync($variant['variant_value_ids']);
+                    }
+                }
+            } else {
+                // No variants - create one default variant
+                $variantData = $validated['variants'][0] ?? [];
+                ProductVariant::create([
+                    'product_id' => $product->id,
+                    'item_code' => $baseItemCode,
+                    'estimated_price' => $variantData['estimated_price'] ?? null,
+                    'average_price' => $variantData['average_price'] ?? null,
+                    'description' => $variantData['description'] ?? $validated['description'] ?? null,
+                    'image' => $imagePath,
+                    'is_active' => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
+                    'updated_by' => auth()->id(),
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json(['message' => 'Product created successfully'], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating product', [
+                'error_message' => $e->getMessage(),
+                'product_id' => $product->id ?? null,
+            ]);
+            return response()->json([
+                'message' => 'Failed to create product',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-
-        DB::commit();
-
-        return response()->json(['message' => 'Product created successfully'], 201);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Error creating product', [
-            'error_message' => $e->getMessage(),
-            'product_id' => $product->id ?? null,
-        ]);
-        return response()->json([
-            'message' => 'Failed to create product',
-            'error' => $e->getMessage(),
-        ], 500);
     }
-}
-
 
     /**
      * Retrieve a product for editing.
@@ -302,10 +295,8 @@ public function store(Request $request)
         DB::beginTransaction();
 
         try {
-            // Handle image: preserve existing image unless a new one is uploaded or removal is requested
             $imagePath = $product->image;
             if ($request->has('remove_image') && $request->input('remove_image') === true) {
-                // Optionally allow removing the image
                 if ($product->image) {
                     Storage::disk('public')->delete($product->image);
                 }
@@ -330,7 +321,74 @@ public function store(Request $request)
                 'updated_by' => auth()->id(),
             ]);
 
-            // ... rest of the method remains unchanged ...
+            if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
+                // Update or create variants
+                $existingVariantIds = $product->variants->pluck('id')->toArray();
+                $updatedVariantIds = array_filter(array_column($validated['variants'], 'id'));
+
+                // Delete variants not in the updated list
+                ProductVariant::where('product_id', $product->id)
+                    ->whereNotIn('id', $updatedVariantIds)
+                    ->each(function ($variant) {
+                        if ($variant->image) {
+                            Storage::disk('public')->delete($variant->image);
+                        }
+                        $variant->values()->detach();
+                        $variant->delete();
+                    });
+
+                // Update or create variants
+                foreach ($validated['variants'] as $index => $variant) {
+                    $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants', $variant['id'] ? ProductVariant::find($variant['id'])->image : null);
+                    $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($product->item_code, $index + 1);
+
+                    $variantData = [
+                        'product_id' => $product->id,
+                        'item_code' => $variantItemCode,
+                        'estimated_price' => $variant['estimated_price'],
+                        'average_price' => $variant['average_price'],
+                        'description' => $variant['description'] ?? null,
+                        'image' => $variantImagePath,
+                        'is_active' => $variant['is_active'] ?? 1,
+                        'updated_by' => auth()->id(),
+                    ];
+
+                    $createdVariant = $variant['id']
+                        ? ProductVariant::find($variant['id'])->update($variantData)
+                        : ProductVariant::create($variantData);
+
+                    if ($variant['id']) {
+                        $createdVariant = ProductVariant::find($variant['id']);
+                    } else {
+                        $createdVariant = ProductVariant::where('product_id', $product->id)
+                            ->where('item_code', $variantItemCode)
+                            ->first();
+                    }
+
+                    if (!empty($variant['variant_value_ids'])) {
+                        $createdVariant->values()->sync($variant['variant_value_ids']);
+                    } else {
+                        $createdVariant->values()->detach();
+                    }
+                }
+            } else {
+                // No variants - update or create default variant
+                $variantData = $validated['variants'][0] ?? [];
+                $variant = $product->variants->first() ?? ProductVariant::create([
+                    'product_id' => $product->id,
+                    'item_code' => $product->item_code,
+                    'updated_by' => auth()->id(),
+                ]);
+
+                $variant->update([
+                    'estimated_price' => $variantData['estimated_price'] ?? null,
+                    'average_price' => $variantData['average_price'] ?? null,
+                    'description' => $variantData['description'] ?? $validated['description'] ?? null,
+                    'image' => $imagePath,
+                    'is_active' => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
+                    'updated_by' => auth()->id(),
+                ]);
+            }
 
             DB::commit();
 
@@ -548,9 +606,8 @@ public function store(Request $request)
             }
             return $request->file($field)->store($path, 'public');
         }
-        return $existingImage; // Preserve existing image if no new file is uploaded
+        return $existingImage;
     }
-
     /**
      * Generate a unique item code for a product.
      *

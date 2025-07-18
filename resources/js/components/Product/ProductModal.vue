@@ -15,7 +15,7 @@
           <div class="card-body">
             <div class="form-row">
               <div class="form-group col-md-6">
-                <label>Name</label>
+                <label>Name <span class="text-danger">*</span></label>
                 <input v-model="form.name" type="text" class="form-control" required />
               </div>
               <div class="form-group col-md-6">
@@ -37,14 +37,14 @@
                 </select>
               </div>
               <div class="form-group col-md-3">
-                <label>Unit</label>
+                <label>Unit <span class="text-danger">*</span></label>
                 <select ref="unitSelect" v-model="form.unit_id" class="form-control" required>
                   <option value="">Select Unit</option>
                   <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
                 </select>
               </div>
               <div class="form-group col-md-3">
-                <label>Main Category</label>
+                <label>Main Category <span class="text-danger">*</span></label>
                 <select ref="categorySelect" v-model="form.category_id" class="form-control" required>
                   <option value="">Select Main Category</option>
                   <option v-for="cat in mainCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
@@ -120,6 +120,33 @@
                 />
               </div>
             </div>
+            <!-- Price Fields for Non-Variant Products -->
+            <div v-if="!form.has_variants" class="form-row">
+              <div class="form-group col-md-6">
+                <label>Estimated Price <span class="text-danger">*</span></label>
+                <input
+                  v-model.number="form.estimated_price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="form-control"
+                  required
+                  placeholder="Enter estimated price"
+                />
+              </div>
+              <div class="form-group col-md-6">
+                <label>Average Price <span class="text-danger">*</span></label>
+                <input
+                  v-model.number="form.average_price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="form-control"
+                  required
+                  placeholder="Enter average price"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -186,8 +213,8 @@
                   <tr>
                     <th style="min-width: 160px;">Variant Description</th>
                     <th style="min-width: 100px;">Item Code</th>
-                    <th style="min-width: 100px;">Estimated Price</th>
-                    <th style="min-width: 100px;">Average Price</th>
+                    <th style="min-width: 100px;">Estimated Price <span class="text-danger">*</span></th>
+                    <th style="min-width: 100px;">Average Price <span class="text-danger">*</span></th>
                     <th style="min-width: 160px;">Description</th>
                     <th style="min-width: 120px;">Image</th>
                     <th style="min-width: 70px;">Active</th>
@@ -210,18 +237,22 @@
                       <input
                         v-model.number="variant.estimated_price"
                         type="number"
-                        step="0.0001"
+                        step="0.01"
+                        min="0"
                         class="form-control form-control-sm"
                         placeholder="Estimated Price"
+                        required
                       />
                     </td>
                     <td>
                       <input
                         v-model.number="variant.average_price"
                         type="number"
-                        step="0.0001"
+                        step="0.01"
+                        min="0"
                         class="form-control form-control-sm"
                         placeholder="Average Price"
+                        required
                       />
                     </td>
                     <td>
@@ -298,7 +329,7 @@
         >
           <template #body>
             <div class="form-group">
-              <label>Attribute Name</label>
+              <label>Attribute Name <span class="text-danger">*</span></label>
               <input
                 v-model="newAttribute.name"
                 type="text"
@@ -359,7 +390,7 @@
               />
             </div>
             <div class="form-group">
-              <label>New Value</label>
+              <label>New Value <span class="text-danger">*</span></label>
               <input
                 v-model="newValue"
                 type="text"
@@ -446,6 +477,8 @@ const form = ref({
   image: null,
   is_active: true,
   has_variants: false,
+  estimated_price: null,
+  average_price: null,
   variants: [],
 })
 
@@ -507,6 +540,8 @@ const resetForm = () => {
     image: null,
     is_active: true,
     has_variants: false,
+    estimated_price: null,
+    average_price: null,
     variants: [],
   }
   selectedAttributes.value = {}
@@ -551,13 +586,15 @@ const show = async (product = null) => {
       image: product.image || null,
       is_active: !!product.is_active,
       has_variants: !!product.has_variants,
+      estimated_price: product.variants?.[0]?.estimated_price || null,
+      average_price: product.variants?.[0]?.average_price || null,
       variants: Array.isArray(product.variants)
         ? product.variants.filter(v => v && typeof v === 'object' && Array.isArray(v.values)).map(v => ({
             id: v.id,
             description: v.description || '',
             item_code: v.item_code || '',
-            estimated_price: v.estimated_price || null,
-            average_price: v.average_price || null,
+            estimated_price: v.estimated_price ?? null,
+            average_price: v.average_price ?? null,
             image: v.image || null,
             is_active: Number(v.is_active ?? 1),
             values: v.values || [],
@@ -730,8 +767,12 @@ const generateVariants = () => {
           id: existing?.id,
           description: desc,
           item_code: userInput?.item_code ?? existing?.item_code ?? '',
-          estimated_price: isNewCombo ? null : (userInput?.estimated_price ?? existing?.estimated_price ?? defaultVariant?.estimated_price ?? lastUserInput?.estimated_price ?? null),
-          average_price: isNewCombo ? null : (userInput?.average_price ?? existing?.average_price ?? defaultVariant?.average_price ?? lastUserInput?.average_price ?? null),
+          estimated_price: isNewCombo
+            ? null
+            : (userInput?.estimated_price ?? existing?.estimated_price ?? form.value.estimated_price ?? null),
+          average_price: isNewCombo
+            ? null
+            : (userInput?.average_price ?? existing?.average_price ?? form.value.average_price ?? null),
           image: isNewCombo ? null : (userInput?.image ?? existing?.image ?? defaultVariant?.image ?? lastUserInput?.image ?? null),
           is_active: Number(userInput?.is_active ?? existing?.is_active ?? defaultVariant?.is_active ?? lastUserInput?.is_active ?? 1),
           variant_value_ids: valIds,
@@ -739,18 +780,16 @@ const generateVariants = () => {
       })
     : (form.value.has_variants
         ? [createEmptyVariant()]
-        : validVariants.length
-          ? validVariants.map(v => ({
-              id: v.id,
-              description: v.description || '',
-              item_code: v.item_code || '',
-              estimated_price: v.estimated_price || null,
-              average_price: v.average_price || null,
-              image: v.image || null,
-              is_active: Number(v.is_active ?? 1),
-              variant_value_ids: v.values.map(val => val.id) || [],
-            }))
-          : [createEmptyVariant()])
+        : [{
+            id: defaultVariant?.id,
+            description: form.value.description || '',
+            item_code: form.value.item_code || '',
+            estimated_price: form.value.estimated_price ?? defaultVariant?.estimated_price ?? null,
+            average_price: form.value.average_price ?? defaultVariant?.average_price ?? null,
+            image: form.value.image || defaultVariant?.image || null,
+            is_active: Number(form.value.is_active ?? defaultVariant?.is_active ?? 1),
+            variant_value_ids: [],
+          }])
 }
 
 const removeVariant = (index) => {
@@ -796,16 +835,40 @@ const submitForm = async () => {
   isSubmitting.value = true
 
   try {
+    // Validate prices for non-variant products
+    if (!form.value.has_variants && (form.value.estimated_price === null || form.value.average_price === null)) {
+      showAlert('Error', 'Estimated Price and Average Price are required for non-variant products.', 'danger')
+      isSubmitting.value = false
+      return
+    }
+
+    // Validate variant prices
+    if (form.value.has_variants) {
+      for (const [index, variant] of generatedVariants.value.entries()) {
+        if (variant.estimated_price === null || variant.average_price === null) {
+          showAlert('Error', `Estimated Price and Average Price are required for variant ${index + 1}.`, 'danger')
+          isSubmitting.value = false
+          return
+        }
+      }
+    }
+
     const url = props.isEditing ? `/api/products/${form.value.id}` : '/api/products'
     const formData = new FormData()
 
+    // Append main form fields
     Object.entries(form.value).forEach(([key, value]) => {
       if (key === 'variants') return
-      if (key === 'image' && value instanceof File) formData.append('image', value)
-      else if (typeof value === 'boolean') formData.append(key, value ? '1' : '0')
-      else if (value !== null && value !== undefined) formData.append(key, value)
+      if (key === 'image' && value instanceof File) {
+        formData.append('image', value)
+      } else if (typeof value === 'boolean') {
+        formData.append(key, value ? '1' : '0')
+      } else if (value !== null && value !== undefined) {
+        formData.append(key, value)
+      }
     })
 
+    // Append variants
     generatedVariants.value.forEach((variant, idx) => {
       Object.entries(variant).forEach(([key, value]) => {
         if (key === 'image' && value instanceof File) {
@@ -841,7 +904,20 @@ const submitForm = async () => {
 
 // Watchers
 watch(() => form.value.has_variants, (hasVariants) => {
-  generateVariants()
+  if (!hasVariants) {
+    // Ensure a single variant with root-level prices for non-variant products
+    generatedVariants.value = [{
+      description: form.value.description || '',
+      item_code: form.value.item_code || '',
+      estimated_price: form.value.estimated_price ?? null,
+      average_price: form.value.average_price ?? null,
+      image: form.value.image || null,
+      is_active: Number(form.value.is_active ?? 1),
+      variant_value_ids: [],
+    }]
+  } else {
+    generateVariants()
+  }
 })
 
 watch(
