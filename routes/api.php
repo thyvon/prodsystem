@@ -42,6 +42,14 @@ use App\Models\VariantAttribute;
 use App\Models\VariantValue;
 use App\Http\Controllers\ProductVariantController;
 
+// Inventory Management
+use App\Models\Warehouse;
+use App\Http\Controllers\WarehouseController;
+
+use App\Models\StockBeginning;
+use App\Models\MainStockBeginning;
+use App\Http\Controllers\StockBeginningController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -147,10 +155,10 @@ Route::middleware('auth')->group(function () {
     // Product Management - Products
     Route::get('/products', [ProductController::class, 'getProducts'])->middleware('can:viewAny,' . Product::class);
     Route::middleware('auth:sanctum')->get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product');
-
     Route::post('/products', [ProductController::class, 'store'])->middleware('can:create,' . Product::class);
     Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product');
+    Route::get('/product-variants-stock', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
 
     // Product Management - Trashed
     Route::get('/products/trashed', [ProductController::class, 'trashed'])->middleware('can:viewAny,' . Product::class);
@@ -165,4 +173,28 @@ Route::middleware('auth')->group(function () {
     Route::delete('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'destroy']);
     Route::post('/product-variant-attributes/{productVariantAttribute}/values', [ProductVariantController::class, 'addValues']);
     Route::get('/attributes-values', [ProductVariantController::class, 'getAttributesWithValues']);
+
+    // Inventory Management - Warehouses
+    Route::get('/warehouses', [WarehouseController::class, 'getWarehouses'])->middleware('can:viewAny,' . Warehouse::class);
+    Route::get('/warehouses/{warehouse}/edit', [WarehouseController::class, 'edit'])->middleware('can:update,warehouse');
+    Route::post('/warehouses', [WarehouseController::class, 'store'])->middleware('can:create,' . Warehouse::class);
+    Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->middleware('can:update,warehouse');
+    Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('can:delete,warehouse');
+    Route::get('/warehouses/trashed', [WarehouseController::class, 'trashed'])->middleware('can:viewAny,' . Warehouse::class);
+    Route::post('/warehouses/{warehouse}/restore', [WarehouseController::class, 'restore'])->middleware('can:restore,warehouse');
+    Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
+
+    // Inventory Items
+    Route::get('/inventory/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
+
+    // Stock Beginning
+    Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class);
+    Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class);
+    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning');
+    Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning');
+    Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning');
+    Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class);
+    Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning');
+    Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning');
+
 });

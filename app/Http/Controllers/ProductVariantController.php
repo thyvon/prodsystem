@@ -19,7 +19,7 @@ class ProductVariantController extends Controller
     public function index()
     {
         $this->authorize('viewAny', VariantAttribute::class);
-        return view('Products.Variant.index');
+        return view('Products.Attributes.index');
     }
 
     /**
@@ -93,18 +93,24 @@ class ProductVariantController extends Controller
             'ordinal' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['integer', 'in:0,1'],
             'values' => ['sometimes', 'array'],
+            'values.*.id' => ['sometimes', 'integer', 'exists:variant_values,id'],
             'values.*.value' => [
                 'required',
                 'string',
                 'max:255',
                 'distinct',
                 function ($attribute, $value, $fail) use ($productVariantAttributeId) {
-                    $exists = VariantValue::where('value', $value)
-                        ->where('variant_attribute_id', $productVariantAttributeId ?? 0)
-                        ->exists();
-                    if ($exists) {
+                    // Skip duplicate check for existing values of the same attribute
+                    $valueId = request()->input(str_replace('.value', '.id', $attribute));
+                    $query = VariantValue::where('value', $value)
+                        ->where('variant_attribute_id', $productVariantAttributeId ?? 0);
+                    if ($valueId) {
+                        $query->where('id', '!=', $valueId);
+                    }
+                    if ($query->exists()) {
                         $fail("The $attribute already exists for this attribute.");
                     }
+                    // Check for duplicates across other attributes
                     $existsAcross = VariantValue::where('value', $value)
                         ->where('variant_attribute_id', '!=', $productVariantAttributeId ?? 0)
                         ->exists();
@@ -249,7 +255,7 @@ class ProductVariantController extends Controller
                 'id' => $productVariantAttribute->id,
                 'name' => $productVariantAttribute->name,
                 'ordinal' => $productVariantAttribute->ordinal,
-                'is_active' => (bool) $productVariantAttribute->is_active,
+                'is_active' => (int) $productVariantAttribute->is_active,
                 'created_at' => $productVariantAttribute->created_at?->toDateTimeString(),
                 'values' => $productVariantAttribute->values->map(function ($value) {
                     return [

@@ -43,6 +43,14 @@ use App\Models\VariantAttribute;
 use App\Models\VariantValue;
 use App\Http\Controllers\ProductVariantController;
 
+// Inventory Management
+use App\Http\Controllers\WarehouseController;
+use App\Models\Warehouse;
+
+use App\Http\Controllers\StockBeginningController;
+use App\Models\MainStockBeginning;
+use App\Models\StockBeginning;
+
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -115,9 +123,24 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products', [ProductController::class, 'index'])
         ->name('products.index')->middleware('can:viewAny,' . Product::class);
 
-    Route::get('/product-variant-attributes', [ProductVariantController::class, 'index'])
-        ->name('productVariantAttributes.index')
-        ->middleware('can:viewAny,' . ProductVariantAttribute::class);
+   Route::get('/product-variant-attributes', [ProductVariantController::class, 'index'])
+        ->name('productVariantAttributes.index')->middleware('can:viewAny,' . VariantAttribute::class);
+
+    // Inventory Management - Warehouses
+    Route::get('/warehouses', [WarehouseController::class, 'index'])
+        ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
+
+    // Inventory Items
+    Route::get('/inventory/items', [ProductController::class, 'inventoryItemsIndex'])
+        ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);
+
+    // Stock Beginnings
+    Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
+        ->name('stockBeginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
+    Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
+        ->name('stockBeginnings.create')->middleware('can:create,' . MainStockBeginning::class);
+    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
+        ->name('stockBeginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
 
 });
 require __DIR__.'/auth.php';

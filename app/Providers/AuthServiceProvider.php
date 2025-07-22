@@ -32,6 +32,13 @@ use App\Policies\ProductPolicy;
 use App\Models\VariantAttribute;
 use App\Policies\ProductVariantAttributePolicy;
 
+//Inventory Management
+use App\Models\Warehouse;
+use App\Policies\WarehousePolicy;
+
+use App\Models\MainStockBeginning;
+use App\Policies\MainStockBeginningPolicy;
+
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -54,6 +61,8 @@ class AuthServiceProvider extends ServiceProvider
         UnitOfMeasure::class => UnitOfMeasurePolicy::class,
         Product::class => ProductPolicy::class,
         VariantAttribute::class => ProductVariantAttributePolicy::class,
+        Warehouse::class => WarehousePolicy::class,
+        MainStockBeginning::class => MainStockBeginningPolicy::class,
     ];
 
     /**

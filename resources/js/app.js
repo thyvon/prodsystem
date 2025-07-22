@@ -1,6 +1,9 @@
 import './bootstrap'
 import { createApp } from 'vue'
 import axios from 'axios'
+import { ZiggyVue } from 'ziggy-js';
+import { route } from 'ziggy-js';
+import {Ziggy} from './ziggy.js';
 // import 'bootstrap/dist/css/bootstrap.min.css';  // Import Bootstrap 5 CSS
 // import 'bootstrap';  // Import Bootstrap 5 JS
 
@@ -18,6 +21,7 @@ if (token) {
 
 // Expose Axios globally for Blade scripts
 window.axios = axios
+window.route = route;
 
 // Vue Components
 
@@ -34,6 +38,13 @@ import MainCategoryPage from './components/Category/MainCategoryPage.vue'
 import SubCategoryPage from './components/Category/SubCategoryPage.vue'
 import UnitOfMeasurePage from './components/UnitOfMeasure/UnitOfMeasurePage.vue'
 import ProductPage from './components/Product/ProductPage.vue'
+import AttributeList from './components/Product/Attribute/AttributeList.vue'
+
+//Inventory Management
+import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
+import InventoryItemList from './components/Inventory/Items/ItemList.vue'
+import StockBeginningCreate from './components/Inventory/StockBeginning/Create.vue'
+import StockBeginningList from './components/Inventory/StockBeginning/StockBeginningList.vue'
 
 //Dashboard
 import Dashboard from './components/Dashboard.vue'
@@ -51,6 +62,11 @@ import Datatable from './components/Reusable/Datatable.vue'
 
 // Register global components
 
+
+app.use(ZiggyVue, {
+  Ziggy,
+  ZiggyRoute: route,
+});
 //Setting Up
  app.component('campus-page', Campus)
  app.component('building-page', BuildingPage)
@@ -64,6 +80,13 @@ import Datatable from './components/Reusable/Datatable.vue'
  app.component('sub-category-page', SubCategoryPage)
  app.component('unit-of-measure-page', UnitOfMeasurePage)
  app.component('product-page', ProductPage)
+ app.component('attribute-list', AttributeList)
+
+ //Inventory Management
+ app.component('warehouse-page', WarehousePage)
+ app.component('inventory-item-page', InventoryItemList)
+ app.component('stock-beginning-create', StockBeginningCreate)
+ app.component('stock-beginning-list', StockBeginningList)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)

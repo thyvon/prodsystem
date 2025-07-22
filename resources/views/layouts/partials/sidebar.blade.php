@@ -58,7 +58,8 @@
                 $productActive = request()->is('products*') || 
                 request()->is('sub-categories*') || 
                 request()->is('main-categories*') || 
-                request()->is('unit-of-measures*');
+                request()->is('unit-of-measures*') ||
+                request()->is('product-variant-attributes*');
             @endphp
             <li class="{{ $productActive ? 'active open' : '' }}">
                 <a href="#" title="Product" data-filter-tags="product">
@@ -85,6 +86,11 @@
                         <a href="{{ url('unit-of-measures') }}" title="Unit of Measures" data-filter-tags="unit of measures">
                             <span class="nav-link-text">Unit of Measures</span>
                         </a>
+                    </li>
+                    <li class="{{ request()->is('product-variant-attributes*') ? 'active' : '' }}">
+                        <a href="{{ url('product-variant-attributes') }}" title="Product Variant Attributes" data-filter-tags="product variant attributes">
+                            <span class="nav-link-text">Product Attributes</span>
+                        </a>    
                     </li>
                 </ul>
             </li>
@@ -158,7 +164,7 @@
             </li>
 
             @php
-                $inventoryActive = request()->is('inventory*') || request()->is('stock*');
+                $inventoryActive = request()->is('warehouses*') || request()->is('inventory/items*') || request()->is('stock-beginnings*');
             @endphp
             <li class="nav-title">Inventory</li>
             <li class="{{ $inventoryActive ? 'active open' : '' }}">
@@ -167,14 +173,19 @@
                     <span class="nav-link-text">Inventory</span>
                 </a>
                 <ul>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                    <li class="{{ request()->is('warehouses') ? 'active' : '' }}">
+                        <a href="{{ url('warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
                             <span class="nav-link-text">Warehouse</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
-                            <span class="nav-link-text">Inventory List</span>
+                    <li class="{{ request()->is('inventory/items') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/items') }}" title="Inventory List" data-filter-tags="inventory list">
+                            <span class="nav-link-text">Item List</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('stock-beginnings') ? 'active' : '' }}">
+                        <a href="{{ url('stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
+                            <span class="nav-link-text">Stock Beginning</span>
                         </a>
                     </li>
                     <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
@@ -192,14 +203,31 @@
                             <span class="nav-link-text">Stock Issue</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                    <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">
+                        <a href="#" title="TOCA Policies" data-filter-tags="toca policies">
                             <span class="nav-link-text">Stock Transfer</span>
                         </a>
+                        <ul>
+                            <li class="{{ request()->is('toca-policies') ? 'active' : '' }}">
+                                <a href="{{ url('toca-policies') }}" title="TOCA Policies List" data-filter-tags="toca policies list">
+                                    <span class="nav-link-text">Transfer In</span>
+                                </a>
+                            </li>
+                            <li class="{{ request()->is('toca-amounts') ? 'active' : '' }}">
+                                <a href="{{ url('toca-amounts') }}" title="TOCA Amounts" data-filter-tags="toca amounts">
+                                    <span class="nav-link-text">Transfer Out</span>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="{{ request()->is('stock/adjustment') ? 'active' : '' }}">
                         <a href="{{ url('stock/adjustment') }}" title="Stock Adjustment" data-filter-tags="stock adjustment">
                             <span class="nav-link-text">Stock Adjustment</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('inventory/stock-take') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-take') }}" title="Stock Take" data-filter-tags="stock take">
+                            <span class="nav-link-text">Physical Count</span>
                         </a>
                     </li>
                     <!-- Add more inventory links as needed -->

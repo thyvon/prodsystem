@@ -4,6 +4,7 @@
     id="productModal"
     :title="isEditing ? 'Edit Product' : 'Create Product'"
     size="xl"
+    :loading="isLoading"
   >
     <template #body>
       <form @submit.prevent="submitForm">
@@ -26,10 +27,16 @@
             <div class="form-row">
               <div class="form-group col-md-3">
                 <label>Item Code</label>
-                <input v-model="form.item_code" type="text" class="form-control" />
+                <input
+                  v-model="form.item_code"
+                  type="text"
+                  class="form-control"
+                  :readonly="isEditing"
+                  :disabled="isEditing"
+                />
               </div>
               <div class="form-group col-md-3">
-                <label>Barcode</label>
+                <label>Barcode Type</label>
                 <select ref="barcodeSelect" v-model="form.barcode" class="form-control">
                   <option value="">No Barcode</option>
                   <option value="EAN13">EAN-13</option>
@@ -158,6 +165,7 @@
               type="button"
               class="btn btn-sm btn-primary"
               @click="openNewAttributeModal"
+              :disabled="isEditing"
             >
               Add New Attribute
             </button>
@@ -166,16 +174,16 @@
             <div v-if="isAttributesLoading" class="text-center">Loading attributes...</div>
             <div v-else-if="!availableAttributes.length" class="text-center">No attributes available.</div>
             <div v-else class="row">
-              <div v-for="attr in availableAttributes" :key="attr.id" class="col-6 col-md-4 col-lg-3 mb-3">
+              <div v-for="attr in filteredAvailableAttributes" :key="attr.id" class="col-6 col-md-4 col-lg-3 mb-3">
                 <div class="card border h-100">
                   <div class="card-header py-2 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 font-weight-bold">{{ attr.name || 'Unknown Attribute' }}</h6>
                     <button
                       type="button"
-                      class="btn btn-sm btn-secondary"
+                      class="btn btn-xs btn-outline-primary"
                       @click="openAddValueModal(attr)"
                     >
-                      Add Value
+                      <i class="fal fa-plus"></i>
                     </button>
                   </div>
                   <div class="card-body py-2 px-3">
@@ -204,17 +212,16 @@
           <div
             :class="['card-header py-2', form.has_variants ? 'bg-secondary-50' : 'bg-success-50']"
           >
-            <h6 class="mb-0">Variant Products</h6>
+            <h6 class="mb-0">Product Detail</h6>
           </div>
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-bordered table-hover table-sm">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 160px;">Variant Description</th>
                     <th style="min-width: 100px;">Item Code</th>
-                    <th style="min-width: 100px;">Estimated Price <span class="text-danger">*</span></th>
-                    <th style="min-width: 100px;">Average Price <span class="text-danger">*</span></th>
+                    <th style="min-width: 100px;">Estimated Price</th>
+                    <th style="min-width: 100px;">Average Price</th>
                     <th style="min-width: 160px;">Description</th>
                     <th style="min-width: 120px;">Image</th>
                     <th style="min-width: 70px;">Active</th>
@@ -223,14 +230,14 @@
                 </thead>
                 <tbody>
                   <tr v-for="(variant, index) in generatedVariants" :key="index">
-                    <td class="align-middle">{{ variant.description }}</td>
                     <td>
                       <input
                         v-model="variant.item_code"
                         type="text"
                         class="form-control form-control-sm"
                         placeholder="Item Code"
-                        required
+                        :readonly="isEditing"
+                        :disabled="isEditing"
                       />
                     </td>
                     <td>
@@ -241,7 +248,6 @@
                         min="0"
                         class="form-control form-control-sm"
                         placeholder="Estimated Price"
-                        required
                       />
                     </td>
                     <td>
@@ -252,16 +258,15 @@
                         min="0"
                         class="form-control form-control-sm"
                         placeholder="Average Price"
-                        required
                       />
                     </td>
                     <td>
-                      <input
+                      <textarea
                         v-model="variant.description"
-                        type="text"
                         class="form-control form-control-sm"
                         placeholder="Description"
-                      />
+                        rows="2"
+                      ></textarea>
                     </td>
                     <td>
                       <div class="custom-file">
@@ -462,6 +467,7 @@ const showAddValueModal = ref(false)
 const newAttribute = ref({ name: '', values: '', ordinal: null })
 const newValue = ref('')
 const currentAttribute = ref(null)
+const isLoading = ref(false)
 
 const form = ref({
   id: null,
@@ -491,6 +497,24 @@ const subCategorySelect = ref(null)
 const filteredSubCategories = computed(() => {
   if (!form.value.category_id) return []
   return subCategories.value.filter(cat => cat.main_category_id === Number(form.value.category_id))
+})
+
+const existingAttributeIds = computed(() => {
+  if (!props.isEditing || !form.value.variants) return []
+  const ids = new Set()
+  form.value.variants.forEach(variant => {
+    if (variant.values) {
+      variant.values.forEach(val => {
+        if (val.attribute?.id) ids.add(val.attribute.id)
+      })
+    }
+  })
+  return Array.from(ids)
+})
+
+const filteredAvailableAttributes = computed(() => {
+  if (!props.isEditing) return availableAttributes.value
+  return availableAttributes.value.filter(attr => existingAttributeIds.value.includes(attr.id))
 })
 
 // Methods
@@ -563,6 +587,7 @@ const createEmptyVariant = () => ({
 
 const show = async (product = null) => {
   resetForm()
+  isLoading.value = true
   await Promise.all([loadInitialData(), loadAttributes()])
 
   availableAttributes.value.forEach(attr => {
@@ -607,6 +632,7 @@ const show = async (product = null) => {
     skipCategoryWatcher.value = false
   }
 
+  isLoading.value = false
   showModal.value = true
   await initSelect2Dropdowns()
 }
@@ -859,8 +885,11 @@ const submitForm = async () => {
     // Append main form fields
     Object.entries(form.value).forEach(([key, value]) => {
       if (key === 'variants') return
-      if (key === 'image' && value instanceof File) {
-        formData.append('image', value)
+      if (key === 'image') {
+        if (value instanceof File) {
+          formData.append('image', value)
+        }
+        // Do NOT append if it's a string (existing image path)
       } else if (typeof value === 'boolean') {
         formData.append(key, value ? '1' : '0')
       } else if (value !== null && value !== undefined) {
@@ -869,19 +898,22 @@ const submitForm = async () => {
     })
 
     // Append variants
-    generatedVariants.value.forEach((variant, idx) => {
-      Object.entries(variant).forEach(([key, value]) => {
-        if (key === 'image' && value instanceof File) {
+  generatedVariants.value.forEach((variant, idx) => {
+    Object.entries(variant).forEach(([key, value]) => {
+      if (key === 'image') {
+        if (value instanceof File) {
           formData.append(`variants[${idx}][image]`, value)
-        } else if (key === 'variant_value_ids' && Array.isArray(value)) {
-          value.forEach((id, i) => formData.append(`variants[${idx}][variant_value_ids][${i}]`, id))
-        } else if (key === 'is_active') {
-          formData.append(`variants[${idx}][${key}]`, Number(value))
-        } else if (value !== null && value !== undefined) {
-          formData.append(`variants[${idx}][${key}]`, value)
         }
-      })
+        // Do NOT append if it's a string (existing image path)
+      } else if (key === 'variant_value_ids' && Array.isArray(value)) {
+        value.forEach((id, i) => formData.append(`variants[${idx}][variant_value_ids][${i}]`, id))
+      } else if (key === 'is_active') {
+        formData.append(`variants[${idx}][${key}]`, Number(value))
+      } else if (value !== null && value !== undefined) {
+        formData.append(`variants[${idx}][${key}]`, value)
+      }
     })
+  })
 
     if (props.isEditing) formData.append('_method', 'PUT')
 

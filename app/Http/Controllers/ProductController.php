@@ -62,7 +62,7 @@ class ProductController extends Controller
             'variants' => 'array|nullable',
             'variants.*.id' => 'nullable|exists:product_variants,id',
             'variants.*.item_code' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
                 function ($attribute, $value, $fail) use ($variantIds, $existingVariantCodes) {
@@ -95,7 +95,7 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:name,khmer_name,description,created_at,updated_at',
+            'sortColumn' => 'nullable|string|in:name,khmer_name,description,created_at,updated_at,item_code',
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:100',
             'draw' => 'nullable|integer',
@@ -107,11 +107,12 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('khmer_name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('item_code', 'like', "%{$search}%");
             });
         }
 
-        $allowedSortColumns = ['name', 'khmer_name', 'description', 'created_at', 'updated_at'];
+        $allowedSortColumns = ['name', 'khmer_name', 'description', 'created_at', 'updated_at','item_code'];
         $sortColumn = $validated['sortColumn'] ?? $request->input('sortColumn', 'created_at');
         $sortDirection = $validated['sortDirection'] ?? $request->input('sortDirection', 'desc');
 
@@ -126,6 +127,7 @@ class ProductController extends Controller
         $data = $products->getCollection()->map(function (Product $product) {
             return [
                 'id' => $product->id,
+                'item_code' => $product->item_code,
                 'name' => $product->name,
                 'khmer_name' => $product->khmer_name,
                 'description' => $product->description,
@@ -170,7 +172,7 @@ class ProductController extends Controller
         try {
             $imagePath = $this->handleImageUpload($request, 'image', 'products');
 
-            $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode();
+            $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode($validated['category_id']);
 
             $product = Product::create([
                 'item_code' => $baseItemCode,
@@ -339,8 +341,16 @@ class ProductController extends Controller
 
                 // Update or create variants
                 foreach ($validated['variants'] as $index => $variant) {
-                    $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants', $variant['id'] ? ProductVariant::find($variant['id'])->image : null);
-                    $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($product->item_code, $index + 1);
+                    $existingVariant = !empty($variant['id']) ? ProductVariant::find($variant['id']) : null;
+                    $variantImagePath = $this->handleImageUpload(
+                        $request,
+                        "variants.$index.image",
+                        'variants',
+                        $existingVariant ? $existingVariant->image : null
+                    );
+                    $variantItemCode = !empty($variant['item_code'])
+                        ? $variant['item_code']
+                        : $this->generateVariantItemCode($product->item_code, $index + 1, $product->has_variants);
 
                     $variantData = [
                         'product_id' => $product->id,
@@ -353,16 +363,11 @@ class ProductController extends Controller
                         'updated_by' => auth()->id(),
                     ];
 
-                    $createdVariant = $variant['id']
-                        ? ProductVariant::find($variant['id'])->update($variantData)
-                        : ProductVariant::create($variantData);
-
-                    if ($variant['id']) {
-                        $createdVariant = ProductVariant::find($variant['id']);
+                    if ($existingVariant) {
+                        $existingVariant->update($variantData);
+                        $createdVariant = $existingVariant;
                     } else {
-                        $createdVariant = ProductVariant::where('product_id', $product->id)
-                            ->where('item_code', $variantItemCode)
-                            ->first();
+                        $createdVariant = ProductVariant::create($variantData);
                     }
 
                     if (!empty($variant['variant_value_ids'])) {
@@ -613,11 +618,14 @@ class ProductController extends Controller
      *
      * @return string
      */
-    protected function generateBaseItemCode()
+    protected function generateBaseItemCode($categoryId)
     {
+        $mainCategory = MainCategory::find($categoryId);
+        $shortName = $mainCategory ? strtoupper($mainCategory->short_name) : 'GEN';
+
         $nextNumber = 1;
         do {
-            $itemCode = 'ITEM-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+            $itemCode = 'PRO-' . $shortName . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
             $exists = Product::where('item_code', $itemCode)->exists();
             $nextNumber++;
         } while ($exists);
@@ -632,8 +640,13 @@ class ProductController extends Controller
      * @param int $index
      * @return string
      */
-    protected function generateVariantItemCode($baseItemCode, $index)
+    protected function generateVariantItemCode($baseItemCode, $index, $hasVariants = true)
     {
+        // If product has no variants, use the base item code for the variant
+        if (!$hasVariants) {
+            return $baseItemCode;
+        }
+
         $itemCode = $baseItemCode . '-' . str_pad($index, 2, '0', STR_PAD_LEFT);
         $exists = ProductVariant::where('item_code', $itemCode)->exists();
         $suffix = $index;
@@ -643,5 +656,104 @@ class ProductController extends Controller
             $exists = ProductVariant::where('item_code', $itemCode)->exists();
         }
         return $itemCode;
+    }
+
+
+    /**
+     * Retrieve stock-managed product variants.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+
+    public function inventoryItemsIndex()
+    {
+        $this->authorize('viewAny', Product::class);
+        return view('Inventory.Items.index');
+    }
+
+    public function getStockManagedVariants(Request $request)
+    {
+        $this->authorize('viewAny', Product::class);
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string|in:item_code,description,product_name,product_khmer_name,created_at,updated_at,is_active,created_by',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:100',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $query = ProductVariant::with(['product.category', 'product.subCategory', 'product.unit','values.attribute'])
+            ->whereHas('product', function ($q) use ($validated, $request) {
+                $q->where('manage_stock', 1);
+
+                if ($search = $validated['search'] ?? $request->input('search')) {
+                    $q->where(function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%")
+                            ->orWhere('khmer_name', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%")
+                            ->orWhere('item_code', 'like', "%{$search}%");
+                        $q2->orWhereHas('category', function ($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        })->orWhereHas('subCategory', function ($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        })->orWhereHas('unit', function ($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        })->orWhereHas('createdBy', function ($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        })->orWhereHas('variants', function ($q3) use ($search) {
+                            $q3->where('item_code', 'like', "%{$search}%")
+                                ->orWhereHas('values', function ($q4) use ($search) {
+                                    $q4->whereHas('attribute', function ($q5) use ($search) {
+                                        $q5->where('name', 'like', "%{$search}%");
+                                    })->orWhere('value', 'like', "%{$search}%");
+                                });
+                        });
+                    });
+                }
+            });
+
+        $allowedSortColumns = ['item_code','created_at', 'updated_at', 'is_active'];
+        $sortColumn = $validated['sortColumn'] ?? $request->input('sortColumn', 'created_at');
+        $sortDirection = $validated['sortDirection'] ?? $request->input('sortDirection', 'desc');
+
+        $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'created_at';
+        $sortDirection = in_array(strtolower($sortDirection), ['asc', 'desc']) ? $sortDirection : 'desc';
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        $limit = max(1, min(100, (int) ($validated['limit'] ?? $request->input('limit', 10))));
+        $variants = $query->paginate($limit);
+
+        $data = $variants->getCollection()->map(function ($variant) {
+            return [
+                'id' => $variant->id,
+                'item_code' => $variant->item_code,
+                'estimated_price' => $variant->estimated_price,
+                'average_price' => $variant->average_price,
+                'description' => $variant->description,
+                'image' => $variant->image,
+                'is_active' => (int) $variant->is_active,
+                'image_url' => $variant->image ? asset('storage/' . $variant->image) : null,
+                // Optionally include parent product info:
+                'product_id' => $variant->product->id ?? null,
+                'product_name' => $variant->product->name ?? null,
+                'product_khmer_name' => $variant->product->khmer_name ?? null,
+                'category_name' => $variant->product->category->name ?? null,
+                'sub_category_name' => $variant->product->subCategory->name ?? null,
+                'unit_name' => $variant->product->unit->name ?? null,
+                'created_by' => $variant->product->createdBy ? $variant->product->createdBy->name : null,
+                'created_at' => $variant->created_at?->toDateTimeString(),
+                'updated_at' => $variant->updated_at?->toDateTimeString(),
+            ];
+        });
+
+        return response()->json([
+            'data' => $data->all(),
+            'recordsTotal' => $variants->total(),
+            'recordsFiltered' => $variants->total(),
+            'draw' => (int) ($validated['draw'] ?? $request->input('draw', 1)),
+        ]);
     }
 }

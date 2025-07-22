@@ -5,8 +5,6 @@
       :headers="datatableHeaders"
       :fetch-url="datatableFetchUrl"
       :fetch-params="datatableParams"
-      :actions="datatableActions"
-      :handlers="datatableHandlers"
       :options="datatableOptions"
       @sort-change="handleSortChange"
       @page-change="handlePageChange"
@@ -51,7 +49,7 @@ const datatableHeaders = [
 ]
 
 const datatableFetchUrl = '/api/permissions'
-const datatableActions = ['edit', 'delete']
+// const datatableActions = ['edit', 'delete']
 const datatableOptions = {
   responsive: true,
   pageLength: pageLength.value,
@@ -103,8 +101,8 @@ const reloadDatatable = () => {
   datatableRef.value?.reload && datatableRef.value.reload()
 }
 
-const datatableHandlers = {
-  edit: handleEdit,
-  delete: handleDelete,
-}
+// const datatableHandlers = {
+//   edit: handleEdit,
+//   delete: handleDelete,
+// }
 </script>

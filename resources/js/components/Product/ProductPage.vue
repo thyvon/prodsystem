@@ -64,12 +64,13 @@ const datatableParams = reactive({
 })
 
 const datatableHeaders = [
+  { text: 'Item Code', value: 'item_code', width: '10%', sortable: true },
   { text: 'Image', value: 'image', width: '10%', sortable: false },
   { text: 'Name', value: 'name', width: '25%', sortable: true },
-  { text: 'Category', value: 'category_name', width: '20%', sortable: false }, 
-  { text: 'Sub Category', value: 'sub_category_name', width: '20%', sortable: false }, 
-  { text: 'Has Variants', value: 'has_variants', width: '10%', sortable: false },
-  { text: 'Active', value: 'is_active', width: '10%', sortable: false },
+  { text: 'Category', value: 'category_name', width: '10%', sortable: false }, 
+  { text: 'Sub Category', value: 'sub_category_name', width: '10%', sortable: false }, 
+  { text: 'Has Attributes', value: 'has_variants', width: '10%', sortable: false },
+  { text: 'Active', value: 'is_active', width: '5%', sortable: false },
   { text: 'Created', value: 'created_at', width: '10%', sortable: true },
   { text: 'Updated', value: 'updated_at', width: '10%', sortable: false }
 ]
