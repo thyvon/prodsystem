@@ -8,11 +8,22 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\StockBeginningsExport;
+use App\Imports\StockBeginningsImport;
+use Illuminate\Support\Facades\Log;
 
 class StockBeginningController extends Controller
 {
+    // Constants for sort columns and default values
+    private const ALLOWED_SORT_COLUMNS = ['reference_no', 'beginning_date', 'created_at', 'updated_at', 'created_by', 'updated_by'];
+    private const DEFAULT_SORT_COLUMN = 'created_at';
+    private const DEFAULT_SORT_DIRECTION = 'desc';
+    private const DEFAULT_LIMIT = 10;
+    private const MAX_LIMIT = 1000;
+    private const DATE_FORMAT = 'Y-m-d';
+
     /**
      * Display the stock beginnings index view.
      *
@@ -32,7 +43,7 @@ class StockBeginningController extends Controller
     public function create()
     {
         $this->authorize('create', MainStockBeginning::class);
-        return view('Inventory.stockBeginning.create');
+        return view('Inventory.stockBeginning.form');
     }
 
     /**
@@ -45,7 +56,6 @@ class StockBeginningController extends Controller
     {
         $this->authorize('create', MainStockBeginning::class);
 
-        // Validate the incoming request
         $validated = Validator::make($request->all(), array_merge(
             $this->mainStockBeginningValidationRules(),
             $this->stockBeginningValidationRules()
@@ -53,15 +63,15 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated) {
-                // Create a record in main_stock_beginnings
+                $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
+
                 $mainStockBeginning = MainStockBeginning::create([
-                    'reference_no' => $validated['reference_no'],
+                    'reference_no' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'created_by' => auth()->id() ?? 1,
                 ]);
 
-                // Prepare line items for bulk insert
                 $items = array_map(function ($item) use ($mainStockBeginning) {
                     return [
                         'main_form_id' => $mainStockBeginning->id,
@@ -76,8 +86,9 @@ class StockBeginningController extends Controller
                     ];
                 }, $validated['items']);
 
-                // Bulk insert line items into stock_beginnings
                 StockBeginning::insert($items);
+
+                Log::info('Stock beginning created', ['id' => $mainStockBeginning->id, 'reference_no' => $referenceNo]);
 
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
@@ -86,6 +97,7 @@ class StockBeginningController extends Controller
             });
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Failed to create stock beginning', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to create stock beginning',
                 'error' => $e->getMessage(),
@@ -116,7 +128,6 @@ class StockBeginningController extends Controller
     {
         $this->authorize('update', $mainStockBeginning);
 
-        // Validate the incoming request
         $validated = Validator::make($request->all(), array_merge(
             $this->mainStockBeginningValidationRules($mainStockBeginning->id),
             $this->stockBeginningValidationRules()
@@ -124,18 +135,17 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
-                // Update main_stock_beginnings record
+                $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
+
                 $mainStockBeginning->update([
-                    'reference_no' => $validated['reference_no'],
+                    'reference_no' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
-                // Delete existing line items
                 $mainStockBeginning->stockBeginnings()->delete();
 
-                // Prepare new line items for bulk insert
                 $items = array_map(function ($item) use ($mainStockBeginning) {
                     return [
                         'main_form_id' => $mainStockBeginning->id,
@@ -151,8 +161,9 @@ class StockBeginningController extends Controller
                     ];
                 }, $validated['items']);
 
-                // Bulk insert new line items
                 StockBeginning::insert($items);
+
+                Log::info('Stock beginning updated', ['id' => $mainStockBeginning->id, 'reference_no' => $referenceNo]);
 
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
@@ -161,6 +172,7 @@ class StockBeginningController extends Controller
             });
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Failed to update stock beginning', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to update stock beginning',
                 'error' => $e->getMessage(),
@@ -169,7 +181,7 @@ class StockBeginningController extends Controller
     }
 
     /**
-     * Retrieve paginated main stock beginnings with optional search, sort, and trashed filter.
+     * Retrieve paginated main stock beginnings with optional search and sort.
      *
      * @param Request $request
      * @return JsonResponse
@@ -180,18 +192,13 @@ class StockBeginningController extends Controller
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:reference_no,beginning_date,created_at,updated_at,deleted_at',
+            'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
             'sortDirection' => 'nullable|string|in:asc,desc',
-            'limit' => 'nullable|integer|min:1|max:100',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'draw' => 'nullable|integer',
-            'withTrashed' => 'nullable',
-            'page' => 'nullable|integer|min:1'
         ]);
 
         $query = MainStockBeginning::with(['warehouse', 'stockBeginnings.productVariant.product'])
-            ->when($validated['withTrashed'] ?? false, function ($query) {
-                return $query->withTrashed();
-            })
             ->when($validated['search'] ?? null, function ($query, $search) {
                 $query->where('reference_no', 'like', "%{$search}%")
                     ->orWhereHas('warehouse', function ($q) use ($search) {
@@ -219,15 +226,16 @@ class StockBeginningController extends Controller
         $recordsTotal = MainStockBeginning::count();
         $recordsFiltered = $query->count();
 
-        $sortColumn = $validated['sortColumn'] ?? 'created_at';
-        $sortDirection = $validated['sortDirection'] ?? 'desc';
-        $allowedSortColumns = ['reference_no', 'beginning_date', 'created_at', 'updated_at', 'deleted_at'];
-        $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'created_at';
-        $sortDirection = in_array(strtolower($sortDirection), ['asc', 'desc']) ? $sortDirection : 'desc';
+        $sortColumn = in_array($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, self::ALLOWED_SORT_COLUMNS)
+            ? $validated['sortColumn']
+            : self::DEFAULT_SORT_COLUMN;
+        $sortDirection = in_array(strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION), ['asc', 'desc'])
+            ? $validated['sortDirection']
+            : self::DEFAULT_SORT_DIRECTION;
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        $limit = max(1, min(100, (int) ($validated['limit'] ?? 10)));
+        $limit = max(1, min((int) ($validated['limit'] ?? self::DEFAULT_LIMIT), self::MAX_LIMIT));
         $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $validated['page'] ?? 1);
 
         $data = $mainStockBeginnings->getCollection()->map(function ($mainStockBeginning) {
@@ -236,9 +244,12 @@ class StockBeginningController extends Controller
                 'reference_no' => $mainStockBeginning->reference_no,
                 'beginning_date' => $mainStockBeginning->beginning_date ?? null,
                 'warehouse_name' => $mainStockBeginning->warehouse->name ?? null,
+                'campus_name' => $mainStockBeginning->warehouse->building->campus->short_name ?? null,
+                'building_name' => $mainStockBeginning->warehouse->building->short_name ?? null,
                 'created_at' => $mainStockBeginning->created_at?->toDateTimeString(),
                 'updated_at' => $mainStockBeginning->updated_at?->toDateTimeString(),
-                'deleted_at' => $mainStockBeginning->deleted_at?->toDateTimeString(),
+                'created_by' => $mainStockBeginning->createdBy->name ?? 'System',
+                'updated_by' => $mainStockBeginning->updatedBy->name ?? 'System',
                 'items' => $mainStockBeginning->stockBeginnings->map(function ($stockBeginning) {
                     return [
                         'id' => $stockBeginning->id,
@@ -267,124 +278,81 @@ class StockBeginningController extends Controller
     }
 
     /**
-     * Get validation rules for main stock beginning creation/update.
-     *
-     * @param int|null $mainStockBeginningId
-     * @return array
-     */
-    private function mainStockBeginningValidationRules(?int $mainStockBeginningId = null): array
-    {
-        return [
-            'beginning_date' => ['required', 'date', 'date_format:Y-m-d'],
-            'reference_no' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('main_stock_beginnings', 'reference_no')->ignore($mainStockBeginningId),
-            ],
-            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
-        ];
-    }
-
-    /**
-     * Get validation rules for stock beginning line items.
-     *
-     * @return array
-     */
-    private function stockBeginningValidationRules(): array
-    {
-        return [
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
-            'items.*.remarks' => ['nullable', 'string', 'max:1000'],
-        ];
-    }
-
-    /**
-     * Soft delete a main stock beginning and its line items.
-     *
-     * @param MainStockBeginning $mainStockBeginning
-     * @return JsonResponse
-     */
-    public function destroy(MainStockBeginning $mainStockBeginning): JsonResponse
-    {
-        $this->authorize('delete', $mainStockBeginning);
-
-        try {
-            return DB::transaction(function () use ($mainStockBeginning) {
-                $mainStockBeginning->update(['deleted_by' => auth()->id() ?? 1]);
-                $mainStockBeginning->stockBeginnings()->update(['deleted_by' => auth()->id() ?? 1]);
-                $mainStockBeginning->stockBeginnings()->delete();
-                $mainStockBeginning->delete();
-
-                return response()->json([
-                    'message' => 'Stock beginning soft deleted successfully.',
-                ]);
-            });
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Failed to soft delete stock beginning',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Restore a soft-deleted main stock beginning and its line items.
-     *
-     * @param int $id
-     * @return JsonResponse
-     */
-    public function restore($id): JsonResponse
-    {
-        $this->authorize('restore', MainStockBeginning::class);
-
-        try {
-            return DB::transaction(function () use ($id) {
-                $mainStockBeginning = MainStockBeginning::onlyTrashed()->findOrFail($id);
-                $mainStockBeginning->update(['deleted_by' => null]);
-                $mainStockBeginning->stockBeginnings()->onlyTrashed()->update(['deleted_by' => null]);
-                $mainStockBeginning->stockBeginnings()->onlyTrashed()->restore();
-                $mainStockBeginning->restore();
-
-                return response()->json([
-                    'message' => 'Stock beginning restored successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings'),
-                ]);
-            });
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Failed to restore stock beginning',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get trashed main stock beginnings.
+     * Import stock beginnings from an Excel file and return data for form population.
      *
      * @param Request $request
      * @return JsonResponse
      */
-    public function getTrashed(Request $request): JsonResponse
+    public function import(Request $request): JsonResponse
+    {
+        $this->authorize('create', MainStockBeginning::class);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            $import = new StockBeginningsImport();
+            Excel::import($import, $request->file('file'));
+
+            $data = $import->getData();
+
+            if (!empty($data['errors'])) {
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
+            }
+
+            if (empty($data['items'])) {
+                return response()->json([
+                    'message' => 'No valid data found in the Excel file.',
+                    'errors' => ['No valid rows processed.'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Stock beginnings data parsed successfully.',
+                'data' => [
+                    'items' => $data['items'],
+                ],
+            ], 200);
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $errors = $e->failures()->map(function ($failure) {
+                $row = $failure->row();
+                $errorMessages = $failure->errors();
+                return "Row {$row}: " . implode('; ', $errorMessages);
+            })->toArray();
+
+            return response()->json([
+                'message' => 'Validation failed during import',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to parse stock beginnings',
+                'errors' => [$e->getMessage()], // Use 'errors' array for consistency
+            ], 500);
+        }
+    }
+
+    /**
+     * Export stock beginnings to an Excel file.
+     *
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function export(Request $request)
     {
         $this->authorize('viewAny', MainStockBeginning::class);
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:reference_no,beginning_date,created_at,updated_at,deleted_at',
+            'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
             'sortDirection' => 'nullable|string|in:asc,desc',
-            'limit' => 'nullable|integer|min:1|max:100',
-            'draw' => 'nullable|integer',
-            'page' => 'nullable|integer|min:1',
         ]);
 
-        $query = MainStockBeginning::onlyTrashed()
-            ->with(['warehouse', 'stockBeginnings.productVariant.product'])
+        $query = MainStockBeginning::with(['warehouse', 'stockBeginnings.productVariant.product'])
             ->when($validated['search'] ?? null, function ($query, $search) {
                 $query->where('reference_no', 'like', "%{$search}%")
                     ->orWhereHas('warehouse', function ($q) use ($search) {
@@ -409,53 +377,121 @@ class StockBeginningController extends Controller
                     });
             });
 
-        $recordsTotal = MainStockBeginning::onlyTrashed()->count();
-        $recordsFiltered = $query->count();
-
-        $sortColumn = $validated['sortColumn'] ?? 'deleted_at';
-        $sortDirection = $validated['sortDirection'] ?? 'desc';
-        $allowedSortColumns = ['reference_no', 'beginning_date', 'created_at', 'updated_at', 'deleted_at'];
-        $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'deleted_at';
-        $sortDirection = in_array(strtolower($sortDirection), ['asc', 'desc']) ? $sortDirection : 'desc';
+        $sortColumn = in_array($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, self::ALLOWED_SORT_COLUMNS)
+            ? $validated['sortColumn']
+            : self::DEFAULT_SORT_COLUMN;
+        $sortDirection = in_array(strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION), ['asc', 'desc'])
+            ? $validated['sortDirection']
+            : self::DEFAULT_SORT_DIRECTION;
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        $limit = max(1, min(100, (int) ($validated['limit'] ?? 10)));
-        $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $validated['page'] ?? 1);
+        return Excel::download(new StockBeginningsExport($query), 'stock_beginnings_' . now()->format('Ymd_His') . '.xlsx');
+    }
 
-        $data = $mainStockBeginnings->getCollection()->map(function ($mainStockBeginning) {
-            return [
-                'id' => $mainStockBeginning->id,
-                'reference_no' => $mainStockBeginning->reference_no,
-                'beginning_date' => $mainStockBeginning->beginning_date?->toDateString(),
-                'warehouse_name' => $mainStockBeginning->warehouse->name ?? null,
-                'created_at' => $mainStockBeginning->created_at?->toDateTimeString(),
-                'updated_at' => $mainStockBeginning->updated_at?->toDateTimeString(),
-                'deleted_at' => $mainStockBeginning->deleted_at?->toDateTimeString(),
-                'items' => $mainStockBeginning->stockBeginnings->map(function ($stockBeginning) {
-                    return [
-                        'id' => $stockBeginning->id,
-                        'product_id' => $stockBeginning->product_id,
-                        'item_code' => $stockBeginning->productVariant->item_code ?? null,
-                        'quantity' => $stockBeginning->quantity,
-                        'unit_price' => $stockBeginning->unit_price,
-                        'total_value' => $stockBeginning->total_value,
-                        'remarks' => $stockBeginning->remarks,
-                        'product_name' => $stockBeginning->productVariant->product->name ?? null,
-                        'product_khmer_name' => $stockBeginning->productVariant->product->khmer_name ?? null,
-                        'category_name' => $stockBeginning->productVariant->product->category->name ?? null,
-                        'sub_category_name' => $stockBeginning->productVariant->product->subCategory->name ?? null,
-                        'unit_name' => $stockBeginning->productVariant->product->unit->name ?? null,
-                    ];
-                })->toArray(),
-            ];
-        });
+    /**
+     * Get validation rules for main stock beginning creation/update.
+     *
+     * @param int|null $mainStockBeginningId
+     * @return array
+     */
+    private function mainStockBeginningValidationRules(?int $mainStockBeginningId = null): array
+    {
+        return [
+            'beginning_date' => ['required', 'date', 'date_format:' . self::DATE_FORMAT],
+            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+        ];
+    }
 
-        return response()->json([
-            'data' => $data->all(),
-            'recordsTotal' => $recordsTotal,
-            'recordsFiltered' => $recordsFiltered,
-            'draw' => (int) ($validated['draw'] ?? 1),
-        ]);
+    /**
+     * Get validation rules for stock beginning line items.
+     *
+     * @return array
+     */
+    private function stockBeginningValidationRules(): array
+    {
+        return [
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.remarks' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * Generate a unique reference number in format STB-short_name-mmyyyy-sequence.
+     *
+     * @param int $warehouseId
+     * @param string $beginningDate
+     * @return string
+     * @throws \InvalidArgumentException If the date format is invalid or warehouse is not found.
+     */
+    private function generateReferenceNo(int $warehouseId, string $beginningDate): string
+    {
+        $warehouse = Warehouse::with('building.campus')->findOrFail($warehouseId);
+
+        try {
+            $date = \Carbon\Carbon::createFromFormat(self::DATE_FORMAT, $beginningDate);
+            if (!$date || $date->format(self::DATE_FORMAT) !== $beginningDate) {
+                throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.');
+            }
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.', 0, $e);
+        }
+
+        $shortName = $warehouse->building?->campus?->short_name ?? 'WH';
+        $monthYear = $date->format('my');
+
+        $sequence = $this->getSequenceNumber($warehouseId, $monthYear);
+
+        return "STB-{$shortName}-{$monthYear}-{$sequence}";
+    }
+
+    /**
+     * Generate a sequence number for uniqueness.
+     *
+     * @param int $warehouseId
+     * @param string $monthYear
+     * @return string
+     */
+    private function getSequenceNumber(int $warehouseId, string $monthYear): string
+    {
+        $count = MainStockBeginning::where('warehouse_id', $warehouseId)
+            ->where('reference_no', 'like', "STB%{$monthYear}%")
+            ->count();
+
+        return str_pad($count + 1, 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Delete a main stock beginning and its associated line items.
+     *
+     * @param MainStockBeginning $mainStockBeginning
+     * @return JsonResponse
+     */
+    public function destroy(MainStockBeginning $mainStockBeginning): JsonResponse
+    {
+        $this->authorize('delete', $mainStockBeginning);
+
+        try {
+            DB::transaction(function () use ($mainStockBeginning) {
+                $mainStockBeginning->stockBeginnings()->delete();
+                $mainStockBeginning->delete();
+
+                Log::info('Stock beginning deleted', ['id' => $mainStockBeginning->id, 'reference_no' => $mainStockBeginning->reference_no]);
+            });
+
+            return response()->json([
+                'message' => 'Stock beginning deleted successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to delete stock beginning', ['error' => $e->getMessage(), 'id' => $mainStockBeginning->id]);
+            return response()->json([
+                'message' => 'Failed to delete stock beginning',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

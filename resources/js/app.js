@@ -43,7 +43,7 @@ import AttributeList from './components/Product/Attribute/AttributeList.vue'
 //Inventory Management
 import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
 import InventoryItemList from './components/Inventory/Items/ItemList.vue'
-import StockBeginningCreate from './components/Inventory/StockBeginning/Create.vue'
+import StockBeginningForm from './components/Inventory/StockBeginning/Form.vue'
 import StockBeginningList from './components/Inventory/StockBeginning/StockBeginningList.vue'
 
 //Dashboard
@@ -85,7 +85,7 @@ app.use(ZiggyVue, {
  //Inventory Management
  app.component('warehouse-page', WarehousePage)
  app.component('inventory-item-page', InventoryItemList)
- app.component('stock-beginning-create', StockBeginningCreate)
+ app.component('stock-beginning-form', StockBeginningForm)
  app.component('stock-beginning-list', StockBeginningList)
 
  app.component('dashboard', Dashboard)

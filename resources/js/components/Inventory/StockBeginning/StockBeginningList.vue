@@ -1,36 +1,36 @@
 <template>
-  <div class="container-fluid mt-3">
-    <div class="card border mb-0">
-      <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 font-weight-bold">Stock Beginnings</h4>
-        <div>
-          <a :href="createRoute" class="btn btn-primary btn-sm">Create Stock Beginning</a>
+  <div>
+    <datatable
+      ref="datatableRef"
+      :headers="datatableHeaders"
+      :fetch-url="datatableFetchUrl"
+      :fetch-params="datatableParams"
+      :actions="datatableActions"
+      :handlers="datatableHandlers"
+      :options="datatableOptions"
+      @sort-change="handleSortChange"
+      @page-change="handlePageChange"
+      @length-change="handleLengthChange"
+      @search-change="handleSearchChange"
+    >
+      <template #additional-header>
+        <div class="btn-group" role="group">
+          <button class="btn btn-success" @click="createStockBeginning">
+            <i class="fal fa-plus"></i> Create Stock Beginning
+          </button>
+          <button class="btn btn-primary" @click="exportStockBeginnings">
+            <i class="fal fa-download"></i> Export
+          </button>
         </div>
-      </div>
-      <div class="card-body">
-        <datatable
-          ref="datatableRef"
-          :headers="datatableHeaders"
-          :fetch-url="datatableFetchUrl"
-          :fetch-params="datatableParams"
-          :options="datatableOptions"
-          :actions="['edit', 'delete']"
-          :handlers="actionHandlers"
-          @sort-change="handleSortChange"
-          @page-change="handlePageChange"
-          @length-change="handleLengthChange"
-          @search-change="handleSearchChange"
-          @error="handleError"
-        />
-      </div>
-    </div>
+      </template>
+    </datatable>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import axios from 'axios'
-import { showAlert } from '@/Utils/bootbox'
+import { confirmAction, showAlert } from '@/Utils/bootbox'
 
 // Refs and state
 const datatableRef = ref(null)
@@ -40,77 +40,86 @@ const pageLength = ref(10)
 const datatableParams = reactive({
   sortColumn: 'created_at',
   sortDirection: 'desc',
-  limit: pageLength.value,
-  search: '',
+  // Optionally add: page: 1, limit: 10, search: ''
 })
 
 const datatableHeaders = [
-  { text: 'Reference No', value: 'reference_no', width: '15%', sortable: true },
-  { text: 'Beginning Date', value: 'beginning_date', width: '15%', sortable: true },
-  { text: 'Warehouse', value: 'warehouse_name', width: '20%', sortable: false },
-  { text: 'Items', value: 'items', width: '15%', sortable: false },
-  { text: 'Created At', value: 'created_at', width: '20%', sortable: true },
-  { text: 'Updated At', value: 'updated_at', width: '20%', sortable: true },
+  { text: 'Reference No', value: 'reference_no', width: '20%' },
+  { text: 'Beginning Date', value: 'beginning_date', width: '15%' },
+  { text: 'Warehouse', value: 'warehouse_name', width: '25%' },
+  { text: 'Campus', value: 'campus_name', width: '7%' },
+  { text: 'Created By', value: 'created_by', width: '10%' },
+  { text: 'Created', value: 'created_at', width: '8%' },
+  { text: 'Updated', value: 'updated_at', width: '15%' }
 ]
 
 const datatableFetchUrl = '/api/stock-beginnings'
-
+const datatableActions = ['edit', 'delete']
 const datatableOptions = {
   responsive: true,
   pageLength: pageLength.value,
-  lengthMenu: [[10, 15, 20, 50, 100], [10, 15, 20, 50, 100]],
+  lengthMenu: [[10, 20, 50, 100, 1000], [10, 20, 50, 100, 1000]],
 }
 
-// Action handlers for dropdown
-const actionHandlers = {
-  edit: (row) => {
-    window.location.href = editRoute(row.id)
-  },
-  delete: (row) => {
-    deleteStockBeginning(row.id)
-  },
+// Action handlers
+const createStockBeginning = () => {
+  window.location.href = '/stock-beginnings/create'; // Adjust URL as per your routes
 }
 
-// Routes
-const createRoute = window.route('stockBeginnings.create')
-const editRoute = (id) => window.route('stockBeginnings.edit', { mainStockBeginning: id })
+const handleEdit = (stockBeginning) => {
+  window.location.href = `/stock-beginnings/${stockBeginning.id}/edit`; // Adjust URL as per your routes
+}
+
+const handleDelete = async (stockBeginning) => {
+  const confirmed = await confirmAction(
+    `Delete Stock Beginning "${stockBeginning.reference_no}"?`,
+    '<strong>Warning:</strong> This action cannot be undone!'
+  )
+  if (!confirmed) return
+
+  try {
+    const response = await axios.delete(`/api/stock-beginnings/${stockBeginning.id}`)
+    showAlert('Deleted', response.data.message || `"${stockBeginning.reference_no}" was deleted successfully.`, 'success')
+    datatableRef.value?.reload() // Ensure datatable refreshes
+  } catch (e) {
+    console.error(e)
+    showAlert('Failed to delete', e.response?.data?.message || 'Something went wrong.', 'danger')
+  }
+}
+
+const exportStockBeginnings = () => {
+  const params = {
+    search: datatableParams.search || '',
+    sortColumn: datatableParams.sortColumn,
+    sortDirection: datatableParams.sortDirection,
+  };
+  const queryString = new URLSearchParams(params).toString();
+  window.location.href = `/api/stock-beginnings/export?${queryString}`; // Matches your export method
+}
 
 // Datatable event handlers
 const handleSortChange = ({ column, direction }) => {
   datatableParams.sortColumn = column
   datatableParams.sortDirection = direction
-  datatableRef.value.reload()
 }
 
 const handlePageChange = (page) => {
-  datatableParams.page = page
-  datatableRef.value.reload()
+  // Uncomment and implement if your datatable supports pagination
+  // datatableParams.page = page
 }
 
 const handleLengthChange = (length) => {
-  datatableParams.limit = length
-  datatableRef.value.reload()
+  // Uncomment and implement if your datatable supports page length
+  // datatableParams.limit = length
 }
 
 const handleSearchChange = (search) => {
   datatableParams.search = search
-  datatableRef.value.reload()
 }
 
-const handleError = (message) => {
-  showAlert('Error', message, 'danger')
-}
-
-// Delete a stock beginning
-const deleteStockBeginning = async (id) => {
-  if (!confirm('Are you sure you want to delete this stock beginning?')) return
-
-  try {
-    await axios.delete(`/api/stock-beginnings/${id}`)
-    showAlert('Success', 'Stock beginning deleted successfully.', 'success')
-    datatableRef.value.reload()
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to delete stock beginning.', 'danger')
-  }
+// Map actions to handlers
+const datatableHandlers = {
+  edit: handleEdit,
+  delete: handleDelete,
 }
 </script>

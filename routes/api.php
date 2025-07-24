@@ -197,4 +197,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning');
     Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning');
 
+    Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('stock-beginnings.import');
+    Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('stock-beginnings.export');
+
 });

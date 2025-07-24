@@ -2,7 +2,7 @@
 @extends('layouts.main')
 
 @section('content')
-  <stock-beginning-create />
+  <stock-beginning-form />
 @endsection
 
 @push('vite')

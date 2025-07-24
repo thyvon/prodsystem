@@ -85,6 +85,9 @@ const renderColumnData = (key, val) => {
   if (key === 'updated_at') {
     return formatDateTime(val);
   }
+  if (key === 'beginning_date') {
+    return formatDate(val);
+  }
     if (key === 'is_active') {
     const badgeClass = val ? 'badge badge-success' : 'badge badge-secondary';
     const text = val ? 'Active' : 'Inactive';

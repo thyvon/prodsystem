@@ -183,7 +183,7 @@
                             <span class="nav-link-text">Item List</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('stock-beginnings') ? 'active' : '' }}">
+                    <li class="{{ request()->is('stock-beginnings*') ? 'active' : '' }}">
                         <a href="{{ url('stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
                             <span class="nav-link-text">Stock Beginning</span>
                         </a>

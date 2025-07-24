@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ asset('template/css/vendors.bundle.css') }}">
     <link rel="stylesheet" href="{{ asset('template/css/app.bundle.css') }}">
     <link rel="stylesheet" href="{{ asset('template/css/skins/skin-master.css') }}">
-    <link rel="icon" href="{{ asset('template/img/favicon/favicon-32x32.png') }}">
+    <link rel="icon" href="https://mjqeducation.edu.kh/FrontEnd/Image/logo/mjq-education-single-logo_1.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body class="mod-skin-dark">
@@ -20,12 +20,12 @@
                     <div class="d-flex align-items-center container p-0">
                         <div class="page-logo width-mobile-auto m-0 align-items-center justify-content-center p-0 bg-transparent bg-img-none shadow-0 height-9 border-0">
                             <a href="javascript:void(0)" class="page-logo-link press-scale-down d-flex align-items-center">
-                                <img src="{{ asset('template/img/logo.png') }}" alt="SmartAdmin WebApp">
-                                <span class="page-logo-text mr-1">Procurement System</span>
+                                <img src="https://mjqeducation.edu.kh/FrontEnd/Image/logo/mjq-education-single-logo_1.ico" alt="SmartAdmin WebApp">
+                                <span class="page-logo-text mr-1 fw-700">Procurement System</span>
                             </a>
                         </div>
                         <a href="{{url ('/register')}}" class="btn-link text-white ml-auto">
-                            Create Account
+                            Register Account
                         </a>
                     </div>
                 </div>
@@ -35,7 +35,7 @@
                             <!-- Left Side Info Panel -->
                             <div class="col col-md-6 col-lg-7 d-none d-md-block">
                                 <h2 class="fs-xxl fw-500 mt-4 text-white">
-                                    Procurement System
+                                    E Purchasing System Version 2.0
                                     <small class="h3 fw-300 mt-3 mb-5 text-white opacity-60">
                                         Register now if you are new user.
                                     </small>
@@ -59,7 +59,7 @@
 
                         <!-- Footer -->
                         <div class="position-absolute pos-bottom pos-left pos-right p-3 text-center text-white">
-                            2020 © SmartAdmin by <a href="https://www.gotbootstrap.com" class="text-white opacity-40 fw-500" target="_blank">gotbootstrap.com</a>
+                            2025 © SmartAdmin by <a href="https://www.gotbootstrap.com" class="text-white opacity-40 fw-500" target="_blank">gotbootstrap.com</a>
                         </div>
                     </div>
                 </div>
