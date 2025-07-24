@@ -136,11 +136,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Stock Beginnings
     Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
-        ->name('stockBeginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
+        ->name('stock-beginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
-        ->name('stockBeginnings.create')->middleware('can:create,' . MainStockBeginning::class);
+        ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
-        ->name('stockBeginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
+        ->name('stock-beginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
 
 });
 require __DIR__.'/auth.php';

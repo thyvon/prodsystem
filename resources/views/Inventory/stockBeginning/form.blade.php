@@ -2,11 +2,13 @@
 @extends('layouts.main')
 
 @section('content')
-  <stock-beginning-form />
+  <stock-beginning-form
+    :initial-data="{{ json_encode($stockBeginningData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) }}"
+  />
 @endsection
 
 @push('vite')
-  @vite(['resources/css/app.css','resources/js/app.js'])
+  @vite(['resources/css/app.css', 'resources/js/app.js'])
 @endpush
 
 @push('styles')

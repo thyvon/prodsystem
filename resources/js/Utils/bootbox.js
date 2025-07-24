@@ -36,40 +36,44 @@ export const confirmAction = (title, message) => {
 };
 
 export const showAlert = (title, message, type = 'success', duration = 4000) => {
-  const soundMap = {
-    success: 'voice_on',
-    danger: 'voice_off', // 🎯 play this for errors
-    info: 'voice_on'
-  };
+  return new Promise((resolve) => {
+    try {
+      if (initApp?.playSound) {
+        const soundMap = {
+          success: 'voice_on',
+          danger: 'voice_off',
+          info: 'voice_on'
+        };
+        initApp.playSound('/template/media/sound', soundMap[type] || 'voice_on');
+      } else {
+        console.warn('initApp.playSound is not available');
+      }
 
-  try {
-    if (initApp?.playSound) {
-      initApp.playSound('/template/media/sound', soundMap[type] || 'voice_on');
-    } else {
-      console.warn('initApp.playSound is not available');
+      const icons = {
+        success: 'fa-check-circle text-success',
+        danger: 'fa-times-circle text-danger',
+        info: 'fa-info-circle text-info'
+      };
+
+      const dialog = bootbox.alert({
+        title: `<i class='fal ${icons[type] || icons.info} mr-2'></i> <span class='text-${type} fw-500'>${title}</span>`,
+        message: message,
+        centerVertical: true,
+        className: 'modal-alert',
+        closeButton: type === 'danger' ? true : false,
+        callback: () => resolve(),
+        onEscape: () => resolve()
+      });
+
+      if (type !== 'danger') {
+        setTimeout(() => {
+          dialog.modal('hide');
+          resolve();
+        }, duration);
+      }
+    } catch (error) {
+      console.error('Alert dialog failed:', error);
+      resolve();
     }
-
-    const icons = {
-      success: 'fa-check-circle text-success',
-      danger: 'fa-times-circle text-danger',
-      info: 'fa-info-circle text-info'
-    };
-
-    const dialog = bootbox.alert({
-      title: `<i class='fal ${icons[type] || icons.info} mr-2'></i> <span class='text-${type} fw-500'>${title}</span>`,
-      message: message, // Allow raw HTML
-      centerVertical: true,
-      className: 'modal-alert',
-      closeButton: type === 'danger' ? true : false, // Enable close for errors
-      callback: () => {} // Ensure dialog is fully initialized
-    });
-
-    if (type !== 'danger') {
-      setTimeout(() => {
-        dialog.modal('hide');
-      }, duration);
-    }
-  } catch (error) {
-    console.error('Alert dialog failed:', error);
-  }
+  });
 };

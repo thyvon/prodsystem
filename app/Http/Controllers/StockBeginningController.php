@@ -88,8 +88,6 @@ class StockBeginningController extends Controller
 
                 StockBeginning::insert($items);
 
-                Log::info('Stock beginning created', ['id' => $mainStockBeginning->id, 'reference_no' => $referenceNo]);
-
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
                     'data' => $mainStockBeginning->load('stockBeginnings'),
@@ -114,7 +112,61 @@ class StockBeginningController extends Controller
     public function edit(MainStockBeginning $mainStockBeginning)
     {
         $this->authorize('update', $mainStockBeginning);
-        return view('Inventory.stockBeginning.edit', compact('mainStockBeginning'));
+
+        try {
+            // Load related data
+            $mainStockBeginning->load([
+                'stockBeginnings.productVariant.product.unit',
+                'warehouse.building.campus',
+            ]);
+
+            // Prepare data for the Vue form
+            $stockBeginningData = [
+                'id' => $mainStockBeginning->id,
+                'reference_no' => $mainStockBeginning->reference_no,
+                'warehouse_id' => $mainStockBeginning->warehouse_id,
+                'beginning_date' => $mainStockBeginning->beginning_date,
+                'items' => $mainStockBeginning->stockBeginnings->map(function ($item) {
+                    return [
+                        'product_id' => $item->product_id,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                        'total_value' => $item->total_value,
+                        'remarks' => $item->remarks,
+                        'item_code' => $item->productVariant->item_code ?? null,
+                        'product_name' => $item->productVariant->product->name ?? null,
+                        'product_khmer_name' => $item->productVariant->product->khmer_name ?? null,
+                        'unit_name' => $item->productVariant->product->unit->name ?? null,
+                    ];
+                })->toArray(),
+                'warehouse' => $mainStockBeginning->warehouse ? [
+                    'id' => $mainStockBeginning->warehouse->id,
+                    'name' => $mainStockBeginning->warehouse->name,
+                    'building' => $mainStockBeginning->warehouse->building ? [
+                        'id' => $mainStockBeginning->warehouse->building->id,
+                        'short_name' => $mainStockBeginning->warehouse->building->short_name,
+                        'campus' => $mainStockBeginning->warehouse->building->campus ? [
+                            'id' => $mainStockBeginning->warehouse->building->campus->id,
+                            'short_name' => $mainStockBeginning->warehouse->building->campus->short_name,
+                        ] : null,
+                    ] : null,
+                ] : null,
+            ];
+
+            return view('Inventory.stockBeginning.form', [
+                'mainStockBeginning' => $mainStockBeginning,
+                'stockBeginningData' => $stockBeginningData,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching stock beginning for editing', [
+                'error_message' => $e->getMessage(),
+                'stock_beginning_id' => $mainStockBeginning->id,
+            ]);
+            return response()->view('errors.500', [
+                'message' => 'Failed to fetch stock beginning',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -135,10 +187,7 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
-                $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
-
                 $mainStockBeginning->update([
-                    'reference_no' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
@@ -162,8 +211,6 @@ class StockBeginningController extends Controller
                 }, $validated['items']);
 
                 StockBeginning::insert($items);
-
-                Log::info('Stock beginning updated', ['id' => $mainStockBeginning->id, 'reference_no' => $referenceNo]);
 
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
@@ -210,12 +257,6 @@ class StockBeginningController extends Controller
                                 ->orWhere('khmer_name', 'like', "%{$search}%")
                                 ->orWhere('description', 'like', "%{$search}%")
                                 ->orWhere('item_code', 'like', "%{$search}%")
-                                ->orWhereHas('category', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                })
-                                ->orWhereHas('subCategory', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                })
                                 ->orWhereHas('unit', function ($q3) use ($search) {
                                     $q3->where('name', 'like', "%{$search}%");
                                 });
@@ -261,8 +302,6 @@ class StockBeginningController extends Controller
                         'remarks' => $stockBeginning->remarks,
                         'product_name' => $stockBeginning->productVariant->product->name ?? null,
                         'product_khmer_name' => $stockBeginning->productVariant->product->khmer_name ?? null,
-                        'category_name' => $stockBeginning->productVariant->product->category->name ?? null,
-                        'sub_category_name' => $stockBeginning->productVariant->product->subCategory->name ?? null,
                         'unit_name' => $stockBeginning->productVariant->product->unit->name ?? null,
                     ];
                 })->toArray(),
@@ -331,7 +370,7 @@ class StockBeginningController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to parse stock beginnings',
-                'errors' => [$e->getMessage()], // Use 'errors' array for consistency
+                'errors' => [$e->getMessage()],
             ], 500);
         }
     }
@@ -364,12 +403,6 @@ class StockBeginningController extends Controller
                                 ->orWhere('khmer_name', 'like', "%{$search}%")
                                 ->orWhere('description', 'like', "%{$search}%")
                                 ->orWhere('item_code', 'like', "%{$search}%")
-                                ->orWhereHas('category', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                })
-                                ->orWhereHas('subCategory', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                })
                                 ->orWhereHas('unit', function ($q3) use ($search) {
                                     $q3->where('name', 'like', "%{$search}%");
                                 });
@@ -449,7 +482,7 @@ class StockBeginningController extends Controller
     }
 
     /**
-     * Generate a sequence number for uniqueness.
+     * Generate a sequence number for uniqueness, including soft-deleted records.
      *
      * @param int $warehouseId
      * @param string $monthYear
@@ -457,7 +490,8 @@ class StockBeginningController extends Controller
      */
     private function getSequenceNumber(int $warehouseId, string $monthYear): string
     {
-        $count = MainStockBeginning::where('warehouse_id', $warehouseId)
+        $count = MainStockBeginning::withTrashed()
+            ->where('warehouse_id', $warehouseId)
             ->where('reference_no', 'like', "STB%{$monthYear}%")
             ->count();
 
@@ -478,8 +512,6 @@ class StockBeginningController extends Controller
             DB::transaction(function () use ($mainStockBeginning) {
                 $mainStockBeginning->stockBeginnings()->delete();
                 $mainStockBeginning->delete();
-
-                Log::info('Stock beginning deleted', ['id' => $mainStockBeginning->id, 'reference_no' => $mainStockBeginning->reference_no]);
             });
 
             return response()->json([

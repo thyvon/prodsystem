@@ -4,7 +4,7 @@
       <div class="card border mb-0">
         <!-- Header -->
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-          <h4 class="mb-0 font-weight-bold">Create Stock Beginning</h4>
+          <h4 class="mb-0 font-weight-bold">{{ isEditMode ? 'Edit Stock Beginning' : 'Create Stock Beginning' }}</h4>
           <a :href="indexRoute" class="btn btn-secondary btn-sm">
             <i class="fal fa-arrow-left"></i> Back to List
           </a>
@@ -194,7 +194,7 @@
                 v-if="isSubmitting"
                 class="spinner-border spinner-border-sm mr-1"
               ></span>
-              Create
+              {{ isEditMode ? 'Update' : 'Create' }}
             </button>
             <a :href="indexRoute" class="btn btn-secondary btn-sm">Cancel</a>
           </div>
@@ -203,7 +203,6 @@
     </form>
   </div>
 </template>
-
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
@@ -218,8 +217,10 @@ const products = ref([])
 const warehouses = ref([])
 const warehouseSelect = ref(null)
 const fileInput = ref(null)
-const indexRoute = ref(window.route('stockBeginnings.index'))
+const indexRoute = ref(window.route('stock-beginnings.index'))
 const selectedFileName = ref('')
+const isEditMode = ref(false)
+const stockBeginningId = ref(null)
 
 const form = ref({
   warehouse_id: null,
@@ -233,6 +234,13 @@ const form = ref({
       remarks: '',
     },
   ],
+})
+
+const props = defineProps({
+  initialData: {
+    type: Object,
+    default: () => ({}),
+  },
 })
 
 // Fetch data
@@ -291,11 +299,11 @@ const removeItem = (index) => {
 const handleFileUpload = (event) => {
   const file = event.target.files[0]
   const validMimeTypes = [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-    'application/vnd.ms-excel', // .xls
-    'text/csv', // .csv
-    'application/csv', // Alternative .csv MIME type
-    'text/plain' // Some systems use this for .csv
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/csv',
+    'application/csv',
+    'text/plain',
   ]
   if (file) {
     selectedFileName.value = file.name
@@ -324,15 +332,12 @@ const importFile = async () => {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
 
-    // Check for success (status 200) and presence of data
     if (response.status === 200 && response.data.data) {
-      // Destroy existing Select2 instances for items
       form.value.items.forEach((_, index) => {
         const select = document.getElementById(`product_id_${index}`)
         if (select) destroySelect2(select)
       })
 
-      // Populate form with imported data
       const importedData = response.data.data
       form.value.items = importedData.items.map(item => ({
         product_id: item.product_id,
@@ -341,7 +346,6 @@ const importFile = async () => {
         remarks: item.remarks || '',
       }))
 
-      // Update datepicker with imported date
       if (importedData.beginning_date) {
         const [year, month, day] = importedData.beginning_date.split('-')
         if (year && month && day) {
@@ -349,14 +353,13 @@ const importFile = async () => {
           const formattedDate = date.toLocaleDateString('en-US', {
             month: 'short',
             day: '2-digit',
-            year: 'numeric'
+            year: 'numeric',
           })
           form.value.beginning_date_display = formattedDate
           $('#beginning_date').datepicker('setDate', formattedDate)
         }
       }
 
-      // Reinitialize Select2 for warehouse
       await nextTick()
       if (warehouseSelect.value) {
         destroySelect2(warehouseSelect.value)
@@ -368,8 +371,6 @@ const importFile = async () => {
         $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
       }
 
-      // Reinitialize Select2 for product selects
-      await nextTick()
       form.value.items.forEach((item, index) => {
         const select = document.getElementById(`product_id_${index}`)
         if (select) {
@@ -388,7 +389,6 @@ const importFile = async () => {
       return
     }
 
-    // Handle errors (status 422 or 500) with errors array
     const errors = response.data.errors || [response.data.message || 'Unknown error occurred']
     if (errors.length > 0) {
       const errorList = errors.map((error, index) => `${index + 1}. ${error}`).join('<br>')
@@ -413,7 +413,7 @@ const submitForm = async () => {
   try {
     const payload = {
       warehouse_id: form.value.warehouse_id,
-      beginning_date: form.value.beginning_date, // Send YYYY-MM-DD to backend
+      beginning_date: form.value.beginning_date,
       items: form.value.items.map(item => ({
         product_id: item.product_id,
         quantity: parseFloat(item.quantity),
@@ -422,8 +422,13 @@ const submitForm = async () => {
       })),
     }
 
-    await axios.post('/api/stock-beginnings', payload)
-    showAlert('Success', 'Stock beginning created successfully.', 'success')
+    const url = isEditMode.value
+      ? window.route('stock-beginnings.update', { mainStockBeginning: stockBeginningId.value })
+      : window.route('stock-beginnings.store')
+    const method = isEditMode.value ? 'put' : 'post'
+
+    await axios[method](url, payload)
+    await showAlert('Success', isEditMode.value ? 'Stock beginning updated successfully.' : 'Stock beginning created successfully.', 'success')
     window.location.href = indexRoute.value
   } catch (err) {
     console.error('Submit error:', err.response?.data || err)
@@ -440,7 +445,7 @@ const initDatepicker = async () => {
     format: 'M dd, yyyy',
     autoclose: true,
     todayHighlight: true,
-    orientation: "bottom left",  // <-- add this line
+    orientation: 'bottom left',
   }).on('changeDate', (e) => {
     if (e.date) {
       const date = new Date(e.date)
@@ -451,7 +456,7 @@ const initDatepicker = async () => {
       form.value.beginning_date_display = date.toLocaleDateString('en-US', {
         month: 'short',
         day: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
       })
     } else {
       form.value.beginning_date = ''
@@ -459,7 +464,6 @@ const initDatepicker = async () => {
     }
   })
 }
-
 
 // Watch beginning_date_display for manual input or programmatic updates
 watch(() => form.value.beginning_date_display, (newDisplayDate) => {
@@ -487,14 +491,56 @@ watch(() => form.value.beginning_date_display, (newDisplayDate) => {
 })
 
 onMounted(async () => {
+  console.log('StockBeginningForm mounted')
+  // Check if in edit mode using Ziggy
+  const currentRoute = window.route().current()
+  stockBeginningId.value = window.route().params.mainStockBeginning
+  isEditMode.value = currentRoute === 'stock-beginnings.edit' && !!stockBeginningId.value
+  console.log('Edit mode:', isEditMode.value, 'StockBeginning ID:', stockBeginningId.value)
+  console.log('Initial data received:', props.initialData)
+
+  // Populate form with initial data if provided (edit mode)
+  if (isEditMode.value && props.initialData?.id) {
+    console.log('Populating form with initial data:', props.initialData)
+    form.value.warehouse_id = props.initialData.warehouse_id
+    form.value.beginning_date = props.initialData.beginning_date
+    if (props.initialData.beginning_date) {
+      const [year, month, day] = props.initialData.beginning_date.split('-')
+      const date = new Date(year, month - 1, day)
+      form.value.beginning_date_display = date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      })
+    }
+    form.value.items = props.initialData.items?.length
+      ? props.initialData.items.map(item => ({
+          product_id: item.product_id,
+          quantity: parseFloat(item.quantity) || 1,
+          unit_price: parseFloat(item.unit_price) || 0,
+          remarks: item.remarks || '',
+        }))
+      : form.value.items
+  } else if (isEditMode.value) {
+    console.warn('Initial data missing in edit mode, form will use default values')
+  }
+
+  // Fetch additional data
   await Promise.all([fetchProducts(), fetchWarehouses()])
+
   await nextTick()
-  initSelect2(warehouseSelect.value, {
-    placeholder: 'Select Warehouse',
-    width: '100%',
-    allowClear: true,
-  }, (v) => (form.value.warehouse_id = v))
-  form.value.items.forEach((_, index) => {
+  if (warehouseSelect.value) {
+    initSelect2(warehouseSelect.value, {
+      placeholder: 'Select Warehouse',
+      width: '100%',
+      allowClear: true,
+    }, (v) => (form.value.warehouse_id = v))
+    if (form.value.warehouse_id) {
+      $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
+    }
+  }
+
+  form.value.items.forEach((item, index) => {
     const select = document.getElementById(`product_id_${index}`)
     if (select) {
       initSelect2(select, {
@@ -502,9 +548,16 @@ onMounted(async () => {
         width: '100%',
         allowClear: true,
       }, (v) => (form.value.items[index].product_id = v))
+      if (item.product_id) {
+        $(select).val(item.product_id).trigger('change')
+      }
     }
   })
+
   initDatepicker()
+  if (isEditMode.value && form.value.beginning_date_display) {
+    $('#beginning_date').datepicker('setDate', form.value.beginning_date_display)
+  }
 })
 
 onUnmounted(() => {
