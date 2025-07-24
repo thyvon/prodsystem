@@ -799,7 +799,9 @@ const generateVariants = () => {
           average_price: isNewCombo
             ? null
             : (userInput?.average_price ?? existing?.average_price ?? form.value.average_price ?? null),
-          image: isNewCombo ? null : (userInput?.image ?? existing?.image ?? defaultVariant?.image ?? lastUserInput?.image ?? null),
+          image: isNewCombo
+            ? form.value.image // Default to main product image for new variants
+            : (userInput?.image ?? existing?.image ?? form.value.image ?? defaultVariant?.image ?? lastUserInput?.image ?? null),
           is_active: Number(userInput?.is_active ?? existing?.is_active ?? defaultVariant?.is_active ?? lastUserInput?.is_active ?? 1),
           variant_value_ids: valIds,
         }
@@ -812,7 +814,7 @@ const generateVariants = () => {
             item_code: form.value.item_code || '',
             estimated_price: form.value.estimated_price ?? defaultVariant?.estimated_price ?? null,
             average_price: form.value.average_price ?? defaultVariant?.average_price ?? null,
-            image: form.value.image || defaultVariant?.image || null,
+            image: form.value.image || defaultVariant?.image || null, // Default to main product image
             is_active: Number(form.value.is_active ?? defaultVariant?.is_active ?? 1),
             variant_value_ids: [],
           }])
