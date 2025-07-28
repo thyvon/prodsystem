@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('main_form_id');
             $table->unsignedBigInteger('product_id');
-            $table->decimal('quantity', 15, 2)->default(0);
-            $table->decimal('unit_price', 15, 2)->default(0);
-            $table->decimal('total_value', 15, 2)->default(0);
+            $table->decimal('quantity', 15, 8)->default(0);
+            $table->decimal('unit_price', 15, 8)->default(0);
+            $table->decimal('total_value', 15, 8)->default(0);
             $table->string('remarks')->nullable();
             $table->unsignedBigInteger('created_by');
             $table->unsignedBigInteger('updated_by')->nullable();

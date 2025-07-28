@@ -132,33 +132,37 @@ Route::middleware('auth')->group(function () {
     Route::delete('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'destroy'])->middleware('can:delete,tocaAmount');
 
     // Product Management - Main Categories
-    Route::get('/main-categories', [MainCategoryController::class, 'getMainCategories'])->middleware('can:viewAny,' . MainCategory::class);
-    Route::get('/main-categories/{mainCategory}/edit', [MainCategoryController::class, 'edit'])->middleware('can:update,mainCategory');
-    Route::post('/main-categories', [MainCategoryController::class, 'store'])->middleware('can:create,' . MainCategory::class);
-    Route::put('/main-categories/{mainCategory}', [MainCategoryController::class, 'update'])->middleware('can:update,mainCategory');
-    Route::delete('/main-categories/{mainCategory}', [MainCategoryController::class, 'destroy'])->middleware('can:delete,mainCategory');
+    Route::get('/main-categories', [MainCategoryController::class, 'getMainCategories'])->middleware('can:viewAny,' . MainCategory::class)->name('api.main-categories.index');
+    Route::get('/main-categories/{mainCategory}/edit', [MainCategoryController::class, 'edit'])->middleware('can:update,mainCategory')->name('api.main-categories.edit');
+    Route::post('/main-categories', [MainCategoryController::class, 'store'])->middleware('can:create,' . MainCategory::class)->name('api.main-categories.store');
+    Route::put('/main-categories/{mainCategory}', [MainCategoryController::class, 'update'])->middleware('can:update,mainCategory')->name('api.main-categories.update');
+    Route::delete('/main-categories/{mainCategory}', [MainCategoryController::class, 'destroy'])->middleware('can:delete,mainCategory')->name('api.main-categories.destroy');
 
     // Product Management - Sub Categories
-    Route::get('/sub-categories', [SubCategoryController::class, 'getSubCategories'])->middleware('can:viewAny,' . SubCategory::class);
-    Route::get('/sub-categories/{subCategory}/edit', [SubCategoryController::class, 'edit'])->middleware('can:update,subCategory');
-    Route::post('/sub-categories', [SubCategoryController::class, 'store'])->middleware('can:create,' . SubCategory::class);
-    Route::put('/sub-categories/{subCategory}', [SubCategoryController::class, 'update'])->middleware('can:update,subCategory');
-    Route::delete('/sub-categories/{subCategory}', [SubCategoryController::class, 'destroy'])->middleware('can:delete,subCategory');
+    Route::get('/sub-categories', [SubCategoryController::class, 'getSubCategories'])->middleware('can:viewAny,' . SubCategory::class)->name('api.sub-categories.index');
+    Route::get('/sub-categories/{subCategory}/edit', [SubCategoryController::class, 'edit'])->middleware('can:update,subCategory')->name('api.sub-categories.edit');
+    Route::post('/sub-categories', [SubCategoryController::class, 'store'])->middleware('can:create,' . SubCategory::class)->name('api.sub-categories.store');
+    Route::put('/sub-categories/{subCategory}', [SubCategoryController::class, 'update'])->middleware('can:update,subCategory')->name('api.sub-categories.update');
+    Route::delete('/sub-categories/{subCategory}', [SubCategoryController::class, 'destroy'])->middleware('can:delete,subCategory')->name('api.sub-categories.destroy');
 
     // Product Management - Unit of Measure
-    Route::get('/unit-of-measures', [UnitController::class, 'getUnitsOfMeasure'])->middleware('can:viewAny,' . UnitOfMeasure::class);
-    Route::get('/unit-of-measures/{unitOfMeasure}/edit', [UnitController::class, 'edit'])->middleware('can:update,unitOfMeasure');
-    Route::post('/unit-of-measures', [UnitController::class, 'store'])->middleware('can:create,' . UnitOfMeasure::class);
-    Route::put('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'update'])->middleware('can:update,unitOfMeasure');
-    Route::delete('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'destroy'])->middleware('can:delete,unitOfMeasure');
+    Route::get('/unit-of-measures', [UnitController::class, 'getUnitsOfMeasure'])->middleware('can:viewAny,' . UnitOfMeasure::class)->name('api.unit-of-measures.index');
+    Route::get('/unit-of-measures/{unitOfMeasure}/edit', [UnitController::class, 'edit'])->middleware('can:update,unitOfMeasure')->name('api.unit-of-measures.edit');
+    Route::post('/unit-of-measures', [UnitController::class, 'store'])->middleware('can:create,' . UnitOfMeasure::class)->name('api.unit-of-measures.store');
+    Route::put('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'update'])->middleware('can:update,unitOfMeasure')->name('api.unit-of-measures.update');
+    Route::delete('/unit-of-measures/{unitOfMeasure}', [UnitController::class, 'destroy'])->middleware('can:delete,unitOfMeasure')->name('api.unit-of-measures.destroy');
 
     // Product Management - Products
-    Route::get('/products', [ProductController::class, 'getProducts'])->middleware('can:viewAny,' . Product::class);
-    Route::middleware('auth:sanctum')->get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product');
-    Route::post('/products', [ProductController::class, 'store'])->middleware('can:create,' . Product::class);
-    Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product');
-    Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product');
+    Route::get('/products', [ProductController::class, 'getProducts'])->middleware('can:viewAny,' . Product::class)->name('api.products.index');
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('can:update,product')->name('api.products.edit');
+    Route::post('/products', [ProductController::class, 'store'])->middleware('can:create,' . Product::class)->name('api.products.store');
+    Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product')->name('api.products.update');
+    Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product')->name('api.products.destroy');
     Route::get('/product-variants-stock', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
+
+    Route::post('products/import', [ProductController::class, 'import'])->middleware('can:create,' . Product::class)->name('api.products.import');
+    Route::get('products/export', [ProductController::class, 'export'])->middleware('can:viewAny,' . Product::class)->name('api.products.export');
+
 
     // Product Management - Trashed
     Route::get('/products/trashed', [ProductController::class, 'trashed'])->middleware('can:viewAny,' . Product::class);
@@ -166,13 +170,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/products/{product}/force', [ProductController::class, 'forceDelete'])->middleware('can:forceDelete,product');
 
     // Product Variant Attributes
-    Route::get('/product-variant-attributes', [ProductVariantController::class, 'getProductVariantAttributes']);
-    Route::post('/product-variant-attributes', [ProductVariantController::class, 'store']);
-    Route::get('/product-variant-attributes/{productVariantAttribute}/edit', [ProductVariantController::class, 'edit']);
-    Route::put('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'update']);
-    Route::delete('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'destroy']);
-    Route::post('/product-variant-attributes/{productVariantAttribute}/values', [ProductVariantController::class, 'addValues']);
-    Route::get('/attributes-values', [ProductVariantController::class, 'getAttributesWithValues']);
+    Route::get('/product-variant-attributes', [ProductVariantController::class, 'getProductVariantAttributes'])->middleware('can:viewAny,' . VariantAttribute::class)->name('api.product-variant-attributes.index');
+    Route::post('/product-variant-attributes', [ProductVariantController::class, 'store'])->middleware('can:create,' . VariantAttribute::class)->name('api.product-variant-attributes.store');
+    Route::get('/product-variant-attributes/{productVariantAttribute}/edit', [ProductVariantController::class, 'edit'])->middleware('can:update,productVariantAttribute')->name('api.product-variant-attributes.edit');
+    Route::put('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'update'])->middleware('can:update,productVariantAttribute')->name('api.product-variant-attributes.update');
+    Route::delete('/product-variant-attributes/{productVariantAttribute}', [ProductVariantController::class, 'destroy'])->middleware('can:delete,productVariantAttribute')->name('api.product-variant-attributes.destroy');
+    Route::post('/product-variant-attributes/{productVariantAttribute}/values', [ProductVariantController::class, 'addValues'])->middleware('can:create,productVariantAttribute')->name('api.product-variant-attributes.add-values');
+    Route::get('/attributes-values', [ProductVariantController::class, 'getAttributesWithValues'])->middleware('can:viewAny,' . VariantAttribute::class)->name('api.attributes-values.index');
 
     // Inventory Management - Warehouses
     Route::get('/warehouses', [WarehouseController::class, 'getWarehouses'])->middleware('can:viewAny,' . Warehouse::class);

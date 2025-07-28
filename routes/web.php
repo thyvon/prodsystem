@@ -122,6 +122,10 @@ Route::middleware(['auth'])->group(function () {
     // Product Management
     Route::get('/products', [ProductController::class, 'index'])
         ->name('products.index')->middleware('can:viewAny,' . Product::class);
+    Route::get('/products/create', [ProductController::class, 'create'])
+        ->name('products.create')->middleware('can:create,' . Product::class);
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])
+        ->name('products.edit')->middleware('can:update,' . Product::class);
 
    Route::get('/product-variant-attributes', [ProductVariantController::class, 'index'])
         ->name('productVariantAttributes.index')->middleware('can:viewAny,' . VariantAttribute::class);

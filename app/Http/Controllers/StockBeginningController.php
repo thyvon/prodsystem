@@ -128,6 +128,7 @@ class StockBeginningController extends Controller
                 'beginning_date' => $mainStockBeginning->beginning_date,
                 'items' => $mainStockBeginning->stockBeginnings->map(function ($item) {
                     return [
+                        'id' => $item->id, // Include id for frontend
                         'product_id' => $item->product_id,
                         'quantity' => $item->quantity,
                         'unit_price' => $item->unit_price,
@@ -187,30 +188,63 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
+                // Update the main stock beginning header
                 $mainStockBeginning->update([
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
-                $mainStockBeginning->stockBeginnings()->delete();
+                // Get existing line item IDs
+                $existingItemIds = $mainStockBeginning->stockBeginnings->pluck('id')->toArray();
+                $submittedItemIds = array_filter(array_column($validated['items'], 'id'), fn($id) => !is_null($id));
 
-                $items = array_map(function ($item) use ($mainStockBeginning) {
-                    return [
-                        'main_form_id' => $mainStockBeginning->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'unit_price' => $item['unit_price'],
-                        'total_value' => $item['quantity'] * $item['unit_price'],
-                        'remarks' => $item['remarks'] ?? null,
-                        'created_by' => auth()->id() ?? 1,
-                        'updated_by' => auth()->id() ?? 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }, $validated['items']);
+                // Delete line items not included in the request
+                StockBeginning::where('main_form_id', $mainStockBeginning->id)
+                    ->whereNotIn('id', $submittedItemIds)
+                    ->each(function ($stockBeginning) {
+                        $stockBeginning->deleted_by = auth()->id() ?? 1;
+                        $stockBeginning->save();
+                        $stockBeginning->delete();
+                    });
 
-                StockBeginning::insert($items);
+                // Process each item: update existing or create new
+                $itemsToInsert = [];
+                foreach ($validated['items'] as $item) {
+                    if (!empty($item['id']) && in_array($item['id'], $existingItemIds)) {
+                        // Update existing item
+                        $stockBeginning = StockBeginning::find($item['id']);
+                        if ($stockBeginning) {
+                            $stockBeginning->update([
+                                'product_id' => $item['product_id'],
+                                'quantity' => $item['quantity'],
+                                'unit_price' => $item['unit_price'],
+                                'total_value' => $item['quantity'] * $item['unit_price'],
+                                'remarks' => $item['remarks'] ?? null,
+                                'updated_by' => auth()->id() ?? 1,
+                            ]);
+                        }
+                    } else {
+                        // Prepare new item for insertion
+                        $itemsToInsert[] = [
+                            'main_form_id' => $mainStockBeginning->id,
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price' => $item['unit_price'],
+                            'total_value' => $item['quantity'] * $item['unit_price'],
+                            'remarks' => $item['remarks'] ?? null,
+                            'created_by' => auth()->id() ?? 1,
+                            'updated_by' => auth()->id() ?? 1,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+                }
+
+                // Insert new items if any
+                if (!empty($itemsToInsert)) {
+                    StockBeginning::insert($itemsToInsert);
+                }
 
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
@@ -278,6 +312,15 @@ class StockBeginningController extends Controller
 
         $limit = max(1, min((int) ($validated['limit'] ?? self::DEFAULT_LIMIT), self::MAX_LIMIT));
         $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $validated['page'] ?? 1);
+        $totalQuantity = round($mainStockBeginnings->sum(function ($mainStockBeginning) {
+            return $mainStockBeginning->stockBeginnings->sum('quantity');
+        }), 4);
+        $totalValue = round(
+            $mainStockBeginnings->sum(function ($mainStockBeginning) {
+                return $mainStockBeginning->stockBeginnings->sum('total_value');
+            }),
+            4
+        );
 
         $data = $mainStockBeginnings->getCollection()->map(function ($mainStockBeginning) {
             return [
@@ -287,6 +330,8 @@ class StockBeginningController extends Controller
                 'warehouse_name' => $mainStockBeginning->warehouse->name ?? null,
                 'campus_name' => $mainStockBeginning->warehouse->building->campus->short_name ?? null,
                 'building_name' => $mainStockBeginning->warehouse->building->short_name ?? null,
+                'quantity' => $mainStockBeginning->stockBeginnings->sum('quantity'),
+                'total_value' => $mainStockBeginning->stockBeginnings->sum('total_value'),
                 'created_at' => $mainStockBeginning->created_at?->toDateTimeString(),
                 'updated_at' => $mainStockBeginning->updated_at?->toDateTimeString(),
                 'created_by' => $mainStockBeginning->createdBy->name ?? 'System',
@@ -445,6 +490,7 @@ class StockBeginningController extends Controller
     {
         return [
             'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable', 'integer', 'exists:stock_beginnings,id'],
             'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
@@ -510,6 +556,15 @@ class StockBeginningController extends Controller
 
         try {
             DB::transaction(function () use ($mainStockBeginning) {
+
+                $userId = auth()->id() ?? 1;
+                foreach ($mainStockBeginning->stockBeginnings as $stockBeginning) {
+                    $stockBeginning->deleted_by = $userId;
+                    $stockBeginning->save();
+                }
+                $mainStockBeginning->deleted_by = $userId;
+                $mainStockBeginning->save();
+
                 $mainStockBeginning->stockBeginnings()->delete();
                 $mainStockBeginning->delete();
             });

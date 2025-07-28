@@ -39,6 +39,7 @@ import SubCategoryPage from './components/Category/SubCategoryPage.vue'
 import UnitOfMeasurePage from './components/UnitOfMeasure/UnitOfMeasurePage.vue'
 import ProductPage from './components/Product/ProductPage.vue'
 import AttributeList from './components/Product/Attribute/AttributeList.vue'
+import ProductForm from './components/Product/ProductForm.vue'
 
 //Inventory Management
 import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
@@ -81,6 +82,7 @@ app.use(ZiggyVue, {
  app.component('unit-of-measure-page', UnitOfMeasurePage)
  app.component('product-page', ProductPage)
  app.component('attribute-list', AttributeList)
+ app.component('product-form', ProductForm)
 
  //Inventory Management
  app.component('warehouse-page', WarehousePage)
