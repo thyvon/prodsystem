@@ -57,7 +57,7 @@ const datatableHeaders = [
 ]
 
 const datatableFetchUrl = '/api/stock-beginnings'
-const datatableActions = ['edit', 'delete']
+const datatableActions = ['edit', 'delete', 'preview']
 const datatableOptions = {
   responsive: true,
   pageLength: pageLength.value,
@@ -71,6 +71,10 @@ const createStockBeginning = () => {
 
 const handleEdit = (stockBeginning) => {
   window.location.href = `/stock-beginnings/${stockBeginning.id}/edit`; // Adjust URL as per your routes
+}
+
+const handlePreview = (stockBeginning) => {
+  window.location.href = `/stock-beginnings/${stockBeginning.id}/show`; // Adjust URL as per your routes
 }
 
 const handleDelete = async (stockBeginning) => {
@@ -124,5 +128,6 @@ const handleSearchChange = (search) => {
 const datatableHandlers = {
   edit: handleEdit,
   delete: handleDelete,
+  preview: handlePreview,
 }
 </script>

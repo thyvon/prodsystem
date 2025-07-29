@@ -1,3 +1,21 @@
 /* @tailwind base;
 @tailwind components;
 @tailwind utilities; */
+
+/* @font-face {
+    font-family: 'TW Cen MT';
+    src: url('/fonts/TWCenMT.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Khmer OS Content';
+    src: url('public/fonts/KhmerOScontent.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+} */
+
+
+#preloader {
+    transition: opacity 0.3s ease;
+}

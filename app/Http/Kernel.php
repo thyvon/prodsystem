@@ -71,4 +71,17 @@ class Kernel extends HttpKernel
         'permission' => PermissionMiddleware::class,
         'role_or_permission' => RoleOrPermissionMiddleware::class,
     ];
+
+    // Clean PDF
+    protected function schedule(Schedule $schedule)
+    {
+        $schedule->call(function () {
+            foreach (glob(public_path('temp/temp_*.pdf')) as $file) {
+                if (filemtime($file) < now()->subMinutes(15)->getTimestamp()) {
+                    unlink($file);
+                }
+            }
+        })->everyFiveMinutes();
+    }
+
 }

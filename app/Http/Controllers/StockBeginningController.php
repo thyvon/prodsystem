@@ -13,6 +13,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StockBeginningsExport;
 use App\Imports\StockBeginningsImport;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class StockBeginningController extends Controller
 {
@@ -44,6 +46,99 @@ class StockBeginningController extends Controller
     {
         $this->authorize('create', MainStockBeginning::class);
         return view('Inventory.stockBeginning.form');
+    }
+
+    /**
+     * Display a single main stock beginning with its line items for printing.
+     *
+     * @param MainStockBeginning $mainStockBeginning
+     * @return \Illuminate\View\View
+     */
+    public function show(MainStockBeginning $mainStockBeginning)
+    {
+        $this->authorize('view', $mainStockBeginning);
+
+        try {
+            // Load related data
+            $mainStockBeginning->load([
+                'stockBeginnings.productVariant.product.unit',
+                'warehouse.building.campus',
+                'createdBy',
+                'updatedBy'
+            ]);
+
+            return view('Inventory.stockBeginning.show', [
+                'mainStockBeginning' => $mainStockBeginning,
+                'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
+                'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching stock beginning for display', [
+                'error_message' => $e->getMessage(),
+                'stock_beginning_id' => $mainStockBeginning->id,
+            ]);
+            return response()->view('errors.500', [
+                'message' => 'Failed to fetch stock beginning',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate a PDF for a single main stock beginning.
+     *
+     * @param MainStockBeginning $mainStockBeginning
+     * @return \Illuminate\View\View
+     */
+    public function generatePdf(MainStockBeginning $mainStockBeginning)
+    {
+        $this->authorize('view', $mainStockBeginning);
+
+        try {
+            // Load related data
+            $mainStockBeginning->load([
+                'stockBeginnings.productVariant.product.unit',
+                'warehouse.building.campus',
+                'createdBy',
+                'updatedBy'
+            ]);
+
+            // Clean old temp files (older than 15 minutes)
+            foreach (glob(public_path('temp/temp_*.pdf')) as $file) {
+                if (filemtime($file) < now()->subMinutes(15)->getTimestamp()) {
+                    unlink($file);
+                }
+            }
+
+            // Prepare data for PDF
+            $data = [
+                'mainStockBeginning' => $mainStockBeginning,
+                'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
+                'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
+            ];
+
+            // Generate PDF
+            $pdf = Pdf::loadView('Inventory.stockBeginning.pdf', $data);
+
+            // Generate unique filename with timestamp
+            $filename = 'temp_' . time() . '_' . Str::random(6) . '.pdf';
+            $filePath = public_path('temp/' . $filename);
+
+            // Save PDF file to public/temp
+            $pdf->save($filePath);
+
+            // Return the PDF viewer view
+            return view('pdf.pdfviewer', ['pdfFile' => "temp/$filename"]);
+        } catch (\Exception $e) {
+            Log::error('Error generating stock beginning PDF', [
+                'error_message' => $e->getMessage(),
+                'stock_beginning_id' => $mainStockBeginning->id,
+            ]);
+            return response()->view('errors.500', [
+                'message' => 'Failed to generate PDF',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -128,7 +223,7 @@ class StockBeginningController extends Controller
                 'beginning_date' => $mainStockBeginning->beginning_date,
                 'items' => $mainStockBeginning->stockBeginnings->map(function ($item) {
                     return [
-                        'id' => $item->id, // Include id for frontend
+                        'id' => $item->id,
                         'product_id' => $item->product_id,
                         'quantity' => $item->quantity,
                         'unit_price' => $item->unit_price,
@@ -371,7 +466,7 @@ class StockBeginningController extends Controller
     {
         $this->authorize('create', MainStockBeginning::class);
 
-        $request->validate([
+        $validated = $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
         ]);
 
@@ -556,7 +651,6 @@ class StockBeginningController extends Controller
 
         try {
             DB::transaction(function () use ($mainStockBeginning) {
-
                 $userId = auth()->id() ?? 1;
                 foreach ($mainStockBeginning->stockBeginnings as $stockBeginning) {
                     $stockBeginning->deleted_by = $userId;

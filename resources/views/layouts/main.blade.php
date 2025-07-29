@@ -28,12 +28,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('template/img/favicon/apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="https://mjqeducation.edu.kh/FrontEnd/Image/logo/mjq-education-single-logo_1.ico">
     <link rel="mask-icon" href="{{ asset('template/img/favicon/safari-pinned-tab.svg') }}" color="#5bbad5">
-
-    <style>
-        #preloader {
-            transition: opacity 0.3s ease;
-        }
-    </style>
 </head>
 
 <body class="mod-skin-dark mod-nav-link header-function-fixed nav-function-fixed footer-function-fixed">

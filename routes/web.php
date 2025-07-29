@@ -8,7 +8,6 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\PdfController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Str;
 
 // For Permissions and Roles
 use App\Http\Controllers\CampusController;
@@ -150,6 +149,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
         ->name('stock-beginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
+    Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
+        ->name('stock-beginnings.pdf')->middleware('can:view,' . MainStockBeginning::class);
+    Route::get('/stock-beginnings/{mainStockBeginning}/generate-pdf', [StockBeginningController::class, 'generatePdf'])
+    ->name('stock-beginnings.pdf')->middleware('can:view,' . MainStockBeginning::class);
 
     // Stock Requests
     Route::get('/stock-requests', [StockRequestController::class, 'index'])
@@ -158,24 +161,6 @@ Route::middleware(['auth'])->group(function () {
         ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
     Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
         ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
-
-    Route::get('/pdf-viewer', function () {
-        return view('pdf.pdfviewer');
-    });
-
-    Route::get('/pdf-viewer/{filename}', function ($filename) {
-        // Prevent directory traversal
-        if (Str::contains($filename, ['..', '/', '\\'])) {
-            abort(403);
-        }
-
-        $path = public_path("pdf/invoice/{$filename}");
-        if (!file_exists($path)) {
-            abort(404, 'PDF not found');
-        }
-
-        return view('pdf.pdfviewer', ['filename' => $filename]);
-    });
 
 });
 require __DIR__.'/auth.php';
