@@ -13,9 +13,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-     <!-- Ziggy Routes -->
-    @routes
-
     <!-- Base CSS -->
     <link id="vendorsbundle" rel="stylesheet" href="{{ asset('template/css/vendors.bundle.css') }}">
     <link id="appbundle" rel="stylesheet" href="{{ asset('template/css/app.bundle.css') }}">

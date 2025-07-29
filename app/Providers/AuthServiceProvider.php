@@ -39,6 +39,9 @@ use App\Policies\WarehousePolicy;
 use App\Models\MainStockBeginning;
 use App\Policies\MainStockBeginningPolicy;
 
+use App\Models\StockRequest;
+use App\Policies\StockRequestPolicy;
+
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -63,6 +66,7 @@ class AuthServiceProvider extends ServiceProvider
         VariantAttribute::class => ProductVariantAttributePolicy::class,
         Warehouse::class => WarehousePolicy::class,
         MainStockBeginning::class => MainStockBeginningPolicy::class,
+        StockRequest::class => StockRequestPolicy::class,
     ];
 
     /**

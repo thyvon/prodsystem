@@ -4,8 +4,11 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\UserController;
+
+use App\Http\Controllers\PdfController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Str;
 
 // For Permissions and Roles
 use App\Http\Controllers\CampusController;
@@ -49,7 +52,9 @@ use App\Models\Warehouse;
 
 use App\Http\Controllers\StockBeginningController;
 use App\Models\MainStockBeginning;
-use App\Models\StockBeginning;
+
+use App\Http\Controllers\StockRequestController;
+use App\Models\StockRequest;
 
 /*
 |----------------------------------------------------------------------
@@ -145,6 +150,32 @@ Route::middleware(['auth'])->group(function () {
         ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
         ->name('stock-beginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
+
+    // Stock Requests
+    Route::get('/stock-requests', [StockRequestController::class, 'index'])
+        ->name('stock-requests.index')->middleware('can:viewAny,' . StockRequest::class);
+    Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
+        ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
+    Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
+        ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
+
+    Route::get('/pdf-viewer', function () {
+        return view('pdf.pdfviewer');
+    });
+
+    Route::get('/pdf-viewer/{filename}', function ($filename) {
+        // Prevent directory traversal
+        if (Str::contains($filename, ['..', '/', '\\'])) {
+            abort(403);
+        }
+
+        $path = public_path("pdf/invoice/{$filename}");
+        if (!file_exists($path)) {
+            abort(404, 'PDF not found');
+        }
+
+        return view('pdf.pdfviewer', ['filename' => $filename]);
+    });
 
 });
 require __DIR__.'/auth.php';

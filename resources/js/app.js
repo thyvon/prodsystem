@@ -1,9 +1,6 @@
 import './bootstrap'
 import { createApp } from 'vue'
 import axios from 'axios'
-import { ZiggyVue } from 'ziggy-js';
-import { route } from 'ziggy-js';
-import {Ziggy} from './ziggy.js';
 // import 'bootstrap/dist/css/bootstrap.min.css';  // Import Bootstrap 5 CSS
 // import 'bootstrap';  // Import Bootstrap 5 JS
 
@@ -21,7 +18,6 @@ if (token) {
 
 // Expose Axios globally for Blade scripts
 window.axios = axios
-window.route = route;
 
 // Vue Components
 
@@ -63,11 +59,6 @@ import Datatable from './components/Reusable/Datatable.vue'
 
 // Register global components
 
-
-app.use(ZiggyVue, {
-  Ziggy,
-  ZiggyRoute: route,
-});
 //Setting Up
  app.component('campus-page', Campus)
  app.component('building-page', BuildingPage)

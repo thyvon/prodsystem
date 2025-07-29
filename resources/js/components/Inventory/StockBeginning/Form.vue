@@ -4,9 +4,9 @@
       <div class="card border mb-0">
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
           <h4 class="mb-0 font-weight-bold">{{ isEditMode ? 'Edit Stock Beginning' : 'Create Stock Beginning' }}</h4>
-          <a :href="indexRoute" class="btn btn-primary btn-sm">
+          <button type="button" class="btn btn-outline-primary btn-sm" @click="goToIndex">
             <i class="fal fa-backward"></i>
-          </a>
+          </button>
         </div>
 
         <div class="card-body">
@@ -109,7 +109,7 @@
                 <thead class="thead-light">
                   <tr>
                     <th style="min-width: 150px;">Code</th>
-                    <th style="min-width: 400px;">Description</th>
+                    <th style="min-width: 300px;">Description</th>
                     <th style="min-width: 70px;">UoM</th>
                     <th style="min-width: 100px;">Quantity</th>
                     <th style="min-width: 120px;">Unit Price</th>
@@ -135,7 +135,13 @@
               ></span>
               {{ isEditMode ? 'Update' : 'Create' }}
             </button>
-            <a :href="indexRoute" class="btn btn-secondary btn-sm">Cancel</a>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              @click="goToIndex"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -149,6 +155,15 @@ import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
+const props = defineProps({
+  initialData: {
+    type: Object,
+    default: () => ({}),
+  },
+})
+
+const emit = defineEmits(['submitted'])
+
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 const products = ref([])
@@ -156,12 +171,11 @@ const warehouses = ref([])
 const warehouseSelect = ref(null)
 const productSelect = ref(null)
 const fileInput = ref(null)
-const indexRoute = ref(window.route('stock-beginnings.index'))
 const selectedFileName = ref('')
-const isEditMode = ref(false)
-const stockBeginningId = ref(null)
+const isEditMode = ref(!!props.initialData?.id)
+const stockBeginningId = ref(props.initialData?.id || null)
 const table = ref(null)
-let isAddingItem = false // Debounce flag to prevent rapid calls
+let isAddingItem = false
 
 const form = ref({
   warehouse_id: null,
@@ -170,16 +184,11 @@ const form = ref({
   items: [],
 })
 
-const props = defineProps({
-  initialData: {
-    type: Object,
-    default: () => ({}),
-  },
-})
+const goToIndex = () => { window.location.href = `/stock-beginnings` }
 
 const fetchProducts = async () => {
   try {
-    const response = await axios.get('/api/product-variants-stock')
+    const response = await axios.get(`/api/product-variants-stock`)
     products.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load products:', err)
@@ -189,7 +198,7 @@ const fetchProducts = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const response = await axios.get('/api/warehouses')
+    const response = await axios.get(`/api/warehouses`)
     warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load warehouses:', err)
@@ -241,17 +250,14 @@ const addItem = (productId) => {
       return
     }
 
-    // Check for duplicate product
     const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId))
     if (existingItemIndex !== -1) {
-      // Increment quantity for existing product
       form.value.items[existingItemIndex].quantity += 1
       if (table.value) {
         table.value.row(existingItemIndex).invalidate().draw()
       }
       showAlert('Info', `Quantity increased for ${product.item_code}`, 'info')
     } else {
-      // Add new item
       const newItem = {
         product_id: Number(productId),
         quantity: 1,
@@ -338,14 +344,14 @@ const importFile = async () => {
   formData.append('file', fileInput.value.files[0])
 
   try {
-    const response = await axios.post('/api/stock-beginnings/import', formData, {
+    const response = await axios.post(`/api/stock-beginnings/import`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
 
     if (response.status === 200 && response.data.data) {
       const importedData = response.data.data
       form.value.items = importedData.items.map(item => ({
-        id: item.id || null, // Include id if provided by import
+        id: item.id || null,
         product_id: Number(item.product_id),
         quantity: parseFloat(item.quantity) || 1,
         unit_price: parseFloat(item.unit_price) || 0,
@@ -408,11 +414,11 @@ const importFile = async () => {
 const submitForm = async () => {
   if (isSubmitting.value) return
   if (form.value.items.length === 0) {
-    showAlert('Error', 'At least one item is required to submit.', 'danger')
+    await showAlert('Error', 'At least one item is required to submit.', 'danger')
     return
   }
   if (form.value.items.some(item => !item.product_id)) {
-    showAlert('Error', 'All items must have a valid product selected.', 'danger')
+    await showAlert('Error', 'All items must have a valid product selected.', 'danger')
     return
   }
   isSubmitting.value = true
@@ -421,7 +427,7 @@ const submitForm = async () => {
       warehouse_id: form.value.warehouse_id,
       beginning_date: form.value.beginning_date,
       items: form.value.items.map(item => ({
-        id: item.id || null, // Include id for updates
+        id: item.id || null,
         product_id: item.product_id,
         quantity: parseFloat(item.quantity),
         unit_price: parseFloat(item.unit_price),
@@ -430,16 +436,17 @@ const submitForm = async () => {
     }
 
     const url = isEditMode.value
-      ? window.route('stock-beginnings.update', { mainStockBeginning: stockBeginningId.value })
-      : window.route('stock-beginnings.store')
+      ? `/api/stock-beginnings/${stockBeginningId.value}`
+      : `/api/stock-beginnings`
     const method = isEditMode.value ? 'put' : 'post'
 
     await axios[method](url, payload)
     await showAlert('Success', isEditMode.value ? 'Stock beginning updated successfully.' : 'Stock beginning created successfully.', 'success')
-    window.location.href = indexRoute.value
+    emit('submitted')
+    goToIndex()
   } catch (err) {
     console.error('Submit error:', err.response?.data || err)
-    showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock beginning.', 'danger')
+    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock beginning.', 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -502,11 +509,7 @@ watch(() => form.value.beginning_date_display, (newDisplayDate) => {
 
 onMounted(async () => {
   try {
-    const currentRoute = window.route().current()
-    stockBeginningId.value = window.route().params.mainStockBeginning
-    isEditMode.value = currentRoute === 'stock-beginnings.edit' && !!stockBeginningId.value
-
-    if (isEditMode.value && props.initialData?.id) {
+    if (props.initialData?.id) {
       form.value.warehouse_id = props.initialData.warehouse_id
       form.value.beginning_date = props.initialData.beginning_date
       if (props.initialData.beginning_date) {
@@ -520,7 +523,7 @@ onMounted(async () => {
       }
       form.value.items = props.initialData.items?.length
         ? props.initialData.items.map(item => ({
-            id: item.id || null, // Include id for existing items
+            id: item.id || null,
             product_id: Number(item.product_id),
             quantity: parseFloat(item.quantity) || 1,
             unit_price: parseFloat(item.unit_price) || 0,
@@ -581,7 +584,6 @@ onMounted(async () => {
       ]
     })
 
-    // Event delegation for input changes
     $('#stockItemsTable').on('change', '.quantity-input', function () {
       try {
         const index = $(this).data('row')

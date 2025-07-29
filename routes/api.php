@@ -192,16 +192,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/inventory/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
 
     // Stock Beginning
-    Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('stock-beginnings.index');
-    Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class)->name('stock-beginnings.store');
-    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning')->name('stock-beginnings.edit');
-    Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning')->name('stock-beginnings.update');
-    Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning')->name('stock-beginnings.destroy');
-    Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('stock-beginnings.trashed');
-    Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning')->name('stock-beginnings.restore');
-    Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('stock-beginnings.forceDelete');
+    Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.index');
+    Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.store');
+    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.edit');
+    Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.update');
+    Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning')->name('api.stock-beginnings.destroy');
+    Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.trashed');
+    Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning')->name('api.stock-beginnings.restore');
+    Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
+    Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
+    Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
 
-    Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('stock-beginnings.import');
-    Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('stock-beginnings.export');
+    // Stock Requests
+    Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
+    Route::get('/stock-requests/{stockRequest}', [StockRequestController::class, 'show'])->middleware('can:view,stockRequest')->name('api.stock-requests.show');
+    Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
+    Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
+    Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');
 
 });
