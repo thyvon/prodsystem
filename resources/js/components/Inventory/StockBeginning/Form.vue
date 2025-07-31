@@ -263,7 +263,6 @@ const fetchUsersForApproval = async (requestType) => {
       params: { request_type: requestType },
     })
     users.value[requestType] = Array.isArray(response.data.data) ? response.data.data : []
-    console.log(`Loaded users for ${requestType} approval:`, users.value[requestType])
   } catch (err) {
     console.error(`Failed to load users for ${requestType}:`, err)
     showAlert('Error', `Failed to load users for ${requestType} approval.`, 'danger')

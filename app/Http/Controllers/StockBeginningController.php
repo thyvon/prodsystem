@@ -6,6 +6,7 @@ use App\Models\MainStockBeginning;
 use App\Models\StockBeginning;
 use App\Models\Warehouse;
 use App\Models\User;
+use App\Models\Approval;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -385,8 +386,39 @@ class StockBeginningController extends Controller
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
-                // Update responders
+                // Get existing responder IDs and request types
+                $existingResponders = $mainStockBeginning->responders->pluck('pivot.request_type', 'id')->toArray();
+                $newResponders = collect($validated['responders'])->pluck('request_type', 'user_id')->toArray();
+
+                // Delete approvals for removed responders
+                $respondersToRemove = array_diff_key($existingResponders, $newResponders);
+                foreach ($respondersToRemove as $userId => $requestType) {
+                    Approval::where([
+                        'approvable_type' => MainStockBeginning::class,
+                        'approvable_id' => $mainStockBeginning->id,
+                        'responder_id' => $userId,
+                        'request_type' => $requestType,
+                    ])->delete();
+                }
+
+                // Update responders (syncs pivot table, removing old and adding new)
                 $this->assignResponders($mainStockBeginning, $validated['responders']);
+
+                // Initialize approvals for new responders
+                $newResponderIds = array_diff_key($newResponders, $existingResponders);
+                foreach ($newResponderIds as $userId => $requestType) {
+                    $approvalData = [
+                        'approvable_type' => MainStockBeginning::class,
+                        'approvable_id' => $mainStockBeginning->id,
+                        'document_name' => 'Stock Beginning',
+                        'request_type' => $requestType,
+                        'approval_status' => 'pending',
+                        'ordinal' => $this->getOrdinalForRequestType($requestType),
+                        'requester_id' => $mainStockBeginning->created_by,
+                        'responder_id' => $userId,
+                    ];
+                    $this->approvalController->storeApproval($approvalData);
+                }
 
                 // Get existing line item IDs
                 $existingItemIds = $mainStockBeginning->stockBeginnings->pluck('id')->toArray();
@@ -464,27 +496,36 @@ class StockBeginningController extends Controller
     {
         $this->authorize('create', MainStockBeginning::class);
 
+        // Validate request type
         $validated = $request->validate([
-            'request_type' => 'required|string|in:review,check,approve',
+            'request_type' => ['required', 'string', 'in:review,check,approve'],
         ]);
 
+        $permission = "mainStockBeginning.{$validated['request_type']}";
+
         try {
-            $permission = "mainStockBeginning.{$validated['request_type']}";
-            $users = User::whereHas('permissions', function ($query) use ($permission) {
-                $query->where('name', $permission);
-            })->select('id', 'name')->get();
+            // Fetch users with direct or role-based permission
+            $users = User::query()
+                ->where(function ($query) use ($permission) {
+                    $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
+                        ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
+                })
+                ->select('id', 'name')
+                ->get();
 
             return response()->json([
                 'message' => 'Users fetched successfully.',
                 'data' => $users,
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch users for approval', [
-                'error_message' => $e->getMessage(),
-                'request_type' => $validated['request_type'],
             ]);
+        } catch (\Exception $e) {
+            // Log error
+            Log::error('Failed to fetch users for approval', [
+                'request_type' => $validated['request_type'],
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
-                'message' => 'Failed to fetch users for approval',
+                'message' => 'Failed to fetch users for approval.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -765,7 +806,7 @@ class StockBeginningController extends Controller
     }
 
     /**
-     * Delete a main stock beginning and its associated line items.
+     * Delete a main stock beginning and its associated line items and approvals.
      *
      * @param MainStockBeginning $mainStockBeginning
      * @return JsonResponse
@@ -777,19 +818,31 @@ class StockBeginningController extends Controller
         try {
             DB::transaction(function () use ($mainStockBeginning) {
                 $userId = auth()->id() ?? 1;
+
+                // Hard delete related approvals
+                Approval::where([
+                    'approvable_type' => MainStockBeginning::class,
+                    'approvable_id' => $mainStockBeginning->id,
+                ])->delete();
+
+                // Explicitly clear responders pivot table
+                $mainStockBeginning->responders()->detach();
+
+                // Soft delete related stock beginnings
                 foreach ($mainStockBeginning->stockBeginnings as $stockBeginning) {
                     $stockBeginning->deleted_by = $userId;
                     $stockBeginning->save();
+                    $stockBeginning->delete();
                 }
+
+                // Soft delete the main stock beginning
                 $mainStockBeginning->deleted_by = $userId;
                 $mainStockBeginning->save();
-
-                $mainStockBeginning->stockBeginnings()->delete();
                 $mainStockBeginning->delete();
             });
 
             return response()->json([
-                'message' => 'Stock beginning deleted successfully.',
+                'message' => 'Stock beginning, related approvals, and responders deleted successfully.',
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();

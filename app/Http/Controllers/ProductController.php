@@ -733,9 +733,9 @@ class ProductController extends Controller
                 'estimated_price' => $variant->estimated_price,
                 'average_price' => $variant->average_price,
                 'description' => $variant->description,
-                'image' => $variant->image,
+                'image' => $variant->image ?: $variant->product->image ?? null,
                 'is_active' => (int) $variant->is_active,
-                'image_url' => $variant->image ? asset('storage/' . $variant->image) : null,
+                'image_url' => $variant->image ? asset('storage/' . $variant->image) : ($variant->product->image ? asset('storage/' . $variant->product->image) : null),
                 // Optionally include parent product info:
                 'product_id' => $variant->product->id ?? null,
                 'product_name' => $variant->product->name ?? null,
