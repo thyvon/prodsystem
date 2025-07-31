@@ -1,7 +1,7 @@
 <template>
-  <div class="container-fluid mt-3">
+  <div class="container-fluid">
     <form @submit.prevent="submitForm">
-      <div class="card border mb-0">
+      <div class="card border mb-0 shadow">
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
           <h4 class="mb-0 font-weight-bold">{{ isEditMode ? 'Edit Stock Beginning' : 'Create Stock Beginning' }}</h4>
           <button type="button" class="btn btn-outline-primary btn-sm" @click="goToIndex">
@@ -105,12 +105,12 @@
             </div>
             <h5 class="font-weight-bold mb-3 text-primary">📦 Stock Items</h5>
             <div class="table-responsive">
-              <table id="stockItemsTable" class="table table-bordered table-sm">
+              <table id="stockItemsTable" class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 150px;">Code</th>
+                    <th style="min-width: 100px;">Code</th>
                     <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 70px;">UoM</th>
+                    <th style="min-width: 30px;">UoM</th>
                     <th style="min-width: 100px;">Quantity</th>
                     <th style="min-width: 120px;">Unit Price</th>
                     <th style="min-width: 120px;">Total Value</th>
@@ -123,11 +123,79 @@
             </div>
           </div>
 
+          <div class="border rounded p-3 mb-4">
+            <h5 class="font-weight-bold mb-3 text-primary">👥 Approval Assignments</h5>
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm table-hover">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="min-width: 200px;">Approval Type</th>
+                    <th style="min-width: 200px;">Assigned User</th>
+                    <th style="min-width: 100px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(responder, index) in form.responders" :key="index">
+                    <td>
+                      <select
+                        v-model="responder.request_type"
+                        class="form-control approval-type-select"
+                        :data-row="index"
+                        required
+                        :disabled="responder.isDefault"
+                        @change="updateUsersForRow(index)"
+                      >
+                        <option value="">Select Type</option>
+                        <option value="review">Review</option>
+                        <option value="check">Check</option>
+                        <option value="approve">Approve</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        v-model="responder.user_id"
+                        class="form-control user-select"
+                        :data-row="index"
+                        required
+                      >
+                        <option value="">Select User</option>
+                        <option
+                          v-for="user in responder.availableUsers"
+                          :key="user.id"
+                          :value="user.id"
+                        >
+                          {{ user.name }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        @click="removeResponder(index)"
+                        :disabled="responder.isDefault"
+                      >
+                        <i class="fal fa-trash-alt"></i> Remove
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm mt-2"
+              @click="addResponder"
+            >
+              <i class="fal fa-plus"></i> Add Approval
+            </button>
+          </div>
+
           <div class="text-right">
             <button
               type="submit"
               class="btn btn-primary btn-sm mr-2"
-              :disabled="isSubmitting || form.items.length === 0"
+              :disabled="isSubmitting || form.items.length === 0 || form.responders.length === 0"
             >
               <span
                 v-if="isSubmitting"
@@ -168,6 +236,7 @@ const isSubmitting = ref(false)
 const isImporting = ref(false)
 const products = ref([])
 const warehouses = ref([])
+const users = ref({ review: [], check: [], approve: [] })
 const warehouseSelect = ref(null)
 const productSelect = ref(null)
 const fileInput = ref(null)
@@ -176,15 +245,30 @@ const isEditMode = ref(!!props.initialData?.id)
 const stockBeginningId = ref(props.initialData?.id || null)
 const table = ref(null)
 let isAddingItem = false
+let isAddingResponder = false
 
 const form = ref({
   warehouse_id: null,
   beginning_date: '',
   beginning_date_display: '',
   items: [],
+  responders: [],
 })
 
 const goToIndex = () => { window.location.href = `/stock-beginnings` }
+
+const fetchUsersForApproval = async (requestType) => {
+  try {
+    const response = await axios.get('/api/stock-beginnings/users', {
+      params: { request_type: requestType },
+    })
+    users.value[requestType] = Array.isArray(response.data.data) ? response.data.data : []
+    console.log(`Loaded users for ${requestType} approval:`, users.value[requestType])
+  } catch (err) {
+    console.error(`Failed to load users for ${requestType}:`, err)
+    showAlert('Error', `Failed to load users for ${requestType} approval.`, 'danger')
+  }
+}
 
 const fetchProducts = async () => {
   try {
@@ -230,10 +314,157 @@ const ProductCode = computed(() => {
   }
 })
 
+const addResponder = async () => {
+  if (isAddingResponder) return
+  isAddingResponder = true
+
+  try {
+    form.value.responders.push({
+      id: null,
+      request_type: '',
+      user_id: null,
+      isDefault: false,
+      availableUsers: [],
+    })
+
+    await nextTick()
+    const index = form.value.responders.length - 1
+    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
+    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
+
+    if (!approvalSelect || !userSelect) {
+      console.warn(`DOM elements for row ${index} not found`)
+      showAlert('Error', 'Failed to initialize approval dropdowns.', 'danger')
+      return
+    }
+
+    initSelect2(approvalSelect, {
+      placeholder: 'Select Type',
+      width: '100%',
+      allowClear: true,
+    }, (value) => {
+      form.value.responders[index].request_type = value || ''
+      updateUsersForRow(index)
+    })
+    $(approvalSelect).val(form.value.responders[index].request_type || '').trigger('change.select2')
+
+    initSelect2(userSelect, {
+      placeholder: 'Select User',
+      width: '100%',
+      allowClear: true,
+    }, (value) => {
+      form.value.responders[index].user_id = value ? Number(value) : null
+    })
+    $(userSelect).val(form.value.responders[index].user_id || '').trigger('change.select2')
+  } catch (err) {
+    console.error('Error adding responder:', err)
+    showAlert('Error', 'Failed to add approval assignment.', 'danger')
+  } finally {
+    isAddingResponder = false
+  }
+}
+
+const removeResponder = async (index) => {
+  try {
+    if (form.value.responders[index].isDefault) {
+      showAlert('Error', 'Default approval types cannot be removed.', 'danger')
+      return
+    }
+    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
+    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
+    if (approvalSelect) destroySelect2(approvalSelect)
+    if (userSelect) destroySelect2(userSelect)
+    form.value.responders.splice(index, 1)
+  } catch (err) {
+    console.error('Error removing responder:', err)
+    showAlert('Error', 'Failed to remove approval assignment.', 'danger')
+  }
+}
+
+const updateUsersForRow = async (index) => {
+  try {
+    const requestType = form.value.responders[index].request_type
+    if (requestType && ['review', 'check', 'approve'].includes(requestType)) {
+      if (!users.value[requestType].length) {
+        await fetchUsersForApproval(requestType)
+      }
+      form.value.responders[index].availableUsers = users.value[requestType]
+      await nextTick()
+      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
+      if (userSelect) {
+        destroySelect2(userSelect)
+        initSelect2(userSelect, {
+          placeholder: 'Select User',
+          width: '100%',
+          allowClear: true,
+        }, (value) => {
+          form.value.responders[index].user_id = value ? Number(value) : null
+        })
+        // Only set user_id if it exists in the new availableUsers list
+        const currentUserId = form.value.responders[index].user_id
+        const validUser = users.value[requestType].find(user => user.id === currentUserId)
+        $(userSelect).val(validUser ? currentUserId : '').trigger('change.select2')
+        if (!validUser && currentUserId) {
+          form.value.responders[index].user_id = null
+          showAlert('Warning', `Previous user for ${requestType} is no longer valid. Please select a new user.`, 'warning')
+        }
+      }
+    } else {
+      form.value.responders[index].availableUsers = []
+      form.value.responders[index].user_id = null
+      await nextTick()
+      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
+      if (userSelect) {
+        destroySelect2(userSelect)
+        initSelect2(userSelect, {
+          placeholder: 'Select User',
+          width: '100%',
+          allowClear: true,
+        }, (value) => {
+          form.value.responders[index].user_id = value ? Number(value) : null
+        })
+        $(userSelect).val('').trigger('change.select2')
+      }
+    }
+  } catch (err) {
+    console.error(`Error updating users for row ${index}:`, err)
+    showAlert('Error', 'Failed to update user dropdown.', 'danger')
+  }
+}
+
+const validateResponders = () => {
+  if (form.value.responders.length < 3) {
+    showAlert('Error', 'At least three approval assignments (Review, Check, Approve) are required.', 'danger')
+    return false
+  }
+
+  const defaultTypes = ['review', 'check', 'approve']
+  const presentTypes = form.value.responders
+    .map(responder => responder.request_type)
+    .filter(type => defaultTypes.includes(type))
+
+  if (presentTypes.length < 3 || !defaultTypes.every(type => presentTypes.includes(type))) {
+    showAlert('Error', 'All default approval types (Review, Check, Approve) must be present.', 'danger')
+    return false
+  }
+
+  for (const responder of form.value.responders) {
+    if (!responder.request_type) {
+      showAlert('Error', 'All approval types must be specified.', 'danger')
+      return false
+    }
+    if (!responder.user_id) {
+      showAlert('Error', 'All approval assignments must have a user selected.', 'danger')
+      return false
+    }
+  }
+
+  return true
+}
+
 const addItem = (productId) => {
   try {
     if (isAddingItem) {
-      console.log('addItem skipped due to debounce')
       return
     }
     isAddingItem = true
@@ -421,6 +652,10 @@ const submitForm = async () => {
     await showAlert('Error', 'All items must have a valid product selected.', 'danger')
     return
   }
+  if (!validateResponders()) {
+    return
+  }
+
   isSubmitting.value = true
   try {
     const payload = {
@@ -432,6 +667,11 @@ const submitForm = async () => {
         quantity: parseFloat(item.quantity),
         unit_price: parseFloat(item.unit_price),
         remarks: item.remarks?.toString().trim() || null,
+      })),
+      responders: form.value.responders.map(responder => ({
+        id: responder.id || null,
+        user_id: responder.user_id,
+        request_type: responder.request_type,
       })),
     }
 
@@ -509,6 +749,12 @@ watch(() => form.value.beginning_date_display, (newDisplayDate) => {
 
 onMounted(async () => {
   try {
+    const defaultResponders = [
+      { id: null, request_type: 'review', user_id: null, isDefault: true, availableUsers: [] },
+      { id: null, request_type: 'check', user_id: null, isDefault: true, availableUsers: [] },
+      { id: null, request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] },
+    ]
+
     if (props.initialData?.id) {
       form.value.warehouse_id = props.initialData.warehouse_id
       form.value.beginning_date = props.initialData.beginning_date
@@ -530,9 +776,43 @@ onMounted(async () => {
             remarks: item.remarks || '',
           }))
         : []
+      // Merge default responders with existing ones
+      const existingResponders = props.initialData.responders?.length
+        ? props.initialData.responders.map(responder => ({
+            id: responder.id || null,
+            user_id: Number(responder.user_id),
+            request_type: ['review', 'check', 'approve'].includes(responder.request_type)
+              ? responder.request_type
+              : 'approve',
+            isDefault: ['review', 'check', 'approve'].includes(responder.request_type),
+            availableUsers: [],
+          }))
+        : []
+      // Ensure default responders are included, updating IDs and user_id if they exist
+      defaultResponders.forEach(defaultResponder => {
+        const existing = existingResponders.find(r => r.request_type === defaultResponder.request_type)
+        if (existing) {
+          defaultResponder.id = existing.id
+          defaultResponder.user_id = existing.user_id
+        }
+      })
+      // Add non-default responders
+      const additionalResponders = existingResponders.filter(r => !defaultResponders.some(dr => dr.request_type === r.request_type))
+      form.value.responders = [...defaultResponders, ...additionalResponders]
+    } else {
+      form.value.responders = [...defaultResponders]
     }
 
-    await Promise.all([fetchProducts(), fetchWarehouses()])
+    await Promise.all([
+      fetchProducts(),
+      fetchWarehouses(),
+      Promise.all(['review', 'check', 'approve'].map(fetchUsersForApproval))
+    ])
+
+    // Initialize availableUsers for existing responders
+    for (let i = 0; i < form.value.responders.length; i++) {
+      await updateUsersForRow(i)
+    }
 
     table.value = $('#stockItemsTable').DataTable({
       data: form.value.items,
@@ -646,7 +926,6 @@ onMounted(async () => {
       })
       $(productSelect.value).on('select2:select', (e) => {
         const productId = e.params.data.id
-        console.log('Selected product ID:', productId)
         addItem(productId)
       })
     } else {
@@ -654,10 +933,34 @@ onMounted(async () => {
       showAlert('Error', 'Product selection dropdown not initialized.', 'danger')
     }
 
-    initDatepicker()
-    if (isEditMode.value && form.value.beginning_date_display) {
-      $('#beginning_date').datepicker('setDate', form.value.beginning_date_display)
-    }
+    $('.approval-type-select').each(function () {
+      const index = $(this).data('row')
+      const isDefault = form.value.responders[index].isDefault
+      initSelect2(this, {
+        placeholder: 'Select Type',
+        width: '100%',
+        allowClear: !isDefault,
+        disabled: isDefault,
+      }, (value) => {
+        form.value.responders[index].request_type = value || ''
+        updateUsersForRow(index)
+      })
+      $(this).val(form.value.responders[index].request_type || '').trigger('change.select2')
+    })
+
+    $('.user-select').each(function () {
+      const index = $(this).data('row')
+      initSelect2(this, {
+        placeholder: 'Select User',
+        width: '100%',
+        allowClear: true,
+      }, (value) => {
+        form.value.responders[index].user_id = value ? Number(value) : null
+      })
+      $(this).val(form.value.responders[index].user_id || '').trigger('change.select2')
+    })
+
+    await initDatepicker()
   } catch (err) {
     console.error('Error in onMounted:', err)
     showAlert('Error', 'Failed to initialize form.', 'danger')
@@ -666,15 +969,43 @@ onMounted(async () => {
 
 onUnmounted(() => {
   try {
-    if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
+    if (table.value) {
+      table.value.destroy()
+      table.value = null
+    }
+    if (warehouseSelect.value) {
+      destroySelect2(warehouseSelect.value)
+    }
     if (productSelect.value) {
-      $(productSelect.value).off('select2:select')
       destroySelect2(productSelect.value)
     }
-    if (table.value) table.value.destroy()
+    $('.approval-type-select').each(function () {
+      destroySelect2(this)
+    })
+    $('.user-select').each(function () {
+      destroySelect2(this)
+    })
     $('#beginning_date').datepicker('destroy')
   } catch (err) {
     console.error('Error in onUnmounted:', err)
   }
 })
 </script>
+
+<style scoped>
+.card-header {
+  border-bottom: 1px solid #e3e6f0;
+}
+
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-responsive {
+  min-height: 100px;
+}
+</style>

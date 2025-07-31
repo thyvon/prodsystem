@@ -202,6 +202,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
     Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
     Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
+    Route::get('stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->name('api.stock-beginnings.users');
 
     // Stock Requests
     Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');

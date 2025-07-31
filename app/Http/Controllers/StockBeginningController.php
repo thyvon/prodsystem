@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MainStockBeginning;
 use App\Models\StockBeginning;
 use App\Models\Warehouse;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -25,6 +26,13 @@ class StockBeginningController extends Controller
     private const DEFAULT_LIMIT = 10;
     private const MAX_LIMIT = 1000;
     private const DATE_FORMAT = 'Y-m-d';
+
+    protected $approvalController;
+
+    public function __construct(ApprovalController $approvalController)
+    {
+        $this->approvalController = $approvalController;
+    }
 
     /**
      * Display the stock beginnings index view.
@@ -49,7 +57,7 @@ class StockBeginningController extends Controller
     }
 
     /**
-     * Display a single main stock beginning with its line items for printing.
+     * Display a single main stock beginning with its line items and approvals for printing.
      *
      * @param MainStockBeginning $mainStockBeginning
      * @return \Illuminate\View\View
@@ -59,18 +67,39 @@ class StockBeginningController extends Controller
         $this->authorize('view', $mainStockBeginning);
 
         try {
-            // Load related data
+            // Load related data including approvals and responders
             $mainStockBeginning->load([
                 'stockBeginnings.productVariant.product.unit',
                 'warehouse.building.campus',
                 'createdBy',
-                'updatedBy'
+                'updatedBy',
+                'approvals.responder',
+                'responders'
             ]);
 
             return view('Inventory.stockBeginning.show', [
                 'mainStockBeginning' => $mainStockBeginning,
                 'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
                 'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
+                'approvals' => $mainStockBeginning->approvals->map(function ($approval) {
+                    return [
+                        'id' => $approval->id,
+                        'request_type' => $approval->request_type,
+                        'approval_status' => $approval->approval_status,
+                        'responder_name' => $approval->responder->name ?? 'N/A',
+                        'comment' => $approval->comment,
+                        'created_at' => $approval->created_at?->toDateTimeString(),
+                        'updated_at' => $approval->updated_at?->toDateTimeString(),
+                    ];
+                })->toArray(),
+                'responders' => $mainStockBeginning->responders->map(function ($responder) {
+                    return [
+                        'id' => $responder->pivot->id,
+                        'user_id' => $responder->id,
+                        'request_type' => $responder->pivot->request_type,
+                        'name' => $responder->name,
+                    ];
+                })->toArray(),
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching stock beginning for display', [
@@ -100,7 +129,9 @@ class StockBeginningController extends Controller
                 'stockBeginnings.productVariant.product.unit',
                 'warehouse.building.campus',
                 'createdBy',
-                'updatedBy'
+                'updatedBy',
+                'approvals.responder',
+                'responders'
             ]);
 
             // Clean old temp files (older than 15 minutes)
@@ -115,6 +146,25 @@ class StockBeginningController extends Controller
                 'mainStockBeginning' => $mainStockBeginning,
                 'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
                 'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
+                'approvals' => $mainStockBeginning->approvals->map(function ($approval) {
+                    return [
+                        'id' => $approval->id,
+                        'request_type' => $approval->request_type,
+                        'approval_status' => $approval->approval_status,
+                        'responder_name' => $approval->responder->name ?? 'N/A',
+                        'comment' => $approval->comment,
+                        'created_at' => $approval->created_at?->toDateTimeString(),
+                        'updated_at' => $approval->updated_at?->toDateTimeString(),
+                    ];
+                })->toArray(),
+                'responders' => $mainStockBeginning->responders->map(function ($responder) {
+                    return [
+                        'id' => $responder->pivot->id,
+                        'user_id' => $responder->id,
+                        'request_type' => $responder->pivot->request_type,
+                        'name' => $responder->name,
+                    ];
+                })->toArray(),
             ];
 
             // Generate PDF
@@ -153,8 +203,24 @@ class StockBeginningController extends Controller
 
         $validated = Validator::make($request->all(), array_merge(
             $this->mainStockBeginningValidationRules(),
-            $this->stockBeginningValidationRules()
+            $this->stockBeginningValidationRules(),
+            [
+                'responders' => 'required|array|min:1',
+                'responders.*.user_id' => 'required|exists:users,id',
+                'responders.*.request_type' => 'required|string|in:review,check,approve',
+            ]
         ))->validate();
+
+        // Validate that each responder has the appropriate permission
+        foreach ($validated['responders'] as $responder) {
+            $user = User::findOrFail($responder['user_id']);
+            $permission = "mainStockBeginning.{$responder['request_type']}";
+            if (!$user->hasPermissionTo($permission)) {
+                return response()->json([
+                    'message' => "User ID {$responder['user_id']} does not have permission for {$responder['request_type']}.",
+                ], 403);
+            }
+        }
 
         try {
             return DB::transaction(function () use ($validated) {
@@ -165,6 +231,7 @@ class StockBeginningController extends Controller
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'created_by' => auth()->id() ?? 1,
+                    'status' => 'pending',
                 ]);
 
                 $items = array_map(function ($item) use ($mainStockBeginning) {
@@ -183,9 +250,12 @@ class StockBeginningController extends Controller
 
                 StockBeginning::insert($items);
 
+                $this->assignResponders($mainStockBeginning, $validated['responders']);
+                $this->initializeApprovals($mainStockBeginning);
+
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings'),
+                    'data' => $mainStockBeginning->load('stockBeginnings', 'approvals', 'responders'),
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -209,10 +279,12 @@ class StockBeginningController extends Controller
         $this->authorize('update', $mainStockBeginning);
 
         try {
-            // Load related data
+            // Load related data including approvals and responders
             $mainStockBeginning->load([
                 'stockBeginnings.productVariant.product.unit',
                 'warehouse.building.campus',
+                'approvals.responder',
+                'responders'
             ]);
 
             // Prepare data for the Vue form
@@ -247,6 +319,13 @@ class StockBeginningController extends Controller
                         ] : null,
                     ] : null,
                 ] : null,
+                'responders' => $mainStockBeginning->responders->map(function ($responder) {
+                    return [
+                        'id' => $responder->pivot->id,
+                        'user_id' => $responder->id,
+                        'request_type' => $responder->pivot->request_type,
+                    ];
+                })->toArray(),
             ];
 
             return view('Inventory.stockBeginning.form', [
@@ -278,8 +357,24 @@ class StockBeginningController extends Controller
 
         $validated = Validator::make($request->all(), array_merge(
             $this->mainStockBeginningValidationRules($mainStockBeginning->id),
-            $this->stockBeginningValidationRules()
+            $this->stockBeginningValidationRules(),
+            [
+                'responders' => 'required|array|min:1',
+                'responders.*.user_id' => 'required|exists:users,id',
+                'responders.*.request_type' => 'required|string|in:review,check,approve',
+            ]
         ))->validate();
+
+        // Validate that each responder has the appropriate permission
+        foreach ($validated['responders'] as $responder) {
+            $user = User::findOrFail($responder['user_id']);
+            $permission = "mainStockBeginning.{$responder['request_type']}";
+            if (!$user->hasPermissionTo($permission)) {
+                return response()->json([
+                    'message' => "User ID {$responder['user_id']} does not have permission for {$responder['request_type']}.",
+                ], 403);
+            }
+        }
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
@@ -289,6 +384,9 @@ class StockBeginningController extends Controller
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
+
+                // Update responders
+                $this->assignResponders($mainStockBeginning, $validated['responders']);
 
                 // Get existing line item IDs
                 $existingItemIds = $mainStockBeginning->stockBeginnings->pluck('id')->toArray();
@@ -343,7 +441,7 @@ class StockBeginningController extends Controller
 
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings'),
+                    'data' => $mainStockBeginning->load('stockBeginnings', 'approvals', 'responders'),
                 ]);
             });
         } catch (\Exception $e) {
@@ -351,6 +449,42 @@ class StockBeginningController extends Controller
             Log::error('Failed to update stock beginning', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to update stock beginning',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Retrieve users with specific approval permissions for a request type.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getUsersForApproval(Request $request): JsonResponse
+    {
+        $this->authorize('create', MainStockBeginning::class);
+
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:review,check,approve',
+        ]);
+
+        try {
+            $permission = "mainStockBeginning.{$validated['request_type']}";
+            $users = User::whereHas('permissions', function ($query) use ($permission) {
+                $query->where('name', $permission);
+            })->select('id', 'name')->get();
+
+            return response()->json([
+                'message' => 'Users fetched successfully.',
+                'data' => $users,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch users for approval', [
+                'error_message' => $e->getMessage(),
+                'request_type' => $validated['request_type'],
+            ]);
+            return response()->json([
+                'message' => 'Failed to fetch users for approval',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -407,15 +541,6 @@ class StockBeginningController extends Controller
 
         $limit = max(1, min((int) ($validated['limit'] ?? self::DEFAULT_LIMIT), self::MAX_LIMIT));
         $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $validated['page'] ?? 1);
-        $totalQuantity = round($mainStockBeginnings->sum(function ($mainStockBeginning) {
-            return $mainStockBeginning->stockBeginnings->sum('quantity');
-        }), 4);
-        $totalValue = round(
-            $mainStockBeginnings->sum(function ($mainStockBeginning) {
-                return $mainStockBeginning->stockBeginnings->sum('total_value');
-            }),
-            4
-        );
 
         $data = $mainStockBeginnings->getCollection()->map(function ($mainStockBeginning) {
             return [
@@ -425,8 +550,8 @@ class StockBeginningController extends Controller
                 'warehouse_name' => $mainStockBeginning->warehouse->name ?? null,
                 'campus_name' => $mainStockBeginning->warehouse->building->campus->short_name ?? null,
                 'building_name' => $mainStockBeginning->warehouse->building->short_name ?? null,
-                'quantity' => $mainStockBeginning->stockBeginnings->sum('quantity'),
-                'total_value' => $mainStockBeginning->stockBeginnings->sum('total_value'),
+                'quantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
+                'total_value' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
                 'created_at' => $mainStockBeginning->created_at?->toDateTimeString(),
                 'updated_at' => $mainStockBeginning->updated_at?->toDateTimeString(),
                 'created_by' => $mainStockBeginning->createdBy->name ?? 'System',
@@ -674,5 +799,136 @@ class StockBeginningController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Submit an approval action (approve or reject) for a stock beginning.
+     *
+     * @param Request $request
+     * @param int $documentId
+     * @return JsonResponse
+     */
+    public function submitApproval(Request $request, $documentId): JsonResponse
+    {
+        $this->authorize('update', MainStockBeginning::class);
+
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:review,check,approve',
+            'action' => 'required|string|in:approve,reject',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $method = $validated['action'] === 'approve' ? 'confirmApproval' : 'rejectApproval';
+        $result = $this->approvalController->$method($request, MainStockBeginning::class, $documentId, $validated['request_type']);
+
+        return response()->json([
+            'message' => $result['message'],
+            'approval' => $result['approval'] ?? null,
+        ], $result['success'] ? 200 : 400);
+    }
+
+    /**
+     * Reassign a responder for a specific request type.
+     *
+     * @param Request $request
+     * @param int $documentId
+     * @return JsonResponse
+     */
+    public function reassignResponder(Request $request, $documentId): JsonResponse
+    {
+        $this->authorize('update', MainStockBeginning::class);
+
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:review,check,approve',
+            'new_user_id' => 'required|exists:users,id',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        // Validate that the new user has the appropriate permission
+        $user = User::findOrFail($validated['new_user_id']);
+        $permission = "mainStockBeginning.{$validated['request_type']}";
+        if (!$user->hasPermissionTo($permission)) {
+            return response()->json([
+                'message' => "User ID {$validated['new_user_id']} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $result = $this->approvalController->reassignResponder($request, MainStockBeginning::class, $documentId, $validated['request_type']);
+
+        return response()->json([
+            'message' => $result['message'],
+        ], $result['success'] ? 200 : 400);
+    }
+
+    /**
+     * List approvals for a specific stock beginning.
+     *
+     * @param Request $request
+     * @param int $documentId
+     * @return JsonResponse
+     */
+    public function listApprovals(Request $request, $documentId): JsonResponse
+    {
+        $mainStockBeginning = MainStockBeginning::findOrFail($documentId);
+        $this->authorize('view', $mainStockBeginning);
+
+        $result = $this->approvalController->listApprovals($request, MainStockBeginning::class, $documentId);
+
+        return response()->json([
+            'message' => $result['message'],
+            'approvals' => $result['approvals'] ?? null,
+        ], $result['success'] ? 200 : 403);
+    }
+
+    /**
+     * Assign responders to a stock beginning.
+     *
+     * @param MainStockBeginning $mainStockBeginning
+     * @param array $responders
+     * @return void
+     */
+    protected function assignResponders(MainStockBeginning $mainStockBeginning, array $responders)
+    {
+        $syncData = [];
+        foreach ($responders as $responder) {
+            $syncData[$responder['user_id']] = ['request_type' => $responder['request_type']];
+        }
+        $mainStockBeginning->responders()->sync($syncData);
+    }
+
+    /**
+     * Initialize approvals for a stock beginning.
+     *
+     * @param MainStockBeginning $mainStockBeginning
+     * @return void
+     */
+    protected function initializeApprovals(MainStockBeginning $mainStockBeginning)
+    {
+        foreach ($mainStockBeginning->responders as $responder) {
+            $approvalData = [
+                'approvable_type' => MainStockBeginning::class,
+                'approvable_id' => $mainStockBeginning->id,
+                'document_name' => 'Stock Beginning',
+                'request_type' => $responder->pivot->request_type,
+                'approval_status' => 'pending',
+                'ordinal' => $this->getOrdinalForRequestType($responder->pivot->request_type),
+                'requester_id' => $mainStockBeginning->created_by,
+                'responder_id' => $responder->id,
+            ];
+
+            $this->approvalController->storeApproval($approvalData);
+        }
+    }
+
+    /**
+     * Get ordinal for a request type.
+     *
+     * @param string $requestType
+     * @return int
+     */
+    protected function getOrdinalForRequestType($requestType)
+    {
+        $ordinals = ['review' => 1, 'check' => 2, 'approve' => 3];
+        return $ordinals[$requestType] ?? 1;
     }
 }

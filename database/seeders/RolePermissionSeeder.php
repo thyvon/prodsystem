@@ -53,6 +53,10 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'Sub Category',
                 'actions' => ['create', 'view', 'update', 'delete'],
             ],
+            'mainStockBeginning' => [
+                'name' => 'Main Stock Beginning',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'review', 'check', 'approve'],
+            ],
         ];
 
         // Update existing permissions with feature_name

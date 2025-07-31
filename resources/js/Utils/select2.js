@@ -4,17 +4,24 @@ export function initSelect2(element, options = {}, onChange = null) {
 
   // Destroy if already initialized
   if ($(element).hasClass('select2-hidden-accessible')) {
-    $(element).select2('destroy')
+    $(element).select2('destroy').off('select2:select select2:unselect change')
   }
 
-  $(element)
-    .select2(options)
-    .on('change', function () {
-      if (onChange) onChange($(this).val() || [])
-    })
+  // Initialize Select2 with provided options
+  $(element).select2({
+    ...options,
+  })
 
-  // Set initial value if needed
-  if (options.value !== undefined) {
+  // Bind Select2-specific events
+  $(element).on('select2:select select2:unselect change', function () {
+    const value = $(this).val()
+    if (onChange) {
+      onChange(value || null) // Use null for cleared selections
+    }
+  })
+
+  // Set initial value if provided
+  if (options.value !== undefined && options.value !== null) {
     $(element).val(options.value).trigger('change')
   }
 }
@@ -22,6 +29,6 @@ export function initSelect2(element, options = {}, onChange = null) {
 export function destroySelect2(element) {
   const $ = window.$
   if (element && $(element).hasClass('select2-hidden-accessible')) {
-    $(element).select2('destroy')
+    $(element).off('select2:select select2:unselect change').select2('destroy')
   }
 }

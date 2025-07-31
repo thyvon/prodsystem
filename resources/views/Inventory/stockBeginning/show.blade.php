@@ -4,12 +4,12 @@
 @section('content')
  
 
-    <div class="card mt-3">
-        <div class="card-header">
-               <div class="btn btn-sm btn-outline-success" onclick="window.history.back()"><i class="fal fa-backward"></i></div>
-    <div class="btn btn-sm btn-outline-secondary ml-2" onclick="window.print()"><i class="fal fa-print"></i> Print</div>
+    <div class="card mb-0 shadow">
+        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+            <div class="btn btn-sm btn-outline-success" onclick="window.history.back()"><i class="fal fa-backward"></i></div>
+            <div class="btn btn-sm btn-outline-secondary ml-2" onclick="window.print()"><i class="fal fa-print"></i> Print</div>
         </div>
-    <div class="card-body">
+        <div class="card-body">
             <div style="font-family: 'TW Cen MT', 'Khmer OS Content';" class="bg-white p-2">
                 <div class="row">
                     <div class="col-sm-12 text-center">
@@ -44,10 +44,10 @@
                                             <td>{{ $item->productVariant->product->name ?? 'N/A' }} {{ $item->productVariant->description ?? 'N/A' }}</td>
                                             <td>{{ $item->productVariant->product->khmer_name ?? 'N/A' }}</td>
                                             <td>{{ $item->productVariant->product->unit->name ?? 'N/A' }}</td>
-                                            <td class="text-right">{{ $item->unit_price }}</td>
-                                            <td class="text-center">{{ $item->quantity }}</td>
-                                            <td class="text-right">{{ $item->total_value }}</td>
-                                            <td>{{ $item->remarks ?? 'N/A' }}</td>
+                                            <td class="text-start">{{ $item->unit_price }}</td>
+                                            <td class="text-start">{{ $item->quantity }}</td>
+                                            <td class="text-start">{{ $item->total_value }}</td>
+                                            <td>{{ $item->remarks ?? '-' }}</td>
                                         </tr>
                                     @empty
                                         <tr>
@@ -57,14 +57,11 @@
 
                                     <!-- Summary rows using rowspan + colspan -->
                                     <tr>
-                                        <td colspan="5" class="text-right align-middle" rowspan="2">
+                                        <td colspan="6" class="text-right align-middle">Total
                                         </td>
-                                        <td colspan="2" class="text-right"><strong>Total Quantity:</strong></td>
-                                        <td colspan="2" class="text-center fw-bold">{{ $totalQuantity }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td colspan="2" class="text-right"><strong>Total Amount:</strong></td>
-                                        <td colspan="2" class="text-center fw-bold">{{ $totalValue }}</td>
+                                        <td class="text-center">{{ $totalQuantity }}</td>
+                                        <td class="text-center">{{ $totalValue }}</td>
+                                        <td></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -72,6 +69,7 @@
                     </div>
                 </div>
             </div>
+        </div>
     </div>
 @endsection
 

@@ -45,4 +45,16 @@ class MainStockBeginning extends Model
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
+
+    public function responders()
+    {
+        return $this->morphToMany(User::class, 'approvable', 'document_approval_user')
+                    ->withPivot('request_type')
+                    ->withTimestamps();
+    }
+
+    public function approvals()
+    {
+        return $this->morphMany(Approval::class, 'approvable');
+    }
 }

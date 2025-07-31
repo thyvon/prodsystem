@@ -56,4 +56,19 @@ class MainStockBeginningPolicy
     {
         return $user->can('mainStockBeginning.force_delete');
     }
+
+    public function review(User $user, MainStockBeginning $mainStockBeginning): bool
+    {
+        return $user->can('mainStockBeginning.review');
+    }
+
+    public function check(User $user, MainStockBeginning $mainStockBeginning): bool
+    {
+        return $user->can('mainStockBeginning.check');
+    }
+
+    public function approve(User $user, MainStockBeginning $mainStockBeginning): bool
+    {
+        return $user->can('mainStockBeginning.approve');
+    }
 }

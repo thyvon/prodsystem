@@ -45,12 +45,12 @@ const datatableParams = reactive({
 
 const datatableHeaders = [
   { text: 'Reference No', value: 'reference_no', width: '10%' },
-  { text: 'Beginning Date', value: 'beginning_date', width: '10%' },
+  { text: 'Date', value: 'beginning_date', width: '10%' },
   { text: 'Warehouse', value: 'warehouse_name', width: '20%' },
   { text: 'Campus', value: 'campus_name', width: '7%' },
   { text: 'Building', value: 'building_name', width: '7%' },
   { text: 'Quantity', value: 'quantity', width: '7%' },
-  { text: 'Total Value', value: 'total_value', width: '7%' },
+  { text: 'Value', value: 'total_value', width: '7%' },
   { text: 'Created By', value: 'created_by', width: '10%' },
   { text: 'Created', value: 'created_at', width: '8%' },
   { text: 'Updated', value: 'updated_at', width: '15%' }
