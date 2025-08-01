@@ -78,6 +78,31 @@
                 <div class="col-12">
                     <h5 class="font-weight-bold text-dark mb-3">Approval Information</h5>
 
+                    <!-- Approval Actions -->
+                    @if($showApprovalButton)
+                        <div class="mb-4">
+                            <form action="{{ route('stock-beginnings.submit-approval', $mainStockBeginning->id) }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="request_type" value="{{ $approvalRequestType }}">
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="submit" name="action" value="approve" class="btn btn-success">
+                                        {{ ucfirst($approvalRequestType) }} Stock Beginning
+                                    </button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger">
+                                        Reject
+                                    </button>
+                                    <div class="flex-grow-1">
+                                        <textarea name="comment" class="form-control" placeholder="Add a comment (optional)" rows="2"></textarea>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    @else
+                        <div class="mb-4">
+                            <p class="text-muted">No approval action available at this time.</p>
+                        </div>
+                    @endif
+
                     <!-- Approvals Section -->
                     <h6 class="font-weight-bold text-dark mb-2">Approvals</h6>
                     <div class="row">
@@ -96,25 +121,6 @@
                             <div class="col-12">
                                 <div class="border rounded p-3 bg-light">
                                     <p class="mb-0 text-center">No approvals available.</p>
-                                </div>
-                            </div>
-                        @endforelse
-                    </div>
-
-                    <!-- Responders Section -->
-                    <h6 class="font-weight-bold text-dark mb-2 mt-4">Assigned Responders</h6>
-                    <div class="row">
-                        @forelse ($responders as $i => $responder)
-                            <div class="col-12 col-md-3 mb-3">
-                                <div class="border rounded p-3 bg-light h-100">
-                                    <p class="mb-1"><strong>#{{ $i + 1 }} - Request Type:</strong> {{ ucfirst($responder['request_type']) }}</p>
-                                    <p class="mb-1"><strong>Responder:</strong> {{ $responder['name'] }}</p>
-                                </div>
-                            </div>
-                        @empty
-                            <div class="col-12">
-                                <div class="border rounded p-3 bg-light">
-                                    <p class="mb-0 text-center">No assigned responders available.</p>
                                 </div>
                             </div>
                         @endforelse

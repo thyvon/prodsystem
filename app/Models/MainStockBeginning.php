@@ -19,6 +19,7 @@ class MainStockBeginning extends Model
         'created_by',
         'updated_by',
         'deleted_by',
+        'approval_status'
     ];
 
     public function warehouse()
@@ -44,13 +45,6 @@ class MainStockBeginning extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
-    }
-
-    public function responders()
-    {
-        return $this->morphToMany(User::class, 'approvable', 'document_approval_user')
-                    ->withPivot('request_type')
-                    ->withTimestamps();
     }
 
     public function approvals()
