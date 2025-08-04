@@ -52,8 +52,8 @@ use App\Models\Warehouse;
 use App\Http\Controllers\StockBeginningController;
 use App\Models\MainStockBeginning;
 
-use App\Http\Controllers\StockRequestController;
-use App\Models\StockRequest;
+// use App\Http\Controllers\StockRequestController;
+// use App\Models\StockRequest;
 
 /*
 |----------------------------------------------------------------------
@@ -146,21 +146,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
         ->name('stock-beginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
-        ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
+        ->name('stock-beginnings.create')->middleware('can:create,mainStockBeginning');
     Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
-        ->name('stock-beginnings.edit')->middleware('can:update,' . MainStockBeginning::class);
+        ->name('stock-beginnings.edit')->middleware('can:update,mainStockBeginning');
     Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
-        ->name('stock-beginnings.pdf')->middleware('can:view,' . MainStockBeginning::class);
-    Route::get('/stock-beginnings/{mainStockBeginning}/generate-pdf', [StockBeginningController::class, 'generatePdf'])
-    ->name('stock-beginnings.pdf')->middleware('can:view,' . MainStockBeginning::class);
+        ->name('stock-beginnings.show')
+        ->middleware('can:view,mainStockBeginning');
 
+    
     // Stock Requests
-    Route::get('/stock-requests', [StockRequestController::class, 'index'])
-        ->name('stock-requests.index')->middleware('can:viewAny,' . StockRequest::class);
-    Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
-        ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
-    Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
-        ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
+    // Route::get('/stock-requests', [StockRequestController::class, 'index'])
+    //     ->name('stock-requests.index')->middleware('can:viewAny,' . StockRequest::class);
+    // Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
+    //     ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
+    // Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
+    //     ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
 
 });
 require __DIR__.'/auth.php';

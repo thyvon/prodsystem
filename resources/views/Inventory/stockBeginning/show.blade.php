@@ -81,7 +81,7 @@
                     <!-- Approval Actions -->
                     @if($showApprovalButton)
                         <div class="mb-4">
-                            <form action="{{ route('stock-beginnings.submit-approval', $mainStockBeginning->id) }}" method="POST">
+                            <form action="{{ route('api.stock-beginnings.submit-approval', ['mainStockBeginning' => $mainStockBeginning->id]) }}" method="POST">
                                 @csrf
                                 <input type="hidden" name="request_type" value="{{ $approvalRequestType }}">
                                 <div class="d-flex align-items-center gap-2">

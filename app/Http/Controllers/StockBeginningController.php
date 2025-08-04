@@ -78,6 +78,7 @@ class StockBeginningController extends Controller
 
             // Check if the approval button should be shown
             $approvalButtonData = $this->canShowApprovalButton($mainStockBeginning->id);
+            Log::debug('Approval button data', $approvalButtonData);
 
             // Derive responders from approvals
             $responders = $mainStockBeginning->approvals->map(function ($approval) {
@@ -93,16 +94,20 @@ class StockBeginningController extends Controller
                 'mainStockBeginning' => $mainStockBeginning,
                 'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
                 'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
-                'approvals' => $mainStockBeginning->approvals->map(function ($approval) {
-                    return [
-                        'id' => $approval->id,
-                        'request_type' => $approval->request_type,
-                        'approval_status' => $approval->approval_status,
-                        'responder_name' => $approval->responder->name ?? 'N/A',
-                        'comment' => $approval->comment,
-                        'created_at' => $approval->created_at?->toDateTimeString(),
-                        'updated_at' => $approval->updated_at?->toDateTimeString(),
-                    ];
+                'approvals' => $mainStockBeginning->approvals
+                    ->sortBy('ordinal')
+                    ->values()
+                    ->map(function ($approval) {
+                        return [
+                            'id' => $approval->id,
+                            'request_type' => $approval->request_type,
+                            'approval_status' => $approval->approval_status,
+                            'responder_name' => $approval->responder->name ?? 'N/A',
+                            'ordinal' => $approval->ordinal,
+                            'comment' => $approval->comment,
+                            'created_at' => $approval->created_at?->toDateTimeString(),
+                            'updated_at' => $approval->updated_at?->toDateTimeString(),
+                        ];
                 })->toArray(),
                 'responders' => $responders,
                 'showApprovalButton' => $approvalButtonData['showButton'],
@@ -161,7 +166,7 @@ class StockBeginningController extends Controller
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'created_by' => auth()->id() ?? 1,
-                    'status' => 'pending',
+                    'approval_status' => 'Pending',
                 ]);
 
                 $items = array_map(function ($item) use ($mainStockBeginning) {
@@ -306,20 +311,21 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
-                // Update the main stock beginning header
+                // Update main stock beginning header
                 $mainStockBeginning->update([
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
-                // Get existing approval IDs and request types
-                $existingApprovals = $mainStockBeginning->approvals->pluck('request_type', 'responder_id')->toArray();
-                $newApprovals = collect($validated['approvals'])->pluck('request_type', 'user_id')->toArray();
+                // Build existing and new composite approval keys
+                $existingApprovalKeys = $mainStockBeginning->approvals->map(fn($a) => "{$a->responder_id}|{$a->request_type}")->toArray();
+                $newApprovalKeys = collect($validated['approvals'])->map(fn($a) => "{$a['user_id']}|{$a['request_type']}")->toArray();
 
-                // Delete approvals for removed responders
-                $approvalsToRemove = array_diff_key($existingApprovals, $newApprovals);
-                foreach ($approvalsToRemove as $userId => $requestType) {
+                // Determine approvals to remove
+                $approvalsToRemove = array_diff($existingApprovalKeys, $newApprovalKeys);
+                foreach ($approvalsToRemove as $approvalKey) {
+                    [$userId, $requestType] = explode('|', $approvalKey);
                     Approval::where([
                         'approvable_type' => MainStockBeginning::class,
                         'approvable_id' => $mainStockBeginning->id,
@@ -328,15 +334,16 @@ class StockBeginningController extends Controller
                     ])->delete();
                 }
 
-                // Initialize approvals for new responders
-                $newApprovalUsers = array_diff_key($newApprovals, $existingApprovals);
-                foreach ($newApprovalUsers as $userId => $requestType) {
+                // Determine approvals to add
+                $approvalsToAdd = array_diff($newApprovalKeys, $existingApprovalKeys);
+                foreach ($approvalsToAdd as $approvalKey) {
+                    [$userId, $requestType] = explode('|', $approvalKey);
                     $approvalData = [
                         'approvable_type' => MainStockBeginning::class,
                         'approvable_id' => $mainStockBeginning->id,
                         'document_name' => 'Stock Beginning',
                         'request_type' => $requestType,
-                        'approval_status' => 'pending',
+                        'approval_status' => 'Pending',
                         'ordinal' => $this->getOrdinalForRequestType($requestType),
                         'requester_id' => $mainStockBeginning->created_by,
                         'responder_id' => $userId,
@@ -344,11 +351,11 @@ class StockBeginningController extends Controller
                     $this->approvalController->storeApproval($approvalData);
                 }
 
-                // Get existing line item IDs
+                // Handle stock beginning line items
                 $existingItemIds = $mainStockBeginning->stockBeginnings->pluck('id')->toArray();
                 $submittedItemIds = array_filter(array_column($validated['items'], 'id'), fn($id) => !is_null($id));
 
-                // Delete line items not included in the request
+                // Delete removed items
                 StockBeginning::where('main_form_id', $mainStockBeginning->id)
                     ->whereNotIn('id', $submittedItemIds)
                     ->each(function ($stockBeginning) {
@@ -357,11 +364,11 @@ class StockBeginningController extends Controller
                         $stockBeginning->delete();
                     });
 
-                // Process each item: update existing or create new
+                // Process items: update or insert
                 $itemsToInsert = [];
                 foreach ($validated['items'] as $item) {
                     if (!empty($item['id']) && in_array($item['id'], $existingItemIds)) {
-                        // Update existing item
+                        // Update existing
                         $stockBeginning = StockBeginning::find($item['id']);
                         if ($stockBeginning) {
                             $stockBeginning->update([
@@ -374,7 +381,7 @@ class StockBeginningController extends Controller
                             ]);
                         }
                     } else {
-                        // Prepare new item for insertion
+                        // Prepare for insert
                         $itemsToInsert[] = [
                             'main_form_id' => $mainStockBeginning->id,
                             'product_id' => $item['product_id'],
@@ -390,7 +397,6 @@ class StockBeginningController extends Controller
                     }
                 }
 
-                // Insert new items if any
                 if (!empty($itemsToInsert)) {
                     StockBeginning::insert($itemsToInsert);
                 }
@@ -782,9 +788,9 @@ class StockBeginningController extends Controller
      * @param int $documentId
      * @return JsonResponse
      */
-    public function submitApproval(Request $request, $documentId): JsonResponse
+    public function submitApproval(Request $request, MainStockBeginning $mainStockBeginning): JsonResponse
     {
-        $this->authorize(['review', 'check', 'approve'], MainStockBeginning::class);
+        $this->authorize('review', $mainStockBeginning);
 
         $validated = $request->validate([
             'request_type' => 'required|string|in:review,check,approve',
@@ -793,13 +799,19 @@ class StockBeginningController extends Controller
         ]);
 
         $method = $validated['action'] === 'approve' ? 'confirmApproval' : 'rejectApproval';
-        $result = $this->approvalController->$method($request, MainStockBeginning::class, $documentId, $validated['request_type']);
+        $result = $this->approvalController->$method(
+            $request,
+            MainStockBeginning::class,
+            $mainStockBeginning->id,
+            $validated['request_type']
+        );
 
         return response()->json([
             'message' => $result['message'],
             'approval' => $result['approval'] ?? null,
         ], $result['success'] ? 200 : 400);
     }
+
 
     /**
      * Reassign a responder for a specific request type.
@@ -832,7 +844,7 @@ class StockBeginningController extends Controller
                 'approvable_type' => MainStockBeginning::class,
                 'approvable_id' => $documentId,
                 'request_type' => $validated['request_type'],
-                'approval_status' => 'pending',
+                'approval_status' => 'Pending',
             ])->first();
 
             if (!$approval) {
@@ -898,8 +910,7 @@ class StockBeginningController extends Controller
             $mainStockBeginning = MainStockBeginning::findOrFail($documentId);
             
             // Check if the stock beginning exists and is in a state that allows approvals
-            if ($mainStockBeginning->status !== 'pending') {
-                Log::debug('Approval button hidden: Status not pending', ['status' => $mainStockBeginning->status]);
+            if ($mainStockBeginning->approval_status !== 'Pending') {
                 return [
                     'message' => 'Approval button not available: Stock beginning is not in pending status.',
                     'showButton' => false,
@@ -944,7 +955,7 @@ class StockBeginningController extends Controller
             }
 
             // Find the first pending approval
-            $currentApproval = $approvals->firstWhere('approval_status', 'pending');
+            $currentApproval = $approvals->firstWhere('approval_status', 'Pending');
 
             if (!$currentApproval) {
                 Log::debug('Approval button hidden: No pending approvals', ['document_id' => $documentId]);
@@ -974,7 +985,7 @@ class StockBeginningController extends Controller
             });
 
             $allPreviousApproved = $previousApprovals->every(function ($approval) {
-                return $approval->approval_status === 'approved';
+                return $approval->approval_status === 'Approved';
             });
 
             if (!$allPreviousApproved) {
@@ -1027,7 +1038,7 @@ class StockBeginningController extends Controller
                 'approvable_id' => $mainStockBeginning->id,
                 'document_name' => 'Stock Beginning',
                 'request_type' => $approval['request_type'],
-                'approval_status' => 'pending',
+                'approval_status' => 'Pending',
                 'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
                 'requester_id' => $mainStockBeginning->created_by,
                 'responder_id' => $approval['user_id'],

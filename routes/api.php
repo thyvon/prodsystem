@@ -203,12 +203,13 @@ Route::middleware('auth')->group(function () {
     Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
     Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
     Route::get('stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.approval-users');
+    Route::post('stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])->middleware('can:review,' . MainStockBeginning::class)->name('api.stock-beginnings.submit-approval');
 
     // Stock Requests
-    Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
-    Route::get('/stock-requests/{stockRequest}', [StockRequestController::class, 'show'])->middleware('can:view,stockRequest')->name('api.stock-requests.show');
-    Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
-    Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
-    Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');
+    // Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
+    // Route::get('/stock-requests/{stockRequest}', [StockRequestController::class, 'show'])->middleware('can:view,stockRequest')->name('api.stock-requests.show');
+    // Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
+    // Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
+    // Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');
 
 });

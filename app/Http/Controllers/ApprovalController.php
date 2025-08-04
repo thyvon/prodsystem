@@ -63,7 +63,7 @@ class ApprovalController extends Controller
                 'request_type' => $data['request_type'],
             ])->firstOrFail();
 
-            if ($approval->approval_status !== 'pending') {
+            if ($approval->approval_status !== 'Pending') {
                 Log::debug('Approval update rejected: Not pending', ['approval_id' => $approval->id]);
                 return [
                     'success' => false,
@@ -116,7 +116,7 @@ class ApprovalController extends Controller
             'approvable_id' => $approvableId,
             'request_type' => $requestType,
             'responder_id' => Auth::id(),
-            'approval_status' => 'pending',
+            'approval_status' => 'Pending',
         ])->first();
 
         if (!$approval) {
@@ -186,7 +186,7 @@ class ApprovalController extends Controller
             'approvable_id' => $approvableId,
             'request_type' => $requestType,
             'responder_id' => Auth::id(),
-            'approval_status' => 'pending',
+            'approval_status' => 'Pending',
         ])->first();
 
         if (!$approval) {
@@ -256,7 +256,7 @@ class ApprovalController extends Controller
             'approvable_type' => $approvableType,
             'approvable_id' => $approvableId,
             'request_type' => $requestType,
-            'approval_status' => 'pending',
+            'approval_status' => 'Pending',
         ])->first();
 
         if (!$approval) {
@@ -447,7 +447,7 @@ class ApprovalController extends Controller
         $allApproved = $approvals->every(fn ($approval) => $approval->approval_status === 'approved');
         $anyRejected = $approvals->contains(fn ($approval) => $approval->approval_status === 'rejected');
 
-        $newStatus = 'pending';
+        $newStatus = 'Pending';
         if ($anyRejected) {
             $newStatus = 'rejected';
         } elseif ($allApproved) {
