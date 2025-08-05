@@ -53,7 +53,8 @@ const datatableHeaders = [
   { text: 'Value', value: 'total_value', width: '7%' },
   { text: 'Created By', value: 'created_by', width: '10%' },
   { text: 'Created', value: 'created_at', width: '8%' },
-  { text: 'Updated', value: 'updated_at', width: '15%' }
+  { text: 'Updated', value: 'updated_at', width: '15%' },
+  { text: 'Approval Status', value: 'approval_status', width: '10%' }
 ]
 
 const datatableFetchUrl = '/api/stock-beginnings'

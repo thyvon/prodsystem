@@ -52,6 +52,9 @@ use App\Models\Warehouse;
 use App\Http\Controllers\StockBeginningController;
 use App\Models\MainStockBeginning;
 
+use App\Http\Controllers\ApprovalController;
+use App\Models\Approval;
+
 // use App\Http\Controllers\StockRequestController;
 // use App\Models\StockRequest;
 
@@ -146,12 +149,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
         ->name('stock-beginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
-        ->name('stock-beginnings.create')->middleware('can:create,mainStockBeginning');
+        ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
     Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
         ->name('stock-beginnings.edit')->middleware('can:update,mainStockBeginning');
     Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
         ->name('stock-beginnings.show')
         ->middleware('can:view,mainStockBeginning');
+
+    // Approval Management
+    Route::get('/approvals', [ApprovalController::class, 'index'])
+        ->name('approvals.index');
 
     
     // Stock Requests

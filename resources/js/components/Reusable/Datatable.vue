@@ -88,11 +88,47 @@ const renderColumnData = (key, val) => {
   if (key === 'beginning_date') {
     return formatDate(val);
   }
+    if (/_date$/.test(key) && val) {
+    return formatDateTime(val);
+  }
     if (key === 'is_active') {
     const badgeClass = val ? 'badge badge-success' : 'badge badge-secondary';
     const text = val ? 'Active' : 'Inactive';
     return `<span class="${badgeClass} text-center">${text}</span>`;
   }
+
+  if (key === 'approval_status') {
+  const status = (val || '').toString().trim().toLowerCase();
+  let badgeClass = 'badge badge-secondary';
+  let text = val || 'Unknown';
+
+  switch (status) {
+    case 'pending':
+      badgeClass = 'badge badge-warning';
+      text = 'Pending';
+      break;
+    case 'approved':
+      badgeClass = 'badge badge-success';
+      text = 'Approved';
+      break;
+    case 'rejected':
+      badgeClass = 'badge badge-danger';
+      text = 'Rejected';
+      break;
+    case 'reviewed':
+      badgeClass = 'badge badge-info';
+      text = 'Reviewed';
+      break;
+    case 'checked':
+      badgeClass = 'badge badge-primary';
+      text = 'Checked';
+      break;
+  }
+
+  return `<span class="${badgeClass} text-center">${text}</span>`;
+}
+
+
     if (key === 'has_variants') {
     const badgeClass = val ? 'badge badge-primary' : 'badge badge-danger';
     const text = val ? 'Yes' : 'No';

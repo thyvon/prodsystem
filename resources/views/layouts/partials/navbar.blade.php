@@ -44,20 +44,44 @@
             </a>
         </div>
 
-        <div>
-            <a href="#" class="header-icon" data-toggle="dropdown" title="Notifications">
-                <i class="fal fa-bell"></i>
-                <span class="badge badge-icon">11</span>
-            </a>
-            <div class="dropdown-menu dropdown-menu-animated dropdown-xl">
-                <div class="dropdown-header bg-trans-gradient d-flex justify-content-center align-items-center rounded-top mb-2">
-                    <h4 class="m-0 text-center text-white">11 New <small class="opacity-80">User Notifications</small></h4>
-                </div>
-                <div class="py-2 px-3 bg-faded d-block rounded-bottom text-right">
-                    <a href="#" class="fs-xs fw-500 ml-auto">View all notifications</a>
-                </div>
-            </div>
+    <a href="#" class="header-icon" data-toggle="dropdown" title="Notifications">
+        <i class="fal fa-bell"></i>
+        @if($pendingApprovalCount > 0)
+            <span class="badge badge-icon">{{ $pendingApprovalCount }}</span>
+        @endif
+    </a>
+
+    <div class="dropdown-menu dropdown-menu-animated dropdown-xl">
+        <div class="dropdown-header bg-trans-gradient d-flex justify-content-center align-items-center rounded-top mb-2">
+            <h4 class="m-0 text-center text-white">
+                {{ $pendingApprovalCount }} New
+                <small class="opacity-80">Notifications</small>
+            </h4>
         </div>
+
+        <div class="list-group list-group-flush">
+            @forelse($pendingApprovalsList as $item)
+                <a href="{{ $item['route_url'] }}" class="list-group-item list-group-item-action d-flex align-items-center">
+                    {{-- Demo static placeholder avatar --}}
+                    <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Requester Photo" class="rounded-circle mr-2" style="width: 50px; height: 50px; object-fit: cover;">
+                    
+                    <div>
+                        <strong>{{ $item['document_name'] }}</strong><br>
+                        Ref: {{ $item['document_reference'] }}<br>
+                        Type: {{ ucfirst($item['request_type']) }}<br>
+                        Requested by: <strong class="font-italic">{{ $item['requester_name'] }}</strong><br>
+                        <small class="text-muted">{{ $item['created_at'] }}</small>
+                    </div>
+                </a>
+            @empty
+                <div class="text-center p-3 text-muted">No pending approvals</div>
+            @endforelse
+        </div>
+
+        <div class="py-2 px-3 bg-faded d-block rounded-bottom text-right">
+            <a href="{{ url('approvals') }}" class="fs-xs fw-500 ml-auto">View all approvals</a>
+        </div>
+    </div>
 
         <div>
             <a href="#" data-toggle="dropdown" title="{{ Auth::user()->email }}" class="header-icon d-flex align-items-center justify-content-center ml-2">

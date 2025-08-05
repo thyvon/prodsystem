@@ -748,15 +748,14 @@ watch(() => form.value.beginning_date_display, (newDisplayDate) => {
 
 onMounted(async () => {
   try {
-    const defaultApprovals = [
-      { id: null, request_type: 'review', user_id: null, isDefault: true, availableUsers: [] },
-      { id: null, request_type: 'check', user_id: null, isDefault: true, availableUsers: [] },
-      { id: null, request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] },
-    ]
+    // Group incoming approvals and flag only the first one of each type as default
+    const defaultTypes = ['review', 'check', 'approve']
+    const seenTypes = new Set()
 
     if (props.initialData?.id) {
       form.value.warehouse_id = props.initialData.warehouse_id
       form.value.beginning_date = props.initialData.beginning_date
+
       if (props.initialData.beginning_date) {
         const [year, month, day] = props.initialData.beginning_date.split('-')
         const date = new Date(year, month - 1, day)
@@ -766,53 +765,55 @@ onMounted(async () => {
           year: 'numeric',
         })
       }
-      form.value.items = props.initialData.items?.length
-        ? props.initialData.items.map(item => ({
-            id: item.id || null,
-            product_id: Number(item.product_id),
-            quantity: parseFloat(item.quantity) || 1,
-            unit_price: parseFloat(item.unit_price) || 0,
-            remarks: item.remarks || '',
-          }))
-        : []
-      // Merge default approvals with existing ones
-      const existingApprovals = props.initialData.approvals?.length
-        ? props.initialData.approvals.map(approval => ({
-            id: approval.id || null,
-            user_id: Number(approval.user_id),
-            request_type: ['review', 'check', 'approve'].includes(approval.request_type)
-              ? approval.request_type
-              : 'approve',
-            isDefault: ['review', 'check', 'approve'].includes(approval.request_type),
-            availableUsers: [],
-          }))
-        : []
-      // Ensure default approvals are included, updating IDs and user_id if they exist
-      defaultApprovals.forEach(defaultApproval => {
-        const existing = existingApprovals.find(r => r.request_type === defaultApproval.request_type)
-        if (existing) {
-          defaultApproval.id = existing.id
-          defaultApproval.user_id = existing.user_id
+
+      // Prepare stock items
+      form.value.items = props.initialData.items?.map(item => ({
+        id: item.id || null,
+        product_id: Number(item.product_id),
+        quantity: parseFloat(item.quantity) || 1,
+        unit_price: parseFloat(item.unit_price) || 0,
+        remarks: item.remarks || '',
+      })) || []
+
+      // Approvals: flag first of each type as isDefault, allow duplicates
+      form.value.approvals = props.initialData.approvals?.map((approval, i, arr) => {
+        const isFirstOfType = !seenTypes.has(approval.request_type)
+        if (isFirstOfType && defaultTypes.includes(approval.request_type)) {
+          seenTypes.add(approval.request_type)
         }
-      })
-      // Add non-default approvals
-      const additionalApprovals = existingApprovals.filter(r => !defaultApprovals.some(dr => dr.request_type === r.request_type))
-      form.value.approvals = [...defaultApprovals, ...additionalApprovals]
+
+        return {
+          id: approval.id || null,
+          user_id: Number(approval.user_id),
+          request_type: approval.request_type || 'approve',
+          isDefault: isFirstOfType && defaultTypes.includes(approval.request_type),
+          availableUsers: [],
+        }
+      }) || []
     } else {
-      form.value.approvals = [...defaultApprovals]
+      // If new entry, push one default of each type
+      form.value.approvals = defaultTypes.map(type => ({
+        id: null,
+        request_type: type,
+        user_id: null,
+        isDefault: true,
+        availableUsers: [],
+      }))
     }
 
+    // Load all necessary data
     await Promise.all([
       fetchProducts(),
       fetchWarehouses(),
-      Promise.all(['review', 'check', 'approve'].map(fetchUsersForApproval))
+      Promise.all(defaultTypes.map(fetchUsersForApproval))
     ])
 
-    // Initialize availableUsers for existing approvals
+    // Load availableUsers per approval row
     for (let i = 0; i < form.value.approvals.length; i++) {
       await updateUsersForRow(i)
     }
 
+    // Initialize DataTable
     table.value = $('#stockItemsTable').DataTable({
       data: form.value.items,
       columns: [
@@ -863,48 +864,30 @@ onMounted(async () => {
       ]
     })
 
+    // Table input bindings
     $('#stockItemsTable').on('change', '.quantity-input', function () {
-      try {
-        const index = $(this).data('row')
-        form.value.items[index].quantity = parseFloat($(this).val()) || 1
-        table.value.row(index).invalidate().draw()
-      } catch (err) {
-        console.error('Error updating quantity:', err)
-        showAlert('Error', 'Failed to update quantity.', 'danger')
-      }
+      const index = $(this).data('row')
+      form.value.items[index].quantity = parseFloat($(this).val()) || 1
+      table.value.row(index).invalidate().draw()
     })
 
     $('#stockItemsTable').on('change', '.unit-price-input', function () {
-      try {
-        const index = $(this).data('row')
-        form.value.items[index].unit_price = parseFloat($(this).val()) || 0
-        table.value.row(index).invalidate().draw()
-      } catch (err) {
-        console.error('Error updating unit price:', err)
-        showAlert('Error', 'Failed to update unit price.', 'danger')
-      }
+      const index = $(this).data('row')
+      form.value.items[index].unit_price = parseFloat($(this).val()) || 0
+      table.value.row(index).invalidate().draw()
     })
 
     $('#stockItemsTable').on('input', '.remarks-input', function () {
-      try {
-        const index = $(this).data('row')
-        form.value.items[index].remarks = $(this).val()
-      } catch (err) {
-        console.error('Error updating remarks:', err)
-        showAlert('Error', 'Failed to update remarks.', 'danger')
-      }
+      const index = $(this).data('row')
+      form.value.items[index].remarks = $(this).val()
     })
 
     $('#stockItemsTable').on('click', '.remove-btn', function () {
-      try {
-        const index = $(this).data('row')
-        removeItem(index)
-      } catch (err) {
-        console.error('Error removing item:', err)
-        showAlert('Error', 'Failed to remove item.', 'danger')
-      }
+      const index = $(this).data('row')
+      removeItem(index)
     })
 
+    // Init warehouse select
     await nextTick()
     if (warehouseSelect.value) {
       initSelect2(warehouseSelect.value, {
@@ -912,11 +895,13 @@ onMounted(async () => {
         width: '100%',
         allowClear: true,
       }, (v) => (form.value.warehouse_id = v))
+
       if (form.value.warehouse_id) {
         $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
       }
     }
 
+    // Init product select
     if (productSelect.value) {
       initSelect2(productSelect.value, {
         placeholder: 'Select Product',
@@ -927,26 +912,25 @@ onMounted(async () => {
         const productId = e.params.data.id
         addItem(productId)
       })
-    } else {
-      console.warn('productSelect ref is not defined')
-      showAlert('Error', 'Product selection dropdown not initialized.', 'danger')
     }
 
+    // Approval Type Select2
     $('.approval-type-select').each(function () {
       const index = $(this).data('row')
-      const isDefault = form.value.approvals[index].isDefault
+      const approval = form.value.approvals[index]
       initSelect2(this, {
         placeholder: 'Select Type',
         width: '100%',
-        allowClear: !isDefault,
-        disabled: isDefault,
+        allowClear: !approval.isDefault,
+        disabled: approval.isDefault,
       }, (value) => {
         form.value.approvals[index].request_type = value || ''
         updateUsersForRow(index)
       })
-      $(this).val(form.value.approvals[index].request_type || '').trigger('change.select2')
+      $(this).val(approval.request_type || '').trigger('change.select2')
     })
 
+    // User Select2
     $('.user-select').each(function () {
       const index = $(this).data('row')
       initSelect2(this, {
@@ -960,6 +944,7 @@ onMounted(async () => {
     })
 
     await initDatepicker()
+
   } catch (err) {
     console.error('Error in onMounted:', err)
     showAlert('Error', 'Failed to initialize form.', 'danger')

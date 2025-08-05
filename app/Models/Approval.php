@@ -14,6 +14,7 @@ class Approval extends Model
         'approvable_type',
         'approvable_id',
         'document_name',
+        'document_reference',
         'request_type',
         'approval_status',
         'comment',

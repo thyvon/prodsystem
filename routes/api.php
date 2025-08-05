@@ -50,6 +50,10 @@ use App\Models\StockBeginning;
 use App\Models\MainStockBeginning;
 use App\Http\Controllers\StockBeginningController;
 
+// Approval Management
+use App\Models\Approval;
+use App\Http\Controllers\ApprovalController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -202,9 +206,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
     Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
     Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
-    Route::get('stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.approval-users');
-    Route::post('stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])->middleware('can:review,' . MainStockBeginning::class)->name('api.stock-beginnings.submit-approval');
+    Route::get('stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->name('api.stock-beginnings.approval-users');
+    Route::post('stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])
+        ->name('api.stock-beginnings.submit-approval');
+    Route::post('stock-beginnings/{mainStockBeginning}/reassign-approval', [StockBeginningController::class, 'reassignResponder'])
+        ->middleware('can:reassign,mainStockBeginning')
+        ->name('api.stock-beginnings.reassign-approval');
 
+    // Approval Management
+    Route::get('/approvals', [ApprovalController::class, 'getApprovals'])->name('api.approvals.index');
+
+    
     // Stock Requests
     // Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
     // Route::get('/stock-requests/{stockRequest}', [StockRequestController::class, 'show'])->middleware('can:view,stockRequest')->name('api.stock-requests.show');

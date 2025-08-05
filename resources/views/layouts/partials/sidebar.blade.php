@@ -36,12 +36,15 @@
         -->
         <ul id="js-nav-menu" class="nav-menu">
             @php
-                $notificationActive = request()->is('/notifications*');
+                $approvalActive = request()->is('approvals*');
             @endphp
-            <li class="{{ $notificationActive ? 'active' : '' }}">
-                <a href="{{ url('/notifications') }}" title="Notifications" data-filter-tags="notifications">
+            <li class="{{ $approvalActive ? 'active' : '' }}">
+                <a href="{{ url('approvals') }}" title="Notifications" data-filter-tags="notifications">
                     <i class="fal fa-bell"></i>
                     <span class="nav-link-text">Notifications</span>
+                    @if(isset($pendingApprovalCount) && $pendingApprovalCount > 0)
+                        <span class="badge badge-danger ml-1">{{ $pendingApprovalCount }}</span>
+                    @endif
                 </a>
             </li>
             @php

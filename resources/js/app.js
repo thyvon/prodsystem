@@ -42,6 +42,11 @@ import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
 import InventoryItemList from './components/Inventory/Items/ItemList.vue'
 import StockBeginningForm from './components/Inventory/StockBeginning/Form.vue'
 import StockBeginningList from './components/Inventory/StockBeginning/StockBeginningList.vue'
+import StockBeginningShow from './components/Inventory/StockBeginning/Show.vue'
+
+//Approval Management
+import ApprovalList from './components/Approval/Index.vue'
+
 
 //Dashboard
 import Dashboard from './components/Dashboard.vue'
@@ -80,6 +85,10 @@ import Datatable from './components/Reusable/Datatable.vue'
  app.component('inventory-item-page', InventoryItemList)
  app.component('stock-beginning-form', StockBeginningForm)
  app.component('stock-beginning-list', StockBeginningList)
+ app.component('stock-beginning-show', StockBeginningShow)
+
+ //Approval Management
+ app.component('approval-list', ApprovalList)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)
