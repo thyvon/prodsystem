@@ -137,24 +137,26 @@ Route::middleware(['auth'])->group(function () {
    Route::get('/product-variant-attributes', [ProductVariantController::class, 'index'])
         ->name('productVariantAttributes.index')->middleware('can:viewAny,' . VariantAttribute::class);
 
-    // Inventory Management - Warehouses
-    Route::get('/warehouses', [WarehouseController::class, 'index'])
-        ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
+    // Inventory routes group
+    Route::prefix('inventory')->group(function () {
+        // Inventory Management - Warehouses
+        Route::get('/warehouses', [WarehouseController::class, 'index'])
+            ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
 
-    // Inventory Items
-    Route::get('/inventory/items', [ProductController::class, 'inventoryItemsIndex'])
-        ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);
+        // Inventory Items
+        Route::get('/items', [ProductController::class, 'inventoryItemsIndex'])
+            ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);
 
-    // Stock Beginnings
-    Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
-        ->name('stock-beginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
-    Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
-        ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
-    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
-        ->name('stock-beginnings.edit')->middleware('can:update,mainStockBeginning');
-    Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
-        ->name('stock-beginnings.show')
-        ->middleware('can:view,mainStockBeginning');
+        // Stock Beginnings
+        Route::get('/stock-beginnings', [StockBeginningController::class, 'index'])
+            ->name('stock-beginnings.index')->middleware('can:viewAny,' . MainStockBeginning::class);
+        Route::get('/stock-beginnings/create', [StockBeginningController::class, 'create'])
+            ->name('stock-beginnings.create')->middleware('can:create,' . MainStockBeginning::class);
+        Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])
+            ->name('stock-beginnings.edit')->middleware('can:update,mainStockBeginning');
+        Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
+            ->name('stock-beginnings.show')->middleware('can:view,mainStockBeginning');
+    });
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])

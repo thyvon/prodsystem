@@ -2,9 +2,15 @@ export const confirmAction = (title, message) => {
   return new Promise((resolve) => {
     try {
       if (initApp?.playSound) {
-        initApp.playSound('template/media/sound', 'bigbox'); // ✅ Play confirmation sound
+        // Use the correct path for the sound file
+        initApp.playSound('/template/media/sound', 'bigbox');
       } else {
         console.warn('initApp.playSound is not available');
+        // Fallback to native Audio API
+        const audio = new Audio('/template/media/sound/bigbox');
+        audio.play().catch((error) => {
+          console.warn('Sound playback failed:', error);
+        });
       }
 
       bootbox.confirm({
@@ -30,7 +36,7 @@ export const confirmAction = (title, message) => {
       });
     } catch (error) {
       console.error('Confirm dialog failed:', error);
-      resolve(false); // Default to cancel on error
+      resolve(false);
     }
   });
 };

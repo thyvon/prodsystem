@@ -167,7 +167,7 @@
             </li>
 
             @php
-                $inventoryActive = request()->is('warehouses*') || request()->is('inventory/items*') || request()->is('stock-beginnings*');
+                $inventoryActive = request()->is('inventory/warehouses*') || request()->is('inventory/items*') || request()->is('inventory/stock-beginnings*');
             @endphp
             <li class="nav-title">Inventory</li>
             <li class="{{ $inventoryActive ? 'active open' : '' }}">
@@ -176,8 +176,8 @@
                     <span class="nav-link-text">Inventory</span>
                 </a>
                 <ul>
-                    <li class="{{ request()->is('warehouses') ? 'active' : '' }}">
-                        <a href="{{ url('warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
+                    <li class="{{ request()->is('inventory/warehouses') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
                             <span class="nav-link-text">Warehouse</span>
                         </a>
                     </li>
@@ -186,8 +186,8 @@
                             <span class="nav-link-text">Item List</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('stock-beginnings*') ? 'active' : '' }}">
-                        <a href="{{ url('stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
+                    <li class="{{ request()->is('inventory/stock-beginnings*') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
                             <span class="nav-link-text">Stock Beginning</span>
                         </a>
                     </li>

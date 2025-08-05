@@ -57,7 +57,7 @@ const datatableHeaders = [
   { text: 'Approval Status', value: 'approval_status', width: '10%' }
 ]
 
-const datatableFetchUrl = '/api/stock-beginnings'
+const datatableFetchUrl = '/api/inventory/stock-beginnings'
 const datatableActions = ['edit', 'delete', 'preview']
 const datatableOptions = {
   responsive: true,
@@ -67,15 +67,15 @@ const datatableOptions = {
 
 // Action handlers
 const createStockBeginning = () => {
-  window.location.href = '/stock-beginnings/create'; // Adjust URL as per your routes
+  window.location.href = '/inventory/stock-beginnings/create'; // Adjust URL as per your routes
 }
 
 const handleEdit = (stockBeginning) => {
-  window.location.href = `/stock-beginnings/${stockBeginning.id}/edit`; // Adjust URL as per your routes
+  window.location.href = `/inventory/stock-beginnings/${stockBeginning.id}/edit`; // Adjust URL as per your routes
 }
 
 const handlePreview = (stockBeginning) => {
-  window.location.href = `/stock-beginnings/${stockBeginning.id}/show`; // Adjust URL as per your routes
+  window.location.href = `/inventory/stock-beginnings/${stockBeginning.id}/show`; // Adjust URL as per your routes
 }
 
 const handleDelete = async (stockBeginning) => {
@@ -86,7 +86,7 @@ const handleDelete = async (stockBeginning) => {
   if (!confirmed) return
 
   try {
-    const response = await axios.delete(`/api/stock-beginnings/${stockBeginning.id}`)
+    const response = await axios.delete(`/api/inventory/stock-beginnings/${stockBeginning.id}`)
     showAlert('Deleted', response.data.message || `"${stockBeginning.reference_no}" was deleted successfully.`, 'success')
     datatableRef.value?.reload() // Ensure datatable refreshes
   } catch (e) {
@@ -102,7 +102,7 @@ const exportStockBeginnings = () => {
     sortDirection: datatableParams.sortDirection,
   };
   const queryString = new URLSearchParams(params).toString();
-  window.location.href = `/api/stock-beginnings/export?${queryString}`; // Matches your export method
+  window.location.href = `/api/inventory/stock-beginnings/export?${queryString}`; // Matches your export method
 }
 
 // Datatable event handlers

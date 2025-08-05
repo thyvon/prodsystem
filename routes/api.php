@@ -182,36 +182,45 @@ Route::middleware('auth')->group(function () {
     Route::post('/product-variant-attributes/{productVariantAttribute}/values', [ProductVariantController::class, 'addValues'])->middleware('can:create,productVariantAttribute')->name('api.product-variant-attributes.add-values');
     Route::get('/attributes-values', [ProductVariantController::class, 'getAttributesWithValues'])->middleware('can:viewAny,' . VariantAttribute::class)->name('api.attributes-values.index');
 
-    // Inventory Management - Warehouses
-    Route::get('/warehouses', [WarehouseController::class, 'getWarehouses'])->middleware('can:viewAny,' . Warehouse::class);
-    Route::get('/warehouses/{warehouse}/edit', [WarehouseController::class, 'edit'])->middleware('can:update,warehouse');
-    Route::post('/warehouses', [WarehouseController::class, 'store'])->middleware('can:create,' . Warehouse::class);
-    Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->middleware('can:update,warehouse');
-    Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('can:delete,warehouse');
-    Route::get('/warehouses/trashed', [WarehouseController::class, 'trashed'])->middleware('can:viewAny,' . Warehouse::class);
-    Route::post('/warehouses/{warehouse}/restore', [WarehouseController::class, 'restore'])->middleware('can:restore,warehouse');
-    Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
+    // Inventory routes group
+    Route::prefix('inventory')->group(function () {
+        // Inventory Management - Warehouses
+        Route::get('/warehouses', [WarehouseController::class, 'getWarehouses'])->middleware('can:viewAny,' . Warehouse::class);
+        Route::get('/warehouses/{warehouse}/edit', [WarehouseController::class, 'edit'])->middleware('can:update,warehouse');
+        Route::post('/warehouses', [WarehouseController::class, 'store'])->middleware('can:create,' . Warehouse::class);
+        Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->middleware('can:update,warehouse');
+        Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('can:delete,warehouse');
+        Route::get('/warehouses/trashed', [WarehouseController::class, 'trashed'])->middleware('can:viewAny,' . Warehouse::class);
+        Route::post('/warehouses/{warehouse}/restore', [WarehouseController::class, 'restore'])->middleware('can:restore,warehouse');
+        Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
 
-    // Inventory Items
-    Route::get('/inventory/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
+        // Inventory Items
+        Route::get('/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
 
-    // Stock Beginning
-    Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.index');
-    Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.store');
-    Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.edit');
-    Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.update');
-    Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning')->name('api.stock-beginnings.destroy');
-    Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.trashed');
-    Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning')->name('api.stock-beginnings.restore');
-    Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
-    Route::post('stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
-    Route::get('stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
-    Route::get('stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->name('api.stock-beginnings.approval-users');
-    Route::post('stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])
-        ->name('api.stock-beginnings.submit-approval');
-    Route::post('stock-beginnings/{mainStockBeginning}/reassign-approval', [StockBeginningController::class, 'reassignResponder'])
-        ->middleware('can:reassign,mainStockBeginning')
-        ->name('api.stock-beginnings.reassign-approval');
+        // Stock Beginning
+        Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.index');
+        Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.store');
+        Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.edit');
+        Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.update');
+        Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning')->name('api.stock-beginnings.destroy');
+        Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.trashed');
+        Route::post('/stock-beginnings/{mainStockBeginning}/restore', [StockBeginningController::class, 'restore'])->middleware('can:restore,mainStockBeginning')->name('api.stock-beginnings.restore');
+        Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
+        Route::post('/stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
+        Route::get('/stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
+        Route::get('/stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->name('api.stock-beginnings.approval-users');
+        Route::post('/stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])->name('api.stock-beginnings.submit-approval');
+        Route::post('/stock-beginnings/{mainStockBeginning}/reassign-approval', [StockBeginningController::class, 'reassignResponder'])
+            ->middleware('can:reassign,mainStockBeginning')
+            ->name('api.stock-beginnings.reassign-approval');
+        Route::get('/stock-beginnings/get-warehouses', [StockBeginningController::class, 'fetchWarehousesForStockBeginning'])
+            ->middleware('can:viewAny,' . MainStockBeginning::class)
+            ->name('api.stock-beginnings.get-warehouses');
+        Route::get('/stock-beginnings/get-products', [StockBeginningController::class, 'fetProductsForStockBeginning'])
+            ->middleware('can:viewAny,' . MainStockBeginning::class)
+            ->name('api.stock-beginnings.get-products');
+    });
+    
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'getApprovals'])->name('api.approvals.index');

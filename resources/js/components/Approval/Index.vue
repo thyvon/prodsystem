@@ -68,7 +68,7 @@ const datatableOptions = {
 // Preview handler with dynamic routing based on approvable_type
 const handlePreview = (approval) => {
   const typeRouteMap = {
-    'App\\Models\\MainStockBeginning': 'stock-beginnings',
+    'App\\Models\\MainStockBeginning': 'inventory/stock-beginnings',
     'App\\Models\\PurchaseRequest': 'purchase-requests',
     'App\\Models\\PurchaseOrder': 'purchase-orders',
     // Add your other mappings here

@@ -209,8 +209,8 @@ const submitForm = async () => {
   try {
     const method = props.isEditing ? 'put' : 'post'
     const url = props.isEditing && form.value.id
-      ? `/api/warehouses/${form.value.id}`
-      : '/api/warehouses'
+      ? `/api/inventory/warehouses/${form.value.id}`
+      : '/api/inventory/warehouses'
 
     const payload = {
       name: form.value.name?.toString().trim() ?? '',

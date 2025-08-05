@@ -256,7 +256,7 @@ const submitApproval = async (action) => {
 const openReassignModal = async () => {
   loading.value = true
   try {
-    const response = await axios.get('/api/stock-beginnings/users', {
+    const response = await axios.get('/api/inventory/stock-beginnings/users', {
       params: { request_type: props.approvalRequestType ?? 'approve' },
     })
     usersList.value = response.data.data || []
@@ -292,7 +292,7 @@ const confirmReassign = async () => {
 
   loading.value = true
   try {
-    await axios.post(`/api/stock-beginnings/${props.stock.id}/reassign-approval`, {
+    await axios.post(`/api/inventory/stock-beginnings/${props.stock.id}/reassign-approval`, {
       request_type: props.approvalRequestType,
       new_user_id: newUserId,
       comment,

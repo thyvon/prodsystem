@@ -32,7 +32,7 @@ class ApprovalController extends Controller
 
     public function index()
     {
-        return view('Approval.index');
+        return view('approval.index');
     }
     /**
      * Store a new approval record.

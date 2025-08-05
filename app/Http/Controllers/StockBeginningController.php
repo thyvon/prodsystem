@@ -17,6 +17,7 @@ use App\Imports\StockBeginningsImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\WarehouseService;
+use App\Services\ProductService;
 
 class StockBeginningController extends Controller
 {
@@ -33,10 +34,12 @@ class StockBeginningController extends Controller
 
     public function __construct(
         ApprovalController $approvalController,
-        WarehouseService $warehouseService
+        WarehouseService $warehouseService,
+        ProductService $productService
     ) {
         $this->approvalController = $approvalController;
         $this->warehouseService = $warehouseService;
+        $this->productService = $productService;
     }
 
     /**
@@ -1093,34 +1096,19 @@ class StockBeginningController extends Controller
         return $ordinals[$requestType] ?? 1;
     }
 
+
+    // Other Services
     public function fetchWarehousesForStockBeginning(Request $request)
     {
-        $warehouses = $this->warehouseService->getWarehouses($request);
+        $this->authorize('viewAny', MainStockBeginning::class);
+        $response = $this->warehouseService->getWarehouses($request);
+        return response()->json($response);
+    }
 
-        $data = $warehouses->getCollection()->map(function ($warehouse) {
-            return [
-                'id' => $warehouse->id,
-                'code' => $warehouse->code,
-                'name' => $warehouse->name,
-                'khmer_name' => $warehouse->khmer_name,
-                'address' => $warehouse->address,
-                'address_khmer' => $warehouse->address_khmer,
-                'description' => $warehouse->description,
-                'is_active' => (bool) $warehouse->is_active,
-                'building_id' => $warehouse->building_id,
-                'building_name' => $warehouse->building?->short_name,
-                'created_at' => $warehouse->created_at?->toDateTimeString(),
-                'created_by' => $warehouse->created_by,
-                'updated_at' => $warehouse->updated_at?->toDateTimeString(),
-                'deleted_at' => $warehouse->deleted_at?->toDateTimeString(),
-            ];
-        });
-
-        return response()->json([
-            'data' => $data,
-            'recordsTotal' => $warehouses->total(),
-            'recordsFiltered' => $warehouses->total(),
-            'draw' => (int) $request->input('draw', 1),
-        ]);
+    public function fetProductsForStockBeginning(Request $request)
+    {
+        $this->authorize('viewAny', MainStockBeginning::class);
+        $response = $this->productService->getStockManagedVariants($request);
+        return response()->json($response);
     }
 }

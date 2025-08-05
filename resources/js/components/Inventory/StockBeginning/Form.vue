@@ -255,11 +255,11 @@ const form = ref({
   approvals: [],
 })
 
-const goToIndex = () => { window.location.href = `/stock-beginnings` }
+const goToIndex = () => { window.location.href = `/inventory/stock-beginnings` }
 
 const fetchUsersForApproval = async (requestType) => {
   try {
-    const response = await axios.get('/api/stock-beginnings/users', {
+    const response = await axios.get('/api/inventory/stock-beginnings/users', {
       params: { request_type: requestType },
     })
     users.value[requestType] = Array.isArray(response.data.data) ? response.data.data : []
@@ -271,7 +271,7 @@ const fetchUsersForApproval = async (requestType) => {
 
 const fetchProducts = async () => {
   try {
-    const response = await axios.get(`/api/product-variants-stock`)
+    const response = await axios.get(`/api/inventory/stock-beginnings/get-products`)
     products.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load products:', err)
@@ -281,7 +281,7 @@ const fetchProducts = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const response = await axios.get(`/api/warehouses`)
+    const response = await axios.get(`/api/inventory/stock-beginnings/get-warehouses`)
     warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load warehouses:', err)
@@ -574,7 +574,7 @@ const importFile = async () => {
   formData.append('file', fileInput.value.files[0])
 
   try {
-    const response = await axios.post(`/api/stock-beginnings/import`, formData, {
+    const response = await axios.post(`/api/inventory/stock-beginnings/import`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
 
@@ -675,8 +675,8 @@ const submitForm = async () => {
     }
 
     const url = isEditMode.value
-      ? `/api/stock-beginnings/${stockBeginningId.value}`
-      : `/api/stock-beginnings`
+      ? `/api/inventory/stock-beginnings/${stockBeginningId.value}`
+      : `/api/inventory/stock-beginnings`
     const method = isEditMode.value ? 'put' : 'post'
 
     await axios[method](url, payload)

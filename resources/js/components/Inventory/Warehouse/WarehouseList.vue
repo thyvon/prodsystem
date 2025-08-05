@@ -63,7 +63,7 @@ const datatableHeaders = [
   { text: 'Created', value: 'created_at', width: '10%', sortable: true }
 ]
 
-const datatableFetchUrl = '/api/warehouses'
+const datatableFetchUrl = '/api/inventory/warehouses'
 const datatableActions = ['edit', 'delete']
 const datatableOptions = {
   responsive: true,
@@ -79,7 +79,7 @@ const openCreateModal = () => {
 
 const openEditModal = async (warehouse) => {
   try {
-    const response = await axios.get(`/api/warehouses/${warehouse.id}/edit`)
+    const response = await axios.get(`/api/inventory/warehouses/${warehouse.id}/edit`)
     const fullWarehouse = response.data.data || {}
     isEditing.value = true
     warehouseModal.value.show({
@@ -103,7 +103,7 @@ const handleDelete = async (warehouse) => {
   if (!confirmed) return
 
   try {
-    await axios.delete(`/api/warehouses/${warehouse.id}`)
+    await axios.delete(`/api/inventory/warehouses/${warehouse.id}`)
     showAlert('Deleted', `"${warehouse.name}" was deleted successfully.`, 'success')
     reloadDatatable()
   } catch (e) {
