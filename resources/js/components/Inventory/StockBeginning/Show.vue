@@ -182,7 +182,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import axios from 'axios'
-import { showAlert } from '@/Utils/bootbox'
+import { showAlert} from '@/Utils/bootbox'
 import { formatDateWithTime } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
@@ -246,7 +246,7 @@ const submitApproval = async (action) => {
     }, 1500)
 
   } catch (error) {
-    showAlert('error', error.response?.data?.message || 'Approval failed.')
+    showAlert('Error', error.response?.data?.message || 'Approval failed.','danger')
   } finally {
     loading.value = false
   }
@@ -271,7 +271,7 @@ const openReassignModal = async () => {
     $('#reassignModal').modal('show')
   } catch (err) {
     console.error('Error loading users:', err)
-    showAlert('error', 'Failed to load users.')
+    showAlert('Error', 'Failed to load users.', 'danger')
   } finally {
     loading.value = false
   }
@@ -286,7 +286,7 @@ const confirmReassign = async () => {
   const comment = commentEl?.value.trim()
 
   if (!newUserId) {
-    showAlert('error', 'Please select a user.')
+    showAlert('Error', 'Please select a user.', 'danger')
     return
   }
 
@@ -304,7 +304,7 @@ const confirmReassign = async () => {
     setTimeout(() => window.location.reload(), 1500)
 
   } catch (error) {
-    showAlert('error', error.response?.data?.message || 'Reassignment failed.')
+    showAlert('Error', error.response?.data?.message || 'Reassignment failed.', 'danger')
   } finally {
     loading.value = false
   }
