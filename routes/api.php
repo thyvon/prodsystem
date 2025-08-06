@@ -76,7 +76,12 @@ Route::middleware('auth')->group(function () {
 
     // Users Management
     Route::get('/users', [UserController::class, 'getUsers']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::get('/users/{user}/edit', [UserController::class, 'edit']);
+    Route::put('/users/{user}', [UserController::class, 'update']);
+    Route::delete('/users/{user}', [UserController::class, 'destroy']);
     Route::post('/users/{user}/assign-role', [UserController::class, 'assignRole']);
+    Route::get('/users/positions', [UserController::class, 'getPositions']);
     // Roles
     Route::get('/roles', [RoleController::class, 'getRoles']);
     Route::get('/roles-name', [RoleController::class, 'getRoleNames']);
@@ -88,6 +93,7 @@ Route::middleware('auth')->group(function () {
 
     // Permissions
     Route::get('/permissions', [PermissionController::class, 'getPermissions']);
+    Route::get('/permissions-name', [PermissionController::class, 'getPermissionNames']);
     Route::get('/permissions/{permission}', [PermissionController::class, 'show']);
     Route::post('/permissions', [PermissionController::class, 'store']);
     Route::put('/permissions/{permission}', [PermissionController::class, 'update']);

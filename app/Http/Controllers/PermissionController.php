@@ -46,6 +46,11 @@ class PermissionController extends Controller
         ]);
     }
 
+    public function getPermissionNames()
+    {
+        return response()->json(Permission::pluck('name'));
+    }
+
     // API: Get a single permission for editing
     public function show(Permission $permission)
     {

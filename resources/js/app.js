@@ -58,6 +58,7 @@ import Datatable from './components/Reusable/Datatable.vue'
  import UserPage from './components/UserManagement/User.vue'
  import RolePage from './components/UserManagement/RolePage.vue'
  import PermissionPage from './components/UserManagement/PermissionPage.vue'
+ import UserForm from './components/UserManagement/UserForm.vue'
 
 // Create Vue app instance
  const app = createApp({})
@@ -97,6 +98,7 @@ import Datatable from './components/Reusable/Datatable.vue'
  app.component('user-page', UserPage)
  app.component('role-page', RolePage)
  app.component('permission-page', PermissionPage)
+ app.component('user-form', UserForm)
 
 // Mount the Vue app
 app.mount('#app')

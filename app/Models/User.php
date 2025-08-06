@@ -32,6 +32,7 @@ class User extends Authenticatable
         'default_department_id',
         'default_campus_id',
         'current_position_id',
+        'is_active',
     ];
 
     /**
@@ -53,4 +54,40 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'department_user')
+                    ->withPivot('is_default')
+                    ->withTimestamps();
+    }
+
+    public function campus()
+    {
+        return $this->belongsToMany(Campus::class, 'campus_user')
+                    ->withPivot('is_default')
+                    ->withTimestamps();
+    }
+
+    public function positions()
+    {
+        return $this->belongsToMany(Position::class, 'position_user')
+                    ->withPivot('is_default')
+                    ->withTimestamps();
+    }
+
+    public function defaultDepartment()
+    {
+        return $this->departments()->wherePivot('is_default', true)->first();
+    }
+
+    public function defaultCampus()
+    {
+        return $this->campus()->wherePivot('is_default', true)->first();
+    }
+
+    public function defaultPosition()
+    {
+        return $this->positions()->wherePivot('is_default', true)->first();
+    }
 }
