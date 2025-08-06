@@ -187,21 +187,21 @@ class UserController extends Controller
                         return [
                             'id' => $department->id,
                             'name' => $department->name,
-                            'is_default' => $department->pivot->is_default,
+                            'is_default' => (bool) $department->pivot->is_default,
                         ];
                     })->toArray(),
                     'campus' => $user->campus->map(function ($campus) {
                         return [
                             'id' => $campus->id,
                             'name' => $campus->name,
-                            'is_default' => $campus->pivot->is_default,
+                            'is_default' => (bool) $campus->pivot->is_default,
                         ];
                     })->toArray(),
                     'positions' => $user->positions->map(function ($position) {
                         return [
                             'id' => $position->id,
                             'title' => $position->title,
-                            'is_default' => $position->pivot->is_default,
+                            'is_default' => (bool) $position->pivot->is_default,
                         ];
                     })->toArray(),
                     'roles' => $user->roles->pluck('name')->toArray(),
