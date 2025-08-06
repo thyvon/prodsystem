@@ -15,13 +15,14 @@
       <!-- Title -->
       <div class="text-center mb-4">
         <h4 class="font-weight-bold text-dark">ស្តុកដើមគ្រា</h4>
-        <h6 class="font-weight-bold text-dark">{{ stock.warehouse?.name ?? 'N/A' }}</h6>
+        <h5 class="font-weight-bold text-dark">CAMPUS: {{ stock.warehouse?.building?.campus?.name ?? 'N/A' }}</h5>
+        <h6 class="font-weight-bold text-dark">WAREHOUSE: {{ stock.warehouse?.name ?? 'N/A' }}</h6>
       </div>
 
       <!-- Line Items Table -->
       <div class="table-responsive">
         <table class="table table-bordered table-sm">
-          <thead class="table-light">
+          <thead class="table-secondary">
             <tr>
               <th class="text-center">#</th>
               <th>Item Code</th>

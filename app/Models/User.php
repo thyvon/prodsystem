@@ -23,6 +23,15 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'card_number',
+        'telegram_id',
+        'phone',
+        'profile_url',
+        'signature_url',
+        'building_id',
+        'default_department_id',
+        'default_campus_id',
+        'current_position_id',
     ];
 
     /**
