@@ -19,6 +19,9 @@ use App\Http\Controllers\DivisionController;
 use App\Models\Department;
 use App\Http\Controllers\DepartmentController;
 
+use App\Models\Position;
+use App\Http\Controllers\PositionController;
+
 use App\Models\TocaPolicy;
 use App\Http\Controllers\TocaController;
 
@@ -130,6 +133,13 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/departments', [DepartmentController::class, 'store'])->middleware('can:create,' . Department::class);
     Route::put('/departments/{department}', [DepartmentController::class, 'update'])->middleware('can:update,department');
     Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->middleware('can:delete,department');
+
+    // Positions
+    Route::get('/positions', [PositionController::class, 'getPositions'])->middleware('can:viewAny,' . Position::class);
+    Route::get('/positions/{position}/edit', [PositionController::class, 'edit'])->middleware('can:update,position');
+    Route::post('/positions', [PositionController::class, 'store'])->middleware('can:create,' . Position::class);
+    Route::put('/positions/{position}', [PositionController::class, 'update'])->middleware('can:update,position');
+    Route::delete('/positions/{position}', [PositionController::class, 'destroy'])->middleware('can:delete,position');
 
     // Toca Policies
     Route::get('/toca-policies', [TocaController::class, 'getTocaPolicies'])->middleware('can:viewAny,' . TocaPolicy::class);

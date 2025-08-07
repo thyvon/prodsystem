@@ -22,6 +22,9 @@ use App\Models\Division;
 use App\Http\Controllers\DepartmentController;
 use App\Models\Department;
 
+use App\Http\Controllers\PositionController;
+use App\Models\Position;
+
 use App\Http\Controllers\TocaController;
 use App\Models\TocaPolicy;
 
@@ -107,6 +110,10 @@ Route::middleware(['auth'])->group(function () {
     // Departments
     Route::get('/departments', [DepartmentController::class, 'index'])
         ->name('departments.index')->middleware('can:viewAny,' . Department::class);
+
+    // Positions
+    Route::get('/positions', [PositionController::class, 'index'])
+        ->name('positions.index')->middleware('can:viewAny,' . Position::class);
 
     // Toca Policies
     Route::get('/toca-policies', [TocaController::class, 'index'])

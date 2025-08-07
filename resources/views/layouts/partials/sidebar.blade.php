@@ -287,6 +287,7 @@
                     || request()->is('buildings*')
                     || request()->is('divisions*')
                     || request()->is('departments*')
+                    || request()->is('positions*')
                     || request()->is('toca-policies*')
                     || request()->is('toca-amounts*')
                     || request()->is('mvl*');
@@ -321,6 +322,11 @@
                     <li class="{{ request()->is('departments*') ? 'active' : '' }}">
                         <a href="{{ url('departments') }}" title="Department" data-filter-tags="department">
                             <span class="nav-link-text">Department</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('positions*') ? 'active' : '' }}">
+                        <a href="{{ url('positions') }}" title="Position" data-filter-tags="position">
+                            <span class="nav-link-text">Position</span>
                         </a>
                     </li>
                     <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">

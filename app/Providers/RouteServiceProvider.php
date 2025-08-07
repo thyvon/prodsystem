@@ -51,5 +51,6 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('warehouse', \App\Models\Warehouse::class);
         Route::model('mainStockBeginning', \App\Models\MainStockBeginning::class);
         Route::model('stockRequest', \App\Models\StockRequest::class);
+        Route::model('position', \App\Models\Position::class);
     }
 }

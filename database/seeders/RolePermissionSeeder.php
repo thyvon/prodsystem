@@ -41,9 +41,17 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'Department',
                 'actions' => ['create', 'view', 'update', 'delete'],
             ],
+            'position' => [
+                'name' => 'Position',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
             'division' => [
                 'name' => 'Division',
                 'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'product' => [
+                'name' => 'Product',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
             ],
             'mainCategory' => [
                 'name' => 'Main Category',
@@ -53,10 +61,26 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'Sub Category',
                 'actions' => ['create', 'view', 'update', 'delete'],
             ],
+            'unitOfMeasure' => [
+                'name' => 'Unit of Measure',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'productVariantAttribute' => [
+                'name' => 'Product Attribute',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
             'mainStockBeginning' => [
                 'name' => 'Main Stock Beginning',
                 'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'review', 'check', 'approve','reassign'],
             ],
+            'warehouse' => [
+                'name' => 'Warehouse',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ],
+            'toca' => [
+                'name' => 'TOCA',
+                'actions' => ['create', 'view', 'update', 'delete'],
+            ]
         ];
 
         // Update existing permissions with feature_name

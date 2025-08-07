@@ -19,6 +19,10 @@ use App\Policies\TocaPolicyPolicy;
 use App\Models\TocaAmount;
 use App\Policies\TocaAmountPolicy;
 
+// User Management
+use App\Models\Position;
+use App\Policies\PositionPolicy;
+
 
 // Product Management
 use App\Models\MainCategory;
@@ -66,6 +70,7 @@ class AuthServiceProvider extends ServiceProvider
         VariantAttribute::class => ProductVariantAttributePolicy::class,
         Warehouse::class => WarehousePolicy::class,
         MainStockBeginning::class => MainStockBeginningPolicy::class,
+        Position::class => PositionPolicy::class,
         StockRequest::class => StockRequestPolicy::class,
     ];
 

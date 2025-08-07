@@ -15,5 +15,11 @@ class Position extends Model
         'title',
         'short_title',
         'is_active',
+        'departement_id'
     ];
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
 }
