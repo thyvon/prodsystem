@@ -8,13 +8,11 @@ use Illuminate\Auth\Access\Response;
 
 class MainStockBeginningPolicy
 {
-    /**
-     * Grant all abilities to admin users before other checks.
-     */
+    // Admins bypass all checks
     public function before(User $user, $ability)
     {
         if ($user->hasRole('admin')) {
-            return true; // Admin bypasses all policy checks
+            return true;
         }
     }
 
@@ -23,38 +21,43 @@ class MainStockBeginningPolicy
         return $user->can('mainStockBeginning.view');
     }
 
+    public function view(User $user, MainStockBeginning $mainStockBeginning): bool
+    {
+        return $user->can('mainStockBeginning.view') &&
+               $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
+    }
+
     public function create(User $user): bool
     {
         return $user->can('mainStockBeginning.create');
     }
 
-    public function view(User $user, MainStockBeginning $mainStockBeginning): bool
-    {
-        return $user->can('mainStockBeginning.view');
-    }
-
-    public function edit(User $user): bool
-    {
-        return $user->can('mainStockBeginning.update');
-    }
-
     public function update(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.update');
+        return $user->can('mainStockBeginning.update') &&
+            $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }
 
     public function delete(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.delete');
+        return $user->can('mainStockBeginning.update') &&
+            $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }
 
     public function restore(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.restore');
+        return $user->can('mainStockBeginning.update') &&
+            $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }
+
     public function forceDelete(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.forceDelete');
+        return $user->can('mainStockBeginning.update') &&
+            $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }
 
     public function review(User $user, MainStockBeginning $mainStockBeginning): bool

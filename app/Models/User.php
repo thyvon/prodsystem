@@ -32,6 +32,7 @@ class User extends Authenticatable
         'default_department_id',
         'default_campus_id',
         'current_position_id',
+        'default_warehouse_id',
         'is_active',
     ];
 
@@ -67,6 +68,23 @@ class User extends Authenticatable
         return $this->belongsToMany(Campus::class, 'campus_user')
                     ->withPivot('is_default')
                     ->withTimestamps();
+    }
+
+    public function warehouses()
+    {
+        return $this->belongsToMany(Warehouse::class, 'warehouse_user')
+                    ->withPivot('is_default')
+                    ->withTimestamps();
+    }
+
+    public function defaultWarehouse()
+    {
+        return $this->warehouses()->wherePivot('is_default', true)->first();
+    }
+
+    public function hasWarehouseAccess(int $warehouseId): bool
+    {
+        return $this->warehouses()->where('warehouses.id', $warehouseId)->exists();
     }
 
     public function positions()

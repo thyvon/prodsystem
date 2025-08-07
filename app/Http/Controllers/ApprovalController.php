@@ -417,7 +417,7 @@ class ApprovalController extends Controller
                 $blockingApproval = $previousApprovals->first(fn($a) => $a->approval_status !== 'Approved');
 
                 if ($blockingApproval) {
-                    $displayStatus = 'Waiting previous ' . ucwords($blockingApproval->request_type);
+                    $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
                 }
             }
 

@@ -72,8 +72,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware('auth')->group(function () {
-
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     // Users Management
     Route::get('/users', [UserController::class, 'getUsers']);
     Route::post('/users', [UserController::class, 'store']);
@@ -81,7 +80,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/users/{user}', [UserController::class, 'update']);
     Route::delete('/users/{user}', [UserController::class, 'destroy']);
     Route::post('/users/{user}/assign-role', [UserController::class, 'assignRole']);
+    Route::get('/users/campuses', [UserController::class, 'getCampuses']);
+    Route::get('/users/buildings', [UserController::class, 'getBuildings']);
+    Route::get('/users/departments', [UserController::class, 'getDepartments']);
     Route::get('/users/positions', [UserController::class, 'getPositions']);
+    Route::get('/users/warehouses', [UserController::class, 'getWarehouses']);
+
     // Roles
     Route::get('/roles', [RoleController::class, 'getRoles']);
     Route::get('/roles-name', [RoleController::class, 'getRoleNames']);
@@ -140,7 +144,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/toca-amounts', [TocaAmountController::class, 'store'])->middleware('can:create,' . TocaAmount::class);
     Route::put('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'update'])->middleware('can:update,tocaAmount');
     Route::delete('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'destroy'])->middleware('can:delete,tocaAmount');
+});
 
+Route::middleware('auth:sanctum')->group(function () {
     // Product Management - Main Categories
     Route::get('/main-categories', [MainCategoryController::class, 'getMainCategories'])->middleware('can:viewAny,' . MainCategory::class)->name('api.main-categories.index');
     Route::get('/main-categories/{mainCategory}/edit', [MainCategoryController::class, 'edit'])->middleware('can:update,mainCategory')->name('api.main-categories.edit');

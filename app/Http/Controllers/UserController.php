@@ -7,6 +7,8 @@ use App\Services\UserService;
 use App\Services\PositionService;
 use App\Services\DepartmentService;
 use App\Services\CampusService;
+use App\Services\WarehouseService;
+use App\Services\BuildingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -22,17 +24,23 @@ class UserController extends Controller
     protected $positionService;
     protected $departmentService;
     protected $campusService;
+    protected $warehouseService;
+    protected $buildingService;
 
     public function __construct(
         UserService $userService,
         PositionService $positionService,
         DepartmentService $departmentService,
-        CampusService $campusService
+        CampusService $campusService,
+        WarehouseService $warehouseService,
+        BuildingService $buildingService
     ) {
         $this->userService = $userService;
         $this->positionService = $positionService;
         $this->departmentService = $departmentService;
         $this->campusService = $campusService;
+        $this->warehouseService = $warehouseService;
+        $this->buildingService = $buildingService;
     }
 
     public function index()
@@ -65,6 +73,16 @@ class UserController extends Controller
         return $this->campusService->getCampuses($request);
     }
 
+    public function getWarehouses(Request $request)
+    {
+        return $this->warehouseService->getWarehouses($request);
+    }
+
+    public function getBuildings(Request $request)
+    {
+        return $this->buildingService->getBuildings($request);
+    }
+
     public function store(Request $request)
     {
         try {
@@ -85,6 +103,9 @@ class UserController extends Controller
                 'campus' => ['sometimes', 'array'],
                 'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
                 'campus.*.is_default' => ['required_with:campus', 'boolean'],
+                'warehouses' => ['sometimes', 'array'],
+                'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
+                'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
                 'positions' => ['sometimes', 'array'],
                 'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
                 'positions.*.is_default' => ['required_with:positions', 'boolean'],
@@ -133,6 +154,14 @@ class UserController extends Controller
                 $user->campus()->sync($campus);
             }
 
+            // Sync warehouses
+            if ($request->has('warehouses')) {
+                $warehouses = collect($request->warehouses)->mapWithKeys(function ($warehouse) {
+                    return [$warehouse['id'] => ['is_default' => $warehouse['is_default']]];
+                });
+                $user->warehouses()->sync($warehouses);
+            }
+
             // Sync positions
             if ($request->has('positions')) {
                 $positions = collect($request->positions)->mapWithKeys(function ($position) {
@@ -153,7 +182,7 @@ class UserController extends Controller
 
             return response()->json([
                 'message' => 'User created successfully.',
-                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'positions']),
+                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions']),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -167,7 +196,7 @@ class UserController extends Controller
     public function edit($id)
     {
         try {
-            $user = User::with(['roles', 'permissions', 'departments', 'campus', 'positions'])->findOrFail($id);
+            $user = User::with(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions'])->findOrFail($id);
 
             // Prepare data for the Vue form
             $userData = [
@@ -195,6 +224,13 @@ class UserController extends Controller
                             'id' => $campus->id,
                             'name' => $campus->name,
                             'is_default' => (bool) $campus->pivot->is_default,
+                        ];
+                    })->toArray(),
+                    'warehouses' => $user->warehouses->map(function ($warehouse) {
+                        return [
+                            'id' => $warehouse->id,
+                            'name' => $warehouse->name,
+                            'is_default' => (bool) $warehouse->pivot->is_default,
                         ];
                     })->toArray(),
                     'positions' => $user->positions->map(function ($position) {
@@ -256,6 +292,9 @@ class UserController extends Controller
                 'campus' => ['sometimes', 'array'],
                 'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
                 'campus.*.is_default' => ['required_with:campus', 'boolean'],
+                'warehouses' => ['sometimes', 'array'],
+                'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
+                'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
                 'positions' => ['sometimes', 'array'],
                 'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
                 'positions.*.is_default' => ['required_with:positions', 'boolean'],
@@ -304,6 +343,14 @@ class UserController extends Controller
                 $user->campus()->sync($campus);
             }
 
+            // Sync warehouses
+            if ($request->has('warehouses')) {
+                $warehouses = collect($request->warehouses)->mapWithKeys(function ($warehouse) {
+                    return [$warehouse['id'] => ['is_default' => $warehouse['is_default']]];
+                });
+                $user->warehouses()->sync($warehouses);
+            }
+
             // Sync positions
             if ($request->has('positions')) {
                 $positions = collect($request->positions)->mapWithKeys(function ($position) {
@@ -324,7 +371,7 @@ class UserController extends Controller
 
             return response()->json([
                 'message' => 'User updated successfully.',
-                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'positions']),
+                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions']),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([

@@ -29,4 +29,9 @@ class Warehouse extends Model
     {
         return $this->belongsTo(Building::class);
     }
+
+    public function stockBeginnings()
+    {
+        return $this->hasMany(MainStockBeginning::class);
+    }
 }

@@ -115,7 +115,7 @@
                     :key="building.id"
                     :value="building.id"
                   >
-                    {{ building.name }}
+                    {{ building.short_name }}
                   </option>
                 </select>
               </div>
@@ -271,6 +271,72 @@
                 @click="addCampus"
               >
                 <i class="fal fa-plus"></i> Add Campus
+              </button>
+            </div>
+            <!-- Warehouses -->
+            <div class="border rounded p-3 mb-3">
+              <h6 class="font-weight-bold mb-3">Warehouses</h6>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm table-hover">
+                  <thead class="thead-light">
+                    <tr>
+                      <th style="min-width: 200px;">Warehouse</th>
+                      <th style="min-width: 100px;">Default</th>
+                      <th style="min-width: 100px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(warehouse, index) in form.warehouses" :key="index">
+                      <td>
+                        <select
+                          v-model="form.warehouses[index].id"
+                          class="form-control warehouse-select"
+                          :data-row="index"
+                        >
+                          <option value="">Select Warehouse</option>
+                          <option
+                            v-for="warehouseOption in availableWarehouses(index)"
+                            :key="warehouseOption.id"
+                            :value="warehouseOption.id"
+                          >
+                            {{ warehouseOption.name }}
+                          </option>
+                        </select>
+                      </td>
+                      <td>
+                        <div class="custom-control custom-checkbox">
+                          <input
+                            class="custom-control-input"
+                            type="checkbox"
+                            :id="`warehouse-default-${index}`"
+                            v-model="form.warehouses[index].is_default"
+                            :disabled="!form.warehouses[index].id"
+                            @change="setDefaultWarehouse(index)"
+                          />
+                          <label class="custom-control-label" :for="`warehouse-default-${index}`">
+                            Default
+                          </label>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          class="btn btn-danger btn-sm"
+                          @click="removeWarehouse(index)"
+                        >
+                          <i class="fal fa-trash-alt"></i> Remove
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm mt-2"
+                @click="addWarehouse"
+              >
+                <i class="fal fa-plus"></i> Add Warehouse
               </button>
             </div>
             <!-- Positions -->
@@ -498,6 +564,7 @@ const buildings = ref([]);
 const departments = ref([]);
 const campus = ref([]);
 const positions = ref([]);
+const warehouses = ref([]);
 const availableRoles = ref([]);
 const availablePermissions = ref([]);
 const buildingSelect = ref(null);
@@ -507,6 +574,7 @@ const isAddingRole = ref(false);
 const isAddingPermission = ref(false);
 const isAddingDepartment = ref(false);
 const isAddingCampus = ref(false);
+const isAddingWarehouse = ref(false);
 const isAddingPosition = ref(false);
 
 // Form state
@@ -523,6 +591,7 @@ const form = ref({
   building_id: null,
   departments: [],
   campus: [],
+  warehouses: [],
   positions: [],
   email_verified_at: null,
   roles: [],
@@ -554,6 +623,14 @@ const availableCampuses = computed(() => (index) => {
   return campus.value.filter((campus) => !selectedIds.includes(campus.id));
 });
 
+const availableWarehouses = computed(() => (index) => {
+  const selectedIds = form.value.warehouses
+    .filter((_, i) => i !== index)
+    .map((warehouse) => warehouse.id)
+    .filter((id) => id);
+  return warehouses.value.filter((warehouse) => !selectedIds.includes(warehouse.id));
+});
+
 const availablePositions = computed(() => (index) => {
   const selectedIds = form.value.positions
     .filter((_, i) => i !== index)
@@ -570,7 +647,7 @@ const goToIndex = () => {
 // Data fetching
 const fetchBuildings = async () => {
   try {
-    const response = await axios.get('/api/buildings');
+    const response = await axios.get('/api/users/buildings');
     buildings.value = Array.isArray(response.data) ? response.data : response.data.data;
   } catch (err) {
     console.error('Failed to load buildings:', err);
@@ -580,7 +657,7 @@ const fetchBuildings = async () => {
 
 const fetchDepartments = async () => {
   try {
-    const response = await axios.get('/api/departments');
+    const response = await axios.get('/api/users/departments');
     departments.value = Array.isArray(response.data.data) ? response.data.data : response.data;
   } catch (err) {
     console.error('Failed to load departments:', err);
@@ -595,6 +672,16 @@ const fetchCampuses = async () => {
   } catch (err) {
     console.error('Failed to load campuses:', err);
     showAlert('Error', 'Failed to load campuses.', 'danger');
+  }
+};
+
+const fetchWarehouses = async () => {
+  try {
+    const response = await axios.get('/api/users/warehouses');
+    warehouses.value = Array.isArray(response.data.data) ? response.data.data : response.data;
+  } catch (err) {
+    console.error('Failed to load warehouses:', err);
+    showAlert('Error', 'Failed to load warehouses.', 'danger');
   }
 };
 
@@ -721,6 +808,52 @@ const setDefaultCampus = (index) => {
     campus.is_default = i === index && form.value.campus[index].is_default;
   });
 };
+
+const addWarehouse = async () => {
+  if (isAddingWarehouse.value) return;
+  isAddingWarehouse.value = true;
+  try {
+    form.value.warehouses.push({ id: '', is_default: false });
+    await nextTick();
+    const index = form.value.warehouses.length - 1;
+    const warehouseSelect = document.querySelector(`.warehouse-select[data-row="${index}"]`);
+    if (!warehouseSelect) {
+      console.warn(`DOM element for warehouse row ${index} not found`);
+      showAlert('Error', 'Failed to initialize warehouse dropdown.', 'danger');
+      return;
+    }
+    initSelect2(warehouseSelect, {
+      placeholder: 'Select Warehouse',
+      width: '100%',
+      allowClear: true,
+    }, (value) => {
+      form.value.warehouses[index].id = value ? Number(value) : '';
+    });
+    $(warehouseSelect).val(form.value.warehouses[index].id || '').trigger('change.select2');
+  } catch (err) {
+    console.error('Error adding warehouse:', err);
+    showAlert('Error', 'Failed to add warehouse assignment.', 'danger');
+  } finally {
+    isAddingWarehouse.value = false;
+  }
+}
+
+const removeWarehouse = async (index) => {
+  try {
+    const warehouseSelect = document.querySelector(`.warehouse-select[data-row="${index}"]`);
+    if (warehouseSelect) destroySelect2(warehouseSelect);
+    form.value.warehouses.splice(index, 1);
+  } catch (err) {
+    console.error('Error removing warehouse:', err);
+    showAlert('Error', 'Failed to remove warehouse assignment.', 'danger');
+  }
+}
+
+const setDefaultWarehouse = (index) => {
+  form.value.warehouses.forEach((warehouse, i) => {
+    warehouse.is_default = i === index && form.value.warehouses[index].is_default;
+  });
+}
 
 // Position methods
 const addPosition = async () => {
@@ -873,6 +1006,10 @@ const validateForm = () => {
     showAlert('Error', 'All campus assignments must have a campus selected.', 'danger');
     return false;
   }
+  if (form.value.warehouses.some((warehouse) => !warehouse.id)) {
+    showAlert('Error', 'All warehouse assignments must have a warehouse selected.', 'danger');
+    return false;
+  }
   if (form.value.positions.some((position) => !position.id)) {
     showAlert('Error', 'All position assignments must have a position selected.', 'danger');
     return false;
@@ -897,6 +1034,14 @@ const validateForm = () => {
     showAlert('Error', 'Duplicate campus selections are not allowed.', 'danger');
     return false;
   }
+
+  // Check for duplicate warehouses
+  const warehouseIds = form.value.warehouses.map((warehouse) => warehouse.id).filter((id) => id);
+  if (new Set(warehouseIds).size !== warehouseIds.length) {
+    showAlert('Error', 'Duplicate warehouse selections are not allowed.', 'danger');
+    return false;
+  }
+
   // Check for duplicate positions
   const positionIds = form.value.positions.map((position) => position.id).filter((id) => id);
   if (new Set(positionIds).size !== positionIds.length) {
@@ -915,6 +1060,14 @@ const validateForm = () => {
     showAlert('Error', 'Only one campus can be set as default.', 'danger');
     return false;
   }
+
+  // Check for multiple default warehouses
+  const defaultWarehouses = form.value.warehouses.filter((warehouse) => warehouse.is_default);
+  if (defaultWarehouses.length > 1) {
+    showAlert('Error', 'Only one warehouse can be set as default.', 'danger');
+    return false;
+  }
+
   // Check for multiple default positions
   const defaultPositions = form.value.positions.filter((position) => position.is_default);
   if (defaultPositions.length > 1) {
@@ -943,6 +1096,7 @@ const submitForm = async () => {
       building_id: form.value.building_id ? Number(form.value.building_id) : null,
       departments: form.value.departments,
       campus: form.value.campus,
+      warehouses: form.value.warehouses,
       positions: form.value.positions,
       roles: form.value.roles,
       permissions: form.value.permissions,
@@ -985,6 +1139,10 @@ onMounted(async () => {
           id: c.id,
           is_default: c.is_default || c.pivot?.is_default || false,
         })) || [],
+        warehouses: props.initialData.user.warehouses?.map((w) => ({
+          id: w.id,
+          is_default: w.is_default || w.pivot?.is_default || false,
+        })) || [],
         positions: props.initialData.user.positions?.map((p) => ({
           id: p.id,
           is_default: p.is_default || p.pivot?.is_default || false,
@@ -1002,6 +1160,7 @@ onMounted(async () => {
       fetchBuildings(),
       fetchDepartments(),
       fetchCampuses(),
+      fetchWarehouses(),
       fetchPositions(),
       fetchRoles(),
       fetchPermissions(),
@@ -1054,6 +1213,23 @@ onMounted(async () => {
         $(campusSelect).val(campus.id || '').trigger('change.select2');
       } else {
         console.warn(`Campus select element for row ${index} not found`);
+      }
+    });
+
+    // Initialize Select2 for warehouses
+    form.value.warehouses.forEach((warehouse, index) => {
+      const warehouseSelect = document.querySelector(`.warehouse-select[data-row="${index}"]`);
+      if (warehouseSelect) {
+        initSelect2(warehouseSelect, {
+          placeholder: 'Select Warehouse',
+          width: '100%',
+          allowClear: true,
+        }, (value) => {
+          form.value.warehouses[index].id = value ? Number(value) : '';
+        });
+        $(warehouseSelect).val(warehouse.id || '').trigger('change.select2');
+      } else {
+        console.warn(`Warehouse select element for row ${index} not found`);
       }
     });
 
@@ -1118,6 +1294,7 @@ onUnmounted(() => {
     if (buildingSelect.value) destroySelect2(buildingSelect.value);
     document.querySelectorAll('.department-select').forEach((el) => destroySelect2(el));
     document.querySelectorAll('.campus-select').forEach((el) => destroySelect2(el));
+    document.querySelectorAll('.warehouse-select').forEach((el) => destroySelect2(el));
     document.querySelectorAll('.position-select').forEach((el) => destroySelect2(el));
     document.querySelectorAll('.role-select').forEach((el) => destroySelect2(el));
     document.querySelectorAll('.permission-select').forEach((el) => destroySelect2(el));
@@ -1137,9 +1314,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.table-responsive {
-  min-height: 100px;
 }
 .form-control.is-invalid {
   border-color: #dc3545;

@@ -494,76 +494,88 @@ class StockBeginningController extends Controller
     public function getStockBeginnings(Request $request): JsonResponse
     {
         $this->authorize('viewAny', MainStockBeginning::class);
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin');
+
+        // Get warehouse IDs only if NOT admin
+        $warehouseIds = $isAdmin ? [] : $user->warehouses->pluck('id')->toArray();
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
             'draw' => 'nullable|integer',
         ]);
 
-        $query = MainStockBeginning::with(['warehouse', 'stockBeginnings.productVariant.product'])
+        $query = MainStockBeginning::with([
+                'warehouse.building.campus',
+                'stockBeginnings.productVariant.product.unit',
+                'createdBy',
+                'updatedBy',
+            ])
+            // Apply warehouse filter only if NOT admin
+            ->when(!$isAdmin, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->when($validated['search'] ?? null, function ($query, $search) {
-                $query->where('reference_no', 'like', "%{$search}%")
-                    ->orWhereHas('warehouse', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('stockBeginnings.productVariant.product', function ($q) use ($search) {
-                        $q->where(function ($q2) use ($search) {
-                            $q2->where('name', 'like', "%{$search}%")
-                                ->orWhere('khmer_name', 'like', "%{$search}%")
-                                ->orWhere('description', 'like', "%{$search}%")
-                                ->orWhere('item_code', 'like', "%{$search}%")
-                                ->orWhereHas('unit', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                });
+                $query->where(function ($q) use ($search) {
+                    $q->where('reference_no', 'like', "%{$search}%")
+                        ->orWhereHas('warehouse', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('stockBeginnings.productVariant.product', function ($q) use ($search) {
+                            $q->where(function ($q2) use ($search) {
+                                $q2->where('name', 'like', "%{$search}%")
+                                    ->orWhere('khmer_name', 'like', "%{$search}%")
+                                    ->orWhere('description', 'like', "%{$search}%")
+                                    ->orWhere('item_code', 'like', "%{$search}%")
+                                    ->orWhereHas('unit', fn($q3) => $q3->where('name', 'like', "%{$search}%"));
+                            });
                         });
-                    });
+                });
             });
 
-        $recordsTotal = MainStockBeginning::count();
+        $recordsTotal = $isAdmin
+            ? MainStockBeginning::count()
+            : MainStockBeginning::whereIn('warehouse_id', $warehouseIds)->count();
+
         $recordsFiltered = $query->count();
 
-        $sortColumn = in_array($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, self::ALLOWED_SORT_COLUMNS)
-            ? $validated['sortColumn']
-            : self::DEFAULT_SORT_COLUMN;
-        $sortDirection = in_array(strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION), ['asc', 'desc'])
-            ? $validated['sortDirection']
-            : self::DEFAULT_SORT_DIRECTION;
+        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        $limit = max(1, min((int) ($validated['limit'] ?? self::DEFAULT_LIMIT), self::MAX_LIMIT));
-        $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $validated['page'] ?? 1);
+        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
+        $page = $validated['page'] ?? 1;
 
-        $data = $mainStockBeginnings->getCollection()->map(function ($mainStockBeginning) {
+        $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $page);
+
+        $data = $mainStockBeginnings->getCollection()->map(function ($item) {
             return [
-                'id' => $mainStockBeginning->id,
-                'reference_no' => $mainStockBeginning->reference_no,
-                'beginning_date' => $mainStockBeginning->beginning_date ?? null,
-                'warehouse_name' => $mainStockBeginning->warehouse->name ?? null,
-                'campus_name' => $mainStockBeginning->warehouse->building->campus->short_name ?? null,
-                'building_name' => $mainStockBeginning->warehouse->building->short_name ?? null,
-                'quantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
-                'total_value' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
-                'created_at' => $mainStockBeginning->created_at?->toDateTimeString(),
-                'updated_at' => $mainStockBeginning->updated_at?->toDateTimeString(),
-                'created_by' => $mainStockBeginning->createdBy->name ?? 'System',
-                'updated_by' => $mainStockBeginning->updatedBy->name ?? 'System',
-                'approval_status' => $mainStockBeginning->approval_status,
-                'items' => $mainStockBeginning->stockBeginnings->map(function ($stockBeginning) {
+                'id' => $item->id,
+                'reference_no' => $item->reference_no,
+                'beginning_date' => $item->beginning_date,
+                'warehouse_name' => $item->warehouse->name ?? null,
+                'campus_name' => $item->warehouse->building->campus->short_name ?? null,
+                'building_name' => $item->warehouse->building->short_name ?? null,
+                'quantity' => round($item->stockBeginnings->sum('quantity'), 4),
+                'total_value' => round($item->stockBeginnings->sum('total_value'), 4),
+                'created_at' => optional($item->created_at)->toDateTimeString(),
+                'updated_at' => optional($item->updated_at)->toDateTimeString(),
+                'created_by' => $item->createdBy->name ?? 'System',
+                'updated_by' => $item->updatedBy->name ?? 'System',
+                'approval_status' => $item->approval_status,
+                'items' => $item->stockBeginnings->map(function ($sb) {
                     return [
-                        'id' => $stockBeginning->id,
-                        'product_id' => $stockBeginning->product_id,
-                        'item_code' => $stockBeginning->productVariant->item_code ?? null,
-                        'quantity' => $stockBeginning->quantity,
-                        'unit_price' => $stockBeginning->unit_price,
-                        'total_value' => $stockBeginning->total_value,
-                        'remarks' => $stockBeginning->remarks,
-                        'product_name' => $stockBeginning->productVariant->product->name ?? null,
-                        'product_khmer_name' => $stockBeginning->productVariant->product->khmer_name ?? null,
-                        'unit_name' => $stockBeginning->productVariant->product->unit->name ?? null,
+                        'id' => $sb->id,
+                        'product_id' => $sb->product_id,
+                        'item_code' => $sb->productVariant->item_code ?? null,
+                        'quantity' => $sb->quantity,
+                        'unit_price' => $sb->unit_price,
+                        'total_value' => $sb->total_value,
+                        'remarks' => $sb->remarks,
+                        'product_name' => $sb->productVariant->product->name ?? null,
+                        'product_khmer_name' => $sb->productVariant->product->khmer_name ?? null,
+                        'unit_name' => $sb->productVariant->product->unit->name ?? null,
                     ];
                 })->toArray(),
             ];
@@ -738,27 +750,31 @@ class StockBeginningController extends Controller
         $shortName = $warehouse->building?->campus?->short_name ?? 'WH';
         $monthYear = $date->format('my');
 
-        $sequence = $this->getSequenceNumber($warehouseId, $monthYear);
+        // Only call once
+        $sequence = $this->getSequenceNumber($shortName, $monthYear);
 
+        // Use the one you just got
         return "STB-{$shortName}-{$monthYear}-{$sequence}";
     }
 
     /**
      * Generate a sequence number for uniqueness, including soft-deleted records.
      *
-     * @param int $warehouseId
+     * @param string $shortName
      * @param string $monthYear
      * @return string
      */
-    private function getSequenceNumber(int $warehouseId, string $monthYear): string
+    private function getSequenceNumber(string $shortName, string $monthYear): string
     {
+        $prefix = "STB-{$shortName}-{$monthYear}-";
+
         $count = MainStockBeginning::withTrashed()
-            ->where('warehouse_id', $warehouseId)
-            ->where('reference_no', 'like', "STB%{$monthYear}%")
+            ->where('reference_no', 'like', "{$prefix}%")
             ->count();
 
         return str_pad($count + 1, 2, '0', STR_PAD_LEFT);
     }
+
 
     /**
      * Delete a main stock beginning and its associated line items and approvals.
@@ -1101,9 +1117,20 @@ class StockBeginningController extends Controller
     public function fetchWarehousesForStockBeginning(Request $request)
     {
         $this->authorize('viewAny', MainStockBeginning::class);
-        $response = $this->warehouseService->getWarehouses($request);
-        return response()->json($response);
+        $user = $request->user();
+        if($user->hasRole('admin')) {
+            $response = $this->warehouseService->getWarehouses($request);
+            return response()->json($response);
+        }
+        $response = $user->defaultWarehouse($request);
+        if (!$response) {
+            return response()->json([
+                'message' => 'No default warehouse assigned to this user.',
+            ], 404);
+        }
+        return response()->json([$response]);
     }
+
 
     public function fetProductsForStockBeginning(Request $request)
     {

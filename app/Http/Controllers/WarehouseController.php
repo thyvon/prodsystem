@@ -322,12 +322,10 @@ class WarehouseController extends Controller
         $this->authorize('delete', $warehouse);
         
         // Check for relationships (e.g., inventory items or transactions)
-        $hasInventoryItems = $warehouse->inventoryItems()->exists();
-        $hasTransactions = $warehouse->transactions()->exists();
-
-        if ($hasInventoryItems || $hasTransactions) {
+        $hasStockBeginnings = $warehouse->stockBeginnings()->exists();
+        if ($hasStockBeginnings) {
             return response()->json([
-                'message' => 'Cannot delete warehouse because it has associated inventory items or transactions.'
+                'message' => 'Cannot delete warehouse because it has associated Stock Beginnings.'
             ], 400);
         }
 
@@ -391,12 +389,10 @@ class WarehouseController extends Controller
         $warehouse = Warehouse::onlyTrashed()->findOrFail($id);
 
         // Check for relationships (e.g., inventory items or transactions)
-        $hasInventoryItems = $warehouse->inventoryItems()->exists();
-        $hasTransactions = $warehouse->transactions()->exists();
-
-        if ($hasInventoryItems || $hasTransactions) {
+        $hasStockBeginnings = $warehouse->stockBeginnings()->exists();
+        if ($hasStockBeginnings) {
             return response()->json([
-                'message' => 'Cannot permanently delete warehouse because it has associated inventory items or transactions.'
+                'message' => 'Cannot permanently delete warehouse because it has associated Stock Beginnings.'
             ], 400);
         }
 
