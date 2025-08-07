@@ -15,7 +15,7 @@ class Position extends Model
         'title',
         'short_title',
         'is_active',
-        'departement_id'
+        'department_id'
     ];
 
     public function department()

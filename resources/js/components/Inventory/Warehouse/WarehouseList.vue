@@ -14,7 +14,7 @@
       @search-change="handleSearchChange"
     >
       <template #additional-header>
-        <button class="btn btn-success" @click="openCreateModal">
+        <button v-if="canCreateWarehouse" class="btn btn-success" @click="openCreateModal">
           <i class="fal fa-plus"></i> Create Warehouse
         </button>
       </template>
@@ -28,28 +28,47 @@
     <!-- Warehouse Modal -->
     <WarehouseModal
       ref="warehouseModal"
-      :isEditing="isEditing"
+      :is-editing="isEditing"
       @submitted="reloadDatatable"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import axios from 'axios'
 import WarehouseModal from '@/components/Inventory/Warehouse/WarehouseModal.vue'
 import { confirmAction, showAlert } from '@/Utils/bootbox'
+
+// Props
+const props = defineProps({
+  pageLength: {
+    type: Number,
+    default: 10
+  },
+  canCreateWarehouse: {
+    type: Boolean,
+    default: false
+  },
+  canUpdateWarehouse: {
+    type: Boolean,
+    default: false
+  },
+  canDeleteWarehouse: {
+    type: Boolean,
+    default: false
+  }
+})
 
 // Refs and state
 const datatableRef = ref(null)
 const warehouseModal = ref(null)
 const isEditing = ref(false)
-const pageLength = ref(10)
 
 // Datatable configuration
 const datatableParams = reactive({
   sortColumn: 'created_at',
-  sortDirection: 'desc',
+  sortDirection: 'desc'
 })
 
 const datatableHeaders = [
@@ -64,11 +83,23 @@ const datatableHeaders = [
 ]
 
 const datatableFetchUrl = '/api/inventory/warehouses'
-const datatableActions = ['edit', 'delete']
+
+// Conditionally include actions based on permissions
+const datatableActions = computed(() => {
+  const actions = []
+  if (props.canUpdateWarehouse) {
+    actions.push('edit')
+  }
+  if (props.canDeleteWarehouse) {
+    actions.push('delete')
+  }
+  return actions
+})
+
 const datatableOptions = {
   responsive: true,
-  pageLength: pageLength.value,
-  lengthMenu: [[10, 20, 50, 100, 1000], [10, 20, 50, 100, 1000]],
+  pageLength: props.pageLength,
+  lengthMenu: [[10, 20, 50, 100, 1000], [10, 20, 50, 100, 1000]]
 }
 
 // Modal handling

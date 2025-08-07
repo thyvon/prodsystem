@@ -167,6 +167,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-beginnings.show')->middleware('can:view,mainStockBeginning');
     });
 
+    //Approval View Route
+        //Stock Beginning View
+        Route::get('/approvals/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
+        ->name('approvals-stock-beginnings.show');
+
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])
         ->name('approvals.index');

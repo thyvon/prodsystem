@@ -152,7 +152,7 @@ const form = ref({
 
 const fetchBuildings = async () => {
   try {
-    const response = await axios.get('/api/buildings')
+    const response = await axios.get('/api/inventory/warehouses/buildings')
     buildings.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load buildings:', err)

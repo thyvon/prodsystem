@@ -31,6 +31,7 @@ class StockBeginningController extends Controller
 
     protected $approvalController;
     protected $warehouseService;
+    protected $productService;
 
     public function __construct(
         ApprovalController $approvalController,
@@ -877,7 +878,7 @@ class StockBeginningController extends Controller
 
         return response()->json([
             'message' => $result['message'],
-            'redirect_url' => route('stock-beginnings.show', $mainStockBeginning->id),
+            'redirect_url' => route('approvals-stock-beginnings.show', $mainStockBeginning->id),
             'approval' => $result['approval'] ?? null,
         ], $result['success'] ? 200 : 400);
     }

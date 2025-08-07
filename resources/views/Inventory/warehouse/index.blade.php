@@ -1,12 +1,23 @@
-@php($header = 'Warehouse')
+@php
+    $header = 'Warehouse';
+    $canCreateWarehouse = auth()->check() && auth()->user()->hasPermissionTo('warehouse.create');
+    $canUpdateWarehouse = auth()->check() && auth()->user()->hasPermissionTo('warehouse.update');
+    $canDeleteWarehouse = auth()->check() && auth()->user()->hasPermissionTo('warehouse.delete');
+@endphp
+
 @extends('layouts.main')
 
 @section('content')
-  <warehouse-page :page-length="{{ $pageLength ?? 10 }}" />
+  <warehouse-page
+    :page-length="{{ $pageLength ?? 10 }}"
+    :can-create-warehouse="{{ json_encode($canCreateWarehouse) }}"
+    :can-update-warehouse="{{ json_encode($canUpdateWarehouse) }}"
+    :can-delete-warehouse="{{ json_encode($canDeleteWarehouse) }}"
+  />
 @endsection
 
 @push('vite')
-  @vite(['resources/css/app.css','resources/js/app.js'])
+  @vite(['resources/css/app.css', 'resources/js/app.js'])
 @endpush
 
 @push('styles')

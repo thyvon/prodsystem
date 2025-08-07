@@ -215,6 +215,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/warehouses/trashed', [WarehouseController::class, 'trashed'])->middleware('can:viewAny,' . Warehouse::class);
         Route::post('/warehouses/{warehouse}/restore', [WarehouseController::class, 'restore'])->middleware('can:restore,warehouse');
         Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
+        Route::get('/warehouses/buildings', [WarehouseController::class, 'getBuildings'])->middleware('can:viewAny,' . Warehouse::class);
 
         // Inventory Items
         Route::get('/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);

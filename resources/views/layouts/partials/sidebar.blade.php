@@ -169,73 +169,97 @@
             @php
                 $inventoryActive = request()->is('inventory/warehouses*') || request()->is('inventory/items*') || request()->is('inventory/stock-beginnings*');
             @endphp
-            <li class="nav-title">Inventory</li>
-            <li class="{{ $inventoryActive ? 'active open' : '' }}">
-                <a href="#" title="Inventory" data-filter-tags="inventory">
-                    <i class="fal fa-warehouse"></i>
-                    <span class="nav-link-text">Inventory</span>
-                </a>
-                <ul>
-                    <li class="{{ request()->is('inventory/warehouses') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
-                            <span class="nav-link-text">Warehouse</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/items') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/items') }}" title="Inventory List" data-filter-tags="inventory list">
-                            <span class="nav-link-text">Item List</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/stock-beginnings*') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
-                            <span class="nav-link-text">Stock Beginning</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
-                            <span class="nav-link-text">Stock Receipt</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
-                            <span class="nav-link-text">Stock Request</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
-                            <span class="nav-link-text">Stock Issue</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">
-                        <a href="#" title="TOCA Policies" data-filter-tags="toca policies">
-                            <span class="nav-link-text">Stock Transfer</span>
-                        </a>
-                        <ul>
-                            <li class="{{ request()->is('toca-policies') ? 'active' : '' }}">
-                                <a href="{{ url('toca-policies') }}" title="TOCA Policies List" data-filter-tags="toca policies list">
-                                    <span class="nav-link-text">Transfer In</span>
+
+            @if (auth()->user()->hasAnyRole(['admin', 'stock']) || auth()->user()->hasPermissionTo('product.view'))
+                <li class="nav-title">Inventory</li>
+                <li class="{{ $inventoryActive ? 'active open' : '' }}">
+                    <a href="#" title="Inventory" data-filter-tags="inventory">
+                        <i class="fal fa-warehouse"></i>
+                        <span class="nav-link-text">Inventory</span>
+                    </a>
+                    <ul>
+                        @can('warehouse.view') <!-- Optional permission check -->
+                            <li class="{{ request()->is('inventory/warehouses') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
+                                    <span class="nav-link-text">Warehouse</span>
                                 </a>
                             </li>
-                            <li class="{{ request()->is('toca-amounts') ? 'active' : '' }}">
-                                <a href="{{ url('toca-amounts') }}" title="TOCA Amounts" data-filter-tags="toca amounts">
-                                    <span class="nav-link-text">Transfer Out</span>
+                        @endcan
+                        @can('product.view')
+                            <li class="{{ request()->is('inventory/items') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/items') }}" title="Inventory List" data-filter-tags="inventory list">
+                                    <span class="nav-link-text">Item List</span>
                                 </a>
                             </li>
-                        </ul>
-                    </li>
-                    <li class="{{ request()->is('stock/adjustment') ? 'active' : '' }}">
-                        <a href="{{ url('stock/adjustment') }}" title="Stock Adjustment" data-filter-tags="stock adjustment">
-                            <span class="nav-link-text">Stock Adjustment</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('inventory/stock-take') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/stock-take') }}" title="Stock Take" data-filter-tags="stock take">
-                            <span class="nav-link-text">Physical Count</span>
-                        </a>
-                    </li>
-                    <!-- Add more inventory links as needed -->
-                </ul>
-            </li>
+                        @endcan
+                        @can('mainStockBeginning.view')
+                            <li class="{{ request()->is('inventory/stock-beginnings*') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
+                                    <span class="nav-link-text">Stock Beginning</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('view stock receipt')
+                            <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                                    <span class="nav-link-text">Stock Receipt</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('view stock request')
+                            <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                                    <span class="nav-link-text">Stock Request</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('view stock issue')
+                            <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                                    <span class="nav-link-text">Stock Issue</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @hasanyrole(['has stock', 'stock manager']) <!-- Example of multiple roles for Stock Transfer -->
+                            <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">
+                                <a href="#" title="TOCA Policies" data-filter-tags="toca policies">
+                                    <span class="nav-link-text">Stock Transfer</span>
+                                </a>
+                                <ul>
+                                    @can('view transfer in') <!-- Extra permission check -->
+                                        <li class="{{ request()->is('toca-policies') ? 'active' : '' }}">
+                                            <a href="{{ url('toca-policies') }}" title="TOCA Policies List" data-filter-tags="toca policies list">
+                                                <span class="nav-link-text">Transfer In</span>
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view transfer out')
+                                        <li class="{{ request()->is('toca-amounts') ? 'active' : '' }}">
+                                            <a href="{{ url('toca-amounts') }}" title="TOCA Amounts" data-filter-tags="toca amounts">
+                                                <span class="nav-link-text">Transfer Out</span>
+                                            </a>
+                                        </li>
+                                    @endcan
+                                </ul>
+                            </li>
+                        @endhasanyrole
+                        @can('view stock adjustment')
+                            <li class="{{ request()->is('stock/adjustment') ? 'active' : '' }}">
+                                <a href="{{ url('stock/adjustment') }}" title="Stock Adjustment" data-filter-tags="stock adjustment">
+                                    <span class="nav-link-text">Stock Adjustment</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('view stock take')
+                            <li class="{{ request()->is('inventory/stock-take') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-take') }}" title="Stock Take" data-filter-tags="stock take">
+                                    <span class="nav-link-text">Physical Count</span>
+                                </a>
+                            </li>
+                        @endcan
+                    </ul>
+                </li>
+            @endif
 
             @php
                 $reportActive = request()->is('reports*');

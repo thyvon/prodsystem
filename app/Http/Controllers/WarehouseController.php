@@ -10,9 +10,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use App\Services\BuildingService;
+
 
 class WarehouseController extends Controller
 {
+    protected $buildingService;
+
+    public function __construct(
+        BuildingService $buildingService
+    ) {
+        $this->buildingService = $buildingService;
+    }
     /**
      * Display the warehouses index view.
      *
@@ -410,5 +420,14 @@ class WarehouseController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+
+    //Other Service
+    public function getBuildings(Request $request)
+    {
+        $this->authorize('viewAny', Warehouse::class);
+        $response = $this->buildingService->getBuildings($request);
+        return response()->json($response);
     }
 }

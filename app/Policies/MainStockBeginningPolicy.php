@@ -24,7 +24,11 @@ class MainStockBeginningPolicy
     public function view(User $user, MainStockBeginning $mainStockBeginning): bool
     {
         return $user->can('mainStockBeginning.view') &&
-               $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
+            $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id) ||
+            $user->can('mainStockBeginning.review') ||
+            $user->can('mainStockBeginning.check') ||
+            $user->can('mainStockBeginning.approve');
     }
 
     public function create(User $user): bool
