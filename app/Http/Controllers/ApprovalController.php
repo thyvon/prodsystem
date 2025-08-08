@@ -401,24 +401,33 @@ class ApprovalController extends Controller
         // Post-process for pending approvals with waiting status logic (filter only for non-admin)
         $items = $approvals->getCollection()->map(function ($approval) use ($user) {
             $displayStatus = $approval->approval_status;
+            $displayResponseDate = $approval->responded_date;
 
             // Only check waiting status for non-admin and pending approvals
-            if (!$user->hasRole('admin') && $approval->approval_status === 'Pending') {
-                // Load all approvals for this document ordered by ordinal
-                $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
-                    ->where('approvable_id', $approval->approvable_id)
-                    ->orderBy('ordinal')
-                    ->get();
+            $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
+                ->where('approvable_id', $approval->approvable_id)
+                ->orderBy('ordinal')
+                ->orderBy('id')
+                ->get();
 
-                // Previous approvals by ordinal
-                $previousApprovals = $allApprovals->filter(fn($a) => $a->ordinal < $approval->ordinal);
+            // Previous approvals by ordinal and id
+            $previousApprovals = $allApprovals->filter(function ($a) use ($approval) {
+                return ($a->ordinal < $approval->ordinal) ||
+                    ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
+            });
 
-                // Check if any previous approval is not approved
-                $blockingApproval = $previousApprovals->first(fn($a) => $a->approval_status !== 'Approved');
+            // Check if any previous approval is not approved
+            $blockingApproval = $previousApprovals->first(fn($a) => strtolower(trim($a->approval_status)) !== 'approved');
+            // Check if any previous approval is rejected
+            $blockingApprovalRejected = $previousApprovals->last(fn($a) => strtolower(trim($a->approval_status)) === 'rejected');
 
-                if ($blockingApproval) {
-                    $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
-                }
+            if ($blockingApproval) {
+                $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
+            }
+
+            if ($blockingApprovalRejected) {
+                $displayStatus = 'Rejected by ' . ($blockingApprovalRejected->responder->name ?? 'Unknown');
+                $displayResponseDate = $blockingApprovalRejected->responded_date;
             }
 
             return [
@@ -432,8 +441,10 @@ class ApprovalController extends Controller
                 'comment' => $approval->comment,
                 'ordinal' => $approval->ordinal,
                 'requester_name' => $approval->requester->name ?? null,
+                'requester_position' => $approval->requester->defaultPosition()?->title ?? null,
+                'requester_department' => $approval->requester?->defaultDepartment()?->name ?? null,
                 'responder_name' => $approval->responder->name ?? null,
-                'responded_date' => $approval->responded_date,
+                'responded_date' => $displayResponseDate,
                 'created_at' => $approval->created_at?->toDateTimeString(),
                 'updated_at' => $approval->updated_at?->toDateTimeString(),
             ];

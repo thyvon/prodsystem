@@ -816,6 +816,7 @@ onMounted(async () => {
     // Initialize DataTable
     table.value = $('#stockItemsTable').DataTable({
       data: form.value.items,
+      responsive: true,
       columns: [
         {
           data: 'product_id',
@@ -987,9 +988,5 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.table-responsive {
-  min-height: 100px;
 }
 </style>

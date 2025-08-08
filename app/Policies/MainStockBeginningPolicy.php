@@ -40,26 +40,28 @@ class MainStockBeginningPolicy
     {
         return $user->can('mainStockBeginning.update') &&
             $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
-            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id) &&
+            $mainStockBeginning->approval_status === 'Pending';
     }
 
     public function delete(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.update') &&
+        return $user->can('mainStockBeginning.delete') &&
             $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
-            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
+            $user->hasWarehouseAccess($mainStockBeginning->warehouse_id) &&
+            $mainStockBeginning->approval_status === 'Pending';
     }
 
     public function restore(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.update') &&
+        return $user->can('mainStockBeginning.restore') &&
             $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
             $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }
 
     public function forceDelete(User $user, MainStockBeginning $mainStockBeginning): bool
     {
-        return $user->can('mainStockBeginning.update') &&
+        return $user->can('mainStockBeginning.forceDelete') &&
             $user->defaultWarehouse()?->id === $mainStockBeginning->warehouse_id &&
             $user->hasWarehouseAccess($mainStockBeginning->warehouse_id);
     }

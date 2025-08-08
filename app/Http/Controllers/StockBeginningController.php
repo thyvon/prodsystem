@@ -977,16 +977,6 @@ class StockBeginningController extends Controller
     {
         try {
             $mainStockBeginning = MainStockBeginning::findOrFail($documentId);
-            
-            // Check if the stock beginning exists and is in a state that allows approvals
-            // if ($mainStockBeginning->approval_status !== 'Pending') {
-            //     return [
-            //         'message' => 'Approval button not available: Stock beginning is not in pending status.',
-            //         'showButton' => false,
-            //         'requestType' => null,
-            //     ];
-            // }
-
             $userId = auth()->id();
             if (!$userId) {
                 return [
@@ -997,7 +987,11 @@ class StockBeginningController extends Controller
             }
 
             // Check user permissions for any approval-related actions
-            $hasPermission = auth()->user()->hasAnyPermission(['mainStockBeginning.review', 'mainStockBeginning.check', 'mainStockBeginning.approve']);
+            $hasPermission = auth()->user()->hasAnyPermission([
+                'mainStockBeginning.review',
+                'mainStockBeginning.check',
+                'mainStockBeginning.approve'
+            ]);
             if (!$hasPermission) {
                 return [
                     'message' => 'Approval button not available: User lacks approval permissions.',
@@ -1006,11 +1000,14 @@ class StockBeginningController extends Controller
                 ];
             }
 
-            // Get all approvals for this stock beginning, ordered by ordinal
+            // Get all approvals for this stock beginning, ordered by ordinal and id
             $approvals = Approval::where([
                 'approvable_type' => MainStockBeginning::class,
                 'approvable_id' => $documentId,
-            ])->orderBy('ordinal', 'asc')->get();
+            ])
+            ->orderBy('ordinal', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
 
             if ($approvals->isEmpty()) {
                 return [
@@ -1022,7 +1019,6 @@ class StockBeginningController extends Controller
 
             // Find the first pending approval
             $currentApproval = $approvals->firstWhere('approval_status', 'Pending');
-
             if (!$currentApproval) {
                 return [
                     'message' => 'Approval button not available: All approvals completed or none pending.',
@@ -1040,13 +1036,28 @@ class StockBeginningController extends Controller
                 ];
             }
 
-            // Check if previous approvals (lower ordinal) are completed
+            // Filter previous approvals (with lower ordinal)
             $previousApprovals = $approvals->filter(function ($approval) use ($currentApproval) {
-                return $approval->ordinal < $currentApproval->ordinal;
+                return ($approval->ordinal < $currentApproval->ordinal) ||
+                    ($approval->ordinal === $currentApproval->ordinal && $approval->id < $currentApproval->id);
             });
 
+            // Check if any previous approval is rejected
+            $anyPreviousRejected = $previousApprovals->contains(function ($approval) {
+                return strtolower(trim($approval->approval_status)) === 'rejected';
+            });
+
+            if ($anyPreviousRejected) {
+                return [
+                    'message' => 'Approval button not available: A previous approval was rejected.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Check if all previous approvals are approved
             $allPreviousApproved = $previousApprovals->every(function ($approval) {
-                return $approval->approval_status === 'Approved';
+                return strtolower(trim($approval->approval_status)) === 'approved';
             });
 
             if (!$allPreviousApproved) {
@@ -1056,6 +1067,7 @@ class StockBeginningController extends Controller
                     'requestType' => null,
                 ];
             }
+
             return [
                 'message' => 'Approval button available.',
                 'showButton' => true,

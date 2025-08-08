@@ -19,13 +19,39 @@ class SharePendingApprovalCount
 
         if ($user) {
             if ($user->hasRole('admin')) {
-                $query = Approval::where('approval_status', 'Pending')
+                $rawApprovals = Approval::where('approval_status', 'Pending')
                     ->with(['requester:id,name', 'responder:id,name'])
-                    ->latest();
+                    ->latest()
+                    ->get();
 
-                $pendingCount = $query->count();
+                $filtered = $rawApprovals->filter(function ($approval) {
+                    $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
+                        ->where('approvable_id', $approval->approvable_id)
+                        ->orderBy('ordinal')
+                        ->orderBy('id')
+                        ->get();
 
-                $pendingList = $query->take(10)->get()->map(function ($approval) {
+                    $previous = $allApprovals->filter(function ($a) use ($approval) {
+                        return ($a->ordinal < $approval->ordinal) ||
+                            ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
+                    });
+
+                    // Exclude if any previous is Pending
+                    if ($previous->firstWhere('approval_status', 'Pending')) {
+                        return false;
+                    }
+
+                    // Exclude if any previous is Rejected
+                    if ($previous->firstWhere('approval_status', 'Rejected')) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                $pendingCount = $filtered->count();
+
+                $pendingList = $filtered->take(10)->map(function ($approval) {
                     return $this->mapWithRoute($approval);
                 });
             } else {
@@ -38,17 +64,32 @@ class SharePendingApprovalCount
                     $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
                         ->where('approvable_id', $approval->approvable_id)
                         ->orderBy('ordinal')
+                        ->orderBy('id')
                         ->get();
 
-                    $previous = $allApprovals->filter(fn($a) => $a->ordinal < $approval->ordinal);
+                    // Get all previous steps by ordinal and id
+                    $previous = $allApprovals->filter(function ($a) use ($approval) {
+                        return ($a->ordinal < $approval->ordinal) ||
+                            ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
+                    });
+
+                    // Exclude if any previous is Pending
                     $pendingPrevious = $previous->firstWhere('approval_status', 'Pending');
+                    if ($pendingPrevious) {
+                        return false;
+                    }
 
-                    if ($pendingPrevious) return false;
+                    // Exclude if any previous is Rejected
+                    $rejectedPrevious = $previous->firstWhere('approval_status', 'Rejected');
+                    if ($rejectedPrevious) {
+                        return false;
+                    }
 
+                    // Keep only the first duplicate (same ordinal + type + pending status)
                     $duplicates = $allApprovals->filter(function ($a) use ($approval) {
                         return $a->ordinal === $approval->ordinal &&
-                               $a->request_type === $approval->request_type &&
-                               $a->approval_status === 'Pending';
+                            $a->request_type === $approval->request_type &&
+                            $a->approval_status === 'Pending';
                     });
 
                     $firstDuplicate = $duplicates->sortBy('id')->first();
@@ -71,7 +112,6 @@ class SharePendingApprovalCount
 
         return $next($request);
     }
-
     /**
      * Map approval with route URL for viewing.
      */

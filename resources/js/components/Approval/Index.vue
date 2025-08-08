@@ -43,14 +43,16 @@ const datatableParams = reactive({
 
 // Datatable headers for Approval list
 const datatableHeaders = [
-  { text: 'Requested Date', value: 'created_at', width: '12%' },
-  { text: 'Document Name', value: 'document_name', width: '15%' },
-  { text: 'Document Ref.', value: 'document_reference', width: '15%' },
-  { text: 'Request Type', value: 'request_type', width: '10%' },
-  { text: 'Requester', value: 'requester_name', width: '12%' },
-  { text: 'Responder', value: 'responder_name', width: '12%' },
-  { text: 'Status', value: 'approval_status', width: '10%' },
-  { text: 'Responded Date', value: 'responded_date', width: '15%' },
+{ text: 'Requested Date', value: 'created_at', width: '8%' },
+{ text: 'Docs Name', value: 'document_name', width: '10%' },
+{ text: 'Docs Ref.', value: 'document_reference', width: '10%' },
+{ text: 'Requester', value: 'requester_name', width: '11%' },
+{ text: 'Position', value: 'requester_position', width: '11%' },
+{ text: 'Department', value: 'requester_department', width: '13%' },
+{ text: 'Responder', value: 'responder_name', width: '9%' },
+{ text: 'Type', value: 'request_type', width: '7%' },
+{ text: 'Status', value: 'approval_status', width: '9%' },
+{ text: 'Responded Date', value: 'responded_date', width: '12%' },
 ]
 
 // API route for approvals

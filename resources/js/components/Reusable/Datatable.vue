@@ -96,39 +96,65 @@ const renderColumnData = (key, val) => {
     const text = val ? 'Active' : 'Inactive';
     return `<span class="${badgeClass} text-center">${text}</span>`;
   }
-
-  if (key === 'approval_status') {
+  
+  if (key === 'request_type') {
   const status = (val || '').toString().trim().toLowerCase();
   let badgeClass = 'badge badge-secondary';
   let text = val || 'Unknown';
 
   switch (status) {
-    case 'pending':
-      badgeClass = 'badge badge-warning';
-      text = 'Pending';
-      break;
-    case 'approved':
-      badgeClass = 'badge badge-success';
-      text = 'Approved';
-      break;
-    case 'rejected':
-      badgeClass = 'badge badge-danger';
-      text = 'Rejected';
-      break;
-    case 'reviewed':
+    case 'review':
       badgeClass = 'badge badge-info';
-      text = 'Reviewed';
+      text = 'Review';
       break;
-    case 'checked':
+    case 'check':
       badgeClass = 'badge badge-primary';
-      text = 'Checked';
+      text = 'Check';
+      break;
+    case 'approve':
+      badgeClass = 'badge badge-success';
+      text = 'Approve';
       break;
   }
 
   return `<span class="${badgeClass} text-center">${text}</span>`;
 }
+  
 
+  if (key === 'approval_status') {
+    const status = (val || '').toString().trim().toLowerCase();
+    let badgeClass = 'badge badge-secondary';
+    let text = val || 'Unknown'; // keep original full text by default
 
+    if (status.includes('rejected')) {
+      badgeClass = 'badge badge-danger';
+      // text = val;  // keep full original text, already assigned above
+    } else {
+      switch (status) {
+        case 'pending':
+          badgeClass = 'badge badge-warning';
+          text = 'Pending';
+          break;
+        case 'approved':
+          badgeClass = 'badge badge-success';
+          text = 'Approved';
+          break;
+        case 'reviewed':
+          badgeClass = 'badge badge-info';
+          text = 'Reviewed';
+          break;
+        case 'checked':
+          badgeClass = 'badge badge-primary';
+          text = 'Checked';
+          break;
+        default:
+          badgeClass = 'badge badge-secondary';
+          // text already set to val
+      }
+    }
+
+    return `<span class="${badgeClass} text-center">${text}</span>`;
+  }
     if (key === 'has_variants') {
     const badgeClass = val ? 'badge badge-primary' : 'badge badge-danger';
     const text = val ? 'Yes' : 'No';
