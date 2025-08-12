@@ -55,6 +55,11 @@ use App\Models\Warehouse;
 use App\Http\Controllers\StockBeginningController;
 use App\Models\MainStockBeginning;
 
+use App\Http\Controllers\StockRequestController;
+use App\Models\StockRequest;
+
+
+// Approval Management
 use App\Http\Controllers\ApprovalController;
 use App\Models\Approval;
 
@@ -165,6 +170,15 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-beginnings.edit')->middleware('can:update,mainStockBeginning');
         Route::get('/stock-beginnings/{mainStockBeginning}/show', [StockBeginningController::class, 'show'])
             ->name('stock-beginnings.show')->middleware('can:view,mainStockBeginning');
+
+        // Stock Requests
+
+        Route::get('/stock-requests', [StockRequestController::class, 'index'])
+            ->name('stock-requests.index')->middleware('can:viewAny,' . StockRequest::class);
+        Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
+            ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
+        Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
+            ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
     });
 
     //Approval View Route

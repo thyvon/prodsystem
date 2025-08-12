@@ -73,6 +73,10 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'Main Stock Beginning',
                 'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'review', 'check', 'approve','reassign'],
             ],
+            'stockRequest' => [
+                'name' => 'Stock Request',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'review', 'check', 'approve','reassign'],
+            ],
             'warehouse' => [
                 'name' => 'Warehouse',
                 'actions' => ['create', 'view', 'update', 'delete'],

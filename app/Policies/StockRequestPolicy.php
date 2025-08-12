@@ -8,13 +8,11 @@ use Illuminate\Auth\Access\Response;
 
 class StockRequestPolicy
 {
-    /**
-     * Grant all abilities to admin users before other checks.
-     */
+    // Admins bypass all checks
     public function before(User $user, $ability)
     {
         if ($user->hasRole('admin')) {
-            return true; // Admin bypasses all policy checks
+            return true;
         }
     }
 
@@ -23,37 +21,68 @@ class StockRequestPolicy
         return $user->can('stockRequest.view');
     }
 
+    public function view(User $user, StockRequest $stockRequest): bool
+    {
+        return $user->can('stockRequest.view') &&
+            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            $user->hasWarehouseAccess($stockRequest->warehouse_id) ||
+            $user->can('stockRequest.review') ||
+            $user->can('stockRequest.check') ||
+            $user->can('stockRequest.approve');
+    }
+
     public function create(User $user): bool
     {
         return $user->can('stockRequest.create');
     }
 
-    public function view(User $user, StockRequest $stockRequest): bool
-    {
-        return $user->can('stockRequest.view');
-    }
-
-    public function edit(User $user): bool
-    {
-        return $user->can('stockRequest.update');
-    }
-
     public function update(User $user, StockRequest $stockRequest): bool
     {
-        return $user->can('stockRequest.update');
+        return $user->can('stockRequest.update') &&
+            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            $user->hasWarehouseAccess($stockRequest->warehouse_id) &&
+            $stockRequest->approval_status === 'Pending';
     }
 
     public function delete(User $user, StockRequest $stockRequest): bool
     {
-        return $user->can('stockRequest.delete');
+        return $user->can('stockRequest.delete') &&
+            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            $user->hasWarehouseAccess($stockRequest->warehouse_id) &&
+            $stockRequest->approval_status === 'Pending';
     }
 
     public function restore(User $user, StockRequest $stockRequest): bool
     {
-        return $user->can('stockRequest.restore');
+        return $user->can('stockRequest.restore') &&
+            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            $user->hasWarehouseAccess($stockRequest->warehouse_id);
     }
+
     public function forceDelete(User $user, StockRequest $stockRequest): bool
     {
-        return $user->can('stockRequest.force_delete');
+        return $user->can('stockRequest.forceDelete') &&
+            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            $user->hasWarehouseAccess($stockRequest->warehouse_id);
+    }
+
+    public function review(User $user, StockRequest $stockRequest): bool
+    {
+        return $user->can('stockRequest.review');
+    }
+
+    public function check(User $user, StockRequest $stockRequest): bool
+    {
+        return $user->can('stockRequest.check');
+    }
+
+    public function approve(User $user, StockRequest $stockRequest): bool
+    {
+        return $user->can('stockRequest.approve');
+    }
+
+    public function reassign(User $user, StockRequest $stockRequest): bool
+    {
+        return $user->can('stockRequest.reassign');
     }
 }
