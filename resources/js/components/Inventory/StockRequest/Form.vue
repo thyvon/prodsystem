@@ -14,47 +14,6 @@
             <h5 class="font-weight-bold mb-3 text-primary">🏷️ Stock Request Details</h5>
             <div class="form-row">
               <div class="form-group col-md-3">
-                <label for="request_number" class="font-weight-bold">Request Number</label>
-                <input
-                  v-model="form.request_number"
-                  type="text"
-                  class="form-control"
-                  id="request_number"
-                  readonly
-                  placeholder="Auto-generated"
-                />
-              </div>
-              <div class="form-group col-md-3">
-                <label for="warehouse_id" class="font-weight-bold">Warehouse</label>
-                <select
-                  ref="warehouseSelect"
-                  v-model="form.warehouse_id"
-                  class="form-control"
-                  id="warehouse_id"
-                  required
-                >
-                  <option value="">Select Warehouse</option>
-                  <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
-                    {{ warehouse.name }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-group col-md-3">
-                <label for="campus_id" class="font-weight-bold">Campus</label>
-                <select
-                  ref="campusSelect"
-                  v-model="form.campus_id"
-                  class="form-control"
-                  id="campus_id"
-                  required
-                >
-                  <option value="">Select Campus</option>
-                  <option v-for="campus in campuses" :key="campus.id" :value="campus.id">
-                    {{ campus.name }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-group col-md-3">
                 <label for="request_date" class="font-weight-bold">Request Date</label>
                 <input
                   v-model="form.request_date_display"
@@ -66,23 +25,61 @@
                 />
               </div>
               <div class="form-group col-md-3">
-                <label for="type" class="font-weight-bold">Type</label>
-                <select v-model="form.type" class="form-control" id="type" required>
-                  <option value="">Select Type</option>
-                  <option value="issue">Issue</option>
-                  <option value="transfer">Transfer</option>
-                  <option value="replenishment">Replenishment</option>
+                <label for="campus_id" class="font-weight-bold">Campus</label>
+                <select
+                  ref="campusSelect"
+                  v-model="form.campus_id"
+                  class="form-control"
+                  id="campus_id"
+                  required
+                >
+                  <option value="">Select Campus</option>
+                  <option
+                    v-for="campus in campuses"
+                    :key="campus.id"
+                    :value="campus.id"
+                  >
+                    {{ campus.name }}
+                  </option>
                 </select>
               </div>
-              <div class="form-group col-md-9">
-                <label for="purpose" class="font-weight-bold">Purpose</label>
-                <textarea
-                  v-model="form.purpose"
+              <div class="form-group col-md-3">
+                <label for="type" class="font-weight-bold">Type</label>
+                <select
+                  ref="typeSelect"
                   class="form-control"
-                  id="purpose"
-                  rows="3"
-                  placeholder="Enter the purpose of the stock request"
-                ></textarea>
+                  id="type"
+                  required
+                >
+                  <option value="">Select Type</option>
+                  <option value="Using">Using</option>
+                  <option value="Donate">Donate</option>
+                </select>
+              </div>
+              <div class="form-group col-md-3">
+                <label for="warehouse_id" class="font-weight-bold">Warehouse</label>
+                <select
+                  ref="warehouseSelect"
+                  v-model="form.warehouse_id"
+                  class="form-control"
+                  id="warehouse_id"
+                  required
+                >
+                  <option value="">Select Warehouse</option>
+                  <option
+                    v-for="warehouse in warehouses"
+                    :key="warehouse.id"
+                    :value="warehouse.id"
+                  >
+                    {{ warehouse.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-12">
+                <label for="purpose" class="font-weight-bold">Purpose</label>
+                <textarea v-model="form.purpose" class="form-control" id="purpose" rows="2"></textarea>
               </div>
             </div>
           </div>
@@ -119,8 +116,8 @@
                   </button>
                   <a
                     class="btn btn-outline-danger btn-lg btn-icon rounded-circle hover-effect-dot ml-2"
-                    href="/sampleExcel/stock_requests_sample.xlsx"
-                    download="stock_requests_sample.xlsx"
+                    href="/sampleExcel/stock_beginnings_sample.xlsx"
+                    download="stock_beginnings_sample.xlsx"
                   >
                     <i class="fal fa-file-excel"></i>
                   </a>
@@ -144,16 +141,16 @@
                 </select>
               </div>
             </div>
-            <h5 class="font-weight-bold mb-3 text-primary">📦 Stock Request Items</h5>
+            <h5 class="font-weight-bold mb-3 text-primary">📦 Stock Items</h5>
             <div class="table-responsive">
               <table id="stockItemsTable" class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
                     <th style="min-width: 100px;">Code</th>
                     <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 80px;">UoM</th>
+                    <th style="min-width: 30px;">UoM</th>
                     <th style="min-width: 100px;">Quantity</th>
-                    <th style="min-width: 120px;">Average Price</th>
+                    <th style="min-width: 120px;">Unit Price</th>
                     <th style="min-width: 120px;">Total Value</th>
                     <th style="min-width: 200px;">Remarks</th>
                     <th style="min-width: 100px;">Actions</th>
@@ -200,7 +197,11 @@
                         required
                       >
                         <option value="">Select User</option>
-                        <option v-for="user in approval.availableUsers" :key="user.id" :value="user.id">
+                        <option
+                          v-for="user in approval.availableUsers"
+                          :key="user.id"
+                          :value="user.id"
+                        >
                           {{ user.name }}
                         </option>
                       </select>
@@ -234,7 +235,10 @@
               class="btn btn-primary btn-sm mr-2"
               :disabled="isSubmitting || form.items.length === 0 || form.approvals.length === 0"
             >
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
+              <span
+                v-if="isSubmitting"
+                class="spinner-border spinner-border-sm mr-1"
+              ></span>
               {{ isEditMode ? 'Update' : 'Create' }}
             </button>
             <button
@@ -252,83 +256,49 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
-import axios from 'axios';
-import { showAlert } from '@/Utils/bootbox';
-import { initSelect2, destroySelect2 } from '@/Utils/select2';
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+import axios from 'axios'
+import { showAlert } from '@/Utils/bootbox'
+import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
 const props = defineProps({
   initialData: {
     type: Object,
     default: () => ({}),
   },
-});
+})
 
-const emit = defineEmits(['submitted']);
-
-const isSubmitting = ref(false);
-const isImporting = ref(false);
-const products = ref([]);
-const warehouses = ref([]);
-const campuses = ref([]);
-const users = ref({ review: [], check: [], approve: [] });
-const warehouseSelect = ref(null);
-const campusSelect = ref(null);
-const productSelect = ref(null);
-const fileInput = ref(null);
-const selectedFileName = ref('');
-const isEditMode = ref(!!props.initialData?.id);
-const stockRequestId = ref(props.initialData?.id || null);
-const table = ref(null);
-let isAddingItem = false;
-let isAddingApproval = false;
+const emit = defineEmits(['submitted'])
+const isSubmitting = ref(false)
+const isImporting = ref(false)
+const products = ref([])
+const warehouses = ref([])
+const campuses = ref([])
+const users = ref({ review: [], check: [], approve: [] })
+const warehouseSelect = ref(null)
+const campusSelect = ref(null)
+const typeSelect = ref(null)
+const productSelect = ref(null)
+const fileInput = ref(null)
+const selectedFileName = ref('')
+const isEditMode = ref(!!props.initialData?.id)
+const stockRequestId = ref(props.initialData?.id || null)
+const table = ref(null)
+let isAddingItem = false
+let isAddingApproval = false
 
 const form = ref({
-  id: null,
-  request_number: '',
   warehouse_id: null,
   campus_id: null,
   request_date: '',
-  request_date_display: '',
   type: '',
   purpose: '',
+  request_date_display: '',
   items: [],
   approvals: [],
-});
+})
 
-const goToIndex = () => {
-  window.location.href = '/stock-requests';
-};
-
-const fetchWarehouses = async () => {
-  try {
-    const response = await axios.get('/api/inventory/stock-requests/get-warehouses');
-    warehouses.value = Array.isArray(response.data.data) ? response.data.data : [];
-  } catch (err) {
-    console.error('Failed to load warehouses:', err);
-    showAlert('Error', 'Failed to load warehouses.', 'danger');
-  }
-};
-
-const fetchCampuses = async () => {
-  try {
-    const response = await axios.get('/api/inventory/stock-requests/get-campuses');
-    campuses.value = Array.isArray(response.data.data) ? response.data.data : [];
-  } catch (err) {
-    console.error('Failed to load campuses:', err);
-    showAlert('Error', 'Failed to load campuses.', 'danger');
-  }
-};
-
-const fetchProducts = async () => {
-  try {
-    const response = await axios.get('/api/inventory/stock-requests/get-products');
-    products.value = Array.isArray(response.data.data) ? response.data.data : [];
-  } catch (err) {
-    console.error('Failed to load products:', err);
-    showAlert('Error', 'Failed to load products.', 'danger');
-  }
-};
+const goToIndex = () => { window.location.href = `/inventory/stock-requests` }
 
 const fetchUsersForApproval = async (requestType) => {
   try {
@@ -342,93 +312,63 @@ const fetchUsersForApproval = async (requestType) => {
   }
 }
 
+const fetchProducts = async () => {
+  try {
+    const response = await axios.get(`/api/inventory/stock-requests/get-products`)
+    products.value = Array.isArray(response.data) ? response.data : response.data.data
+  } catch (err) {
+    console.error('Failed to load products:', err)
+    showAlert('Error', 'Failed to load products.', 'danger')
+  }
+}
+
+const fetchWarehouses = async () => {
+  try {
+    const response = await axios.get(`/api/inventory/stock-requests/get-warehouses`)
+    warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
+  } catch (err) {
+    console.error('Failed to load warehouses:', err)
+    showAlert('Error', 'Failed to load warehouses.', 'danger')
+  }
+}
+
+const fetchCampuses = async () => {
+  try {
+    const response = await axios.get(`/api/inventory/stock-requests/get-campuses`)
+    campuses.value = Array.isArray(response.data) ? response.data : response.data.data
+  } catch (err) {
+    console.error('Failed to load campuses:', err)
+    showAlert('Error', 'Failed to load campuses.', 'danger')
+  }
+}
+
 const itemUnitName = computed(() => {
   return (productId) => {
-    if (!productId) return '-';
-    const product = products.value.find(p => p.id === productId);
-    return product?.unit_name || '-';
-  };
-});
+    if (!productId) return '-'
+    const product = products.value.find(p => p.id === productId)
+    return product?.unit_name || '-'
+  }
+})
 
 const ProductDescription = computed(() => {
   return (productId) => {
-    if (!productId) return '-';
-    const product = products.value.find(p => p.id === productId);
-    return product ? `${product.product_name}` : '-';
-  };
-});
+    if (!productId) return '-'
+    const product = products.value.find(p => p.id === productId)
+    return product ? `${product.product_name} ${product.description}` : '-'
+  }
+})
 
 const ProductCode = computed(() => {
   return (productId) => {
-    if (!productId) return '-';
-    const product = products.value.find(p => p.id === productId);
-    return product ? `${product.item_code}` : '-';
-  };
-});
-
-const addItem = (productId) => {
-  try {
-    if (isAddingItem) return;
-    isAddingItem = true;
-
-    if (!productId) {
-      showAlert('Warning', 'Please select a product.', 'warning');
-      return;
-    }
-    const product = products.value.find(p => p.id === Number(productId));
-    if (!product) {
-      showAlert('Error', 'Selected product not found.', 'danger');
-      return;
-    }
-
-    const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId));
-    if (existingItemIndex !== -1) {
-      form.value.items[existingItemIndex].quantity += 1;
-      if (table.value) {
-        table.value.row(existingItemIndex).invalidate().draw();
-      }
-      showAlert('Info', `Quantity increased for ${product.item_code}`, 'info');
-    } else {
-      const newItem = {
-        product_id: Number(productId),
-        quantity: 1,
-        average_price: 0,
-        remarks: '',
-      };
-      form.value.items.push(newItem);
-      if (table.value) {
-        table.value.rows.add([newItem]).draw();
-      } else {
-        showAlert('Error', 'Table not initialized.', 'danger');
-      }
-    }
-
-    if (productSelect.value) {
-      $(productSelect.value).val(null).trigger('select2:unselect');
-    }
-  } catch (err) {
-    console.error('Error adding item:', err);
-    showAlert('Error', 'Failed to add product to table.', 'danger');
-  } finally {
-    isAddingItem = false;
+    if (!productId) return '-'
+    const product = products.value.find(p => p.id === productId)
+    return product ? `${product.item_code}` : '-'
   }
-};
-
-const removeItem = (index) => {
-  try {
-    form.value.items.splice(index, 1);
-    if (table.value) {
-      table.value.clear().rows.add(form.value.items).draw();
-    }
-  } catch (err) {
-    console.error('Error removing item:', err);
-    showAlert('Error', 'Failed to remove item.', 'danger');
-  }
-};
+})
 
 const addApproval = async () => {
-  if (isAddingApproval) return;
-  isAddingApproval = true;
+  if (isAddingApproval) return
+  isAddingApproval = true
 
   try {
     form.value.approvals.push({
@@ -437,16 +377,17 @@ const addApproval = async () => {
       user_id: null,
       isDefault: false,
       availableUsers: [],
-    });
+    })
 
-    await nextTick();
-    const index = form.value.approvals.length - 1;
-    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`);
-    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`);
+    await nextTick()
+    const index = form.value.approvals.length - 1
+    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
+    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
 
     if (!approvalSelect || !userSelect) {
-      showAlert('Error', 'Failed to initialize approval dropdowns.', 'danger');
-      return;
+      console.warn(`DOM elements for row ${index} not found`)
+      showAlert('Error', 'Failed to initialize approval dropdowns.', 'danger')
+      return
     }
 
     initSelect2(approvalSelect, {
@@ -454,290 +395,212 @@ const addApproval = async () => {
       width: '100%',
       allowClear: true,
     }, (value) => {
-      form.value.approvals[index].request_type = value || '';
-      updateUsersForRow(index);
-    });
-    $(approvalSelect).val(form.value.approvals[index].request_type || '').trigger('change.select2');
+      form.value.approvals[index].request_type = value || ''
+      updateUsersForRow(index)
+    })
+    $(approvalSelect).val(form.value.approvals[index].request_type || '').trigger('change.select2')
 
     initSelect2(userSelect, {
       placeholder: 'Select User',
       width: '100%',
       allowClear: true,
     }, (value) => {
-      form.value.approvals[index].user_id = value ? Number(value) : null;
-    });
-    $(userSelect).val(form.value.approvals[index].user_id || '').trigger('change.select2');
+      form.value.approvals[index].user_id = value ? Number(value) : null
+    })
+    $(userSelect).val(form.value.approvals[index].user_id || '').trigger('change.select2')
   } catch (err) {
-    console.error('Error adding approval:', err);
-    showAlert('Error', 'Failed to add approval assignment.', 'danger');
+    console.error('Error adding approval:', err)
+    showAlert('Error', 'Failed to add approval assignment.', 'danger')
   } finally {
-    isAddingApproval = false;
+    isAddingApproval = false
   }
-};
+}
 
 const removeApproval = async (index) => {
   try {
     if (form.value.approvals[index].isDefault) {
-      showAlert('Error', 'Default approval types cannot be removed.', 'danger');
-      return;
+      showAlert('Error', 'Default approval types cannot be removed.', 'danger')
+      return
     }
-    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`);
-    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`);
-    if (approvalSelect) destroySelect2(approvalSelect);
-    if (userSelect) destroySelect2(userSelect);
-    form.value.approvals.splice(index, 1);
+    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
+    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
+    if (approvalSelect) destroySelect2(approvalSelect)
+    if (userSelect) destroySelect2(userSelect)
+    form.value.approvals.splice(index, 1)
   } catch (err) {
-    console.error('Error removing approval:', err);
-    showAlert('Error', 'Failed to remove approval assignment.', 'danger');
+    console.error('Error removing approval:', err)
+    showAlert('Error', 'Failed to remove approval assignment.', 'danger')
   }
-};
+}
 
 const updateUsersForRow = async (index) => {
   try {
-    const requestType = form.value.approvals[index].request_type;
+    const requestType = form.value.approvals[index].request_type
     if (requestType && ['review', 'check', 'approve'].includes(requestType)) {
       if (!users.value[requestType].length) {
-        await fetchUsersForApproval(requestType);
+        await fetchUsersForApproval(requestType)
       }
-      form.value.approvals[index].availableUsers = users.value[requestType];
-      await nextTick();
-      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`);
+      form.value.approvals[index].availableUsers = users.value[requestType]
+      await nextTick()
+      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
       if (userSelect) {
-        destroySelect2(userSelect);
+        destroySelect2(userSelect)
         initSelect2(userSelect, {
           placeholder: 'Select User',
           width: '100%',
           allowClear: true,
         }, (value) => {
-          form.value.approvals[index].user_id = value ? Number(value) : null;
-        });
-        const currentUserId = form.value.approvals[index].user_id;
-        const validUser = users.value[requestType].find(user => user.id === currentUserId);
-        $(userSelect).val(validUser ? currentUserId : '').trigger('change.select2');
+          form.value.approvals[index].user_id = value ? Number(value) : null
+        })
+        // Only set user_id if it exists in the new availableUsers list
+        const currentUserId = form.value.approvals[index].user_id
+        const validUser = users.value[requestType].find(user => user.id === currentUserId)
+        $(userSelect).val(validUser ? currentUserId : '').trigger('change.select2')
         if (!validUser && currentUserId) {
-          form.value.approvals[index].user_id = null;
-          showAlert('Warning', `Previous user for ${requestType} is no longer valid. Please select a new user.`, 'warning');
+          form.value.approvals[index].user_id = null
+          showAlert('Warning', `Previous user for ${requestType} is no longer valid. Please select a new user.`, 'warning')
         }
       }
     } else {
-      form.value.approvals[index].availableUsers = [];
-      form.value.approvals[index].user_id = null;
-      await nextTick();
-      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`);
+      form.value.approvals[index].availableUsers = []
+      form.value.approvals[index].user_id = null
+      await nextTick()
+      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
       if (userSelect) {
-        destroySelect2(userSelect);
+        destroySelect2(userSelect)
         initSelect2(userSelect, {
           placeholder: 'Select User',
           width: '100%',
           allowClear: true,
         }, (value) => {
-          form.value.approvals[index].user_id = value ? Number(value) : null;
-        });
-        $(userSelect).val('').trigger('change.select2');
+          form.value.approvals[index].user_id = value ? Number(value) : null
+        })
+        $(userSelect).val('').trigger('change.select2')
       }
     }
   } catch (err) {
-    console.error(`Error updating users for row ${index}:`, err);
-    showAlert('Error', 'Failed to update user dropdown.', 'danger');
+    console.error(`Error updating users for row ${index}:`, err)
+    showAlert('Error', 'Failed to update user dropdown.', 'danger')
   }
-};
+}
 
 const validateApprovals = () => {
   if (form.value.approvals.length < 3) {
-    showAlert('Error', 'At least three approval assignments (Review, Check, Approve) are required.', 'danger');
-    return false;
+    showAlert('Error', 'At least three approval assignments (Review, Check, Approve) are required.', 'danger')
+    return false
   }
 
-  const defaultTypes = ['review', 'check', 'approve'];
+  const defaultTypes = ['review', 'check', 'approve']
   const presentTypes = form.value.approvals
     .map(approval => approval.request_type)
-    .filter(type => defaultTypes.includes(type));
+    .filter(type => defaultTypes.includes(type))
 
   if (presentTypes.length < 3 || !defaultTypes.every(type => presentTypes.includes(type))) {
-    showAlert('Error', 'All default approval types (Review, Check, Approve) must be present.', 'danger');
-    return false;
+    showAlert('Error', 'All default approval types (Review, Check, Approve) must be present.', 'danger')
+    return false
   }
 
   for (const approval of form.value.approvals) {
     if (!approval.request_type) {
-      showAlert('Error', 'All approval types must be specified.', 'danger');
-      return false;
+      showAlert('Error', 'All approval types must be specified.', 'danger')
+      return false
     }
     if (!approval.user_id) {
-      showAlert('Error', 'All approval assignments must have a user selected.', 'danger');
-      return false;
+      showAlert('Error', 'All approval assignments must have a user selected.', 'danger')
+      return false
     }
   }
 
-  return true;
-};
+  return true
+}
 
-const handleFileUpload = (event) => {
+const addItem = (productId) => {
   try {
-    const file = event.target.files[0];
-    const validMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-      'application/csv',
-      'text/plain',
-    ];
-    if (file) {
-      selectedFileName.value = file.name;
-      if (!validMimeTypes.includes(file.type)) {
-        showAlert('Error', 'Please upload a valid Excel or CSV file (.xlsx, .xls, or .csv).', 'danger');
-        fileInput.value.value = '';
-        selectedFileName.value = '';
-      }
+    if (isAddingItem) {
+      return
     }
-  } catch (err) {
-    console.error('Error handling file upload:', err);
-    showAlert('Error', 'Failed to process file upload.', 'danger');
-  }
-};
+    isAddingItem = true
 
-const triggerFileInput = () => {
-  try {
-    if (fileInput.value && typeof fileInput.value.click === 'function') {
-      fileInput.value.click();
+    if (!productId) {
+      console.warn('No product ID provided')
+      showAlert('Warning', 'Please select a product.', 'warning')
+      return
     }
-  } catch (err) {
-    console.error('Error triggering file input:', err);
-    showAlert('Error', 'Failed to open file picker.', 'danger');
-  }
-};
+    const product = products.value.find(p => p.id === Number(productId))
+    if (!product) {
+      console.error('Product not found for ID:', productId)
+      showAlert('Error', 'Selected product not found.', 'danger')
+      return
+    }
 
-const importFile = async () => {
-  if (!fileInput.value.files[0]) {
-    showAlert('Error', 'Please select a file to import.', 'danger');
-    return;
-  }
-
-  if (isImporting.value) return;
-  isImporting.value = true;
-
-  const formData = new FormData();
-  formData.append('file', fileInput.value.files[0]);
-
-  try {
-    const response = await axios.post('/api/inventory/stock-requests/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-
-    if (response.status === 200 && response.data.data) {
-      const importedData = response.data.data;
-      form.value.items = importedData.items.map(item => ({
-        id: item.id || null,
-        product_id: Number(item.product_id),
-        quantity: parseFloat(item.quantity) || 1,
-        average_price: parseFloat(item.average_price) || 0,
-        remarks: item.remarks || '',
-      }));
-
-      if (importedData.request_date) {
-        const [year, month, day] = importedData.request_date.split('-');
-        if (year && month && day) {
-          const date = new Date(year, month - 1, day);
-          const formattedDate = date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          });
-          form.value.request_date_display = formattedDate;
-          $('#request_date').datepicker('setDate', formattedDate);
-        }
-      }
-
-      if (importedData.warehouse_id) {
-        form.value.warehouse_id = importedData.warehouse_id;
-        if (warehouseSelect.value) {
-          $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change');
-        }
-      }
-      if (importedData.campus_id) {
-        form.value.campus_id = importedData.campus_id;
-        if (campusSelect.value) {
-          $(campusSelect.value).val(form.value.campus_id).trigger('change');
-        }
-      }
-      if (importedData.type) {
-        form.value.type = importedData.type;
-      }
-      if (importedData.purpose) {
-        form.value.purpose = importedData.purpose;
-      }
-
-      await nextTick();
+    const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId))
+    if (existingItemIndex !== -1) {
+      form.value.items[existingItemIndex].quantity += 1
       if (table.value) {
-        table.value.clear().rows.add(form.value.items).draw();
+        table.value.row(existingItemIndex).invalidate().draw()
       }
-
-      if (warehouseSelect.value) {
-        destroySelect2(warehouseSelect.value);
-        initSelect2(warehouseSelect.value, {
-          placeholder: 'Select Warehouse',
-          width: '100%',
-          allowClear: true,
-        }, (v) => (form.value.warehouse_id = v));
-        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change');
+      showAlert('Info', `Quantity increased for ${product.item_code}`, 'info')
+    } else {
+      const newItem = {
+        product_id: Number(productId),
+        quantity: 1,
+        average_price: 0,
+        remarks: '',
       }
-
-      if (campusSelect.value) {
-        destroySelect2(campusSelect.value);
-        initSelect2(campusSelect.value, {
-          placeholder: 'Select Campus',
-          width: '100%',
-          allowClear: true,
-        }, (v) => (form.value.campus_id = v ? Number(v) : null));
-        $(campusSelect.value).val(form.value.campus_id).trigger('change');
+      form.value.items.push(newItem)
+      if (table.value) {
+        table.value.rows.add([newItem]).draw()
+      } else {
+        console.warn('DataTable not initialized')
+        showAlert('Error', 'Table not initialized.', 'danger')
       }
-
-      showAlert('Success', 'Stock request data loaded into the form.', 'success');
-      fileInput.value.value = '';
-      selectedFileName.value = '';
-      return;
     }
 
-    const errors = response.data.errors || [response.data.message || 'Unknown error occurred'];
-    if (errors.length > 0) {
-      const errorList = errors.map((error, index) => `${index + 1}. ${error}`).join('<br>');
-      showAlert('Import Errors', `The following errors were found in the Excel file:<br><br>${errorList}`, 'danger');
-      return;
+    if (productSelect.value) {
+      $(productSelect.value).val(null).trigger('select2:unselect')
     }
-
-    showAlert('Error', 'Unexpected response from server.', 'danger');
   } catch (err) {
-    console.error('Import error:', err.response?.data || err);
-    const errors = err.response?.data?.errors || [err.response?.data?.message || 'Failed to import stock request.'];
-    const errorList = errors.map((error, index) => `${index + 1}. ${error}`).join('<br>');
-    showAlert('Error', `Import failed:<br><br>${errorList}`, 'danger');
+    console.error('Error adding item:', err)
+    showAlert('Error', 'Failed to add product to table.', 'danger')
   } finally {
-    isImporting.value = false;
+    isAddingItem = false
   }
-};
+}
+
+const removeItem = (index) => {
+  try {
+    form.value.items.splice(index, 1)
+    if (table.value) {
+      table.value.clear().rows.add(form.value.items).draw()
+    }
+  } catch (err) {
+    console.error('Error removing item:', err)
+    showAlert('Error', 'Failed to remove item.', 'danger')
+  }
+}
 
 const submitForm = async () => {
-  if (isSubmitting.value) return;
+  if (isSubmitting.value) return
   if (form.value.items.length === 0) {
-    await showAlert('Error', 'At least one item is required to submit.', 'danger');
-    return;
+    await showAlert('Error', 'At least one item is required to submit.', 'danger')
+    return
   }
   if (form.value.items.some(item => !item.product_id)) {
-    await showAlert('Error', 'All items must have a valid product selected.', 'danger');
-    return;
+    await showAlert('Error', 'All items must have a valid product selected.', 'danger')
+    return
   }
   if (!validateApprovals()) {
-    return;
+    return
   }
 
-  isSubmitting.value = true;
+  isSubmitting.value = true
   try {
     const payload = {
       warehouse_id: form.value.warehouse_id,
       campus_id: form.value.campus_id,
       request_date: form.value.request_date,
       type: form.value.type,
-      purpose: form.value.purpose?.trim() || null,
+      purpose: form.value.purpose,
       items: form.value.items.map(item => ({
         id: item.id || null,
         product_id: item.product_id,
@@ -750,28 +613,30 @@ const submitForm = async () => {
         user_id: approval.user_id,
         request_type: approval.request_type,
       })),
-    };
+    }
+
+    console.log(payload);
 
     const url = isEditMode.value
       ? `/api/inventory/stock-requests/${stockRequestId.value}`
-      : `/api/inventory/stock-requests`;
+      : `/api/inventory/stock-requests`
     const method = isEditMode.value ? 'put' : 'post'
 
-    await axios[method](url, payload);
-    await showAlert('Success', isEditMode.value ? 'Stock request updated successfully.' : 'Stock request created successfully.', 'success');
-    emit('submitted');
-    goToIndex();
+    await axios[method](url, payload)
+    await showAlert('Success', isEditMode.value ? 'Stock beginning updated successfully.' : 'Stock beginning created successfully.', 'success')
+    emit('submitted')
+    goToIndex()
   } catch (err) {
-    console.error('Submit error:', err.response?.data || err);
-    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock request.', 'danger');
+    console.error('Submit error:', err.response?.data || err)
+    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock beginning.', 'danger')
   } finally {
-    isSubmitting.value = false;
+    isSubmitting.value = false
   }
-};
+}
 
 const initDatepicker = async () => {
   try {
-    await nextTick();
+    await nextTick()
     $('#request_date').datepicker({
       format: 'M dd, yyyy',
       autoclose: true,
@@ -779,154 +644,160 @@ const initDatepicker = async () => {
       orientation: 'bottom left',
     }).on('changeDate', (e) => {
       if (e.date) {
-        const date = new Date(e.date);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        form.value.request_date = `${year}-${month}-${day}`;
+        const date = new Date(e.date)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        form.value.request_date = `${year}-${month}-${day}`
         form.value.request_date_display = date.toLocaleDateString('en-US', {
           month: 'short',
           day: '2-digit',
           year: 'numeric',
-        });
+        })
       } else {
-        form.value.request_date = '';
-        form.value.request_date_display = '';
+        form.value.request_date = ''
+        form.value.request_date_display = ''
       }
-    });
+    })
   } catch (err) {
-    console.error('Error initializing datepicker:', err);
-    showAlert('Error', 'Failed to initialize date picker.', 'danger');
+    console.error('Error initializing datepicker:', err)
+    showAlert('Error', 'Failed to initialize date picker.', 'danger')
   }
-};
+}
 
 watch(() => form.value.request_date_display, (newDisplayDate) => {
   try {
     if (newDisplayDate) {
-      const date = new Date(newDisplayDate);
+      const date = new Date(newDisplayDate)
       if (!isNaN(date.getTime())) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        form.value.request_date = `${year}-${month}-${day}`;
-        $('#request_date').datepicker('setDate', newDisplayDate);
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        form.value.request_date = `${year}-${month}-${day}`
+        $('#request_date').datepicker('setDate', newDisplayDate)
       } else {
-        form.value.request_date = '';
-        $('#request_date').datepicker('setDate', null);
+        form.value.request_date = ''
+        $('#request_date').datepicker('setDate', null)
       }
     } else {
-      form.value.request_date = '';
-      $('#request_date').datepicker('setDate', null);
+      form.value.request_date = ''
+      $('#request_date').datepicker('setDate', null)
     }
   } catch (err) {
-    console.error('Error watching request_date_display:', err);
-    showAlert('Error', 'Failed to process date change.', 'danger');
+    console.error('Error watching request_date_display:', err)
+    showAlert('Error', 'Failed to process date change.', 'danger')
   }
-});
+})
 
 onMounted(async () => {
   try {
-    const defaultTypes = ['review', 'check', 'approve'];
-    const seenTypes = new Set();
+    // Group incoming approvals and flag only the first one of each type as default
+    const defaultTypes = ['review', 'check', 'approve']
+    const seenTypes = new Set()
 
     if (props.initialData?.id) {
-      form.value.id = props.initialData.id;
-      form.value.request_number = props.initialData.request_number;
-      form.value.warehouse_id = props.initialData.warehouse_id;
-      form.value.campus_id = props.initialData.campus_id;
-      form.value.request_date = props.initialData.request_date;
-      form.value.type = props.initialData.type;
-      form.value.purpose = props.initialData.purpose;
+      form.value.warehouse_id = props.initialData.warehouse_id
+      form.value.campus_id = props.initialData.campus_id
+      form.value.type = props.initialData.type
+      form.value.purpose = props.initialData.purpose
+      form.value.request_date = props.initialData.request_date
 
       if (props.initialData.request_date) {
-        const [year, month, day] = props.initialData.request_date.split('-');
-        const date = new Date(year, month - 1, day);
+        const [year, month, day] = props.initialData.request_date.split('-')
+        const date = new Date(year, month - 1, day)
         form.value.request_date_display = date.toLocaleDateString('en-US', {
           month: 'short',
           day: '2-digit',
           year: 'numeric',
-        });
+        })
       }
 
+      // Prepare stock items
       form.value.items = props.initialData.items?.map(item => ({
         id: item.id || null,
         product_id: Number(item.product_id),
         quantity: parseFloat(item.quantity) || 1,
         average_price: parseFloat(item.average_price) || 0,
         remarks: item.remarks || '',
-      })) || [];
+      })) || []
 
+      // Approvals: flag first of each type as isDefault, allow duplicates
       form.value.approvals = props.initialData.approvals?.map((approval, i, arr) => {
-        const isFirstOfType = !seenTypes.has(approval.request_type);
+        const isFirstOfType = !seenTypes.has(approval.request_type)
         if (isFirstOfType && defaultTypes.includes(approval.request_type)) {
-          seenTypes.add(approval.request_type);
+          seenTypes.add(approval.request_type)
         }
+
         return {
           id: approval.id || null,
           user_id: Number(approval.user_id),
           request_type: approval.request_type || 'approve',
           isDefault: isFirstOfType && defaultTypes.includes(approval.request_type),
           availableUsers: [],
-        };
-      }) || [];
+        }
+      }) || []
     } else {
+      // If new entry, push one default of each type
       form.value.approvals = defaultTypes.map(type => ({
         id: null,
         request_type: type,
         user_id: null,
         isDefault: true,
         availableUsers: [],
-      }));
+      }))
     }
 
+    // Load all necessary data
     await Promise.all([
       fetchProducts(),
       fetchWarehouses(),
       fetchCampuses(),
-      Promise.all(defaultTypes.map(fetchUsersForApproval)),
-    ]);
+      Promise.all(defaultTypes.map(fetchUsersForApproval))
+    ])
 
+    // Load availableUsers per approval row
     for (let i = 0; i < form.value.approvals.length; i++) {
-      await updateUsersForRow(i);
+      await updateUsersForRow(i)
     }
 
+    // Initialize DataTable
     table.value = $('#stockItemsTable').DataTable({
       data: form.value.items,
       responsive: true,
       columns: [
         {
           data: 'product_id',
-          render: (data) => ProductCode.value(data),
+          render: (data) => ProductCode.value(data)
         },
         {
           data: 'product_id',
-          render: (data) => ProductDescription.value(data),
+          render: (data) => ProductDescription.value(data)
         },
         {
           data: 'product_id',
-          render: (data) => itemUnitName.value(data),
+          render: (data) => itemUnitName.value(data)
         },
         {
           data: 'quantity',
           render: (data, type, row, meta) => `
             <input type="number" class="form-control quantity-input" value="${data}" min="0.0001" step="0.0001" required data-row="${meta.row}"/>
-          `,
+          `
         },
         {
           data: 'average_price',
           render: (data, type, row, meta) => `
             <input type="number" class="form-control unit-price-input" value="${data}" min="0" step="0.0001" required data-row="${meta.row}"/>
-          `,
+          `
         },
         {
           data: null,
-          render: (data) => (data.quantity * data.average_price).toFixed(4),
+          render: (data) => (data.quantity * data.average_price).toFixed(4)
         },
         {
           data: 'remarks',
           render: (data, type, row, meta) => `
             <textarea class="form-control remarks-input" rows="1" maxlength="1000" data-row="${meta.row}">${data || ''}</textarea>
-          `,
+          `
         },
         {
           data: null,
@@ -936,128 +807,156 @@ onMounted(async () => {
             <button type="button" class="btn btn-danger btn-sm remove-btn" data-row="${meta.row}">
               <i class="fal fa-trash-alt"></i> Remove
             </button>
-          `,
-        },
-      ],
-    });
+          `
+        }
+      ]
+    })
 
+    // Table input bindings
     $('#stockItemsTable').on('change', '.quantity-input', function () {
-      const index = $(this).data('row');
-      form.value.items[index].quantity = parseFloat($(this).val()) || 1;
-      table.value.row(index).invalidate().draw();
-    });
+      const index = $(this).data('row')
+      form.value.items[index].quantity = parseFloat($(this).val()) || 1
+      table.value.row(index).invalidate().draw()
+    })
 
     $('#stockItemsTable').on('change', '.unit-price-input', function () {
-      const index = $(this).data('row');
-      form.value.items[index].average_price = parseFloat($(this).val()) || 0;
-      table.value.row(index).invalidate().draw();
-    });
+      const index = $(this).data('row')
+      form.value.items[index].average_price = parseFloat($(this).val()) || 0
+      table.value.row(index).invalidate().draw()
+    })
 
     $('#stockItemsTable').on('input', '.remarks-input', function () {
-      const index = $(this).data('row');
-      form.value.items[index].remarks = $(this).val();
-    });
+      const index = $(this).data('row')
+      form.value.items[index].remarks = $(this).val()
+    })
 
     $('#stockItemsTable').on('click', '.remove-btn', function () {
-      const index = $(this).data('row');
-      removeItem(index);
-    });
+      const index = $(this).data('row')
+      removeItem(index)
+    })
 
-    await nextTick();
+    // Init warehouse select
+    await nextTick()
     if (warehouseSelect.value) {
       initSelect2(warehouseSelect.value, {
         placeholder: 'Select Warehouse',
         width: '100%',
         allowClear: true,
-      }, (v) => (form.value.warehouse_id = v ? Number(v) : null));
+      }, (v) => (form.value.warehouse_id = v))
+
       if (form.value.warehouse_id) {
-        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change');
+        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
       }
     }
 
+    // Init campus select
+    await nextTick()
     if (campusSelect.value) {
       initSelect2(campusSelect.value, {
         placeholder: 'Select Campus',
         width: '100%',
         allowClear: true,
-      }, (v) => (form.value.campus_id = v ? Number(v) : null));
+      }, (v) => (form.value.campus_id = v))
+
       if (form.value.campus_id) {
-        $(campusSelect.value).val(form.value.campus_id).trigger('change');
+        $(campusSelect.value).val(form.value.campus_id).trigger('change')
       }
     }
 
+    if (typeSelect.value) {
+      initSelect2(typeSelect.value, {
+        placeholder: 'Select Campus',
+        width: '100%',
+        allowClear: true,
+      }, (v) => {
+        // Always update Vue's form value when Select2 changes
+        form.value.type = v || ''
+      })
+
+      // Set initial value if needed
+      $(typeSelect.value).val(form.value.type).trigger('change')
+    }
+
+    // Init product select
     if (productSelect.value) {
       initSelect2(productSelect.value, {
         placeholder: 'Select Product',
         width: '100%',
         allowClear: true,
-      });
+      })
       $(productSelect.value).on('select2:select', (e) => {
-        const productId = e.params.data.id;
-        addItem(productId);
-      });
+        const productId = e.params.data.id
+        addItem(productId)
+      })
     }
 
+    // Approval Type Select2
     $('.approval-type-select').each(function () {
-      const index = $(this).data('row');
-      const approval = form.value.approvals[index];
+      const index = $(this).data('row')
+      const approval = form.value.approvals[index]
       initSelect2(this, {
         placeholder: 'Select Type',
         width: '100%',
         allowClear: !approval.isDefault,
         disabled: approval.isDefault,
       }, (value) => {
-        form.value.approvals[index].request_type = value || '';
-        updateUsersForRow(index);
-      });
-      $(this).val(approval.request_type || '').trigger('change.select2');
-    });
+        form.value.approvals[index].request_type = value || ''
+        updateUsersForRow(index)
+      })
+      $(this).val(approval.request_type || '').trigger('change.select2')
+    })
 
+    // User Select2
     $('.user-select').each(function () {
-      const index = $(this).data('row');
+      const index = $(this).data('row')
       initSelect2(this, {
         placeholder: 'Select User',
         width: '100%',
         allowClear: true,
       }, (value) => {
-        form.value.approvals[index].user_id = value ? Number(value) : null;
-      });
-      $(this).val(form.value.approvals[index].user_id || '').trigger('change.select2');
-    });
+        form.value.approvals[index].user_id = value ? Number(value) : null
+      })
+      $(this).val(form.value.approvals[index].user_id || '').trigger('change.select2')
+    })
 
-    await initDatepicker();
+    await initDatepicker()
+
   } catch (err) {
-    console.error('Error in onMounted:', err);
-    showAlert('Error', 'Failed to initialize form.', 'danger');
+    console.error('Error in onMounted:', err)
+    showAlert('Error', 'Failed to initialize form.', 'danger')
   }
-});
+})
 
 onUnmounted(() => {
   try {
     if (table.value) {
-      table.value.destroy();
-      table.value = null;
+      table.value.destroy()
+      table.value = null
     }
     if (warehouseSelect.value) {
-      destroySelect2(warehouseSelect.value);
+      destroySelect2(warehouseSelect.value)
     }
     if (campusSelect.value) {
-      destroySelect2(campusSelect.value);
+      destroySelect2(campusSelect.value)
+    }
+
+    if (typeSelect.value) {
+      destroySelect2(typeSelect.value)
     }
     if (productSelect.value) {
-      destroySelect2(productSelect.value);
+      destroySelect2(productSelect.value)
     }
     $('.approval-type-select').each(function () {
-      destroySelect2(this);
-    });
+      destroySelect2(this)
+    })
     $('.user-select').each(function () {
-      destroySelect2(this);
-    });
-    $('#request_date').datepicker('destroy');
+      destroySelect2(this)
+    })
+    $('#request_date').datepicker('destroy')
   } catch (err) {
-    console.error('Error in onUnmounted:', err);
+    console.error('Error in onUnmounted:', err)
   }
-});
+})
 </script>
 
 <style scoped>

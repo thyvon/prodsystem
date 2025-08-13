@@ -44,4 +44,8 @@ class StockRequestItem extends Model
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
+    public function productVariant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_id');
+    }
 }

@@ -3,46 +3,48 @@
 namespace App\Http\Controllers;
 
 use App\Models\StockRequest;
-use App\Services\StockRequestService;
-use App\Services\WarehouseService;
-use App\Services\CampusService;
-use App\Services\ProductService;
+use App\Models\StockRequestItem;
+use App\Models\Warehouse;
+use App\Models\User;
+use App\Models\Approval;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\StockRequestsExport;
-use App\Imports\StockRequestsImport;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\JsonResponse;
+// use Maatwebsite\Excel\Facades\Excel;
+// use App\Exports\StockBeginningsExport;
+// use App\Imports\StockBeginningsImport;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use App\Services\WarehouseService;
+use App\Services\ProductService;
+use App\Services\CampusService;
 
 class StockRequestController extends Controller
 {
     // Constants for sort columns and default values
-    private const ALLOWED_SORT_COLUMNS = ['request_number', 'request_date', 'created_at', 'updated_at', 'created_by', 'updated_by'];
+    private const ALLOWED_SORT_COLUMNS = ['request_date', 'request_number', 'created_at', 'updated_at', 'created_by', 'updated_by'];
     private const DEFAULT_SORT_COLUMN = 'created_at';
     private const DEFAULT_SORT_DIRECTION = 'desc';
     private const DEFAULT_LIMIT = 10;
     private const MAX_LIMIT = 1000;
     private const DATE_FORMAT = 'Y-m-d';
 
-    protected $stockRequestService;
     protected $approvalController;
     protected $warehouseService;
-    protected $campusService;
     protected $productService;
+    protected $campusService;
 
     public function __construct(
-        StockRequestService $stockRequestService,
-        ApprovalController $approvalController, // Correct namespace: App\Http\Controllers
+        ApprovalController $approvalController,
         WarehouseService $warehouseService,
-        CampusService $campusService,
-        ProductService $productService
+        ProductService $productService,
+        CampusService $campusService
     ) {
-        $this->stockRequestService = $stockRequestService;
         $this->approvalController = $approvalController;
         $this->warehouseService = $warehouseService;
-        $this->campusService = $campusService;
         $this->productService = $productService;
+        $this->campusService = $campusService;
     }
 
     /**
@@ -53,11 +55,11 @@ class StockRequestController extends Controller
     public function index()
     {
         $this->authorize('viewAny', StockRequest::class);
-        return view('Inventory.stockRequest.index');
+        return view('Inventory.stockRequestItem.index');
     }
 
     /**
-     * Show the form for creating a new stock request.
+     * Show the form for creating a new main stock request.
      *
      * @return \Illuminate\View\View
      */
@@ -68,7 +70,7 @@ class StockRequestController extends Controller
     }
 
     /**
-     * Display a single stock request with its line items and approvals for viewing.
+     * Display a single main stock request with its line items and approvals for printing.
      *
      * @param StockRequest $stockRequest
      * @return \Illuminate\View\View
@@ -80,16 +82,15 @@ class StockRequestController extends Controller
         try {
             // Load related data including approvals
             $stockRequest->load([
-                'items.product.unit',
+                'stockRequestItems.productVariant.product.unit',
                 'warehouse.building.campus',
-                'campus',
                 'createdBy',
                 'updatedBy',
                 'approvals.responder',
             ]);
 
             // Check if the approval button should be shown
-            $approvalButtonData = $this->stockRequestService->canShowApprovalButton($stockRequest->id);
+            $approvalButtonData = $this->canShowApprovalButton($stockRequest->id);
 
             // Derive responders from approvals
             $responders = $stockRequest->approvals->map(function ($approval) {
@@ -101,10 +102,10 @@ class StockRequestController extends Controller
                 ];
             })->toArray();
 
-            return view('Inventory.stockRequest.show', [
+            return view('Inventory.stockRequestItem.show', [
                 'stockRequest' => $stockRequest,
-                'totalQuantity' => round($stockRequest->items->sum('quantity'), 4),
-                'totalValue' => round($stockRequest->items->sum('total_price'), 4),
+                'totalQuantity' => round($stockRequest->stockRequestItems->sum('quantity'), 4),
+                'totalValue' => round($stockRequest->stockRequestItems->sum('total_price'), 4),
                 'approvals' => $stockRequest->approvals
                     ->sortBy('ordinal')
                     ->values()
@@ -120,7 +121,7 @@ class StockRequestController extends Controller
                             'updated_at' => $approval->updated_at?->toDateTimeString(),
                             'responded_date' => $approval->responded_date,
                         ];
-                    })->toArray(),
+                })->toArray(),
                 'responders' => $responders,
                 'showApprovalButton' => $approvalButtonData['showButton'],
                 'approvalRequestType' => $approvalButtonData['requestType'],
@@ -139,7 +140,7 @@ class StockRequestController extends Controller
     }
 
     /**
-     * Store a new stock request with its line items and approvals.
+     * Store a new main stock request with its line items and approvals.
      *
      * @param Request $request
      * @return JsonResponse
@@ -148,20 +149,67 @@ class StockRequestController extends Controller
     {
         $this->authorize('create', StockRequest::class);
 
-        try {
-            $validated = $this->stockRequestService->validateRequest($request);
-            $response = $this->stockRequestService->createStockRequest($validated);
+        $validated = Validator::make($request->all(), array_merge(
+            $this->stockRequestValidationRules(),
+            $this->stockRequestItemValidationRules(),
+            [
+                'approvals' => 'required|array|min:1',
+                'approvals.*.user_id' => 'required|exists:users,id',
+                'approvals.*.request_type' => 'required|string|in:review,check,approve',
+            ]
+        ))->validate();
 
-            return response()->json([
-                'message' => 'Stock request created successfully.',
-                'data' => $response->load('items', 'approvals.responder'),
-            ], 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
+        // Validate that each approver has the appropriate permission
+        foreach ($validated['approvals'] as $approval) {
+            $user = User::findOrFail($approval['user_id']);
+            $permission = "stockRequest.{$approval['request_type']}";
+            if (!$user->hasPermissionTo($permission)) {
+                return response()->json([
+                    'message' => "User ID {$approval['user_id']} does not have permission for {$approval['request_type']}.",
+                ], 403);
+            }
+        }
+
+        try {
+            return DB::transaction(function () use ($validated) {
+                $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['request_date']);
+
+                $stockRequest = StockRequest::create([
+                    'request_number' => $referenceNo,
+                    'warehouse_id' => $validated['warehouse_id'],
+                    'campus_id' => $validated['campus_id'],
+                    'type' => $validated['type'],
+                    'purpose' => $validated['purpose'] ?? null,
+                    'request_date' => $validated['request_date'],
+                    'created_by' => auth()->id() ?? 1,
+                    'approval_status' => 'Pending',
+                ]);
+
+                $items = array_map(function ($item) use ($stockRequest) {
+                    return [
+                        'stock_request_id' => $stockRequest->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'average_price' => $item['average_price'],
+                        'total_price' => $item['quantity'] * $item['average_price'],
+                        'remarks' => $item['remarks'] ?? null,
+                        'created_by' => auth()->id() ?? 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }, $validated['items']);
+
+                StockRequestItem::insert($items);
+
+                $this->initializeApprovals($stockRequest, $validated['approvals']);
+
+                return response()->json([
+                    'message' => 'Stock request created successfully.',
+                    'data' => $stockRequest->load('stockRequestItems', 'approvals.responder'),
+                ], 201);
+            });
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Failed to create stock request', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to create stock request',
@@ -171,7 +219,7 @@ class StockRequestController extends Controller
     }
 
     /**
-     * Show the form for editing an existing stock request.
+     * Show the form for editing an existing main stock request.
      *
      * @param StockRequest $stockRequest
      * @return \Illuminate\View\View
@@ -181,36 +229,35 @@ class StockRequestController extends Controller
         $this->authorize('update', $stockRequest);
 
         try {
+            // Load related data including approvals
             $stockRequest->load([
-                'items.product.unit',
+                'stockRequestItems.productVariant.product.unit',
                 'warehouse.building.campus',
-                'campus',
                 'approvals.responder',
             ]);
 
-            Log::debug('Approvals loaded:', $stockRequest->approvals->map(function ($approval) {
-                return [
-                    'id' => $approval->id,
-                    'responder_id' => $approval->responder_id,
-                    'responder_name' => $approval->responder->name ?? null,
-                    'request_type' => $approval->request_type,
-                    'approval_status' => $approval->approval_status ?? null,
-                    'comment' => $approval->comment ?? null,
-                    'created_at' => $approval->created_at->toDateTimeString(),
-                ];
-            })->toArray());
+                    \Log::debug('Approvals loaded:', $stockRequest->approvals->map(function ($approval) {
+            return [
+                'id' => $approval->id,
+                'responder_id' => $approval->responder_id,
+                'responder_name' => $approval->responder->name ?? null,
+                'request_type' => $approval->request_type,
+                'approval_status' => $approval->approval_status ?? null,
+                'comment' => $approval->comment ?? null,
+                'created_at' => $approval->created_at->toDateTimeString(),
+            ];
+        })->toArray());
 
             // Prepare data for the Vue form
-            $stockRequestData = [
+            $stockRequestItemData = [
                 'id' => $stockRequest->id,
                 'request_number' => $stockRequest->request_number,
                 'warehouse_id' => $stockRequest->warehouse_id,
                 'campus_id' => $stockRequest->campus_id,
-                'request_date' => $stockRequest->request_date,
                 'type' => $stockRequest->type,
                 'purpose' => $stockRequest->purpose,
-                'approval_status' => $stockRequest->approval_status,
-                'items' => $stockRequest->items->map(function ($item) {
+                'request_date' => $stockRequest->request_date,
+                'items' => $stockRequest->stockRequestItems->map(function ($item) {
                     return [
                         'id' => $item->id,
                         'product_id' => $item->product_id,
@@ -218,10 +265,10 @@ class StockRequestController extends Controller
                         'average_price' => $item->average_price,
                         'total_price' => $item->total_price,
                         'remarks' => $item->remarks,
-                        'item_code' => $item->product->item_code ?? null,
-                        'product_name' => $item->product->name ?? null,
-                        'product_khmer_name' => $item->product->khmer_name ?? null,
-                        'unit_name' => $item->product->unit->name ?? null,
+                        'item_code' => $item->productVariant->item_code ?? null,
+                        'product_name' => $item->productVariant->product->name ?? null,
+                        'product_khmer_name' => $item->productVariant->product->khmer_name ?? null,
+                        'unit_name' => $item->productVariant->product->unit->name ?? null,
                     ];
                 })->toArray(),
                 'warehouse' => $stockRequest->warehouse ? [
@@ -236,10 +283,6 @@ class StockRequestController extends Controller
                         ] : null,
                     ] : null,
                 ] : null,
-                'campus' => $stockRequest->campus ? [
-                    'id' => $stockRequest->campus->id,
-                    'short_name' => $stockRequest->campus->short_name,
-                ] : null,
                 'approvals' => $stockRequest->approvals->map(function ($approval) {
                     return [
                         'id' => $approval->id,
@@ -251,7 +294,12 @@ class StockRequestController extends Controller
 
             return view('Inventory.stockRequest.form', [
                 'stockRequest' => $stockRequest,
-                'stockRequestData' => $stockRequestData,
+                'stockRequestItemData' => $stockRequestItemData,
+
+                Log::debug('Fetched stock request for editing', [
+                    'stock_request_id' => $stockRequest->id,
+                    'stock_request_data' => $stockRequestItemData,
+                ]),
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching stock request for editing', [
@@ -266,7 +314,7 @@ class StockRequestController extends Controller
     }
 
     /**
-     * Update an existing stock request and its line items.
+     * Update an existing main stock request and its line items.
      *
      * @param Request $request
      * @param StockRequest $stockRequest
@@ -276,48 +324,133 @@ class StockRequestController extends Controller
     {
         $this->authorize('update', $stockRequest);
 
-        try {
-            $validated = $this->stockRequestService->validateRequest($request, $stockRequest->id);
-            $response = $this->stockRequestService->updateStockRequest($stockRequest, $validated);
+        $validated = Validator::make($request->all(), array_merge(
+            $this->stockRequestValidationRules($stockRequest->id),
+            $this->stockRequestItemValidationRules(),
+            [
+                'approvals' => 'required|array|min:1',
+                'approvals.*.user_id' => 'required|exists:users,id',
+                'approvals.*.request_type' => 'required|string|in:review,check,approve',
+            ]
+        ))->validate();
 
-            return response()->json([
-                'message' => 'Stock request updated successfully.',
-                'data' => $response->load('items', 'approvals.responder'),
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
+        // Validate that each approver has the appropriate permission
+        foreach ($validated['approvals'] as $approval) {
+            $user = User::findOrFail($approval['user_id']);
+            $permission = "stockRequest.{$approval['request_type']}";
+            if (!$user->hasPermissionTo($permission)) {
+                return response()->json([
+                    'message' => "User ID {$approval['user_id']} does not have permission for {$approval['request_type']}.",
+                ], 403);
+            }
+        }
+
+        try {
+            return DB::transaction(function () use ($validated, $stockRequest) {
+                // Update main stock request header
+                $stockRequest->update([
+                    'warehouse_id' => $validated['warehouse_id'],
+                    'campus_id' => $validated['campus_id'],
+                    'type' => $validated['type'],
+                    'purpose' => $validated['purpose'] ?? null,
+                    'request_date' => $validated['request_date'],
+                    'updated_by' => auth()->id() ?? 1,
+                ]);
+
+                // Build existing and new composite approval keys
+                $existingApprovalKeys = $stockRequest->approvals->map(fn($a) => "{$a->responder_id}|{$a->request_type}")->toArray();
+                $newApprovalKeys = collect($validated['approvals'])->map(fn($a) => "{$a['user_id']}|{$a['request_type']}")->toArray();
+
+                // Determine approvals to remove
+                $approvalsToRemove = array_diff($existingApprovalKeys, $newApprovalKeys);
+                foreach ($approvalsToRemove as $approvalKey) {
+                    [$userId, $requestType] = explode('|', $approvalKey);
+                    Approval::where([
+                        'approvable_type' => StockRequest::class,
+                        'approvable_id' => $stockRequest->id,
+                        'responder_id' => $userId,
+                        'request_type' => $requestType,
+                    ])->delete();
+                }
+
+                // Determine approvals to add
+                $approvalsToAdd = array_diff($newApprovalKeys, $existingApprovalKeys);
+                foreach ($approvalsToAdd as $approvalKey) {
+                    [$userId, $requestType] = explode('|', $approvalKey);
+                    $approvalData = [
+                        'approvable_type' => StockRequest::class,
+                        'approvable_id' => $stockRequest->id,
+                        'document_name' => 'Stock Beginning',
+                        'document_reference' => $stockRequest->request_number,
+                        'request_type' => $requestType,
+                        'approval_status' => 'Pending',
+                        'ordinal' => $this->getOrdinalForRequestType($requestType),
+                        'requester_id' => $stockRequest->created_by,
+                        'responder_id' => $userId,
+                    ];
+                    $this->approvalController->storeApproval($approvalData);
+                }
+
+                // Handle stock request line items
+                $existingItemIds = $stockRequest->stockRequestItems->pluck('id')->toArray();
+                $submittedItemIds = array_filter(array_column($validated['items'], 'id'), fn($id) => !is_null($id));
+
+                // Delete removed items
+                StockRequestItem::where('stock_request_id', $stockRequest->id)
+                    ->whereNotIn('id', $submittedItemIds)
+                    ->each(function ($stockRequestItem) {
+                        $stockRequestItem->deleted_by = auth()->id() ?? 1;
+                        $stockRequestItem->save();
+                        $stockRequestItem->delete();
+                    });
+
+                // Process items: update or insert
+                $itemsToInsert = [];
+                foreach ($validated['items'] as $item) {
+                    if (!empty($item['id']) && in_array($item['id'], $existingItemIds)) {
+                        // Update existing
+                        $stockRequestItem = StockRequestItem::find($item['id']);
+                        if ($stockRequestItem) {
+                            $stockRequestItem->update([
+                                'product_id' => $item['product_id'],
+                                'quantity' => $item['quantity'],
+                                'average_price' => $item['average_price'],
+                                'total_price' => $item['quantity'] * $item['average_price'],
+                                'remarks' => $item['remarks'] ?? null,
+                                'updated_by' => auth()->id() ?? 1,
+                            ]);
+                        }
+                    } else {
+                        // Prepare for insert
+                        $itemsToInsert[] = [
+                            'stock_request_id' => $stockRequest->id,
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'average_price' => $item['average_price'],
+                            'total_price' => $item['quantity'] * $item['average_price'],
+                            'remarks' => $item['remarks'] ?? null,
+                            'created_by' => auth()->id() ?? 1,
+                            'updated_by' => auth()->id() ?? 1,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+                }
+
+                if (!empty($itemsToInsert)) {
+                    StockRequestItem::insert($itemsToInsert);
+                }
+
+                return response()->json([
+                    'message' => 'Stock request updated successfully.',
+                    'data' => $stockRequest->load('stockRequestItems', 'approvals.responder'),
+                ]);
+            });
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Failed to update stock request', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to update stock request',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Delete a stock request and its associated line items and approvals.
-     *
-     * @param StockRequest $stockRequest
-     * @return JsonResponse
-     */
-    public function destroy(StockRequest $stockRequest): JsonResponse
-    {
-        $this->authorize('delete', $stockRequest);
-
-        try {
-            $this->stockRequestService->deleteStockRequest($stockRequest);
-
-            return response()->json([
-                'message' => 'Stock request and related approvals deleted successfully.',
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Failed to delete stock request', ['error' => $e->getMessage(), 'id' => $stockRequest->id]);
-            return response()->json([
-                'message' => 'Failed to delete stock request',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -331,17 +464,34 @@ class StockRequestController extends Controller
      */
     public function getUsersForApproval(Request $request): JsonResponse
     {
+        // Validate request type
+        $validated = $request->validate([
+            'request_type' => ['required', 'string', 'in:review,check,approve'],
+        ]);
+
+        $permission = "stockRequest.{$validated['request_type']}";
+
         try {
-            $users = $this->stockRequestService->getUsersForApproval($request);
+            // Fetch users with direct or role-based permission
+            $users = User::query()
+                ->where(function ($query) use ($permission) {
+                    $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
+                        ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
+                })
+                ->select('id', 'name')
+                ->get();
+
             return response()->json([
                 'message' => 'Users fetched successfully.',
                 'data' => $users,
             ]);
         } catch (\Exception $e) {
+            // Log error
             Log::error('Failed to fetch users for approval', [
-                'request_type' => $request->input('request_type'),
+                'request_type' => $validated['request_type'],
                 'error' => $e->getMessage(),
             ]);
+
             return response()->json([
                 'message' => 'Failed to fetch users for approval.',
                 'error' => $e->getMessage(),
@@ -350,7 +500,7 @@ class StockRequestController extends Controller
     }
 
     /**
-     * Retrieve paginated stock requests with optional search and sort.
+     * Retrieve paginated main stock requests with optional search and sort.
      *
      * @param Request $request
      * @return JsonResponse
@@ -358,51 +508,102 @@ class StockRequestController extends Controller
     public function getStockRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockRequest::class);
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin');
 
-        try {
-            $response = $this->stockRequestService->getStockRequests($request);
-            return response()->json($response);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch stock requests', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Failed to fetch stock requests',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        // Get warehouse IDs only if NOT admin
+        $warehouseIds = $isAdmin ? [] : $user->warehouses->pluck('id')->toArray();
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $query = StockRequest::with([
+                'warehouse.building.campus',
+                'createdBy.defaultCampus',
+                'stockRequestItems.productVariant.product.unit',
+                'createdBy',
+                'updatedBy',
+            ])
+            // Apply warehouse filter only if NOT admin
+            ->when(!$isAdmin, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->when($validated['search'] ?? null, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('request_number', 'like', "%{$search}%")
+                        ->orWhereHas('warehouse', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('stockRequestItems.productVariant.product', function ($q) use ($search) {
+                            $q->where(function ($q2) use ($search) {
+                                $q2->where('name', 'like', "%{$search}%")
+                                    ->orWhere('khmer_name', 'like', "%{$search}%")
+                                    ->orWhere('description', 'like', "%{$search}%")
+                                    ->orWhere('item_code', 'like', "%{$search}%")
+                                    ->orWhereHas('unit', fn($q3) => $q3->where('name', 'like', "%{$search}%"));
+                            });
+                        });
+                });
+            });
+
+        $recordsTotal = $isAdmin
+            ? StockRequest::count()
+            : StockRequest::whereIn('warehouse_id', $warehouseIds)->count();
+
+        $recordsFiltered = $query->count();
+
+        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
+        $page = $validated['page'] ?? 1;
+
+        $stockRequests = $query->paginate($limit, ['*'], 'page', $page);
+
+        $data = $stockRequests->getCollection()->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'request_number' => $item->request_number,
+                'request_date' => $item->request_date,
+                'warehouse_name' => $item->warehouse->name ?? null,
+                'campus_name' => $item->warehouse->building->campus->short_name ?? null,
+                'building_name' => $item->warehouse->building->short_name ?? null,
+                'quantity' => round($item->stockRequestItems->sum('quantity'), 4),
+                'total_price' => round($item->stockRequestItems->sum('total_price'), 4),
+                'created_at' => optional($item->created_at)->toDateTimeString(),
+                'updated_at' => optional($item->updated_at)->toDateTimeString(),
+                'created_by' => $item->createdBy->name ?? 'System',
+                'updated_by' => $item->updatedBy->name ?? 'System',
+                'approval_status' => $item->approval_status,
+                'items' => $item->stockRequestItems->map(function ($sb) {
+                    return [
+                        'id' => $sb->id,
+                        'product_id' => $sb->product_id,
+                        'item_code' => $sb->productVariant->item_code ?? null,
+                        'quantity' => $sb->quantity,
+                        'average_price' => $sb->average_price,
+                        'total_price' => $sb->total_price,
+                        'remarks' => $sb->remarks,
+                        'product_name' => $sb->productVariant->product->name ?? null,
+                        'product_khmer_name' => $sb->productVariant->product->khmer_name ?? null,
+                        'unit_name' => $sb->productVariant->product->unit->name ?? null,
+                    ];
+                })->toArray(),
+            ];
+        });
+
+        return response()->json([
+            'data' => $data->all(),
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
     }
 
-    /**
-     * Import stock requests from an Excel file and return data for form population.
-     *
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function import(Request $request): JsonResponse
-    {
-        $this->authorize('create', StockRequest::class);
-
-        try {
-            $response = $this->stockRequestService->importStockRequests($request);
-            return response()->json($response, $response['status'] ?? 200);
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $errors = $e->failures()->map(function ($failure) {
-                $row = $failure->row();
-                $errorMessages = $failure->errors();
-                return "Row {$row}: " . implode('; ', $errorMessages);
-            })->toArray();
-
-            return response()->json([
-                'message' => 'Validation failed during import',
-                'errors' => $errors,
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error('Failed to import stock requests', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Failed to import stock requests',
-                'errors' => [$e->getMessage()],
-            ], 500);
-        }
-    }
 
     /**
      * Export stock requests to an Excel file.
@@ -420,19 +621,22 @@ class StockRequestController extends Controller
             'sortDirection' => 'nullable|string|in:asc,desc',
         ]);
 
-        $query = StockRequest::with(['warehouse', 'campus', 'items.product'])
+        $query = StockRequest::with(['warehouse', 'stockRequestItems.productVariant.product'])
             ->when($validated['search'] ?? null, function ($query, $search) {
                 $query->where('request_number', 'like', "%{$search}%")
-                    ->orWhere('type', 'like', "%{$search}%")
-                    ->orWhere('purpose', 'like', "%{$search}%")
-                    ->orWhereHas('warehouse', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('campus', fn($q) => $q->where('short_name', 'like', "%{$search}%"))
-                    ->orWhereHas('items.product', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%")
-                            ->orWhere('khmer_name', 'like', "%{$search}%")
-                            ->orWhere('description', 'like', "%{$search}%")
-                            ->orWhere('item_code', 'like', "%{$search}%")
-                            ->orWhereHas('unit', fn($q3) => $q3->where('name', 'like', "%{$search}%"));
+                    ->orWhereHas('warehouse', function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('stockRequestItems.productVariant.product', function ($q) use ($search) {
+                        $q->where(function ($q2) use ($search) {
+                            $q2->where('name', 'like', "%{$search}%")
+                                ->orWhere('khmer_name', 'like', "%{$search}%")
+                                ->orWhere('description', 'like', "%{$search}%")
+                                ->orWhere('item_code', 'like', "%{$search}%")
+                                ->orWhereHas('unit', function ($q3) use ($search) {
+                                    $q3->where('name', 'like', "%{$search}%");
+                                });
+                        });
                     });
             });
 
@@ -445,54 +649,258 @@ class StockRequestController extends Controller
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        return Excel::download(new StockRequestsExport($query), 'stock_requests_' . now()->format('Ymd_His') . '.xlsx');
+        return Excel::download(new StockBeginningsExport($query), 'stock_requests_' . now()->format('Ymd_His') . '.xlsx');
     }
 
     /**
-     * Submit an approval action (approve or reject) for a stock request.
+     * Get validation rules for main stock request creation/update.
      *
-     * @param Request $request
+     * @param int|null $stockRequestId
+     * @return array
+     */
+    private function stockRequestValidationRules(?int $stockRequestId = null): array
+    {
+        return [
+            'request_date' => ['required', 'date', 'date_format:' . self::DATE_FORMAT],
+            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'campus_id' => ['required', 'integer', 'exists:campus,id'],
+            'type' => ['required', 'string'],
+            'purpose' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * Get validation rules for stock request line items.
+     *
+     * @return array
+     */
+    private function stockRequestItemValidationRules(): array
+    {
+        return [
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable', 'integer', 'exists:stock_request_items,id'],
+            'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.average_price' => ['required', 'numeric', 'min:0'],
+            'items.*.remarks' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * Generate a unique reference number in format STB-short_name-mmyyyy-sequence.
+     *
+     * @param int $warehouseId
+     * @param string $requestDate
+     * @return string
+     * @throws \InvalidArgumentException If the date format is invalid or warehouse is not found.
+     */
+    private function generateReferenceNo(int $warehouseId, string $requestDate): string
+    {
+        $warehouse = Warehouse::with('building.campus')->findOrFail($warehouseId);
+
+        try {
+            $date = \Carbon\Carbon::createFromFormat(self::DATE_FORMAT, $requestDate);
+            if (!$date || $date->format(self::DATE_FORMAT) !== $requestDate) {
+                throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.');
+            }
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.', 0, $e);
+        }
+
+        $shortName = $warehouse->building?->campus?->short_name ?? 'WH';
+        $monthYear = $date->format('my');
+
+        // Only call once
+        $sequence = $this->getSequenceNumber($shortName, $monthYear);
+
+        // Use the one you just got
+        return "STR-{$shortName}-{$monthYear}-{$sequence}";
+    }
+
+    /**
+     * Generate a sequence number for uniqueness, including soft-deleted records.
+     *
+     * @param string $shortName
+     * @param string $monthYear
+     * @return string
+     */
+    private function getSequenceNumber(string $shortName, string $monthYear): string
+    {
+        $prefix = "STB-{$shortName}-{$monthYear}-";
+
+        $count = StockRequest::withTrashed()
+            ->where('request_number', 'like', "{$prefix}%")
+            ->count();
+
+        return str_pad($count + 1, 2, '0', STR_PAD_LEFT);
+    }
+
+
+    /**
+     * Delete a main stock request and its associated line items and approvals.
+     *
      * @param StockRequest $stockRequest
      * @return JsonResponse
      */
-    public function submitApproval(Request $request, StockRequest $stockRequest): JsonResponse
+    public function destroy(StockRequest $stockRequest): JsonResponse
     {
+        $this->authorize('delete', $stockRequest);
+
         try {
-            $response = $this->stockRequestService->submitApproval($request, $stockRequest);
-            return response()->json($response, $response['status'] ?? 200);
-        } catch (\Exception $e) {
-            Log::error('Failed to submit approval', [
-                'stock_request_id' => $stockRequest->id,
-                'error' => $e->getMessage(),
-            ]);
+            DB::transaction(function () use ($stockRequest) {
+                $userId = auth()->id() ?? 1;
+
+                // Hard delete related approvals
+                Approval::where([
+                    'approvable_type' => StockRequest::class,
+                    'approvable_id' => $stockRequest->id,
+                ])->delete();
+
+                // Soft delete related stock requests
+                foreach ($stockRequest->stockRequestItems as $stockRequestItem) {
+                    $stockRequestItem->deleted_by = $userId;
+                    $stockRequestItem->save();
+                    $stockRequestItem->delete();
+                }
+
+                // Soft delete the main stock request
+                $stockRequest->deleted_by = $userId;
+                $stockRequest->save();
+                $stockRequest->delete();
+            });
+
             return response()->json([
-                'message' => 'Failed to submit approval',
+                'message' => 'Stock request and related approvals deleted successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to delete stock request', ['error' => $e->getMessage(), 'id' => $stockRequest->id]);
+            return response()->json([
+                'message' => 'Failed to delete stock request',
                 'error' => $e->getMessage(),
             ], 500);
         }
     }
 
     /**
+     * Submit an approval action (approve or reject) for a stock request.
+     *
+     * @param Request $request
+     * @param int $documentId
+     * @return JsonResponse
+     */
+    public function submitApproval(Request $request, StockRequest $stockRequest): JsonResponse
+    {
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:review,check,approve',
+            'action' => 'required|string|in:approve,reject',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        // Build permission string
+        $permission = "stockRequest.{$validated['request_type']}";
+
+        // Check permission using Spatie's `can`
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this stock request.",
+            ], 403);
+        }
+
+        $method = $validated['action'] === 'approve' ? 'confirmApproval' : 'rejectApproval';
+
+        $result = $this->approvalController->$method(
+            $request,
+            StockRequest::class,
+            $stockRequest->id,
+            $validated['request_type']
+        );
+
+        if ($result['success']) {
+            // Update StockRequest approval_status based on request_type and action
+            if ($validated['action'] === 'approve') {
+                $statusMap = [
+                    'review' => 'Reviewed',
+                    'check' => 'Checked',
+                    'approve' => 'Approved',
+                ];
+
+                $stockRequest->approval_status = $statusMap[$validated['request_type']] ?? null;
+            } else {
+                // Reject action sets status to 'Rejected'
+                $stockRequest->approval_status = 'Rejected';
+            }
+
+            // Save the updated status
+            $stockRequest->save();
+        }
+
+        return response()->json([
+            'message' => $result['message'],
+            'redirect_url' => route('approvals-stock-requests.show', $stockRequest->id),
+            'approval' => $result['approval'] ?? null,
+        ], $result['success'] ? 200 : 400);
+    }
+
+    /**
      * Reassign a responder for a specific request type.
      *
      * @param Request $request
-     * @param StockRequest $stockRequest
+     * @param int $documentId
      * @return JsonResponse
      */
     public function reassignResponder(Request $request, StockRequest $stockRequest): JsonResponse
     {
         $this->authorize('reassign', $stockRequest);
 
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:review,check,approve',
+            'new_user_id' => 'required|exists:users,id',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $permission = "stockRequest.{$validated['request_type']}";
+        if (!$user->hasPermissionTo($permission)) {
+            return response()->json([
+                'message' => "User ID {$validated['new_user_id']} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
         try {
-            $response = $this->stockRequestService->reassignResponder($request, $stockRequest);
-            return response()->json($response, $response['status'] ?? 200);
+            $approval = Approval::where([
+                'approvable_type' => StockRequest::class,
+                'approvable_id' => $stockRequest->id,
+                'request_type' => $validated['request_type'],
+                'approval_status' => 'Pending',
+            ])->first();
+
+            if (!$approval) {
+                return response()->json([
+                    'message' => 'No pending approval found for the specified request type.',
+                    'success' => false,
+                ], 404);
+            }
+
+            $approval->update([
+                'responder_id' => $validated['new_user_id'],
+                'comment' => $validated['comment'],
+                'updated_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Responder reassigned successfully.',
+                'success' => true,
+            ], 200);
         } catch (\Exception $e) {
             Log::error('Failed to reassign responder', [
-                'stock_request_id' => $stockRequest->id,
+                'document_id' => $stockRequest->id,
+                'request_type' => $validated['request_type'],
                 'error' => $e->getMessage(),
             ]);
             return response()->json([
-                'message' => 'Failed to reassign responder',
+                'message' => 'Failed to reassign responder.',
+                'success' => false,
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -502,91 +910,221 @@ class StockRequestController extends Controller
      * List approvals for a specific stock request.
      *
      * @param Request $request
-     * @param StockRequest $stockRequest
+     * @param int $documentId
      * @return JsonResponse
      */
-    public function listApprovals(Request $request, StockRequest $stockRequest): JsonResponse
+    public function listApprovals(Request $request, $documentId): JsonResponse
     {
+        $stockRequest = StockRequest::findOrFail($documentId);
         $this->authorize('view', $stockRequest);
 
+        $result = $this->approvalController->listApprovals($request, StockRequest::class, $documentId);
+
+        return response()->json([
+            'message' => $result['message'],
+            'approvals' => $result['approvals'] ?? null,
+        ], $result['success'] ? 200 : 403);
+    }
+
+    /**
+     * Determine if the authenticated user can see and interact with the approval button for a stock request.
+     *
+     * @param int $documentId
+     * @return array
+     */
+    private function canShowApprovalButton(int $documentId): array
+    {
         try {
-            $response = $this->stockRequestService->listApprovals($request, $stockRequest);
-            return response()->json($response, $response['status'] ?? 200);
+            $stockRequest = StockRequest::findOrFail($documentId);
+            $userId = auth()->id();
+            if (!$userId) {
+                return [
+                    'message' => 'Approval button not available: User not authenticated.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Check user permissions for any approval-related actions
+            $hasPermission = auth()->user()->hasAnyPermission([
+                'stockRequest.review',
+                'stockRequest.check',
+                'stockRequest.approve'
+            ]);
+            if (!$hasPermission) {
+                return [
+                    'message' => 'Approval button not available: User lacks approval permissions.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Get all approvals for this stock request, ordered by ordinal and id
+            $approvals = Approval::where([
+                'approvable_type' => StockRequest::class,
+                'approvable_id' => $documentId,
+            ])
+            ->orderBy('ordinal', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+            if ($approvals->isEmpty()) {
+                return [
+                    'message' => 'Approval button not available: No approvals configured.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Find the first pending approval
+            $currentApproval = $approvals->firstWhere('approval_status', 'Pending');
+            if (!$currentApproval) {
+                return [
+                    'message' => 'Approval button not available: All approvals completed or none pending.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Check if the current user is the responder for the pending approval
+            if ($currentApproval->responder_id !== $userId) {
+                return [
+                    'message' => 'Approval button not available: User is not the assigned responder.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Filter previous approvals (with lower ordinal)
+            $previousApprovals = $approvals->filter(function ($approval) use ($currentApproval) {
+                return ($approval->ordinal < $currentApproval->ordinal) ||
+                    ($approval->ordinal === $currentApproval->ordinal && $approval->id < $currentApproval->id);
+            });
+
+            // Check if any previous approval is rejected
+            $anyPreviousRejected = $previousApprovals->contains(function ($approval) {
+                return strtolower(trim($approval->approval_status)) === 'rejected';
+            });
+
+            if ($anyPreviousRejected) {
+                return [
+                    'message' => 'Approval button not available: A previous approval was rejected.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            // Check if all previous approvals are approved
+            $allPreviousApproved = $previousApprovals->every(function ($approval) {
+                return strtolower(trim($approval->approval_status)) === 'approved';
+            });
+
+            if (!$allPreviousApproved) {
+                return [
+                    'message' => 'Approval button not available: Previous approval steps are not completed.',
+                    'showButton' => false,
+                    'requestType' => null,
+                ];
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
         } catch (\Exception $e) {
-            Log::error('Failed to list approvals', [
-                'stock_request_id' => $stockRequest->id,
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => auth()->id(),
                 'error' => $e->getMessage(),
             ]);
-            return response()->json([
-                'message' => 'Failed to list approvals',
-                'error' => $e->getMessage(),
-            ], 500);
+            return [
+                'message' => 'Failed to check approval button visibility',
+                'showButton' => false,
+                'requestType' => null,
+            ];
         }
     }
 
     /**
-     * Fetch warehouses for stock request.
+     * Initialize approvals for a stock request.
      *
-     * @param Request $request
-     * @return JsonResponse
+     * @param StockRequest $stockRequest
+     * @param array $approvals
+     * @return void
      */
-    public function getWarehouses(Request $request): JsonResponse
+    protected function initializeApprovals(StockRequest $stockRequest, array $approvals)
+    {
+        foreach ($approvals as $approval) {
+            $approvalData = [
+                'approvable_type' => StockRequest::class,
+                'approvable_id' => $stockRequest->id,
+                'document_name' => 'Stock Beginning',
+                'document_reference' => $stockRequest->request_number,
+                'request_type' => $approval['request_type'],
+                'approval_status' => 'Pending',
+                'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
+                'requester_id' => $stockRequest->created_by,
+                'responder_id' => $approval['user_id'],
+            ];
+            $this->approvalController->storeApproval($approvalData);
+        }
+    }
+
+    /**
+     * Get ordinal for a request type.
+     *
+     * @param string $requestType
+     * @return int
+     */
+    protected function getOrdinalForRequestType($requestType)
+    {
+        $ordinals = ['review' => 1, 'check' => 2, 'approve' => 3];
+        return $ordinals[$requestType] ?? 1;
+    }
+
+
+    // Other Services
+    public function fetchWarehousesForStockRequest(Request $request)
     {
         $this->authorize('viewAny', StockRequest::class);
-
-        try {
+        $user = $request->user();
+        if($user->hasRole('admin')) {
             $response = $this->warehouseService->getWarehouses($request);
             return response()->json($response);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch warehouses', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Failed to fetch warehouses',
-                'error' => $e->getMessage(),
-            ], 500);
         }
+        $response = $user->defaultWarehouse($request);
+        if (!$response) {
+            return response()->json([
+                'message' => 'No default warehouse assigned to this user.',
+            ], 404);
+        }
+        return response()->json([$response]);
     }
 
-        /**
-     * Fetch campuses for stock request.
-     *
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function getCampuses(Request $request)
+
+    public function fetchCampusesForStockRequest(Request $request)
     {
         $this->authorize('viewAny', StockRequest::class);
-
-        try {
+        $user = $request->user();
+        if($user->hasRole('admin')) {
             $response = $this->campusService->getCampuses($request);
             return response()->json($response);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch campuses', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Failed to fetch campuses',
-                'error' => $e->getMessage(),
-            ], 500);
         }
+        $response = $user->defaultCampus($request);
+        if (!$response) {
+            return response()->json([
+                'message' => 'No default campus assigned to this user.',
+            ], 404);
+        }
+        return response()->json([$response]);
     }
 
-    /**
-     * Fetch products for stock request.
-     *
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function getProducts(Request $request): JsonResponse
+    public function fetProductsForStockRequest(Request $request)
     {
         $this->authorize('viewAny', StockRequest::class);
-
-        try {
-            $response = $this->productService->getStockManagedVariants($request);
-            return response()->json($response);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch products', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Failed to fetch products',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        $response = $this->productService->getStockManagedVariants($request);
+        return response()->json($response);
     }
 }

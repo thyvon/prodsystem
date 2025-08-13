@@ -50,4 +50,9 @@ class StockRequest extends Model
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
+
+    public function approvals()
+    {
+        return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
+    }
 }

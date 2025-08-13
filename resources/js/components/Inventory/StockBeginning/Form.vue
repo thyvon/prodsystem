@@ -231,7 +231,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['submitted'])
-
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 const products = ref([])

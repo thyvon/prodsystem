@@ -248,22 +248,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Stock Request
 
-        Route::post('/stock-requests', [StockRequestController::class, 'store'])->name('api.stock-requests.store');
-
+        Route::post('/stock-beginnings', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
+        Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])->middleware('can:update,stockRequest')->name('api.stock-requests.edit');
+        Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
+        Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');
+        Route::get('/stock-requests/trashed', [StockRequestController::class, 'getTrashed'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.trashed');
+        Route::post('/stock-requests/{stockRequest}/restore', [StockRequestController::class, 'restore'])->middleware('can:restore,stockRequest')->name('api.stock-requests.restore');
+        Route::delete('/stock-requests/{stockRequest}/force', [StockRequestController::class, 'forceDelete'])->middleware('can:forceDelete,stockRequest')->name('api.stock-requests.forceDelete');
+        Route::get('/stock-requests/export', [StockRequestController::class, 'export'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.export');
         Route::get('/stock-requests/users-for-approval', [StockRequestController::class, 'getUsersForApproval'])->name('api.stock-requests.approval-users');
         Route::post('/stock-requests/{stockRequest}/submit-approval', [StockRequestController::class, 'submitApproval'])->name('api.stock-requests.submit-approval');
-        Route::post('/stock-requests/{stockRequest}/reassign-approval', [StockRequestController::class, 'reassignResponder'])
-            ->middleware('can:reassign,stockRequest')
-            ->name('api.stock-requests.reassign-approval');
-        Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'getWarehouses'])
-            ->middleware('can:viewAny,' . StockRequest::class)
-            ->name('api.stock-beginnings.get-warehouses');
-        Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'getCampuses'])
-            ->middleware('can:viewAny,' . StockRequest::class)
-            ->name('api.stock-beginnings.get-campuses');
-        Route::get('/stock-requests/get-products', [StockRequestController::class, 'getProducts'])
-            ->middleware('can:viewAny,' . StockRequest::class)
-            ->name('api.stock-beginnings.get-products');
+        Route::post('/stock-requests/{stockRequest}/reassign-approval', [StockRequestController::class, 'reassignResponder'])->middleware('can:reassign,stockRequest')->name('api.stock-requests.reassign-approval');
+        Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-warehouses');
+        Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-campuses');
+        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
     });
     
 
