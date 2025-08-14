@@ -248,7 +248,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Stock Request
 
-        Route::post('/stock-beginnings', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
+         Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
+        Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
         Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])->middleware('can:update,stockRequest')->name('api.stock-requests.edit');
         Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
         Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');

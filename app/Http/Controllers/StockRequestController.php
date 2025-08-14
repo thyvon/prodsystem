@@ -5,14 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\StockRequest;
 use App\Models\StockRequestItem;
 use App\Models\Warehouse;
+use App\Models\Campus;
 use App\Models\User;
 use App\Models\Approval;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
-// use Maatwebsite\Excel\Facades\Excel;
-// use App\Exports\StockBeginningsExport;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\StockRequestExport;
 // use App\Imports\StockBeginningsImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -55,7 +56,7 @@ class StockRequestController extends Controller
     public function index()
     {
         $this->authorize('viewAny', StockRequest::class);
-        return view('Inventory.stockRequestItem.index');
+        return view('Inventory.stockRequest.index');
     }
 
     /**
@@ -232,7 +233,8 @@ class StockRequestController extends Controller
             // Load related data including approvals
             $stockRequest->load([
                 'stockRequestItems.productVariant.product.unit',
-                'warehouse.building.campus',
+                'warehouse',
+                'campus',
                 'approvals.responder',
             ]);
 
@@ -274,14 +276,10 @@ class StockRequestController extends Controller
                 'warehouse' => $stockRequest->warehouse ? [
                     'id' => $stockRequest->warehouse->id,
                     'name' => $stockRequest->warehouse->name,
-                    'building' => $stockRequest->warehouse->building ? [
-                        'id' => $stockRequest->warehouse->building->id,
-                        'short_name' => $stockRequest->warehouse->building->short_name,
-                        'campus' => $stockRequest->warehouse->building->campus ? [
-                            'id' => $stockRequest->warehouse->building->campus->id,
-                            'short_name' => $stockRequest->warehouse->building->campus->short_name,
-                        ] : null,
-                    ] : null,
+                ] : null,
+                'campus' => $stockRequest->campus ? [
+                    'id' => $stockRequest->campus->id,
+                    'short_name' => $stockRequest->campus->short_name,
                 ] : null,
                 'approvals' => $stockRequest->approvals->map(function ($approval) {
                     return [
@@ -380,7 +378,7 @@ class StockRequestController extends Controller
                     $approvalData = [
                         'approvable_type' => StockRequest::class,
                         'approvable_id' => $stockRequest->id,
-                        'document_name' => 'Stock Beginning',
+                        'document_name' => 'Stock Request',
                         'document_reference' => $stockRequest->request_number,
                         'request_type' => $requestType,
                         'approval_status' => 'Pending',
@@ -511,6 +509,11 @@ class StockRequestController extends Controller
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin');
 
+        \Log::info('StockRequest relations:', [
+            'relationships' => array_keys((new StockRequest)->getRelations()),
+            'columns' => \Schema::getColumnListing('stock_requests'),
+        ]);
+
         // Get warehouse IDs only if NOT admin
         $warehouseIds = $isAdmin ? [] : $user->warehouses->pluck('id')->toArray();
 
@@ -525,7 +528,8 @@ class StockRequestController extends Controller
 
         $query = StockRequest::with([
                 'warehouse.building.campus',
-                'createdBy.defaultCampus',
+                'campus',
+                // 'createdBy.defaultCampus',
                 'stockRequestItems.productVariant.product.unit',
                 'createdBy',
                 'updatedBy',
@@ -571,6 +575,7 @@ class StockRequestController extends Controller
                 'request_date' => $item->request_date,
                 'warehouse_name' => $item->warehouse->name ?? null,
                 'campus_name' => $item->warehouse->building->campus->short_name ?? null,
+                'created_by_campus' => $item->createdBy->defaultCampus()->first()?->short_name ?? null,
                 'building_name' => $item->warehouse->building->short_name ?? null,
                 'quantity' => round($item->stockRequestItems->sum('quantity'), 4),
                 'total_price' => round($item->stockRequestItems->sum('total_price'), 4),
@@ -604,7 +609,6 @@ class StockRequestController extends Controller
         ]);
     }
 
-
     /**
      * Export stock requests to an Excel file.
      *
@@ -619,37 +623,45 @@ class StockRequestController extends Controller
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
             'sortDirection' => 'nullable|string|in:asc,desc',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'warehouse_id' => 'nullable|integer|exists:warehouses,id',
         ]);
 
-        $query = StockRequest::with(['warehouse', 'stockRequestItems.productVariant.product'])
-            ->when($validated['search'] ?? null, function ($query, $search) {
-                $query->where('request_number', 'like', "%{$search}%")
-                    ->orWhereHas('warehouse', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('stockRequestItems.productVariant.product', function ($q) use ($search) {
-                        $q->where(function ($q2) use ($search) {
-                            $q2->where('name', 'like', "%{$search}%")
-                                ->orWhere('khmer_name', 'like', "%{$search}%")
-                                ->orWhere('description', 'like', "%{$search}%")
-                                ->orWhere('item_code', 'like', "%{$search}%")
-                                ->orWhereHas('unit', function ($q3) use ($search) {
-                                    $q3->where('name', 'like', "%{$search}%");
-                                });
-                        });
-                    });
-            });
+        $query = StockRequest::with([
+                'warehouse.building.campus', 
+                'createdBy', 
+                'stockRequestItems.productVariant.product.unit'
+            ])
+            ->when($validated['search'] ?? null, function ($q, $search) {
+                $q->where('request_number', 'like', "%{$search}%")
+                ->orWhereHas('warehouse', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
+                ->orWhereHas('stockRequestItems.productVariant.product', fn($q3) => $q3->where(function ($q4) use ($search) {
+                    $q4->where('name', 'like', "%{$search}%")
+                        ->orWhere('khmer_name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('item_code', 'like', "%{$search}%")
+                        ->orWhereHas('unit', fn($q5) => $q5->where('name', 'like', "%{$search}%"));
+                }));
+            })
+            ->when($validated['start_date'] ?? null, fn($q, $start) => $q->whereDate('request_date', '>=', $start))
+            ->when($validated['end_date'] ?? null, fn($q, $end) => $q->whereDate('request_date', '<=', $end))
+            ->when($validated['warehouse_id'] ?? null, fn($q, $wid) => $q->where('warehouse_id', $wid));
 
         $sortColumn = in_array($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, self::ALLOWED_SORT_COLUMNS)
             ? $validated['sortColumn']
             : self::DEFAULT_SORT_COLUMN;
+
         $sortDirection = in_array(strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION), ['asc', 'desc'])
             ? $validated['sortDirection']
             : self::DEFAULT_SORT_DIRECTION;
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        return Excel::download(new StockBeginningsExport($query), 'stock_requests_' . now()->format('Ymd_His') . '.xlsx');
+        return Excel::download(
+            new StockRequestExport($query),
+            'stock_requests_' . now()->format('Ymd_His') . '.xlsx'
+        );
     }
 
     /**
@@ -726,7 +738,7 @@ class StockRequestController extends Controller
      */
     private function getSequenceNumber(string $shortName, string $monthYear): string
     {
-        $prefix = "STB-{$shortName}-{$monthYear}-";
+        $prefix = "STR-{$shortName}-{$monthYear}-";
 
         $count = StockRequest::withTrashed()
             ->where('request_number', 'like', "{$prefix}%")
@@ -1060,7 +1072,7 @@ class StockRequestController extends Controller
             $approvalData = [
                 'approvable_type' => StockRequest::class,
                 'approvable_id' => $stockRequest->id,
-                'document_name' => 'Stock Beginning',
+                'document_name' => 'Stock Request',
                 'document_reference' => $stockRequest->request_number,
                 'request_type' => $approval['request_type'],
                 'approval_status' => 'Pending',

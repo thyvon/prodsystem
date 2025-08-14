@@ -17,4 +17,9 @@ class Campus extends Model
     {
         return $this->hasMany(Building::class, 'campus_id');
     }
+
+    public function stockRequests()
+    {
+        return $this->hasMany(StockRequest::class);
+    }
 }

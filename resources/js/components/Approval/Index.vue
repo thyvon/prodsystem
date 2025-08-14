@@ -71,7 +71,7 @@ const datatableOptions = {
 const handlePreview = (approval) => {
   const typeRouteMap = {
     'App\\Models\\MainStockBeginning': 'approvals/stock-beginnings',
-    'App\\Models\\PurchaseRequest': 'purchase-requests',
+    'App\\Models\\StockRequest': 'approvals/stock-requests',
     'App\\Models\\PurchaseOrder': 'purchase-orders',
     // Add your other mappings here
   }

@@ -89,7 +89,7 @@ const renderColumnData = (key, val) => {
     return formatDate(val);
   }
     if (/_date$/.test(key) && val) {
-    return formatDateTime(val);
+    return formatDate(val);
   }
     if (key === 'is_active') {
     const badgeClass = val ? 'badge badge-success' : 'badge badge-secondary';

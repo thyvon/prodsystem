@@ -14,18 +14,18 @@
             <h5 class="font-weight-bold mb-3 text-primary">🏷️ Stock Request Details</h5>
             <div class="form-row">
               <div class="form-group col-md-3">
-                <label for="request_date" class="font-weight-bold">Request Date</label>
+                <label for="request_date" class="font-weight-bold">Request Date <span class="text-danger">*</span></label>
                 <input
                   v-model="form.request_date_display"
                   type="text"
                   class="form-control datepicker"
                   id="request_date"
                   required
-                  placeholder="MMM DD, YYYY (e.g., Jul 25, 2025)"
+                  placeholder="Enter request date"
                 />
               </div>
               <div class="form-group col-md-3">
-                <label for="campus_id" class="font-weight-bold">Campus</label>
+                <label for="campus_id" class="font-weight-bold">Campus <span class="text-danger">*</span></label>
                 <select
                   ref="campusSelect"
                   v-model="form.campus_id"
@@ -44,7 +44,7 @@
                 </select>
               </div>
               <div class="form-group col-md-3">
-                <label for="type" class="font-weight-bold">Type</label>
+                <label for="type" class="font-weight-bold">Type <span class="text-danger">*</span></label>
                 <select
                   ref="typeSelect"
                   class="form-control"
@@ -57,7 +57,7 @@
                 </select>
               </div>
               <div class="form-group col-md-3">
-                <label for="warehouse_id" class="font-weight-bold">Warehouse</label>
+                <label for="warehouse_id" class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
                 <select
                   ref="warehouseSelect"
                   v-model="form.warehouse_id"
@@ -78,52 +78,16 @@
             </div>
             <div class="form-row">
               <div class="form-group col-md-12">
-                <label for="purpose" class="font-weight-bold">Purpose</label>
+                <label for="purpose" class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
                 <textarea v-model="form.purpose" class="form-control" id="purpose" rows="2"></textarea>
               </div>
             </div>
           </div>
 
           <div class="border rounded p-3 mb-4">
-            <div class="form-row">
-              <div class="form-group col-md-4">
-                <label for="import_file" class="font-weight-bold">Import Stock Items</label>
-                <div class="input-group">
-                  <input
-                    type="file"
-                    class="d-none"
-                    id="import_file"
-                    accept=".xlsx,.xls,.csv"
-                    ref="fileInput"
-                    @change="handleFileUpload"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    @click="triggerFileInput"
-                  >
-                    <i class="fal fa-file-upload"></i>
-                    {{ selectedFileName || 'Choose file...' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-outline-primary btn-lg btn-icon rounded-circle hover-effect-dot ml-2"
-                    @click="importFile"
-                    :disabled="isImporting"
-                  >
-                    <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
-                    <i class="fal fa-upload"></i>
-                  </button>
-                  <a
-                    class="btn btn-outline-danger btn-lg btn-icon rounded-circle hover-effect-dot ml-2"
-                    href="/sampleExcel/stock_beginnings_sample.xlsx"
-                    download="stock_beginnings_sample.xlsx"
-                  >
-                    <i class="fal fa-file-excel"></i>
-                  </a>
-                </div>
-              </div>
-              <div class="form-group col-md-8">
+            <div class="form-row mb-3">
+              <div class="form-group col-md-12">
+                 <h5 class="font-weight-bold mb-3 text-primary">📦 Request Items <span class="text-danger">*</span></h5>
                 <label for="product_select" class="font-weight-bold">Add Product</label>
                 <select
                   ref="productSelect"
@@ -141,7 +105,6 @@
                 </select>
               </div>
             </div>
-            <h5 class="font-weight-bold mb-3 text-primary">📦 Stock Items</h5>
             <div class="table-responsive">
               <table id="stockItemsTable" class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
@@ -270,7 +233,6 @@ const props = defineProps({
 
 const emit = defineEmits(['submitted'])
 const isSubmitting = ref(false)
-const isImporting = ref(false)
 const products = ref([])
 const warehouses = ref([])
 const campuses = ref([])
@@ -279,8 +241,6 @@ const warehouseSelect = ref(null)
 const campusSelect = ref(null)
 const typeSelect = ref(null)
 const productSelect = ref(null)
-const fileInput = ref(null)
-const selectedFileName = ref('')
 const isEditMode = ref(!!props.initialData?.id)
 const stockRequestId = ref(props.initialData?.id || null)
 const table = ref(null)

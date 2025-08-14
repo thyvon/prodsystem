@@ -28,12 +28,13 @@ class StockRequest extends Model
 
     public function campus()
     {
-        return $this->belongsTo(Campus::class);
+        return $this->belongsTo(Campus::class , 'campus_id');
     }
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
     }
+
     public function stockRequestItems()
     {
         return $this->hasMany(StockRequestItem::class);

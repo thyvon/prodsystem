@@ -34,4 +34,9 @@ class Warehouse extends Model
     {
         return $this->hasMany(MainStockBeginning::class);
     }
+
+    public function stockRequests()
+    {
+        return $this->hasMany(StockRequest::class);
+    }
 }
