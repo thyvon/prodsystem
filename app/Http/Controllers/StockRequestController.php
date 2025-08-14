@@ -575,7 +575,7 @@ class StockRequestController extends Controller
                 'request_date' => $item->request_date,
                 'warehouse_name' => $item->warehouse->name ?? null,
                 'campus_name' => $item->warehouse->building->campus->short_name ?? null,
-                'created_by_campus' => $item->createdBy->defaultCampus()->first()?->short_name ?? null,
+                'created_by_campus' => $item->createdBy->defaultCampus()?->short_name ?? null,
                 'building_name' => $item->warehouse->building->short_name ?? null,
                 'quantity' => round($item->stockRequestItems->sum('quantity'), 4),
                 'total_price' => round($item->stockRequestItems->sum('total_price'), 4),
