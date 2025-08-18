@@ -100,7 +100,7 @@
                     :key="product.id"
                     :value="product.id"
                   >
-                    {{ product.item_code }} - {{ product.product_name }} {{ product.description }}
+                    <!-- {{ product.item_code }} - {{ product.product_name }} {{ product.description }} (Onhand: {{ product.stock_on_hand }}) -->
                   </option>
                 </select>
               </div>
@@ -112,8 +112,9 @@
                     <th style="min-width: 100px;">Code</th>
                     <th style="min-width: 300px;">Description</th>
                     <th style="min-width: 30px;">UoM</th>
-                    <th style="min-width: 100px;">Quantity</th>
-                    <th style="min-width: 120px;">Unit Price</th>
+                    <th style="min-width: 100px;">Qty On Hand</th>
+                    <th style="min-width: 100px;">Request Qty</th>
+                    <th style="min-width: 120px;">Avg Price</th>
                     <th style="min-width: 120px;">Total Value</th>
                     <th style="min-width: 200px;">Remarks</th>
                     <th style="min-width: 100px;">Actions</th>
@@ -274,13 +275,74 @@ const fetchUsersForApproval = async (requestType) => {
 
 const fetchProducts = async () => {
   try {
-    const response = await axios.get(`/api/inventory/stock-requests/get-products`)
+    const response = await axios.get(`/api/inventory/stock-requests/get-products`, {
+      params: {
+        warehouse_id: form.value.warehouse_id,
+        date: form.value.request_date,
+      }
+    })
     products.value = Array.isArray(response.data) ? response.data : response.data.data
+
+    // After fetching, re-render the table values
+    await Promise.all([
+      updateTableValues(),
+      rebuildProductSelect()
+    ])
   } catch (err) {
     console.error('Failed to load products:', err)
     showAlert('Error', 'Failed to load products.', 'danger')
   }
 }
+
+const rebuildProductSelect = async () => {
+  await nextTick();
+
+  // Destroy previous Select2 instance
+  if (productSelect.value) destroySelect2(productSelect.value);
+
+  // Clear options
+  const selectEl = productSelect.value;
+  selectEl.innerHTML = '<option value="">Select Product</option>';
+
+  products.value.forEach((p) => {
+    const option = document.createElement('option');
+    option.value = p.id;
+    option.textContent = `${p.item_code} - ${p.product_name} ${p.description} (Stock: ${p.stock_on_hand})`;
+
+    // Disable if stock_on_hand = 0
+    if (p.stock_on_hand === 0 || p.stock_on_hand === null) {
+      option.disabled = true;
+    }
+
+    selectEl.appendChild(option);
+  });
+
+  // Initialize Select2
+  if (selectEl) {
+    initSelect2(selectEl, { placeholder: 'Select Product', width: '100%', allowClear: true });
+
+    $(selectEl).on('select2:select', (e) => {
+      const productId = e.params.data.id;
+      addItem(productId); // Your function to add the item row
+    });
+  }
+};
+
+const updateTableValues = () => {
+  form.value.items.forEach((item, index) => {
+    const product = products.value.find(p => p.id === item.product_id)
+    if (product) {
+      const $row = $(`#stockItemsTable tbody tr:eq(${index})`)
+      $row.find('input').eq(0).val(product.stock_on_hand)
+      $row.find('input').eq(1).val(product.average_price)
+      const $qtyInput = $row.find('input.quantity-input')
+      $qtyInput.val(Math.min(item.quantity, product.stock_on_hand || 0))
+      $qtyInput.attr('max', product.stock_on_hand || 0)
+    }
+  })
+}
+
+
 
 const fetchWarehouses = async () => {
   try {
@@ -318,6 +380,22 @@ const ProductDescription = computed(() => {
   }
 })
 
+const ProductPrice = computed(() => {
+  return (productId) => {
+    if (!productId) return '-'
+    const product = products.value.find(p => p.id === productId)
+    return product ? `${product.average_price}` : '-'
+  }
+})
+
+const StockOnhand = computed(() => {
+  return (productId) => {
+    if (!productId) return '-'
+    const product = products.value.find(p => p.id === productId)
+    return product ? `${product.stock_on_hand}` : '-'
+  }
+})
+
 const ProductCode = computed(() => {
   return (productId) => {
     if (!productId) return '-'
@@ -325,6 +403,7 @@ const ProductCode = computed(() => {
     return product ? `${product.item_code}` : '-'
   }
 })
+
 
 const addApproval = async () => {
   if (isAddingApproval) return
@@ -504,7 +583,8 @@ const addItem = (productId) => {
       const newItem = {
         product_id: Number(productId),
         quantity: 1,
-        average_price: 0,
+        average_price: product.average_price,
+        stock_on_hand: product.stock_on_hand,
         remarks: '',
       }
       form.value.items.push(newItem)
@@ -649,6 +729,15 @@ watch(() => form.value.request_date_display, (newDisplayDate) => {
   }
 })
 
+watch(
+  [() => form.value.warehouse_id, () => form.value.request_date],
+  () => {
+    if (form.value.warehouse_id && form.value.request_date) {
+      fetchProducts()
+    }
+  }
+)
+
 onMounted(async () => {
   try {
     // Group incoming approvals and flag only the first one of each type as default
@@ -738,20 +827,22 @@ onMounted(async () => {
           render: (data) => itemUnitName.value(data)
         },
         {
+          data: 'product_id',
+          render: (data) => `<input type="text" class="form-control" value="${StockOnhand.value(data)}" readonly />`
+        },
+        {
           data: 'quantity',
           render: (data, type, row, meta) => `
             <input type="number" class="form-control quantity-input" value="${data}" min="0.0001" step="0.0001" required data-row="${meta.row}"/>
           `
         },
         {
-          data: 'average_price',
-          render: (data, type, row, meta) => `
-            <input type="number" class="form-control unit-price-input" value="${data}" min="0" step="0.0001" required data-row="${meta.row}"/>
-          `
+          data: 'product_id',
+          render: (data) => `<input type="text" class="form-control" value="${ProductPrice.value(data)}" readonly />`
         },
         {
           data: null,
-          render: (data) => (data.quantity * data.average_price).toFixed(4)
+          render: (data) => `<input type="text" class="form-control" value="${(data.quantity * data.average_price).toFixed(4)}" readonly />`
         },
         {
           data: 'remarks',
@@ -776,12 +867,6 @@ onMounted(async () => {
     $('#stockItemsTable').on('change', '.quantity-input', function () {
       const index = $(this).data('row')
       form.value.items[index].quantity = parseFloat($(this).val()) || 1
-      table.value.row(index).invalidate().draw()
-    })
-
-    $('#stockItemsTable').on('change', '.unit-price-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].average_price = parseFloat($(this).val()) || 0
       table.value.row(index).invalidate().draw()
     })
 

@@ -58,6 +58,8 @@ use App\Models\MainStockBeginning;
 use App\Http\Controllers\StockRequestController;
 use App\Models\StockRequest;
 
+use App\Http\Controllers\StockController;
+
 
 // Approval Management
 use App\Http\Controllers\ApprovalController;
@@ -179,6 +181,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
         Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
             ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
+
+        // Stock Onhand
+        Route::get('/stock-onhand', [StockController::class, 'index'])
+            ->name('stock-onhand.index');
     });
 
     //Approval View Route

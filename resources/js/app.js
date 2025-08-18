@@ -40,6 +40,7 @@ import ProductForm from './components/Product/ProductForm.vue'
 //Inventory Management
 import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
 import InventoryItemList from './components/Inventory/Items/ItemList.vue'
+import StockOnhandList from './components/Inventory/Items/stockOnHand.vue'
 import StockBeginningForm from './components/Inventory/StockBeginning/Form.vue'
 import StockBeginningList from './components/Inventory/StockBeginning/StockBeginningList.vue'
 import StockBeginningShow from './components/Inventory/StockBeginning/Show.vue'
@@ -89,6 +90,7 @@ import Datatable from './components/Reusable/Datatable.vue'
  //Inventory Management
  app.component('warehouse-page', WarehousePage)
  app.component('inventory-item-page', InventoryItemList)
+ app.component('stock-onhand-page', StockOnhandList)
 //========Stock Beginning
  app.component('stock-beginning-form', StockBeginningForm)
  app.component('stock-beginning-list', StockBeginningList)

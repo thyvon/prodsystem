@@ -56,6 +56,8 @@ use App\Http\Controllers\StockBeginningController;
 use App\Models\StockRequest;
 use App\Http\Controllers\StockRequestController;
 
+use App\Http\Controllers\StockController;
+
 // Approval Management
 use App\Models\Approval;
 use App\Http\Controllers\ApprovalController;
@@ -263,6 +265,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-warehouses');
         Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-campuses');
         Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
+
+
+        // Stock Onhand
+        Route::get('/stock-onhand', [StockController::class, 'getStockOnhand'])->name('api.stock-onhand.index');
     });
     
 

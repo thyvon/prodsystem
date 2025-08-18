@@ -80,14 +80,14 @@ const handlePreview = (stockRequest) => {
 
 const handleDelete = async (stockRequest) => {
   const confirmed = await confirmAction(
-    `Delete Stock Request "${stockRequest.reference_no}"?`,
+    `Delete Stock Request "${stockRequest.request_number}"?`,
     '<strong>Warning:</strong> This action cannot be undone!'
   )
   if (!confirmed) return
 
   try {
     const response = await axios.delete(`/api/inventory/stock-requests/${stockRequest.id}`)
-    showAlert('Deleted', response.data.message || `"${stockRequest.reference_no}" was deleted successfully.`, 'success')
+    showAlert('Deleted', response.data.message || `"${stockRequest.request_number}" was deleted successfully.`, 'success')
     datatableRef.value?.reload() // Ensure datatable refreshes
   } catch (e) {
     console.error(e)

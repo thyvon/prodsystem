@@ -7,24 +7,25 @@ use Illuminate\Http\Request;
 
 class ProductService
 {
-    /**
-     * Fetch stock-managed product variants with search, sorting, and pagination.
-     *
-     * @param Request $request
-     * @return array
-     */
+    protected $ledgerService;
+
+    public function __construct(StockLedgerService $ledgerService)
+    {
+        $this->ledgerService = $ledgerService;
+    }
+
     public function getStockManagedVariants(Request $request): array
     {
-        // Validate request input
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string|in:item_code,description,product_name,product_khmer_name,created_at,updated_at,is_active,created_by',
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:100',
             'draw' => 'nullable|integer',
+            'warehouse_id' => 'nullable|integer', // Optional warehouse filter
+            'date' => 'nullable|date',           // Optional cut-off date
         ]);
 
-        // Build the query
         $query = ProductVariant::with(['product.category', 'product.subCategory', 'product.unit', 'values.attribute'])
             ->whereHas('product', function ($q) use ($validated, $request) {
                 $q->where('manage_stock', 1);
@@ -32,54 +33,46 @@ class ProductService
                 if ($search = $validated['search'] ?? $request->input('search')) {
                     $q->where(function ($q2) use ($search) {
                         $q2->where('name', 'like', "%{$search}%")
-                            ->orWhere('khmer_name', 'like', "%{$search}%")
-                            ->orWhere('description', 'like', "%{$search}%")
-                            ->orWhere('item_code', 'like', "%{$search}%")
-                            ->orWhereHas('category', function ($q3) use ($search) {
-                                $q3->where('name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('subCategory', function ($q3) use ($search) {
-                                $q3->where('name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('unit', function ($q3) use ($search) {
-                                $q3->where('name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('createdBy', function ($q3) use ($search) {
-                                $q3->where('name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('variants', function ($q3) use ($search) {
-                                $q3->where('item_code', 'like', "%{$search}%")
-                                    ->orWhereHas('values', function ($q4) use ($search) {
-                                        $q4->whereHas('attribute', function ($q5) use ($search) {
-                                            $q5->where('name', 'like', "%{$search}%");
-                                        })->orWhere('value', 'like', "%{$search}%");
-                                    });
-                            });
+                           ->orWhere('khmer_name', 'like', "%{$search}%")
+                           ->orWhere('description', 'like', "%{$search}%")
+                           ->orWhere('item_code', 'like', "%{$search}%");
                     });
                 }
             });
 
-        // Apply sorting
+        // Sorting
         $allowedSortColumns = ['item_code', 'created_at', 'updated_at', 'is_active'];
         $sortColumn = $validated['sortColumn'] ?? $request->input('sortColumn', 'created_at');
         $sortDirection = $validated['sortDirection'] ?? $request->input('sortDirection', 'desc');
 
         $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'created_at';
-        $sortDirection = in_array(strtolower($sortDirection), ['asc', 'desc']) ? $sortDirection : 'desc';
+        $sortDirection = in_array(strtolower($sortDirection), ['asc','desc']) ? $sortDirection : 'desc';
 
         $query->orderBy($sortColumn, $sortDirection);
 
-        // Apply pagination
+        // Pagination
         $limit = max(1, min(100, (int) ($validated['limit'] ?? $request->input('limit', 10))));
         $variants = $query->paginate($limit);
 
-        // Transform the data
-        $data = $variants->getCollection()->map(function ($variant) {
+        $warehouseId = $validated['warehouse_id'] ?? null;
+        $date = $validated['date'] ?? now()->toDateString();
+
+        // Transform data and calculate stock & average price
+        $data = $variants->getCollection()->map(function ($variant) use ($warehouseId, $date) {
+
+        $runningQty = $warehouseId 
+            ? optional($this->ledgerService->recalcProduct($variant->id, $warehouseId, $date)->last())->running_qty ?? 0
+            : null;
+
+        // Global average price across all warehouses up to request date
+        $avgPrice = $this->ledgerService->getGlobalAvgPrice($variant->id, $date);
+
             return [
                 'id' => $variant->id,
                 'item_code' => $variant->item_code,
                 'estimated_price' => $variant->estimated_price,
-                'average_price' => $variant->average_price,
+                'average_price' => $avgPrice,
+                'stock_on_hand' => $runningQty,
                 'description' => $variant->description,
                 'image' => $variant->image ?: $variant->product->image ?? null,
                 'is_active' => (int) $variant->is_active,

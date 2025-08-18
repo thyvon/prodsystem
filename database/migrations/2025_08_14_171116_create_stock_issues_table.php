@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('stock_issues', function (Blueprint $table) {
             $table->id();
-            $table->date('issue_date');
+            $table->date('transaction_date');
             $table->string('reference_no')->unique();
             $table->unsignedBigInteger('warehouse_id');
             $table->string('remarks')->nullable();
