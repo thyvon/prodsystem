@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProductVariant;
+use App\Models\Warehouse;
 use Illuminate\Http\Request;
 
 class ProductService
@@ -33,12 +34,14 @@ class ProductService
                 if ($search = $validated['search'] ?? $request->input('search')) {
                     $q->where(function ($q2) use ($search) {
                         $q2->where('name', 'like', "%{$search}%")
-                           ->orWhere('khmer_name', 'like', "%{$search}%")
-                           ->orWhere('description', 'like', "%{$search}%")
-                           ->orWhere('item_code', 'like', "%{$search}%");
+                        ->orWhere('khmer_name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('item_code', 'like', "%{$search}%");
                     });
                 }
-            });
+            })
+            ->orderBy('item_code', 'asc'); // <- sort by item_code here
+
 
         // Sorting
         $allowedSortColumns = ['item_code', 'created_at', 'updated_at', 'is_active'];
@@ -96,4 +99,43 @@ class ProductService
             'draw' => (int) ($validated['draw'] ?? $request->input('draw', 1)),
         ];
     }
+
+        /**
+     * Get stock on hand by campus (warehouse) and global average price for a product variant.
+     */
+    public function getStockDetailByCampus(int $variantId, ?string $date = null): array
+    {
+        $date = $date ?? now()->toDateString();
+        $warehouses = Warehouse::select('id', 'name')->get();
+        $stockDetails = [];
+        $totalStock = 0;
+
+        // Get global average price once
+        $globalAvgPrice = $this->ledgerService->getGlobalAvgPrice($variantId, $date);
+
+        foreach ($warehouses as $warehouse) {
+            $movements = $this->ledgerService->recalcProduct($variantId, $warehouse->id, $date);
+            $last = $movements->last();
+
+            // Safe access
+            $stockOnHand = $last->running_qty ?? 0;
+
+            $stockDetails[] = [
+                'warehouse_id' => $warehouse->id,
+                'warehouse_name' => $warehouse->name,
+                'stock_on_hand' => $stockOnHand,
+                'average_price' => $globalAvgPrice,
+                'total_cost' => round($stockOnHand * $globalAvgPrice, 2),
+            ];
+
+            $totalStock += $stockOnHand;
+        }
+
+        return [
+            'stock_by_campus' => $stockDetails,
+            'total_stock' => $totalStock,
+            'global_average_price' => $globalAvgPrice,
+        ];
+    }
+
 }

@@ -160,7 +160,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
 
         // Inventory Items
-        Route::get('/items', [ProductController::class, 'inventoryItemsIndex'])
+        Route::get('/items', [StockController::class, 'stockList'])
             ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);
 
         // Stock Beginnings
@@ -182,9 +182,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
             ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
 
-        // Stock Onhand
-        Route::get('/stock-onhand', [StockController::class, 'index'])
-            ->name('stock-onhand.index');
+        // Stock Movements
+        Route::get('/stock-movements', [StockController::class, 'stockMovement'])
+            ->name('stock-movements.index');
     });
 
     //Approval View Route

@@ -14,12 +14,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\ProductService;
 
 /**
  * Controller for managing products with variants, including soft deletes and user tracking.
  */
 class ProductController extends Controller
 {
+
+    protected $productService;
+
+    public function __construct(
+        ProductService $productService,
+    ) {
+        $this->productService = $productService;
+    }
     /**
      * Display the product management view.
      *
@@ -658,20 +667,6 @@ class ProductController extends Controller
         return $itemCode;
     }
 
-
-    /**
-     * Retrieve stock-managed product variants.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-
-    public function inventoryItemsIndex()
-    {
-        $this->authorize('viewAny', Product::class);
-        return view('Inventory.Items.index');
-    }
-
     public function getStockManagedVariants(Request $request)
     {
         $this->authorize('viewAny', Product::class);
@@ -682,6 +677,7 @@ class ProductController extends Controller
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:100',
             'draw' => 'nullable|integer',
+            'date' => 'nullable|date', // Add date filter if you want to use cutoff
         ]);
 
         $query = ProductVariant::with(['product.category', 'product.subCategory', 'product.unit','values.attribute'])
@@ -726,17 +722,25 @@ class ProductController extends Controller
         $limit = max(1, min(100, (int) ($validated['limit'] ?? $request->input('limit', 10))));
         $variants = $query->paginate($limit);
 
-        $data = $variants->getCollection()->map(function ($variant) {
+        // Get the cutoff date if provided
+        $date = $validated['date'] ?? now()->toDateString();
+
+        // Make sure you have ProductService injected, e.g. via constructor
+        $data = $variants->getCollection()->map(function ($variant) use ($date) {
+            // Call your service for stock/campus/global price
+            $detail = $this->productService->getStockDetailByCampus($variant->id, $date);
+
             return [
                 'id' => $variant->id,
                 'item_code' => $variant->item_code,
                 'estimated_price' => $variant->estimated_price,
-                'average_price' => $variant->average_price,
+                'average_price' => $detail['global_average_price'],
+                'stock_by_campus' => $detail['stock_by_campus'],
+                'total_stock' => $detail['total_stock'],
                 'description' => $variant->description,
                 'image' => $variant->image ?: $variant->product->image ?? null,
                 'is_active' => (int) $variant->is_active,
                 'image_url' => $variant->image ? asset('storage/' . $variant->image) : ($variant->product->image ? asset('storage/' . $variant->product->image) : null),
-                // Optionally include parent product info:
                 'product_id' => $variant->product->id ?? null,
                 'product_name' => $variant->product->name ?? null,
                 'product_khmer_name' => $variant->product->khmer_name ?? null,

@@ -1,8 +1,8 @@
-@php($header = 'Stock Onhand')
+@php($header = 'Stock Movement')
 @extends('layouts.main')
 
 @section('content')
-  <stock-onhand-page :page-length="{{ $pageLength ?? 10 }}" />
+  <stock-movement-page :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')

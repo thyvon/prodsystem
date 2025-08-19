@@ -100,7 +100,6 @@
                     :key="product.id"
                     :value="product.id"
                   >
-                    <!-- {{ product.item_code }} - {{ product.product_name }} {{ product.description }} (Onhand: {{ product.stock_on_hand }}) -->
                   </option>
                 </select>
               </div>
@@ -288,6 +287,11 @@ const fetchProducts = async () => {
       updateTableValues(),
       rebuildProductSelect()
     ])
+
+    // Force DataTable to redraw with updated prices
+    if (table.value) {
+      table.value.rows().invalidate().draw()
+    }
   } catch (err) {
     console.error('Failed to load products:', err)
     showAlert('Error', 'Failed to load products.', 'danger')
@@ -332,12 +336,16 @@ const updateTableValues = () => {
   form.value.items.forEach((item, index) => {
     const product = products.value.find(p => p.id === item.product_id)
     if (product) {
+      // Update the item's data to match the latest product info
+      item.average_price = product.average_price
+      item.stock_on_hand = product.stock_on_hand
+      // Update the DOM inputs
       const $row = $(`#stockItemsTable tbody tr:eq(${index})`)
       $row.find('input').eq(0).val(product.stock_on_hand)
       $row.find('input').eq(1).val(product.average_price)
       const $qtyInput = $row.find('input.quantity-input')
-      $qtyInput.val(Math.min(item.quantity, product.stock_on_hand || 0))
-      $qtyInput.attr('max', product.stock_on_hand || 0)
+      $qtyInput.val(Number(item.quantity) || 0)
+      $qtyInput.attr('max', Number(product.stock_on_hand) || 0)
     }
   })
 }
@@ -920,19 +928,6 @@ onMounted(async () => {
 
       // Set initial value if needed
       $(typeSelect.value).val(form.value.type).trigger('change')
-    }
-
-    // Init product select
-    if (productSelect.value) {
-      initSelect2(productSelect.value, {
-        placeholder: 'Select Product',
-        width: '100%',
-        allowClear: true,
-      })
-      $(productSelect.value).on('select2:select', (e) => {
-        const productId = e.params.data.id
-        addItem(productId)
-      })
     }
 
     // Approval Type Select2

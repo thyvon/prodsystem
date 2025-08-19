@@ -223,7 +223,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/warehouses/buildings', [WarehouseController::class, 'getBuildings'])->middleware('can:viewAny,' . Warehouse::class);
 
         // Inventory Items
-        Route::get('/items', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
+        Route::get('/items', [StockController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
 
         // Stock Beginning
         Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.index');
@@ -267,8 +267,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
 
 
-        // Stock Onhand
-        Route::get('/stock-onhand', [StockController::class, 'getStockOnhand'])->name('api.stock-onhand.index');
+        // Stock Movement
+        Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
+
+        //Stock Transaction
+        Route::get('/stock-transactions', [StockTransactionController::class, 'getStockTransactions'])->name('api.stock-transactions.index');
     });
     
 
