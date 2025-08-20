@@ -180,7 +180,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
             ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
         Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
-            ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
+            ->name('stock-requests.edit')->middleware('can:update,stockRequest');
 
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])

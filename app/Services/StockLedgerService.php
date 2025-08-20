@@ -203,7 +203,7 @@ public function recalcProduct(int $productId, ?int $warehouseId = null, ?string 
 
             $runningValue += $totalCost;
             $runningQty   += $movement->quantity;
-            $runningWAP   = $runningQty > 0 ? $runningValue / $runningQty : 0;
+            $runningWAP = $runningQty > 0 ? round($runningValue / $runningQty, 4) : 0;
 
         } elseif (in_array($movement->movement_type, ['out','transfer_out'])) {
             $runningQty   -= $movement->quantity;

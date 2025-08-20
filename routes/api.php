@@ -249,8 +249,7 @@ Route::middleware('auth:sanctum')->group(function () {
             ->name('api.stock-beginnings.get-products');
 
         // Stock Request
-
-         Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
+        Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
         Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
         Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])->middleware('can:update,stockRequest')->name('api.stock-requests.edit');
         Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
@@ -264,7 +263,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/stock-requests/{stockRequest}/reassign-approval', [StockRequestController::class, 'reassignResponder'])->middleware('can:reassign,stockRequest')->name('api.stock-requests.reassign-approval');
         Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-warehouses');
         Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-campuses');
-        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
+        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetchProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
 
 
         // Stock Movement

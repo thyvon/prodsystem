@@ -43,19 +43,22 @@ const datatableParams = reactive({
   // Optionally add: page: 1, limit: 10, search: ''
 })
 
-const datatableHeaders = [
+const datatableHeaders = 
+[
   { text: 'Reference No', value: 'request_number', width: '10%' },
-  { text: 'Request Date', value: 'request_date', width: '15%' },
-  { text: 'Warehouse', value: 'warehouse_name', width: '20%' },
-  { text: 'Building', value: 'building_name', width: '7%' },
-  { text: 'Quantity', value: 'quantity', width: '7%' },
-  { text: 'Amount', value: 'total_price', width: '7%' },
-  { text: 'Requested By', value: 'created_by', width: '10%' },
-  { text: 'Campus', value: 'created_by_campus', width: '7%' },
+  { text: 'Request Date', value: 'request_date', width: '12%' },
+  { text: 'Warehouse', value: 'warehouse_name', width: '18%' },
+  { text: 'Building', value: 'building_name', width: '6%' },
+  { text: 'Warehouse Campus', value: 'warehouse_campus_name', width: '6%' },
+  { text: 'Quantity', value: 'quantity', width: '6%' },
+  { text: 'Amount', value: 'total_price', width: '6%' },
+  { text: 'Requested By', value: 'created_by', width: '9%' },
+  { text: 'Campus', value: 'user_campus_name', width: '6%' },
   { text: 'Created', value: 'created_at', width: '8%' },
-  { text: 'Updated', value: 'updated_at', width: '15%' },
-  { text: 'Approval Status', value: 'approval_status', width: '10%' }
+  { text: 'Updated', value: 'updated_at', width: '8%' },
+  { text: 'Approval Status', value: 'approval_status', width: '9%' },
 ]
+
 
 const datatableFetchUrl = '/api/inventory/stock-requests'
 const datatableActions = ['edit', 'delete', 'preview']

@@ -24,7 +24,7 @@ class StockRequestPolicy
     public function view(User $user, StockRequest $stockRequest): bool
     {
         return $user->can('stockRequest.view') &&
-            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            // $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
             $user->hasWarehouseAccess($stockRequest->warehouse_id) ||
             $user->can('stockRequest.review') ||
             $user->can('stockRequest.check') ||
@@ -39,30 +39,32 @@ class StockRequestPolicy
     public function update(User $user, StockRequest $stockRequest): bool
     {
         return $user->can('stockRequest.update') &&
-            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            // $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
             $user->hasWarehouseAccess($stockRequest->warehouse_id) &&
-            $stockRequest->approval_status === 'Pending';
+            $stockRequest->approval_status === 'Pending' &&
+            $stockRequest->created_by === $user->id;
     }
 
     public function delete(User $user, StockRequest $stockRequest): bool
     {
         return $user->can('stockRequest.delete') &&
-            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            // $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
             $user->hasWarehouseAccess($stockRequest->warehouse_id) &&
-            $stockRequest->approval_status === 'Pending';
+            $stockRequest->approval_status === 'Pending' &&
+            $stockRequest->created_by === $user->id;
     }
 
     public function restore(User $user, StockRequest $stockRequest): bool
     {
         return $user->can('stockRequest.restore') &&
-            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            // $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
             $user->hasWarehouseAccess($stockRequest->warehouse_id);
     }
 
     public function forceDelete(User $user, StockRequest $stockRequest): bool
     {
         return $user->can('stockRequest.forceDelete') &&
-            $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
+            // $user->defaultWarehouse()?->id === $stockRequest->warehouse_id &&
             $user->hasWarehouseAccess($stockRequest->warehouse_id);
     }
 

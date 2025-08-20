@@ -13,7 +13,7 @@
           <div class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">🏷️ Stock Request Details</h5>
             <div class="form-row">
-              <div class="form-group col-md-3">
+              <div class="form-group col-md-4">
                 <label for="request_date" class="font-weight-bold">Request Date <span class="text-danger">*</span></label>
                 <input
                   v-model="form.request_date_display"
@@ -24,26 +24,7 @@
                   placeholder="Enter request date"
                 />
               </div>
-              <div class="form-group col-md-3">
-                <label for="campus_id" class="font-weight-bold">Campus <span class="text-danger">*</span></label>
-                <select
-                  ref="campusSelect"
-                  v-model="form.campus_id"
-                  class="form-control"
-                  id="campus_id"
-                  required
-                >
-                  <option value="">Select Campus</option>
-                  <option
-                    v-for="campus in campuses"
-                    :key="campus.id"
-                    :value="campus.id"
-                  >
-                    {{ campus.name }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-group col-md-3">
+              <div class="form-group col-md-4">
                 <label for="type" class="font-weight-bold">Type <span class="text-danger">*</span></label>
                 <select
                   ref="typeSelect"
@@ -56,7 +37,7 @@
                   <option value="Donate">Donate</option>
                 </select>
               </div>
-              <div class="form-group col-md-3">
+              <div class="form-group col-md-4">
                 <label for="warehouse_id" class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
                 <select
                   ref="warehouseSelect"
@@ -235,10 +216,8 @@ const emit = defineEmits(['submitted'])
 const isSubmitting = ref(false)
 const products = ref([])
 const warehouses = ref([])
-const campuses = ref([])
 const users = ref({ review: [], check: [], approve: [] })
 const warehouseSelect = ref(null)
-const campusSelect = ref(null)
 const typeSelect = ref(null)
 const productSelect = ref(null)
 const isEditMode = ref(!!props.initialData?.id)
@@ -249,7 +228,6 @@ let isAddingApproval = false
 
 const form = ref({
   warehouse_id: null,
-  campus_id: null,
   request_date: '',
   type: '',
   purpose: '',
@@ -359,16 +337,6 @@ const fetchWarehouses = async () => {
   } catch (err) {
     console.error('Failed to load warehouses:', err)
     showAlert('Error', 'Failed to load warehouses.', 'danger')
-  }
-}
-
-const fetchCampuses = async () => {
-  try {
-    const response = await axios.get(`/api/inventory/stock-requests/get-campuses`)
-    campuses.value = Array.isArray(response.data) ? response.data : response.data.data
-  } catch (err) {
-    console.error('Failed to load campuses:', err)
-    showAlert('Error', 'Failed to load campuses.', 'danger')
   }
 }
 
@@ -590,6 +558,8 @@ const addItem = (productId) => {
     } else {
       const newItem = {
         product_id: Number(productId),
+        department_id: null,
+        campus_id: null,
         quantity: 1,
         average_price: product.average_price,
         stock_on_hand: product.stock_on_hand,
@@ -645,13 +615,14 @@ const submitForm = async () => {
   try {
     const payload = {
       warehouse_id: form.value.warehouse_id,
-      campus_id: form.value.campus_id,
       request_date: form.value.request_date,
       type: form.value.type,
       purpose: form.value.purpose,
       items: form.value.items.map(item => ({
         id: item.id || null,
         product_id: item.product_id,
+        department_id: item.department_id || null,
+        campus_id: item.campus_id || null,
         quantity: parseFloat(item.quantity),
         average_price: parseFloat(item.average_price),
         remarks: item.remarks?.toString().trim() || null,
@@ -754,7 +725,6 @@ onMounted(async () => {
 
     if (props.initialData?.id) {
       form.value.warehouse_id = props.initialData.warehouse_id
-      form.value.campus_id = props.initialData.campus_id
       form.value.type = props.initialData.type
       form.value.purpose = props.initialData.purpose
       form.value.request_date = props.initialData.request_date
@@ -776,6 +746,8 @@ onMounted(async () => {
         quantity: parseFloat(item.quantity) || 1,
         average_price: parseFloat(item.average_price) || 0,
         remarks: item.remarks || '',
+        department_id: item.department_id || null,
+        campus_id: item.campus_id || null,
       })) || []
 
       // Approvals: flag first of each type as isDefault, allow duplicates
@@ -808,7 +780,6 @@ onMounted(async () => {
     await Promise.all([
       fetchProducts(),
       fetchWarehouses(),
-      fetchCampuses(),
       Promise.all(defaultTypes.map(fetchUsersForApproval))
     ])
 
@@ -847,6 +818,14 @@ onMounted(async () => {
         {
           data: 'product_id',
           render: (data) => `<input type="text" class="form-control" value="${ProductPrice.value(data)}" readonly />`
+        },
+        {
+          data: 'department_id',
+          render: (data) => `<input type="text" class="form-control" value="${DepartmentName.value(data)}" readonly />`
+        },
+        {
+          data: 'campus_id',
+          render: (data) => `<input type="text" class="form-control" value="${CampusName.value(data)}" readonly />`
         },
         {
           data: null,
@@ -902,23 +881,9 @@ onMounted(async () => {
       }
     }
 
-    // Init campus select
-    await nextTick()
-    if (campusSelect.value) {
-      initSelect2(campusSelect.value, {
-        placeholder: 'Select Campus',
-        width: '100%',
-        allowClear: true,
-      }, (v) => (form.value.campus_id = v))
-
-      if (form.value.campus_id) {
-        $(campusSelect.value).val(form.value.campus_id).trigger('change')
-      }
-    }
-
     if (typeSelect.value) {
       initSelect2(typeSelect.value, {
-        placeholder: 'Select Campus',
+        placeholder: 'Select Type',
         width: '100%',
         allowClear: true,
       }, (v) => {
@@ -927,7 +892,11 @@ onMounted(async () => {
       })
 
       // Set initial value if needed
+      if (!form.value.type) {
+        form.value.type = 'Using'  // default type
+      }
       $(typeSelect.value).val(form.value.type).trigger('change')
+
     }
 
     // Approval Type Select2
@@ -975,9 +944,6 @@ onUnmounted(() => {
     }
     if (warehouseSelect.value) {
       destroySelect2(warehouseSelect.value)
-    }
-    if (campusSelect.value) {
-      destroySelect2(campusSelect.value)
     }
 
     if (typeSelect.value) {

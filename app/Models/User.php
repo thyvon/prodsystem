@@ -70,6 +70,11 @@ class User extends Authenticatable
                     ->withTimestamps();
     }
 
+    public function defaultCampus()
+    {
+        return $this->campus()->wherePivot('is_default', true)->first();
+    }
+
     public function warehouses()
     {
         return $this->belongsToMany(Warehouse::class, 'warehouse_user')
@@ -98,11 +103,7 @@ class User extends Authenticatable
     {
         return $this->departments()->wherePivot('is_default', true)->first();
     }
-
-    public function defaultCampus()
-    {
-        return $this->campus()->wherePivot('is_default', true)->first();
-    }
+    
 
     public function defaultPosition()
     {

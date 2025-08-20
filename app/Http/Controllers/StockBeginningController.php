@@ -229,18 +229,6 @@ class StockBeginningController extends Controller
                 'approvals.responder',
             ]);
 
-                    \Log::debug('Approvals loaded:', $mainStockBeginning->approvals->map(function ($approval) {
-            return [
-                'id' => $approval->id,
-                'responder_id' => $approval->responder_id,
-                'responder_name' => $approval->responder->name ?? null,
-                'request_type' => $approval->request_type,
-                'approval_status' => $approval->approval_status ?? null,
-                'comment' => $approval->comment ?? null,
-                'created_at' => $approval->created_at->toDateTimeString(),
-            ];
-        })->toArray());
-
             // Prepare data for the Vue form
             $stockBeginningData = [
                 'id' => $mainStockBeginning->id,

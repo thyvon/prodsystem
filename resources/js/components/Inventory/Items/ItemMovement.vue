@@ -50,8 +50,8 @@ const datatableHeaders = [
   { text: 'Discount', value: 'discount', width: '5%', sortable: true, align: 'right' },
   { text: 'Delivery Fee', value: 'delivery_fee', width: '5%', sortable: true, align: 'right' },
   { text: 'Running Qty', value: 'running_qty', width: '5%', sortable: true, align: 'right' },
-  { text: 'Running Value', value: 'running_value', width: '8%', sortable: true, align: 'right' },
-  { text: 'WAP', value: 'running_wap', width: '5%', sortable: true, align: 'right' }
+  { text: 'WAP', value: 'running_wap', width: '5%', sortable: true, align: 'right' },
+  { text: 'Running Value', value: 'running_value', width: '8%', sortable: true, align: 'right' }
 ]
 
 const datatableFetchUrl = '/api/inventory/stock-movements'

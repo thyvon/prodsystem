@@ -167,7 +167,7 @@ public function getStockMovements(Request $request)
     foreach ($variants as $variant) {
         $movements = $this->ledgerService->recalcProduct($variant->id, null, $cutoffDate);
 
-        foreach ($movements as $m) {
+        foreach ($movements as $movements) {
             $data->push([
                 'variant_id' => $variant->id,
                 'item_code' => $variant->item_code,
@@ -178,20 +178,20 @@ public function getStockMovements(Request $request)
                 'category_name' => $variant->product->category->name ?? null,
                 'sub_category_name' => $variant->product->subCategory->name ?? null,
                 'unit_name' => $variant->product->unit->name ?? null,
-                'movement_date' => $m->transaction_date,
-                'movement_type' => $m->movement_type,
-                'warehouse_id' => $m->warehouse_id,
-                'warehouse_name' => $warehouses[$m->warehouse_id] ?? 'Unknown',
-                // 'destination_warehouse_id' => $m->destination_warehouse_id,
-                // 'destination_warehouse_name' => $m->destination_warehouse_id ? ($warehouses[$m->destination_warehouse_id] ?? 'Unknown') : null,
-                'quantity' => $m->quantity,
-                'unit_price' => $m->unit_price,
-                'vat' => $m->vat,
-                'discount' => $m->discount,
-                'delivery_fee' => $m->delivery_fee,
-                'running_qty' => $m->running_qty,
-                'running_value' => $m->running_value,
-                'running_wap' => $m->running_wap,
+                'movement_date' => $movements->transaction_date,
+                'movement_type' => $movements->movement_type,
+                'warehouse_id' => $movements->warehouse_id,
+                'warehouse_name' => $warehouses[$movements->warehouse_id] ?? 'Unknown',
+                // 'destination_warehouse_id' => $movements->destination_warehouse_id,
+                // 'destination_warehouse_name' => $movements->destination_warehouse_id ? ($warehouses[$movements->destination_warehouse_id] ?? 'Unknown') : null,
+                'quantity' => $movements->quantity,
+                'unit_price' => $movements->unit_price,
+                'vat' => $movements->vat,
+                'discount' => $movements->discount,
+                'delivery_fee' => $movements->delivery_fee,
+                'running_qty' => $movements->running_qty,
+                'running_value' => $movements->running_value,
+                'running_wap' => $movements->running_wap,
             ]);
         }
     }
@@ -199,15 +199,15 @@ public function getStockMovements(Request $request)
     // Filter search
     if ($search) {
         $searchLower = strtolower($search);
-        $data = $data->filter(function($m) use ($searchLower) {
-            return str_contains(strtolower($m['item_code']), $searchLower)
-                || str_contains(strtolower($m['product_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['product_khmer_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['category_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['sub_category_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['unit_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['warehouse_name'] ?? ''), $searchLower)
-                || str_contains(strtolower($m['destination_warehouse_name'] ?? ''), $searchLower);
+        $data = $data->filter(function($movements) use ($searchLower) {
+            return str_contains(strtolower($movements['item_code']), $searchLower)
+                || str_contains(strtolower($movements['product_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['product_khmer_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['category_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['sub_category_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['unit_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['warehouse_name'] ?? ''), $searchLower)
+                || str_contains(strtolower($movements['destination_warehouse_name'] ?? ''), $searchLower);
         })->values();
     }
 

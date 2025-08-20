@@ -174,11 +174,17 @@ class StockRequestController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['request_date']);
+                $userCampus = auth()->user()->defaultCampus(); // returns model or null
 
+                if (!$userCampus) {
+                    return response()->json([
+                        'message' => 'No default campus assigned to this user.',
+                    ], 404);
+                }
                 $stockRequest = StockRequest::create([
                     'request_number' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
-                    'campus_id' => $validated['campus_id'],
+                    'campus_id' => $userCampus->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -190,6 +196,8 @@ class StockRequestController extends Controller
                     return [
                         'stock_request_id' => $stockRequest->id,
                         'product_id' => $item['product_id'],
+                        'campus_id' => $item['campus_id'],
+                        'department_id' => $item['department_id'],
                         'quantity' => $item['quantity'],
                         'average_price' => $item['average_price'],
                         'total_price' => $item['quantity'] * $item['average_price'],
@@ -238,18 +246,6 @@ class StockRequestController extends Controller
                 'approvals.responder',
             ]);
 
-                    \Log::debug('Approvals loaded:', $stockRequest->approvals->map(function ($approval) {
-            return [
-                'id' => $approval->id,
-                'responder_id' => $approval->responder_id,
-                'responder_name' => $approval->responder->name ?? null,
-                'request_type' => $approval->request_type,
-                'approval_status' => $approval->approval_status ?? null,
-                'comment' => $approval->comment ?? null,
-                'created_at' => $approval->created_at->toDateTimeString(),
-            ];
-        })->toArray());
-
             // Prepare data for the Vue form
             $stockRequestItemData = [
                 'id' => $stockRequest->id,
@@ -263,6 +259,8 @@ class StockRequestController extends Controller
                     return [
                         'id' => $item->id,
                         'product_id' => $item->product_id,
+                        'department_id' => $item->department_id,
+                        'campus_id' => $item->campus_id,
                         'quantity' => $item->quantity,
                         'average_price' => $item->average_price,
                         'total_price' => $item->total_price,
@@ -346,9 +344,15 @@ class StockRequestController extends Controller
         try {
             return DB::transaction(function () use ($validated, $stockRequest) {
                 // Update main stock request header
+                $userCampus = auth()->user()->defaultCampus(); // returns model or null
+                if (!$userCampus) {
+                    return response()->json([
+                        'message' => 'No default campus assigned to this user.',
+                    ], 404);
+                }
                 $stockRequest->update([
                     'warehouse_id' => $validated['warehouse_id'],
-                    'campus_id' => $validated['campus_id'],
+                    'campus_id' => $userCampus->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -411,6 +415,8 @@ class StockRequestController extends Controller
                         if ($stockRequestItem) {
                             $stockRequestItem->update([
                                 'product_id' => $item['product_id'],
+                                'department_id' => $item['department_id'],
+                                'campus_id' => $item['campus_id'],
                                 'quantity' => $item['quantity'],
                                 'average_price' => $item['average_price'],
                                 'total_price' => $item['quantity'] * $item['average_price'],
@@ -423,6 +429,8 @@ class StockRequestController extends Controller
                         $itemsToInsert[] = [
                             'stock_request_id' => $stockRequest->id,
                             'product_id' => $item['product_id'],
+                            'department_id' => $item['department_id'],
+                            'campus_id' => $item['campus_id'],
                             'quantity' => $item['quantity'],
                             'average_price' => $item['average_price'],
                             'total_price' => $item['quantity'] * $item['average_price'],
@@ -508,14 +516,7 @@ class StockRequestController extends Controller
         $this->authorize('viewAny', StockRequest::class);
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin');
-
-        \Log::info('StockRequest relations:', [
-            'relationships' => array_keys((new StockRequest)->getRelations()),
-            'columns' => \Schema::getColumnListing('stock_requests'),
-        ]);
-
-        // Get warehouse IDs only if NOT admin
-        $warehouseIds = $isAdmin ? [] : $user->warehouses->pluck('id')->toArray();
+        $campusIds = $isAdmin ? [] : $user->campus->pluck('id')->toArray();
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
@@ -535,7 +536,7 @@ class StockRequestController extends Controller
                 'updatedBy',
             ])
             // Apply warehouse filter only if NOT admin
-            ->when(!$isAdmin, fn($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->when(!$isAdmin, fn($q) => $q->whereIn('campus_id', $campusIds))
             ->when($validated['search'] ?? null, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('request_number', 'like', "%{$search}%")
@@ -554,7 +555,7 @@ class StockRequestController extends Controller
 
         $recordsTotal = $isAdmin
             ? StockRequest::count()
-            : StockRequest::whereIn('warehouse_id', $warehouseIds)->count();
+            : StockRequest::whereIn('campus_id', $campusIds)->count();
 
         $recordsFiltered = $query->count();
 
@@ -574,8 +575,8 @@ class StockRequestController extends Controller
                 'request_number' => $item->request_number,
                 'request_date' => $item->request_date,
                 'warehouse_name' => $item->warehouse->name ?? null,
-                'campus_name' => $item->warehouse->building->campus->short_name ?? null,
-                'created_by_campus' => $item->createdBy->defaultCampus()?->short_name ?? null,
+                'warehouse_campus_name' => $item->warehouse->building->campus->short_name ?? null,
+                'user_campus_name' => $item->campus->short_name ?? null,
                 'building_name' => $item->warehouse->building->short_name ?? null,
                 'quantity' => round($item->stockRequestItems->sum('quantity'), 4),
                 'total_price' => round($item->stockRequestItems->sum('total_price'), 4),
@@ -588,6 +589,8 @@ class StockRequestController extends Controller
                     return [
                         'id' => $sb->id,
                         'product_id' => $sb->product_id,
+                        'department_id' => $sb->department_id,
+                        'campus_id' => $sb->campus_id,
                         'item_code' => $sb->productVariant->item_code ?? null,
                         'quantity' => $sb->quantity,
                         'average_price' => $sb->average_price,
@@ -675,7 +678,6 @@ class StockRequestController extends Controller
         return [
             'request_date' => ['required', 'date', 'date_format:' . self::DATE_FORMAT],
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
-            'campus_id' => ['required', 'integer', 'exists:campus,id'],
             'type' => ['required', 'string'],
             'purpose' => ['nullable', 'string', 'max:1000'],
         ];
@@ -692,6 +694,8 @@ class StockRequestController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:stock_request_items,id'],
             'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.department_id' => ['required', 'integer', 'exists:departments,id'],
+            'items.*.campus_id' => ['required', 'integer', 'exists:campus,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.average_price' => ['required', 'numeric', 'min:0'],
             'items.*.remarks' => ['nullable', 'string', 'max:1000'],
@@ -1101,19 +1105,21 @@ class StockRequestController extends Controller
     public function fetchWarehousesForStockRequest(Request $request)
     {
         $this->authorize('viewAny', StockRequest::class);
+
         $user = $request->user();
-        if($user->hasRole('admin')) {
-            $response = $this->warehouseService->getWarehouses($request);
-            return response()->json($response);
+        if ($user->hasRole('admin')) {
+            $warehouses = $this->warehouseService->getWarehouses($request);
+            return response()->json($warehouses);
         }
-        $response = $user->defaultWarehouse($request);
-        if (!$response) {
+        if (!$user->warehouses()->exists()) {
             return response()->json([
-                'message' => 'No default warehouse assigned to this user.',
+                'message' => 'No warehouses assigned to this user.',
             ], 404);
         }
-        return response()->json([$response]);
+        $warehouses = $user->warehouses()->get();
+        return response()->json($warehouses);
     }
+
 
 
     public function fetchCampusesForStockRequest(Request $request)
@@ -1121,19 +1127,19 @@ class StockRequestController extends Controller
         $this->authorize('viewAny', StockRequest::class);
         $user = $request->user();
         if($user->hasRole('admin')) {
-            $response = $this->campusService->getCampuses($request);
-            return response()->json($response);
+            $campus = $this->campusService->getCampuses($request);
+            return response()->json($campus);
         }
-        $response = $user->defaultCampus($request);
-        if (!$response) {
+        if (!$user->campus()->exists()) {
             return response()->json([
-                'message' => 'No default campus assigned to this user.',
+                'message' => 'No campuses assigned to this user.',
             ], 404);
         }
-        return response()->json([$response]);
+        $campus = $user->campus()->get();
+        return response()->json($campus);
     }
 
-    public function fetProductsForStockRequest(Request $request)
+    public function fetchProductsForStockRequest(Request $request)
     {
         $this->authorize('viewAny', StockRequest::class);
         $response = $this->productService->getStockManagedVariants($request);
