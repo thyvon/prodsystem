@@ -18,6 +18,8 @@ class StockRequestItem extends Model
         'quantity',
         'average_price',
         'total_price',
+        'campus_id',
+        'department_id',
         'remarks',
         'created_by',
         'updated_by',
@@ -47,5 +49,15 @@ class StockRequestItem extends Model
     public function productVariant()
     {
         return $this->belongsTo(ProductVariant::class, 'product_id');
+    }
+
+    public function campus()
+    {
+        return $this->belongsTo(Campus::class, 'campus_id');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
     }
 }

@@ -96,6 +96,8 @@
                     <th style="min-width: 100px;">Request Qty</th>
                     <th style="min-width: 120px;">Avg Price</th>
                     <th style="min-width: 120px;">Total Value</th>
+                    <th style="min-width: 120px;">Department</th>
+                    <th style="min-width: 120px;">Campus</th>
                     <th style="min-width: 200px;">Remarks</th>
                     <th style="min-width: 100px;">Actions</th>
                   </tr>
@@ -210,6 +212,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  departments: { type: Array, default: () => [] },
+  campuses: { type: Array, default: () => [] },
+  defaultDepartment: { type: Object, default: () => null },
+  defaultCampus: { type: Object, default: () => null }
 })
 
 const emit = defineEmits(['submitted'])
@@ -218,6 +224,8 @@ const products = ref([])
 const warehouses = ref([])
 const users = ref({ review: [], check: [], approve: [] })
 const warehouseSelect = ref(null)
+const departmentSelect = ref(null)
+const campusSelect = ref(null)
 const typeSelect = ref(null)
 const productSelect = ref(null)
 const isEditMode = ref(!!props.initialData?.id)
@@ -234,6 +242,10 @@ const form = ref({
   request_date_display: '',
   items: [],
   approvals: [],
+  departments: props.departments, // Blade data
+  campuses: props.campuses,       // Blade data
+  defaultDepartment: props.defaultDepartment,
+  defaultCampus: props.defaultCampus
 })
 
 const goToIndex = () => { window.location.href = `/inventory/stock-requests` }
@@ -327,8 +339,6 @@ const updateTableValues = () => {
     }
   })
 }
-
-
 
 const fetchWarehouses = async () => {
   try {
@@ -719,55 +729,54 @@ watch(
 
 onMounted(async () => {
   try {
-    // Group incoming approvals and flag only the first one of each type as default
-    const defaultTypes = ['review', 'check', 'approve']
+    const defaultApprovalTypes = ['review', 'check', 'approve']
     const seenTypes = new Set()
 
+    // ------------------ Initialize form ------------------
     if (props.initialData?.id) {
+      // Edit mode
       form.value.warehouse_id = props.initialData.warehouse_id
       form.value.type = props.initialData.type
       form.value.purpose = props.initialData.purpose
       form.value.request_date = props.initialData.request_date
 
+      // Format display date
       if (props.initialData.request_date) {
         const [year, month, day] = props.initialData.request_date.split('-')
         const date = new Date(year, month - 1, day)
         form.value.request_date_display = date.toLocaleDateString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
+          month: 'short', day: '2-digit', year: 'numeric',
         })
       }
 
-      // Prepare stock items
+      // Initialize stock items
       form.value.items = props.initialData.items?.map(item => ({
         id: item.id || null,
         product_id: Number(item.product_id),
         quantity: parseFloat(item.quantity) || 1,
         average_price: parseFloat(item.average_price) || 0,
         remarks: item.remarks || '',
-        department_id: item.department_id || null,
-        campus_id: item.campus_id || null,
+        department_id: item.department_id || props.defaultDepartment?.id || null,
+        campus_id: item.campus_id || props.defaultCampus?.id || null,
       })) || []
 
-      // Approvals: flag first of each type as isDefault, allow duplicates
-      form.value.approvals = props.initialData.approvals?.map((approval, i, arr) => {
-        const isFirstOfType = !seenTypes.has(approval.request_type)
-        if (isFirstOfType && defaultTypes.includes(approval.request_type)) {
-          seenTypes.add(approval.request_type)
-        }
+      // Initialize approvals
+      form.value.approvals = props.initialData.approvals?.map(approval => {
+        const isFirst = !seenTypes.has(approval.request_type)
+        if (isFirst && defaultApprovalTypes.includes(approval.request_type)) seenTypes.add(approval.request_type)
 
         return {
           id: approval.id || null,
           user_id: Number(approval.user_id),
           request_type: approval.request_type || 'approve',
-          isDefault: isFirstOfType && defaultTypes.includes(approval.request_type),
+          isDefault: isFirst && defaultApprovalTypes.includes(approval.request_type),
           availableUsers: [],
         }
       }) || []
+
     } else {
-      // If new entry, push one default of each type
-      form.value.approvals = defaultTypes.map(type => ({
+      // New form
+      form.value.approvals = defaultApprovalTypes.map(type => ({
         id: null,
         request_type: type,
         user_id: null,
@@ -776,158 +785,125 @@ onMounted(async () => {
       }))
     }
 
-    // Load all necessary data
-    await Promise.all([
-      fetchProducts(),
-      fetchWarehouses(),
-      Promise.all(defaultTypes.map(fetchUsersForApproval))
-    ])
+    // ------------------ Fetch supporting data ------------------
+    await Promise.all([fetchProducts(), fetchWarehouses()])
+    for (let i = 0; i < form.value.approvals.length; i++) await updateUsersForRow(i)
 
-    // Load availableUsers per approval row
-    for (let i = 0; i < form.value.approvals.length; i++) {
-      await updateUsersForRow(i)
-    }
-
-    // Initialize DataTable
+    // ------------------ Initialize DataTable ------------------
     table.value = $('#stockItemsTable').DataTable({
       data: form.value.items,
       responsive: true,
       columns: [
-        {
-          data: 'product_id',
-          render: (data) => ProductCode.value(data)
-        },
-        {
-          data: 'product_id',
-          render: (data) => ProductDescription.value(data)
-        },
-        {
-          data: 'product_id',
-          render: (data) => itemUnitName.value(data)
-        },
-        {
-          data: 'product_id',
-          render: (data) => `<input type="text" class="form-control" value="${StockOnhand.value(data)}" readonly />`
-        },
+        { data: 'product_id', render: d => ProductCode.value(d) },
+        { data: 'product_id', render: d => ProductDescription.value(d) },
+        { data: 'product_id', render: d => itemUnitName.value(d) },
+        { data: 'product_id', render: d => `<input class="form-control" value="${StockOnhand.value(d)}" readonly />` },
         {
           data: 'quantity',
-          render: (data, type, row, meta) => `
-            <input type="number" class="form-control quantity-input" value="${data}" min="0.0001" step="0.0001" required data-row="${meta.row}"/>
-          `
+          render: (d, t, r, m) => `<input type="number" class="form-control quantity-input" value="${d}" min="0.0001" step="0.0001" data-row="${m.row}" />`
         },
-        {
-          data: 'product_id',
-          render: (data) => `<input type="text" class="form-control" value="${ProductPrice.value(data)}" readonly />`
-        },
+        { data: 'product_id', render: d => `<input class="form-control" value="${ProductPrice.value(d)}" readonly />` },
+        { data: null, render: d => `<input class="form-control" value="${(d.quantity * d.average_price).toFixed(4)}" readonly />` },
+        
+        // Inline department select
         {
           data: 'department_id',
-          render: (data) => `<input type="text" class="form-control" value="${DepartmentName.value(data)}" readonly />`
+          render: (d, t, r, m) => `
+            <select class="form-control department-select" data-row="${m.row}">
+              ${form.value.departments.map(dep => `<option value="${dep.id}" ${dep.id === (d || props.defaultDepartment?.id) ? 'selected' : ''}>${dep.short_name}</option>`).join('')}
+            </select>
+          `
         },
+
+        // Inline campus select
         {
           data: 'campus_id',
-          render: (data) => `<input type="text" class="form-control" value="${CampusName.value(data)}" readonly />`
-        },
-        {
-          data: null,
-          render: (data) => `<input type="text" class="form-control" value="${(data.quantity * data.average_price).toFixed(4)}" readonly />`
-        },
-        {
-          data: 'remarks',
-          render: (data, type, row, meta) => `
-            <textarea class="form-control remarks-input" rows="1" maxlength="1000" data-row="${meta.row}">${data || ''}</textarea>
+          render: (d, t, r, m) => `
+            <select class="form-control campus-select" data-row="${m.row}">
+              ${form.value.campuses.map(c => `<option value="${c.id}" ${c.id === (d || props.defaultCampus?.id) ? 'selected' : ''}>${c.short_name}</option>`).join('')}
+            </select>
           `
         },
-        {
-          data: null,
-          orderable: false,
-          searchable: false,
-          render: (data, type, row, meta) => `
-            <button type="button" class="btn btn-danger btn-sm remove-btn" data-row="${meta.row}">
-              <i class="fal fa-trash-alt"></i> Remove
-            </button>
-          `
-        }
+        { data: 'remarks', render: (d, t, r, m) => `<textarea class="form-control remarks-input" data-row="${m.row}">${d || ''}</textarea>` },
+        { data: null, orderable: false, searchable: false, render: (d, t, r, m) => `<button class="btn btn-danger btn-sm remove-btn" data-row="${m.row}"><i class="fal fa-trash-alt"></i> Remove</button>` }
       ]
     })
 
-    // Table input bindings
+    // ------------------ Table bindings ------------------
     $('#stockItemsTable').on('change', '.quantity-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].quantity = parseFloat($(this).val()) || 1
-      table.value.row(index).invalidate().draw()
+      const i = $(this).data('row')
+      form.value.items[i].quantity = parseFloat($(this).val()) || 1
+      table.value.row(i).invalidate().draw()
     })
 
     $('#stockItemsTable').on('input', '.remarks-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].remarks = $(this).val()
+      const i = $(this).data('row')
+      form.value.items[i].remarks = $(this).val()
     })
 
     $('#stockItemsTable').on('click', '.remove-btn', function () {
-      const index = $(this).data('row')
-      removeItem(index)
+      removeItem($(this).data('row'))
     })
 
-    // Init warehouse select
+    // ------------------ Inline Select2 for department & campus ------------------
+    const initInlineSelects = () => {
+      $('#stockItemsTable').find('.department-select').each(function () {
+        const idx = $(this).data('row')
+        // Set initial value if null
+        if (!form.value.items[idx].department_id) form.value.items[idx].department_id = Number($(this).val()) || null
+        // Init Select2
+        if (!$(this).hasClass('select2-hidden-accessible')) {
+          initSelect2(this, { placeholder: 'Select Department', width: '100%' }, v => {
+            form.value.items[idx].department_id = Number(v) || null
+          })
+        }
+      })
+
+      $('#stockItemsTable').find('.campus-select').each(function () {
+        const idx = $(this).data('row')
+        if (!form.value.items[idx].campus_id) form.value.items[idx].campus_id = Number($(this).val()) || null
+        if (!$(this).hasClass('select2-hidden-accessible')) {
+          initSelect2(this, { placeholder: 'Select Campus', width: '100%' }, v => {
+            form.value.items[idx].campus_id = Number(v) || null
+          })
+        }
+      })
+    }
+
+    // Run initially and after each draw (for new rows)
+    initInlineSelects()
+    table.value.on('draw', initInlineSelects)
+
+    // ------------------ Regular Select2 for warehouse & type ------------------
     await nextTick()
     if (warehouseSelect.value) {
-      initSelect2(warehouseSelect.value, {
-        placeholder: 'Select Warehouse',
-        width: '100%',
-        allowClear: true,
-      }, (v) => (form.value.warehouse_id = v))
-
-      if (form.value.warehouse_id) {
-        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
-      }
+      initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse', width: '100%', allowClear: true }, v => form.value.warehouse_id = v)
+      if (form.value.warehouse_id) $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
     }
-
     if (typeSelect.value) {
-      initSelect2(typeSelect.value, {
-        placeholder: 'Select Type',
-        width: '100%',
-        allowClear: true,
-      }, (v) => {
-        // Always update Vue's form value when Select2 changes
-        form.value.type = v || ''
-      })
+      initSelect2(
+        typeSelect.value,
+        {
+          placeholder: 'Select Type',
+          width: '100%',
+          allowClear: true
+        },
+        (value) => {
+          form.value.type = value || '' // keep v-model synced
+        }
+      )
 
-      // Set initial value if needed
-      if (!form.value.type) {
-        form.value.type = 'Using'  // default type
+      // Set initial value from form
+      if (form.value.type) {
+        $(typeSelect.value).val(form.value.type).trigger('change')
+      } else {
+        // Set a default if form.value.type is empty
+        form.value.type = 'Using'
+        $(typeSelect.value).val('Using').trigger('change')
       }
-      $(typeSelect.value).val(form.value.type).trigger('change')
-
     }
 
-    // Approval Type Select2
-    $('.approval-type-select').each(function () {
-      const index = $(this).data('row')
-      const approval = form.value.approvals[index]
-      initSelect2(this, {
-        placeholder: 'Select Type',
-        width: '100%',
-        allowClear: !approval.isDefault,
-        disabled: approval.isDefault,
-      }, (value) => {
-        form.value.approvals[index].request_type = value || ''
-        updateUsersForRow(index)
-      })
-      $(this).val(approval.request_type || '').trigger('change.select2')
-    })
-
-    // User Select2
-    $('.user-select').each(function () {
-      const index = $(this).data('row')
-      initSelect2(this, {
-        placeholder: 'Select User',
-        width: '100%',
-        allowClear: true,
-      }, (value) => {
-        form.value.approvals[index].user_id = value ? Number(value) : null
-      })
-      $(this).val(form.value.approvals[index].user_id || '').trigger('change.select2')
-    })
-
+    // ------------------ Initialize Datepicker ------------------
     await initDatepicker()
 
   } catch (err) {
@@ -938,31 +914,33 @@ onMounted(async () => {
 
 onUnmounted(() => {
   try {
+    // Destroy DataTable
     if (table.value) {
       table.value.destroy()
       table.value = null
     }
-    if (warehouseSelect.value) {
-      destroySelect2(warehouseSelect.value)
-    }
 
-    if (typeSelect.value) {
-      destroySelect2(typeSelect.value)
-    }
-    if (productSelect.value) {
-      destroySelect2(productSelect.value)
-    }
-    $('.approval-type-select').each(function () {
-      destroySelect2(this)
-    })
-    $('.user-select').each(function () {
-      destroySelect2(this)
-    })
+    // Destroy main selects
+    if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
+    if (typeSelect.value) destroySelect2(typeSelect.value)
+    if (productSelect.value) destroySelect2(productSelect.value)
+
+    // Destroy approval selects
+    $('.approval-type-select').each(function () { destroySelect2(this) })
+    $('.user-select').each(function () { destroySelect2(this) })
+
+    // Destroy department & campus selects in DataTable rows
+    $('#stockItemsTable').find('.department-select').each(function () { destroySelect2(this) })
+    $('#stockItemsTable').find('.campus-select').each(function () { destroySelect2(this) })
+
+    // Destroy datepicker
     $('#request_date').datepicker('destroy')
+
   } catch (err) {
     console.error('Error in onUnmounted:', err)
   }
 })
+
 </script>
 
 <style scoped>

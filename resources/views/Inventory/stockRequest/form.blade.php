@@ -2,9 +2,13 @@
 @extends('layouts.main')
 
 @section('content')
-  <stock-request-form
-    :initial-data="{{ json_encode($stockRequestItemData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) }}"
-  />
+<stock-request-form
+    :initial-data='@json($stockRequestItemData ?? [])'
+    :departments='@json($departments)'
+    :campuses='@json($campuses)'
+    :default-department='@json($defaultDepartment)'
+    :default-campus='@json($defaultCampus)'
+/>
 @endsection
 
 @push('vite')

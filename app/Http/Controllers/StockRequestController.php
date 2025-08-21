@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 use App\Services\WarehouseService;
 use App\Services\ProductService;
 use App\Services\CampusService;
+use App\Services\DepartmentService;
 
 class StockRequestController extends Controller
 {
@@ -35,17 +36,20 @@ class StockRequestController extends Controller
     protected $warehouseService;
     protected $productService;
     protected $campusService;
+    protected $departmentService;
 
     public function __construct(
         ApprovalController $approvalController,
         WarehouseService $warehouseService,
         ProductService $productService,
-        CampusService $campusService
+        CampusService $campusService,
+        DepartmentService $departmentService
     ) {
         $this->approvalController = $approvalController;
         $this->warehouseService = $warehouseService;
         $this->productService = $productService;
         $this->campusService = $campusService;
+        $this->departmentService = $departmentService;
     }
 
     /**
@@ -67,7 +71,23 @@ class StockRequestController extends Controller
     public function create()
     {
         $this->authorize('create', StockRequest::class);
-        return view('Inventory.stockRequest.form');
+
+        $user = auth()->user();
+
+        // Get all departments & campuses for the user
+        $departments = $user->departments; // Collection of Department models
+        $campuses = $user->campus;         // Collection of Campus models
+
+        // Get default department & campus
+        $defaultDepartment = $user->defaultDepartment(); // single Department model or null
+        $defaultCampus = $user->defaultCampus();         // single Campus model or null
+
+        return view('Inventory.stockRequest.form', compact(
+            'departments',
+            'campuses',
+            'defaultDepartment',
+            'defaultCampus'
+        ));
     }
 
     /**
@@ -238,15 +258,26 @@ class StockRequestController extends Controller
         $this->authorize('update', $stockRequest);
 
         try {
-            // Load related data including approvals
+            $user = auth()->user();
+
+            // Eager load all relations needed for the form
             $stockRequest->load([
                 'stockRequestItems.productVariant.product.unit',
+                'stockRequestItems.department',
+                'stockRequestItems.campus',
                 'warehouse',
                 'campus',
                 'approvals.responder',
             ]);
 
-            // Prepare data for the Vue form
+            // User-specific departments & campuses
+            $departments = $user->departments()->select('departments.id', 'departments.name', 'departments.short_name')->get();
+            $campuses = $user->campus()->select('campus.id', 'campus.name', 'campus.short_name')->get();
+
+            $defaultDepartment = $user->defaultDepartment();
+            $defaultCampus = $user->defaultCampus();
+
+            // Prepare data payload for Vue
             $stockRequestItemData = [
                 'id' => $stockRequest->id,
                 'request_number' => $stockRequest->request_number,
@@ -255,12 +286,13 @@ class StockRequestController extends Controller
                 'type' => $stockRequest->type,
                 'purpose' => $stockRequest->purpose,
                 'request_date' => $stockRequest->request_date,
-                'items' => $stockRequest->stockRequestItems->map(function ($item) {
+                // Inline items with default department/campus fallback
+                'items' => $stockRequest->stockRequestItems->map(function ($item) use ($defaultDepartment, $defaultCampus) {
                     return [
                         'id' => $item->id,
                         'product_id' => $item->product_id,
-                        'department_id' => $item->department_id,
-                        'campus_id' => $item->campus_id,
+                        'department_id' => $item->department_id ?? $defaultDepartment?->id,
+                        'campus_id' => $item->campus_id ?? $defaultCampus?->id,
                         'quantity' => $item->quantity,
                         'average_price' => $item->average_price,
                         'total_price' => $item->total_price,
@@ -271,14 +303,12 @@ class StockRequestController extends Controller
                         'unit_name' => $item->productVariant->product->unit->name ?? null,
                     ];
                 })->toArray(),
-                'warehouse' => $stockRequest->warehouse ? [
-                    'id' => $stockRequest->warehouse->id,
-                    'name' => $stockRequest->warehouse->name,
-                ] : null,
-                'campus' => $stockRequest->campus ? [
-                    'id' => $stockRequest->campus->id,
-                    'short_name' => $stockRequest->campus->short_name,
-                ] : null,
+
+                // Warehouse & campus for form selects
+                'warehouse' => $stockRequest->warehouse ? ['id' => $stockRequest->warehouse->id, 'name' => $stockRequest->warehouse->name] : null,
+                'campus' => $stockRequest->campus ? ['id' => $stockRequest->campus->id, 'short_name' => $stockRequest->campus->short_name] : null,
+
+                // Approvals
                 'approvals' => $stockRequest->approvals->map(function ($approval) {
                     return [
                         'id' => $approval->id,
@@ -286,22 +316,27 @@ class StockRequestController extends Controller
                         'request_type' => $approval->request_type,
                     ];
                 })->toArray(),
+
+                // Lists for inline selects
+                'departments' => $departments->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->toArray(),
+                'campuses' => $campuses->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->toArray(),
             ];
 
-            return view('Inventory.stockRequest.form', [
-                'stockRequest' => $stockRequest,
-                'stockRequestItemData' => $stockRequestItemData,
+            return view('Inventory.stockRequest.form', compact(
+                'stockRequest',
+                'stockRequestItemData',
+                'departments',
+                'campuses',
+                'defaultDepartment',
+                'defaultCampus'
+            ));
 
-                Log::debug('Fetched stock request for editing', [
-                    'stock_request_id' => $stockRequest->id,
-                    'stock_request_data' => $stockRequestItemData,
-                ]),
-            ]);
         } catch (\Exception $e) {
             Log::error('Error fetching stock request for editing', [
                 'error_message' => $e->getMessage(),
                 'stock_request_id' => $stockRequest->id,
             ]);
+
             return response()->view('errors.500', [
                 'message' => 'Failed to fetch stock request',
                 'error' => $e->getMessage(),
