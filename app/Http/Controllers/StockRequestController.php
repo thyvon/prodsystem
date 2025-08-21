@@ -511,25 +511,30 @@ class StockRequestController extends Controller
         ]);
 
         $permission = "stockRequest.{$validated['request_type']}";
+        $authUser = $request->user();
 
         try {
+            // Get department IDs of the authenticated user
+            $authDepartmentIds = $authUser->departments()->pluck('departments.id')->toArray();
+
             // Fetch users with direct or role-based permission
-            $users = User::query()
+            $usersQuery = User::query()
                 ->where(function ($query) use ($permission) {
                     $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
                         ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
                 })
-                ->select('id', 'name')
-                ->get();
+                ->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $authDepartmentIds));
+
+            $users = $usersQuery->select('id', 'name')->get();
 
             return response()->json([
                 'message' => 'Users fetched successfully.',
                 'data' => $users,
             ]);
         } catch (\Exception $e) {
-            // Log error
             Log::error('Failed to fetch users for approval', [
                 'request_type' => $validated['request_type'],
+                'auth_user_id' => $authUser->id,
                 'error' => $e->getMessage(),
             ]);
 
@@ -539,7 +544,6 @@ class StockRequestController extends Controller
             ], 500);
         }
     }
-
     /**
      * Retrieve paginated main stock requests with optional search and sort.
      *
@@ -1135,7 +1139,6 @@ class StockRequestController extends Controller
         return $ordinals[$requestType] ?? 1;
     }
 
-
     // Other Services
     public function fetchWarehousesForStockRequest(Request $request)
     {
@@ -1154,8 +1157,6 @@ class StockRequestController extends Controller
         $warehouses = $user->warehouses()->get();
         return response()->json($warehouses);
     }
-
-
 
     public function fetchCampusesForStockRequest(Request $request)
     {
