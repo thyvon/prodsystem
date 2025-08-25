@@ -121,19 +121,20 @@ public function recalcProduct(int $productId, ?int $warehouseId = null, ?string 
     (
         -- Stock Beginning
         SELECT sb.id as child_id, msb.id as parent_id, 'main_stock_beginnings' as parent_table,
-               sb.product_id, sb.quantity, sb.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
-               msb.beginning_date as transaction_date, msb.warehouse_id, 'beginning' as movement_type, sb.created_at
+            sb.product_id, sb.quantity, sb.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
+            msb.beginning_date as transaction_date, msb.warehouse_id, 'beginning' as movement_type, sb.created_at
         FROM stock_beginnings sb
         JOIN main_stock_beginnings msb ON msb.id = sb.main_form_id
         WHERE sb.product_id = ? AND sb.deleted_at IS NULL AND msb.deleted_at IS NULL
+        AND msb.approval_status = 'Approved'
         " . ($warehouseId ? "AND msb.warehouse_id = $warehouseId" : "") . "
 
         UNION ALL
 
         -- Stock In
         SELECT sii.id as child_id, si.id as parent_id, 'stock_ins' as parent_table,
-               sii.product_id, sii.quantity, sii.unit_price, sii.vat, sii.discount, sii.delivery_fee,
-               si.transaction_date, si.warehouse_id, 'in' as movement_type, sii.created_at
+            sii.product_id, sii.quantity, sii.unit_price, sii.vat, sii.discount, sii.delivery_fee,
+            si.transaction_date, si.warehouse_id, 'in' as movement_type, sii.created_at
         FROM stock_in_items sii
         JOIN stock_ins si ON si.id = sii.stock_in_id
         WHERE sii.product_id = ? AND sii.deleted_at IS NULL AND si.deleted_at IS NULL
@@ -143,32 +144,34 @@ public function recalcProduct(int $productId, ?int $warehouseId = null, ?string 
 
         -- Transfer In
         SELECT sti.id as child_id, st.id as parent_id, 'stock_transfers' as parent_table,
-               sti.product_id, sti.quantity, sti.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
-               st.transaction_date, st.destination_warehouse_id as warehouse_id,
-               'transfer_in' as movement_type, sti.created_at
+            sti.product_id, sti.quantity, sti.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
+            st.transaction_date, st.destination_warehouse_id as warehouse_id,
+            'transfer_in' as movement_type, sti.created_at
         FROM stock_transfer_items sti
         JOIN stock_transfers st ON st.id = sti.stock_transfer_id
         WHERE sti.product_id = ? AND sti.deleted_at IS NULL AND st.deleted_at IS NULL
+        AND st.approval_status = 'Approved'
         " . ($warehouseId ? "AND st.destination_warehouse_id = $warehouseId" : "") . "
 
         UNION ALL
 
         -- Transfer Out
         SELECT sti.id as child_id, st.id as parent_id, 'stock_transfers' as parent_table,
-               sti.product_id, sti.quantity, sti.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
-               st.transaction_date, st.warehouse_id as warehouse_id,
-               'transfer_out' as movement_type, sti.created_at
+            sti.product_id, sti.quantity, sti.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
+            st.transaction_date, st.warehouse_id as warehouse_id,
+            'transfer_out' as movement_type, sti.created_at
         FROM stock_transfer_items sti
         JOIN stock_transfers st ON st.id = sti.stock_transfer_id
         WHERE sti.product_id = ? AND sti.deleted_at IS NULL AND st.deleted_at IS NULL
+        AND st.approval_status = 'Approved'
         " . ($warehouseId ? "AND st.warehouse_id = $warehouseId" : "") . "
 
         UNION ALL
 
         -- Stock Out (Issues)
         SELECT sii.id as child_id, si.id as parent_id, 'stock_issues' as parent_table,
-               sii.product_id, sii.quantity, sii.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
-               si.transaction_date, si.warehouse_id, 'out' as movement_type, sii.created_at
+            sii.product_id, sii.quantity, sii.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
+            si.transaction_date, si.warehouse_id, 'out' as movement_type, sii.created_at
         FROM stock_issue_items sii
         JOIN stock_issues si ON si.id = sii.stock_issue_id
         WHERE sii.product_id = ? AND sii.deleted_at IS NULL AND si.deleted_at IS NULL
@@ -235,7 +238,8 @@ public function getGlobalAvgPrice(int $productId, ?string $cutoffDate = null)
             msb.beginning_date as transaction_date, msb.warehouse_id, 'beginning' as movement_type, sb.created_at
         FROM stock_beginnings sb
         JOIN main_stock_beginnings msb ON msb.id = sb.main_form_id
-        WHERE sb.product_id = ? AND sb.deleted_at IS NULL
+        WHERE sb.product_id = ? AND sb.deleted_at IS NULL AND msb.deleted_at IS NULL
+        AND msb.approval_status = 'Approved'
 
         UNION ALL
 
@@ -245,7 +249,7 @@ public function getGlobalAvgPrice(int $productId, ?string $cutoffDate = null)
             si.transaction_date, si.warehouse_id, 'in' as movement_type, sii.created_at
         FROM stock_in_items sii
         JOIN stock_ins si ON si.id = sii.stock_in_id
-        WHERE sii.product_id = ? AND sii.deleted_at IS NULL
+        WHERE sii.product_id = ? AND sii.deleted_at IS NULL AND si.deleted_at IS NULL
 
         UNION ALL
 
@@ -256,7 +260,8 @@ public function getGlobalAvgPrice(int $productId, ?string $cutoffDate = null)
             'transfer_in' as movement_type, sti.created_at
         FROM stock_transfer_items sti
         JOIN stock_transfers st ON st.id = sti.stock_transfer_id
-        WHERE sti.product_id = ? AND sti.deleted_at IS NULL
+        WHERE sti.product_id = ? AND sti.deleted_at IS NULL AND st.deleted_at IS NULL
+        AND st.approval_status = 'Approved'
 
         UNION ALL
 
@@ -267,17 +272,18 @@ public function getGlobalAvgPrice(int $productId, ?string $cutoffDate = null)
             'transfer_out' as movement_type, sti.created_at
         FROM stock_transfer_items sti
         JOIN stock_transfers st ON st.id = sti.stock_transfer_id
-        WHERE sti.product_id = ? AND sti.deleted_at IS NULL
+        WHERE sti.product_id = ? AND sti.deleted_at IS NULL AND st.deleted_at IS NULL
+        AND st.approval_status = 'Approved'
 
         UNION ALL
 
-        -- Stock Out
+        -- Stock Out (Issues)
         SELECT sii.id as child_id, si.id as parent_id, 'stock_issues' as parent_table,
             sii.product_id, sii.quantity, sii.unit_price, 0 as vat, 0 as discount, 0 as delivery_fee,
             si.transaction_date, si.warehouse_id, 'out' as movement_type, sii.created_at
         FROM stock_issue_items sii
         JOIN stock_issues si ON si.id = sii.stock_issue_id
-        WHERE sii.product_id = ? AND sii.deleted_at IS NULL
+        WHERE sii.product_id = ? AND sii.deleted_at IS NULL AND si.deleted_at IS NULL
     ) as all_txn
     ";
 

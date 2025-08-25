@@ -47,7 +47,7 @@ import StockBeginningShow from './components/Inventory/StockBeginning/Show.vue'
 
 import StockRequestForm from './components/Inventory/StockRequest/Form.vue'
 import StockRequestList from './components/Inventory/StockRequest/StockRequestList.vue'
-// import StockRequestShow from './components/Inventory/StockRequest/Show.vue'
+import StockRequestShow from './components/Inventory/StockRequest/Show.vue'
 
 //Approval Management
 import ApprovalList from './components/Approval/Index.vue'
@@ -99,7 +99,7 @@ import Datatable from './components/Reusable/Datatable.vue'
 //========Stock Request
  app.component('stock-request-form', StockRequestForm)
  app.component('stock-request-list', StockRequestList)
-//  app.component('stock-request-show', StockRequestShow)
+ app.component('stock-request-show', StockRequestShow)
 
  //Approval Management
  app.component('approval-list', ApprovalList)

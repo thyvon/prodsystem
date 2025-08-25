@@ -21,6 +21,7 @@ class Approval extends Model
         'ordinal',
         'requester_id',
         'responder_id',
+        'position_id',
         'responded_date',
     ];
 
@@ -37,5 +38,10 @@ class Approval extends Model
     public function responder()
     {
         return $this->belongsTo(User::class, 'responder_id');
+    }
+
+    public function responderPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 }

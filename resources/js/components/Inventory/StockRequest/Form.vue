@@ -130,8 +130,6 @@
                         @change="updateUsersForRow(index)"
                       >
                         <option value="">Select Type</option>
-                        <option value="review">Review</option>
-                        <option value="check">Check</option>
                         <option value="approve">Approve</option>
                       </select>
                     </td>
@@ -222,7 +220,7 @@ const emit = defineEmits(['submitted'])
 const isSubmitting = ref(false)
 const products = ref([])
 const warehouses = ref([])
-const users = ref({ review: [], check: [], approve: [] })
+const users = ref({ approve: [] })
 const warehouseSelect = ref(null)
 const departmentSelect = ref(null)
 const campusSelect = ref(null)
@@ -461,7 +459,7 @@ const removeApproval = async (index) => {
 const updateUsersForRow = async (index) => {
   try {
     const requestType = form.value.approvals[index].request_type
-    if (requestType && ['review', 'check', 'approve'].includes(requestType)) {
+    if (requestType && ['approve'].includes(requestType)) {
       if (!users.value[requestType].length) {
         await fetchUsersForApproval(requestType)
       }
@@ -510,18 +508,18 @@ const updateUsersForRow = async (index) => {
 }
 
 const validateApprovals = () => {
-  if (form.value.approvals.length < 3) {
-    showAlert('Error', 'At least three approval assignments (Review, Check, Approve) are required.', 'danger')
+  if (form.value.approvals.length < 1) {
+    showAlert('Error', 'At least one approval assignment (Approve) is required.', 'danger')
     return false
   }
 
-  const defaultTypes = ['review', 'check', 'approve']
+  const defaultTypes = ['approve']
   const presentTypes = form.value.approvals
     .map(approval => approval.request_type)
     .filter(type => defaultTypes.includes(type))
 
-  if (presentTypes.length < 3 || !defaultTypes.every(type => presentTypes.includes(type))) {
-    showAlert('Error', 'All default approval types (Review, Check, Approve) must be present.', 'danger')
+  if (presentTypes.length < 1 || !defaultTypes.every(type => presentTypes.includes(type))) {
+    showAlert('Error', 'All default approval types (Approve) must be present.', 'danger')
     return false
   }
 
@@ -729,7 +727,7 @@ watch(
 
 onMounted(async () => {
   try {
-    const defaultApprovalTypes = ['review', 'check', 'approve']
+    const defaultApprovalTypes = ['approve']
     const seenTypes = new Set()
 
     // ------------------ Initialize form ------------------

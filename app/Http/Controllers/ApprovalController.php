@@ -1,371 +1,218 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Approval;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 
 class ApprovalController extends Controller
 {
-
     private const ALLOWED_SORT_COLUMNS = [
-        'id',
-        'document_name',
-        'document_reference',
-        'request_type',
-        'approval_status',
-        'ordinal',
-        'responded_date',
-        'created_at',
-        'updated_at',
+        'id', 'document_name', 'document_reference',
+        'request_type', 'approval_status', 'ordinal',
+        'responded_date', 'created_at', 'updated_at',
     ];
 
     private const DEFAULT_SORT_COLUMN = 'created_at';
     private const DEFAULT_SORT_DIRECTION = 'desc';
     private const DEFAULT_LIMIT = 10;
     private const MAX_LIMIT = 1000;
-    private const DATE_FORMAT = 'Y-m-d';
 
+    /* ---------------------- Views ---------------------- */
 
     public function index()
     {
         return view('approval.index');
     }
+
+    /* ---------------------- Create / Update ---------------------- */
+
     /**
-     * Store a new approval record.
-     *
-     * @param array $data
-     * @return array
+     * Store a new approval.
      */
-    public function storeApproval(array $data)
+    public function storeApproval(array $data): array
     {
         try {
+            if (empty($data['position_id']) && !empty($data['responder_id'])) {
+                $responder = User::find($data['responder_id']);
+                $data['position_id'] = $responder?->defaultPosition()?->id;
+            }
+
             $approval = Approval::create([
-                'approvable_type' => $data['approvable_type'],
-                'approvable_id' => $data['approvable_id'],
-                'document_name' => $data['document_name'],
-                'document_reference' => $data['document_reference'],
-                'request_type' => $data['request_type'],
-                'approval_status' => $data['approval_status'],
-                'comment' => $data['comment'] ?? null,
-                'ordinal' => $data['ordinal'],
-                'requester_id' => $data['requester_id'],
-                'responder_id' => $data['responder_id'],
-                'responded_date' => isset($data['approval_status']) && $data['approval_status'] === 'Approved' ? now() : null,
+                'approvable_type'   => $data['approvable_type'],
+                'approvable_id'     => $data['approvable_id'],
+                'document_name'     => $data['document_name'],
+                'document_reference'=> $data['document_reference'],
+                'request_type'      => $data['request_type'],
+                'approval_status'   => $data['approval_status'],
+                'comment'           => $data['comment'] ?? null,
+                'ordinal'           => $data['ordinal'],
+                'requester_id'      => $data['requester_id'],
+                'responder_id'      => $data['responder_id'],
+                'position_id'       => $data['position_id'] ?? null,
+                'responded_date'    => $data['approval_status'] === 'Approved' ? now() : null,
             ]);
 
-            Log::debug('Approval created', ['approval_id' => $approval->id, 'data' => $data]);
+            Log::debug('Approval created', ['approval_id' => $approval->id]);
 
-            return [
-                'success' => true,
-                'approval' => $approval,
-                'message' => 'Approval created successfully'
-            ];
+            return $this->jsonResponse(true, 'Approval created successfully', $approval);
         } catch (\Exception $e) {
-            Log::error('Failed to create approval', ['data' => $data, 'error' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'message' => 'Failed to create approval: ' . $e->getMessage()
-            ];
+            Log::error('Failed to create approval', ['error' => $e->getMessage(), 'data' => $data]);
+            return $this->jsonResponse(false, "Failed to create approval: {$e->getMessage()}");
         }
     }
 
     /**
-     * Update an existing approval record.
-     *
-     * @param array $data
-     * @return array
+     * Update an existing approval.
      */
-    public function updateApproval(array $data)
+    public function updateApproval(array $data): array
     {
         try {
             $approval = Approval::where([
                 'approvable_type' => $data['approvable_type'],
-                'approvable_id' => $data['approvable_id'],
-                'responder_id' => $data['responder_id'],
-                'request_type' => $data['request_type'],
+                'approvable_id'   => $data['approvable_id'],
+                'responder_id'    => $data['responder_id'],
+                'request_type'    => $data['request_type'],
             ])->firstOrFail();
 
             if ($approval->approval_status !== 'Pending') {
                 Log::debug('Approval update rejected: Not pending', ['approval_id' => $approval->id]);
-                return [
-                    'success' => false,
-                    'message' => 'Approval already processed'
-                ];
+                return $this->jsonResponse(false, 'Approval already processed');
             }
 
             $approval->update([
                 'approval_status' => $data['approval_status'],
-                'comment' => $data['comment'] ?? $approval->comment,
-                'responded_date' => now(),
+                'comment'         => $data['comment'] ?? $approval->comment,
+                'responded_date'  => now(),
             ]);
 
-            Log::debug('Approval updated', ['approval_id' => $approval->id, 'status' => $data['approval_status']]);
-
-            return [
-                'success' => true,
-                'approval' => $approval,
-                'message' => 'Approval updated successfully'
-            ];
-        } catch (\Exception $e) {
-            Log::error('Failed to update approval', ['data' => $data, 'error' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'message' => 'Failed to update approval: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Approve a pending approval for a document.
-     *
-     * @param Request $request
-     * @param string $approvableType
-     * @param int $approvableId
-     * @param string $requestType
-     * @return array
-     */
-    public function confirmApproval(Request $request, $approvableType, $approvableId, $requestType)
-    {
-        $request->validate([
-            'comment' => 'nullable|string|max:1000',
-        ]);
-
-        $approvable = $this->findApprovable($approvableType, $approvableId);
-
-        // Check if user is the assigned responder
-        $approval = Approval::where([
-            'approvable_type' => $approvableType,
-            'approvable_id' => $approvableId,
-            'request_type' => $requestType,
-            'responder_id' => Auth::id(),
-            'approval_status' => 'Pending',
-        ])->first();
-
-        if (!$approval) {
-            Log::debug('Confirm approval failed: Unauthorized or no pending approval', [
-                'user_id' => Auth::id(),
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => "Unauthorized or no pending {$requestType} approval assigned"
-            ];
-        }
-
-        if (!$this->canSubmitApproval($approvable, $requestType)) {
-            Log::debug('Confirm approval failed: Previous approvals required', [
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => 'Previous approvals required'
-            ];
-        }
-
-        $data = [
-            'approvable_type' => $approvableType,
-            'approvable_id' => $approvableId,
-            'document_name' => $approvable->reference_no,
-            'request_type' => $requestType,
-            'approval_status' => 'Approved',
-            'comment' => $request->comment,
-            'ordinal' => $this->getOrdinalForRequestType($approvableType, $requestType),
-            'requester_id' => $approvable->created_by,
-            'responder_id' => Auth::id(),
-        ];
-
-        $result = $this->updateApproval($data);
-
-        if ($result['success']) {
-            $this->updateDocumentStatus($approvable);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Reject a pending approval for a document.
-     *
-     * @param Request $request
-     * @param string $approvableType
-     * @param int $approvableId
-     * @param string $requestType
-     * @return array
-     */
-    public function rejectApproval(Request $request, $approvableType, $approvableId, $requestType)
-    {
-        $request->validate([
-            'comment' => 'nullable|string|max:1000',
-        ]);
-
-        $approvable = $this->findApprovable($approvableType, $approvableId);
-
-        // Check if user is the assigned responder
-        $approval = Approval::where([
-            'approvable_type' => $approvableType,
-            'approvable_id' => $approvableId,
-            'request_type' => $requestType,
-            'responder_id' => Auth::id(),
-            'approval_status' => 'Pending',
-        ])->first();
-
-        if (!$approval) {
-            Log::debug('Reject approval failed: Unauthorized or no pending approval', [
-                'user_id' => Auth::id(),
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => "Unauthorized or no pending {$requestType} approval assigned"
-            ];
-        }
-
-        if (!$this->canSubmitApproval($approvable, $requestType)) {
-            Log::debug('Reject approval failed: Previous approvals required', [
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => 'Previous approvals required'
-            ];
-        }
-
-        $data = [
-            'approvable_type' => $approvableType,
-            'approvable_id' => $approvableId,
-            'document_name' => $approvable->reference_no,
-            'request_type' => $requestType,
-            'approval_status' => 'Rejected',
-            'comment' => $request->comment,
-            'ordinal' => $this->getOrdinalForRequestType($approvableType, $requestType),
-            'requester_id' => $approvable->created_by,
-            'responder_id' => Auth::id(),
-        ];
-
-        $result = $this->updateApproval($data);
-
-        if ($result['success']) {
-            $this->updateDocumentStatus($approvable);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Reassign a responder for a specific approval.
-     *
-     * @param Request $request
-     * @param string $approvableType
-     * @param int $approvableId
-     * @param string $requestType
-     * @return array
-     */
-    public function reassignResponder(Request $request, $approvableType, $approvableId, $requestType)
-    {
-        $request->validate([
-            'new_user_id' => 'required|exists:users,id',
-            'comment' => 'nullable|string|max:1000',
-        ]);
-
-        $approvable = $this->findApprovable($approvableType, $approvableId);
-
-        // Check if the user is authorized (creator or current responder)
-        $approval = Approval::where([
-            'approvable_type' => $approvableType,
-            'approvable_id' => $approvableId,
-            'request_type' => $requestType,
-            'approval_status' => 'Pending',
-        ])->first();
-
-        if (!$approval) {
-            Log::debug('Reassign responder failed: No pending approval', [
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => 'No pending approval found for the specified request type'
-            ];
-        }
-
-        $isCreator = $approvable->created_by === Auth::id();
-        $isResponder = $approval->responder_id === Auth::id();
-
-        if (!$isCreator && !$isResponder) {
-            Log::debug('Reassign responder failed: Unauthorized', [
-                'user_id' => Auth::id(),
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-            ]);
-            return [
-                'success' => false,
-                'message' => 'Unauthorized to reassign responder'
-            ];
-        }
-
-        try {
-            $approval->update([
-                'responder_id' => $request->new_user_id,
-                'comment' => $request->comment ?? $approval->comment,
-                'updated_at' => now(),
-            ]);
-
-            Log::debug('Responder reassigned', [
+            Log::debug('Approval updated', [
                 'approval_id' => $approval->id,
-                'new_responder_id' => $request->new_user_id,
+                'status'      => $data['approval_status'],
             ]);
 
-            return [
-                'success' => true,
-                'message' => 'Responder reassigned successfully'
-            ];
+            return $this->jsonResponse(true, 'Approval updated successfully', $approval);
         } catch (\Exception $e) {
-            Log::error('Failed to reassign responder', [
-                'approvable_id' => $approvableId,
-                'request_type' => $requestType,
-                'error' => $e->getMessage(),
-            ]);
-            return [
-                'success' => false,
-                'message' => 'Failed to reassign responder: ' . $e->getMessage()
-            ];
+            Log::error('Failed to update approval', ['error' => $e->getMessage(), 'data' => $data]);
+            return $this->jsonResponse(false, "Failed to update approval: {$e->getMessage()}");
         }
     }
 
+    /* ---------------------- Approve / Reject ---------------------- */
+
     /**
-     * List approvals for a specific document.
-     *
-     * @param Request $request
-     * @param string $approvableType
-     * @param int $approvableId
-     * @return array
+     * Approve a pending approval.
      */
+    public function confirmApproval(Request $request, $approvableType, $approvableId, $requestType): array
+    {
+        return $this->handleApprovalAction($request, $approvableType, $approvableId, $requestType, 'Approved');
+    }
+
+    /**
+     * Reject a pending approval.
+     */
+    public function rejectApproval(Request $request, $approvableType, $approvableId, $requestType): array
+    {
+        return $this->handleApprovalAction($request, $approvableType, $approvableId, $requestType, 'Rejected');
+    }
+
+    /**
+     * Generic handler for approve/reject.
+     */
+    private function handleApprovalAction(Request $request, $approvableType, $approvableId, $requestType, string $status): array
+    {
+        $request->validate(['comment' => 'nullable|string|max:1000']);
+
+        $approvable = $this->findApprovable($approvableType, $approvableId);
+
+        $approval = Approval::where([
+            'approvable_type' => $approvableType,
+            'approvable_id'   => $approvableId,
+            'request_type'    => $requestType,
+            'responder_id'    => Auth::id(),
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            Log::debug('Approval action failed: Unauthorized or no pending', [
+                'user_id' => Auth::id(),
+                'approvable_id' => $approvableId,
+                'request_type' => $requestType,
+            ]);
+            return $this->jsonResponse(false, "Unauthorized or no pending {$requestType} approval assigned");
+        }
+
+        if (!$this->canSubmitApproval($approvable, $requestType)) {
+            Log::debug('Approval action blocked: Previous approvals required', [
+                'approvable_id' => $approvableId,
+                'request_type' => $requestType,
+            ]);
+            return $this->jsonResponse(false, 'Previous approvals required');
+        }
+
+        $data = $this->buildApprovalData($approvable, $requestType, $status, $request->comment);
+        $result = $this->updateApproval($data);
+
+        if ($result['success']) {
+            $this->updateDocumentStatus($approvable);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Build approval update data array.
+     */
+    private function buildApprovalData($approvable, string $requestType, string $status, ?string $comment): array
+    {
+        return [
+            'approvable_type' => get_class($approvable),
+            'approvable_id'   => $approvable->id,
+            'document_name'   => $approvable->reference_no ?? null,
+            'request_type'    => $requestType,
+            'approval_status' => $status,
+            'comment'         => $comment,
+            'ordinal'         => $this->getOrdinalForRequestType(get_class($approvable), $requestType),
+            'requester_id'    => $approvable->created_by,
+            'responder_id'    => Auth::id(),
+        ];
+    }
+
+    /**
+     * Consistent JSON response helper.
+     */
+    private function jsonResponse(bool $success, string $message, $approval = null): array
+    {
+        return array_filter([
+            'success'  => $success,
+            'message'  => $message,
+            'approval' => $approval,
+        ]);
+    }
+
+    /* ---------------------- Get / List Approvals ---------------------- */
 
     public function getApprovals(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
+            'search'        => 'nullable|string|max:255',
+            'sortColumn'    => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
             'sortDirection' => 'nullable|string|in:asc,desc',
-            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
-            'draw' => 'nullable|integer',
-            'page' => 'nullable|integer|min:1',
+            'limit'         => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'draw'          => 'nullable|integer',
+            'page'          => 'nullable|integer|min:1',
         ]);
 
-        $search = $validated['search'] ?? null;
-        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+        $search        = $validated['search'] ?? null;
+        $sortColumn    = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
         $sortDirection = strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
-        $limit = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
-        $page = (int) ($validated['page'] ?? 1);
-        $draw = (int) ($validated['draw'] ?? 1);
+        $limit         = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
+        $page          = (int) ($validated['page'] ?? 1);
+        $draw          = (int) ($validated['draw'] ?? 1);
 
         $user = Auth::user();
 
@@ -376,173 +223,124 @@ class ApprovalController extends Controller
                         ->orWhere('request_type', 'like', "%{$search}%")
                         ->orWhere('approval_status', 'like', "%{$search}%")
                         ->orWhere('document_reference', 'like', "%{$search}%")
-                        ->orWhereHas('requester', function ($q) use ($search) {
-                            $q->where('name', 'like', "%{$search}%");
-                        })
-                        ->orWhereHas('responder', function ($q) use ($search) {
-                            $q->where('name', 'like', "%{$search}%");
-                        });
+                        ->orWhereHas('requester', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
                 });
             });
 
-        // Role-based filter: admin sees all, others see their own approvals (pending or responded)
         if (!$user->hasRole('admin')) {
             $query->where('responder_id', $user->id);
         }
 
         $recordsTotal = $user->hasRole('admin') ? Approval::count() : $query->count();
-
-        // Apply sorting
         $query->orderBy($sortColumn, $sortDirection);
-
-        // Pagination (database-side)
         $approvals = $query->paginate($limit, ['*'], 'page', $page);
 
-        // Post-process for pending approvals with waiting status logic (filter only for non-admin)
-        $items = $approvals->getCollection()->map(function ($approval) use ($user) {
-            $displayStatus = $approval->approval_status;
-            $displayResponseDate = $approval->responded_date;
-
-            // Only check waiting status for non-admin and pending approvals
-            $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
-                ->where('approvable_id', $approval->approvable_id)
-                ->orderBy('ordinal')
-                ->orderBy('id')
-                ->get();
-
-            // Previous approvals by ordinal and id
-            $previousApprovals = $allApprovals->filter(function ($a) use ($approval) {
-                return ($a->ordinal < $approval->ordinal) ||
-                    ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
-            });
-
-            // Check if any previous approval is not approved
-            $blockingApproval = $previousApprovals->first(fn($a) => strtolower(trim($a->approval_status)) !== 'approved');
-            // Check if any previous approval is rejected
-            $blockingApprovalRejected = $previousApprovals->last(fn($a) => strtolower(trim($a->approval_status)) === 'rejected');
-
-            if ($blockingApproval) {
-                $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
-            }
-
-            if ($blockingApprovalRejected) {
-                $displayStatus = 'Rejected by ' . ($blockingApprovalRejected->responder->name ?? 'Unknown');
-                $displayResponseDate = $blockingApprovalRejected->responded_date;
-            }
-
-            return [
-                'id' => $approval->id,
-                'approvable_type' => $approval->approvable_type,
-                'approvable_id' => $approval->approvable_id,
-                'document_name' => $approval->document_name,
-                'document_reference' => $approval->document_reference,
-                'request_type' => ucwords($approval->request_type),
-                'approval_status' => $displayStatus,
-                'comment' => $approval->comment,
-                'ordinal' => $approval->ordinal,
-                'requester_name' => $approval->requester->name ?? null,
-                'requester_position' => $approval->requester->defaultPosition()?->title ?? null,
-                'requester_department' => $approval->requester?->defaultDepartment()?->name ?? null,
-                'responder_name' => $approval->responder->name ?? null,
-                'responded_date' => $displayResponseDate,
-                'created_at' => $approval->created_at?->toDateTimeString(),
-                'updated_at' => $approval->updated_at?->toDateTimeString(),
-            ];
-        });
+        $items = $approvals->getCollection()->map(fn($approval) => $this->formatApprovalForList($approval, $user));
 
         return response()->json([
-            'data' => $items,
-            'recordsTotal' => $recordsTotal,
+            'data'            => $items,
+            'recordsTotal'    => $recordsTotal,
             'recordsFiltered' => $approvals->total(),
-            'draw' => $draw,
+            'draw'            => $draw,
         ]);
     }
 
     /**
-     * Find the approvable model instance.
-     *
-     * @param string $approvableType
-     * @param int $approvableId
-     * @return \Illuminate\Database\Eloquent\Model
-     * @throws \Exception
+     * Format approval for list view with waiting/rejected logic.
      */
-    protected function findApprovable($approvableType, $approvableId)
+    private function formatApprovalForList($approval, $user): array
     {
-        $modelClass = $approvableType;
-        if (!class_exists($modelClass)) {
-            throw new \Exception("Model {$modelClass} does not exist");
+        $displayStatus = $approval->approval_status;
+        $displayResponseDate = $approval->responded_date;
+
+        $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
+            ->where('approvable_id', $approval->approvable_id)
+            ->orderBy('ordinal')
+            ->orderBy('id')
+            ->get();
+
+        $previous = $allApprovals->filter(fn($a) =>
+            $a->ordinal < $approval->ordinal ||
+            ($a->ordinal === $approval->ordinal && $a->id < $approval->id)
+        );
+
+        $blockingApproval = $previous->first(fn($a) => strtolower(trim($a->approval_status)) !== 'approved');
+        $blockingRejected = $previous->last(fn($a) => strtolower(trim($a->approval_status)) === 'rejected');
+
+        if ($blockingApproval) {
+            $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
         }
-        return $modelClass::findOrFail($approvableId);
+
+        if ($blockingRejected) {
+            $displayStatus = 'Rejected by ' . ($blockingRejected->responder->name ?? 'Unknown');
+            $displayResponseDate = $blockingRejected->responded_date;
+        }
+
+        return [
+            'id'                 => $approval->id,
+            'approvable_type'    => $approval->approvable_type,
+            'approvable_id'      => $approval->approvable_id,
+            'document_name'      => $approval->document_name,
+            'document_reference' => $approval->document_reference,
+            'request_type'       => ucwords($approval->request_type),
+            'approval_status'    => $displayStatus,
+            'comment'            => $approval->comment,
+            'ordinal'            => $approval->ordinal,
+            'requester_name'     => $approval->requester->name ?? null,
+            'requester_position' => $approval->requester->defaultPosition()?->title ?? null,
+            'requester_department'=> $approval->requester?->defaultDepartment()?->name ?? null,
+            'responder_name'     => $approval->responder->name ?? null,
+            'responded_date'     => $displayResponseDate,
+            'created_at'         => $approval->created_at?->toDateTimeString(),
+            'updated_at'         => $approval->updated_at?->toDateTimeString(),
+        ];
     }
 
-    /**
-     * Check if an approval can be submitted based on previous approvals.
-     *
-     * @param \Illuminate\Database\Eloquent\Model $approvable
-     * @param string $requestType
-     * @return bool
-     */
+    /* ---------------------- Helpers ---------------------- */
+
+    protected function findApprovable($type, $id)
+    {
+        if (!class_exists($type)) {
+            throw new \Exception("Model {$type} does not exist");
+        }
+        return $type::findOrFail($id);
+    }
+
     protected function canSubmitApproval($approvable, $requestType)
     {
         $ordinal = $this->getOrdinalForRequestType(get_class($approvable), $requestType);
-        if ($ordinal === 1) {
-            return true;
-        }
+        if ($ordinal === 1) return true;
 
         return Approval::where([
             'approvable_type' => get_class($approvable),
-            'approvable_id' => $approvable->id,
-            'ordinal' => $ordinal - 1,
+            'approvable_id'   => $approvable->id,
+            'ordinal'         => $ordinal - 1,
             'approval_status' => 'Approved',
         ])->exists();
     }
 
-    /**
-     * Get the ordinal for a request type.
-     *
-     * @param string $approvableType
-     * @param string $requestType
-     * @return int
-     */
-    protected function getOrdinalForRequestType($approvableType, $requestType)
+    protected function getOrdinalForRequestType($approvableType, $requestType): int
     {
         $ordinals = [
             'App\Models\MainStockBeginning' => [
                 'review' => 1,
-                'check' => 2,
-                'approve' => 3,
+                'check'  => 2,
+                'approve'=> 3,
             ],
-            // Add other models as needed, e.g.:
-            // 'App\Models\Invoice' => ['review' => 1, 'validate' => 2, 'approve' => 3]
         ];
-
         return $ordinals[$approvableType][$requestType] ?? 1;
     }
 
-    /**
-     * Update the document's status based on approval states.
-     *
-     * @param \Illuminate\Database\Eloquent\Model $approvable
-     * @return void
-     */
-    protected function updateDocumentStatus($approvable)
+    protected function updateDocumentStatus($approvable): void
     {
         $approvals = $approvable->approvals;
-        $allApproved = $approvals->every(fn ($approval) => $approval->approval_status === 'Approved');
-        $anyRejected = $approvals->contains(fn ($approval) => $approval->approval_status === 'Rejected');
+        $allApproved = $approvals->every(fn($a) => $a->approval_status === 'Approved');
+        $anyRejected = $approvals->contains(fn($a) => $a->approval_status === 'Rejected');
 
-        $newStatus = 'Pending';
-        if ($anyRejected) {
-            $newStatus = 'Rejected';
-        } elseif ($allApproved) {
-            $newStatus = 'Approved';
-        }
-
+        $newStatus = $anyRejected ? 'Rejected' : ($allApproved ? 'Approved' : 'Pending');
         $approvable->update(['status' => $newStatus]);
-        Log::debug('Document status updated', [
-            'approvable_id' => $approvable->id,
-            'new_status' => $newStatus,
-        ]);
-    }
 
+        Log::debug('Document status updated', ['approvable_id' => $approvable->id, 'new_status' => $newStatus]);
+    }
 }

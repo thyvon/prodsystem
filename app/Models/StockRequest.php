@@ -22,6 +22,7 @@ class StockRequest extends Model
         'purpose',
         'approval_status',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
@@ -47,6 +48,10 @@ class StockRequest extends Model
     {
         return $this->belongsTo(User::class, 'updated_by');
     }
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
+    }
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
@@ -55,5 +60,27 @@ class StockRequest extends Model
     public function approvals()
     {
         return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
+    }
+
+    public function scopeSearch($query, ?string $search)
+    {
+        if (!$search) return $query;
+
+        return $query->where(function ($q) use ($search) {
+            $q->where('request_number', 'like', "%{$search}%")
+            ->orWhereHas('warehouse', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
+            ->orWhereHas('stockRequestItems.productVariant.product', fn($q3) => $q3->where(function ($q4) use ($search) {
+                $q4->where('name', 'like', "%{$search}%")
+                    ->orWhere('khmer_name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('item_code', 'like', "%{$search}%")
+                    ->orWhereHas('unit', fn($q5) => $q5->where('name', 'like', "%{$search}%"));
+            }));
+        });
+    }
+
+    public function scopeCampusFilter($query, bool $isAdmin, array $campusIds)
+    {
+        return $isAdmin ? $query : $query->whereIn('campus_id', $campusIds);
     }
 }

@@ -21,6 +21,7 @@ use App\Services\WarehouseService;
 use App\Services\ProductService;
 use App\Services\CampusService;
 use App\Services\DepartmentService;
+use App\Http\Resources\StockRequestCollection;
 
 class StockRequestController extends Controller
 {
@@ -104,10 +105,15 @@ class StockRequestController extends Controller
             // Load related data including approvals
             $stockRequest->load([
                 'stockRequestItems.productVariant.product.unit',
+                'stockRequestItems.campus',
+                'stockRequestItems.department',
                 'warehouse.building.campus',
                 'createdBy',
                 'updatedBy',
+                'campus',
+                'creatorPosition',
                 'approvals.responder',
+                'approvals.responderPosition',
             ]);
 
             // Check if the approval button should be shown
@@ -118,12 +124,13 @@ class StockRequestController extends Controller
                 return [
                     'id' => $approval->id,
                     'user_id' => $approval->responder_id,
+                    'position_id' => $approval->position_id,
                     'request_type' => $approval->request_type,
                     'name' => $approval->responder->name ?? 'N/A',
                 ];
             })->toArray();
 
-            return view('Inventory.stockRequestItem.show', [
+            return view('Inventory.stockRequest.show', [
                 'stockRequest' => $stockRequest,
                 'totalQuantity' => round($stockRequest->stockRequestItems->sum('quantity'), 4),
                 'totalValue' => round($stockRequest->stockRequestItems->sum('total_price'), 4),
@@ -136,6 +143,7 @@ class StockRequestController extends Controller
                             'request_type' => $approval->request_type,
                             'approval_status' => $approval->approval_status,
                             'responder_name' => $approval->responder->name ?? 'N/A',
+                            'position_name' => $approval->responderPosition->title ?? 'N/A',
                             'ordinal' => $approval->ordinal,
                             'comment' => $approval->comment,
                             'created_at' => $approval->created_at?->toDateTimeString(),
@@ -176,7 +184,7 @@ class StockRequestController extends Controller
             [
                 'approvals' => 'required|array|min:1',
                 'approvals.*.user_id' => 'required|exists:users,id',
-                'approvals.*.request_type' => 'required|string|in:review,check,approve',
+                'approvals.*.request_type' => 'required|string|in:approve',
             ]
         ))->validate();
 
@@ -195,16 +203,24 @@ class StockRequestController extends Controller
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['request_date']);
                 $userCampus = auth()->user()->defaultCampus(); // returns model or null
+                $userPosition = auth()->user()->defaultPosition(); // returns model or null
 
                 if (!$userCampus) {
                     return response()->json([
                         'message' => 'No default campus assigned to this user.',
                     ], 404);
                 }
+                if (!$userPosition) {
+                    return response()->json([
+                        'message' => 'No default position assigned to this user.',
+                    ], 404);
+                }
+
                 $stockRequest = StockRequest::create([
                     'request_number' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
                     'campus_id' => $userCampus->id,
+                    'position_id' => $userPosition->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -283,6 +299,7 @@ class StockRequestController extends Controller
                 'request_number' => $stockRequest->request_number,
                 'warehouse_id' => $stockRequest->warehouse_id,
                 'campus_id' => $stockRequest->campus_id,
+                'position_id' => $stockRequest->position_id,
                 'type' => $stockRequest->type,
                 'purpose' => $stockRequest->purpose,
                 'request_date' => $stockRequest->request_date,
@@ -313,6 +330,7 @@ class StockRequestController extends Controller
                     return [
                         'id' => $approval->id,
                         'user_id' => $approval->responder_id,
+                        'position_id' => $approval->position_id,
                         'request_type' => $approval->request_type,
                     ];
                 })->toArray(),
@@ -361,7 +379,7 @@ class StockRequestController extends Controller
             [
                 'approvals' => 'required|array|min:1',
                 'approvals.*.user_id' => 'required|exists:users,id',
-                'approvals.*.request_type' => 'required|string|in:review,check,approve',
+                'approvals.*.request_type' => 'required|string|in:approve',
             ]
         ))->validate();
 
@@ -380,55 +398,71 @@ class StockRequestController extends Controller
             return DB::transaction(function () use ($validated, $stockRequest) {
                 // Update main stock request header
                 $userCampus = auth()->user()->defaultCampus(); // returns model or null
+                $userPosition = auth()->user()->defaultPosition(); // returns model or null
+
                 if (!$userCampus) {
                     return response()->json([
                         'message' => 'No default campus assigned to this user.',
                     ], 404);
                 }
+
                 $stockRequest->update([
                     'warehouse_id' => $validated['warehouse_id'],
                     'campus_id' => $userCampus->id,
+                    'position_id' => $userPosition?->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
-                // Build existing and new composite approval keys
-                $existingApprovalKeys = $stockRequest->approvals->map(fn($a) => "{$a->responder_id}|{$a->request_type}")->toArray();
-                $newApprovalKeys = collect($validated['approvals'])->map(fn($a) => "{$a['user_id']}|{$a['request_type']}")->toArray();
+                // ---------------- Approvals Handling ----------------
+                // Build existing and new composite approval keys (include position_id for uniqueness)
+                $existingApprovalKeys = $stockRequest->approvals->map(
+                    fn($a) => "{$a->responder_id}|{$a->position_id}|{$a->request_type}"
+                )->toArray();
+
+                $newApprovalKeys = collect($validated['approvals'])->map(function ($a) {
+                    $user = User::find($a['user_id']);
+                    $positionId = $user?->defaultPosition()?->id;
+                    return "{$a['user_id']}|{$positionId}|{$a['request_type']}";
+                })->toArray();
 
                 // Determine approvals to remove
                 $approvalsToRemove = array_diff($existingApprovalKeys, $newApprovalKeys);
                 foreach ($approvalsToRemove as $approvalKey) {
-                    [$userId, $requestType] = explode('|', $approvalKey);
+                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
+
                     Approval::where([
                         'approvable_type' => StockRequest::class,
-                        'approvable_id' => $stockRequest->id,
-                        'responder_id' => $userId,
-                        'request_type' => $requestType,
+                        'approvable_id'   => $stockRequest->id,
+                        'responder_id'    => $userId,
+                        'position_id'     => $positionId,
+                        'request_type'    => $requestType,
                     ])->delete();
                 }
 
                 // Determine approvals to add
                 $approvalsToAdd = array_diff($newApprovalKeys, $existingApprovalKeys);
                 foreach ($approvalsToAdd as $approvalKey) {
-                    [$userId, $requestType] = explode('|', $approvalKey);
+                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
+
                     $approvalData = [
-                        'approvable_type' => StockRequest::class,
-                        'approvable_id' => $stockRequest->id,
-                        'document_name' => 'Stock Request',
+                        'approvable_type'    => StockRequest::class,
+                        'approvable_id'      => $stockRequest->id,
+                        'document_name'      => 'Stock Request',
                         'document_reference' => $stockRequest->request_number,
-                        'request_type' => $requestType,
-                        'approval_status' => 'Pending',
-                        'ordinal' => $this->getOrdinalForRequestType($requestType),
-                        'requester_id' => $stockRequest->created_by,
-                        'responder_id' => $userId,
+                        'request_type'       => $requestType,
+                        'approval_status'    => 'Pending',
+                        'ordinal'            => $this->getOrdinalForRequestType($requestType),
+                        'requester_id'       => $stockRequest->created_by,
+                        'responder_id'       => $userId,
+                        'position_id'        => $positionId,
                     ];
                     $this->approvalController->storeApproval($approvalData);
                 }
 
-                // Handle stock request line items
+                // ---------------- Items Handling ----------------
                 $existingItemIds = $stockRequest->stockRequestItems->pluck('id')->toArray();
                 $submittedItemIds = array_filter(array_column($validated['items'], 'id'), fn($id) => !is_null($id));
 
@@ -507,7 +541,7 @@ class StockRequestController extends Controller
     {
         // Validate request type
         $validated = $request->validate([
-            'request_type' => ['required', 'string', 'in:review,check,approve'],
+            'request_type' => ['required', 'string', 'in:approve'],
         ]);
 
         $permission = "stockRequest.{$validated['request_type']}";
@@ -553,9 +587,10 @@ class StockRequestController extends Controller
     public function getStockRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockRequest::class);
+
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin');
-        $campusIds = $isAdmin ? [] : $user->campus->pluck('id')->toArray();
+        $campusIds = $user->campus->pluck('id')->toArray();
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
@@ -567,86 +602,22 @@ class StockRequestController extends Controller
         ]);
 
         $query = StockRequest::with([
-                'warehouse.building.campus',
-                'campus',
-                // 'createdBy.defaultCampus',
-                'stockRequestItems.productVariant.product.unit',
-                'createdBy',
-                'updatedBy',
-            ])
-            // Apply warehouse filter only if NOT admin
-            ->when(!$isAdmin, fn($q) => $q->whereIn('campus_id', $campusIds))
-            ->when($validated['search'] ?? null, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('request_number', 'like', "%{$search}%")
-                        ->orWhereHas('warehouse', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('stockRequestItems.productVariant.product', function ($q) use ($search) {
-                            $q->where(function ($q2) use ($search) {
-                                $q2->where('name', 'like', "%{$search}%")
-                                    ->orWhere('khmer_name', 'like', "%{$search}%")
-                                    ->orWhere('description', 'like', "%{$search}%")
-                                    ->orWhere('item_code', 'like', "%{$search}%")
-                                    ->orWhereHas('unit', fn($q3) => $q3->where('name', 'like', "%{$search}%"));
-                            });
-                        });
-                });
-            });
+            'warehouse.building.campus',
+            'campus',
+            'stockRequestItems.productVariant.product.unit',
+            'createdBy',
+            'updatedBy',
+        ])
+        ->campusFilter($isAdmin, $campusIds)
+        ->search($validated['search'] ?? null)
+        ->orderBy($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
 
-        $recordsTotal = $isAdmin
-            ? StockRequest::count()
-            : StockRequest::whereIn('campus_id', $campusIds)->count();
-
-        $recordsFiltered = $query->count();
-
-        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
-        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
-
-        $query->orderBy($sortColumn, $sortDirection);
-
-        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
-        $page = $validated['page'] ?? 1;
-
-        $stockRequests = $query->paginate($limit, ['*'], 'page', $page);
-
-        $data = $stockRequests->getCollection()->map(function ($item) {
-            return [
-                'id' => $item->id,
-                'request_number' => $item->request_number,
-                'request_date' => $item->request_date,
-                'warehouse_name' => $item->warehouse->name ?? null,
-                'warehouse_campus_name' => $item->warehouse->building->campus->short_name ?? null,
-                'user_campus_name' => $item->campus->short_name ?? null,
-                'building_name' => $item->warehouse->building->short_name ?? null,
-                'quantity' => round($item->stockRequestItems->sum('quantity'), 4),
-                'total_price' => round($item->stockRequestItems->sum('total_price'), 4),
-                'created_at' => optional($item->created_at)->toDateTimeString(),
-                'updated_at' => optional($item->updated_at)->toDateTimeString(),
-                'created_by' => $item->createdBy->name ?? 'System',
-                'updated_by' => $item->updatedBy->name ?? 'System',
-                'approval_status' => $item->approval_status,
-                'items' => $item->stockRequestItems->map(function ($sb) {
-                    return [
-                        'id' => $sb->id,
-                        'product_id' => $sb->product_id,
-                        'department_id' => $sb->department_id,
-                        'campus_id' => $sb->campus_id,
-                        'item_code' => $sb->productVariant->item_code ?? null,
-                        'quantity' => $sb->quantity,
-                        'average_price' => $sb->average_price,
-                        'total_price' => $sb->total_price,
-                        'remarks' => $sb->remarks,
-                        'product_name' => $sb->productVariant->product->name ?? null,
-                        'product_khmer_name' => $sb->productVariant->product->khmer_name ?? null,
-                        'unit_name' => $sb->productVariant->product->unit->name ?? null,
-                    ];
-                })->toArray(),
-            ];
-        });
+        $stockRequests = $query->paginate($validated['limit'] ?? self::DEFAULT_LIMIT, ['*'], 'page', $validated['page'] ?? 1);
 
         return response()->json([
-            'data' => $data->all(),
-            'recordsTotal' => $recordsTotal,
-            'recordsFiltered' => $recordsFiltered,
+            'data' => (new StockRequestCollection($stockRequests))->toArray($request),
+            'recordsTotal' => $stockRequests->total(),
+            'recordsFiltered' => $stockRequests->total(),
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
@@ -671,34 +642,15 @@ class StockRequestController extends Controller
         ]);
 
         $query = StockRequest::with([
-                'warehouse.building.campus', 
-                'createdBy', 
-                'stockRequestItems.productVariant.product.unit'
-            ])
-            ->when($validated['search'] ?? null, function ($q, $search) {
-                $q->where('request_number', 'like', "%{$search}%")
-                ->orWhereHas('warehouse', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('stockRequestItems.productVariant.product', fn($q3) => $q3->where(function ($q4) use ($search) {
-                    $q4->where('name', 'like', "%{$search}%")
-                        ->orWhere('khmer_name', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhere('item_code', 'like', "%{$search}%")
-                        ->orWhereHas('unit', fn($q5) => $q5->where('name', 'like', "%{$search}%"));
-                }));
-            })
-            ->when($validated['start_date'] ?? null, fn($q, $start) => $q->whereDate('request_date', '>=', $start))
-            ->when($validated['end_date'] ?? null, fn($q, $end) => $q->whereDate('request_date', '<=', $end))
-            ->when($validated['warehouse_id'] ?? null, fn($q, $wid) => $q->where('warehouse_id', $wid));
-
-        $sortColumn = in_array($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, self::ALLOWED_SORT_COLUMNS)
-            ? $validated['sortColumn']
-            : self::DEFAULT_SORT_COLUMN;
-
-        $sortDirection = in_array(strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION), ['asc', 'desc'])
-            ? $validated['sortDirection']
-            : self::DEFAULT_SORT_DIRECTION;
-
-        $query->orderBy($sortColumn, $sortDirection);
+            'warehouse.building.campus',
+            'createdBy',
+            'stockRequestItems.productVariant.product.unit'
+        ])
+        ->search($validated['search'] ?? null)
+        ->when($validated['start_date'] ?? null, fn($q, $start) => $q->whereDate('request_date', '>=', $start))
+        ->when($validated['end_date'] ?? null, fn($q, $end) => $q->whereDate('request_date', '<=', $end))
+        ->when($validated['warehouse_id'] ?? null, fn($q, $wid) => $q->where('warehouse_id', $wid))
+        ->orderBy($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
 
         return Excel::download(
             new StockRequestExport($query),
@@ -718,7 +670,7 @@ class StockRequestController extends Controller
             'request_date' => ['required', 'date', 'date_format:' . self::DATE_FORMAT],
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
             'type' => ['required', 'string'],
-            'purpose' => ['nullable', 'string', 'max:1000'],
+            'purpose' => ['required', 'string', 'max:1000'],
         ];
     }
 
@@ -847,7 +799,7 @@ class StockRequestController extends Controller
     public function submitApproval(Request $request, StockRequest $stockRequest): JsonResponse
     {
         $validated = $request->validate([
-            'request_type' => 'required|string|in:review,check,approve',
+            'request_type' => 'required|string|in:approve',
             'action' => 'required|string|in:approve,reject',
             'comment' => 'nullable|string|max:1000',
         ]);
@@ -875,8 +827,6 @@ class StockRequestController extends Controller
             // Update StockRequest approval_status based on request_type and action
             if ($validated['action'] === 'approve') {
                 $statusMap = [
-                    'review' => 'Reviewed',
-                    'check' => 'Checked',
                     'approve' => 'Approved',
                 ];
 
@@ -909,76 +859,70 @@ class StockRequestController extends Controller
         $this->authorize('reassign', $stockRequest);
 
         $validated = $request->validate([
-            'request_type' => 'required|string|in:review,check,approve',
-            'new_user_id' => 'required|exists:users,id',
-            'comment' => 'nullable|string|max:1000',
+            'request_type'   => 'required|string|in:approve',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
         ]);
 
         $user = User::findOrFail($validated['new_user_id']);
+
+        // Determine responder's position
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        // Check if user has required permission
         $permission = "stockRequest.{$validated['request_type']}";
         if (!$user->hasPermissionTo($permission)) {
             return response()->json([
-                'message' => "User ID {$validated['new_user_id']} does not have permission for {$validated['request_type']}.",
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
             ], 403);
         }
 
         try {
             $approval = Approval::where([
                 'approvable_type' => StockRequest::class,
-                'approvable_id' => $stockRequest->id,
-                'request_type' => $validated['request_type'],
+                'approvable_id'   => $stockRequest->id,
+                'request_type'    => $validated['request_type'],
                 'approval_status' => 'Pending',
             ])->first();
 
             if (!$approval) {
                 return response()->json([
-                    'message' => 'No pending approval found for the specified request type.',
                     'success' => false,
+                    'message' => 'No pending approval found for the specified request type.',
                 ], 404);
             }
 
             $approval->update([
-                'responder_id' => $validated['new_user_id'],
-                'comment' => $validated['comment'],
-                'updated_at' => now(),
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
             ]);
 
             return response()->json([
-                'message' => 'Responder reassigned successfully.',
                 'success' => true,
-            ], 200);
+                'message' => 'Responder reassigned successfully.',
+            ]);
         } catch (\Exception $e) {
             Log::error('Failed to reassign responder', [
-                'document_id' => $stockRequest->id,
+                'document_id'  => $stockRequest->id,
                 'request_type' => $validated['request_type'],
-                'error' => $e->getMessage(),
+                'error'        => $e->getMessage(),
             ]);
+
             return response()->json([
-                'message' => 'Failed to reassign responder.',
                 'success' => false,
-                'error' => $e->getMessage(),
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
             ], 500);
         }
-    }
-
-    /**
-     * List approvals for a specific stock request.
-     *
-     * @param Request $request
-     * @param int $documentId
-     * @return JsonResponse
-     */
-    public function listApprovals(Request $request, $documentId): JsonResponse
-    {
-        $stockRequest = StockRequest::findOrFail($documentId);
-        $this->authorize('view', $stockRequest);
-
-        $result = $this->approvalController->listApprovals($request, StockRequest::class, $documentId);
-
-        return response()->json([
-            'message' => $result['message'],
-            'approvals' => $result['approvals'] ?? null,
-        ], $result['success'] ? 200 : 403);
     }
 
     /**
@@ -1002,8 +946,6 @@ class StockRequestController extends Controller
 
             // Check user permissions for any approval-related actions
             $hasPermission = auth()->user()->hasAnyPermission([
-                'stockRequest.review',
-                'stockRequest.check',
                 'stockRequest.approve'
             ]);
             if (!$hasPermission) {
@@ -1135,7 +1077,7 @@ class StockRequestController extends Controller
      */
     protected function getOrdinalForRequestType($requestType)
     {
-        $ordinals = ['review' => 1, 'check' => 2, 'approve' => 3];
+        $ordinals = ['approve' => 3];
         return $ordinals[$requestType] ?? 1;
     }
 
