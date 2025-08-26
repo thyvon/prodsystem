@@ -289,8 +289,6 @@ class StockRequestController extends Controller
                 'approvals.responder',
             ]);
 
-            Log::info('Stock Request Data: ', $stockRequest->toArray());
-
             // User-specific departments & campuses
             $departments = $user->departments()->select('departments.id', 'departments.name', 'departments.short_name')->get();
             $campuses = $user->campus()->select('campus.id', 'campus.name', 'campus.short_name')->get();

@@ -82,7 +82,9 @@ class StockBeginningController extends Controller
                 'warehouse.building.campus',
                 'createdBy',
                 'updatedBy',
+                'creatorPosition',
                 'approvals.responder',
+                'approvals.responderPosition',
             ]);
 
             // Check if the approval button should be shown
@@ -93,6 +95,7 @@ class StockBeginningController extends Controller
                 return [
                     'id' => $approval->id,
                     'user_id' => $approval->responder_id,
+                    'position_id' => $approval->position_id,
                     'request_type' => $approval->request_type,
                     'name' => $approval->responder->name ?? 'N/A',
                 ];
@@ -111,6 +114,9 @@ class StockBeginningController extends Controller
                             'request_type' => $approval->request_type,
                             'approval_status' => $approval->approval_status,
                             'responder_name' => $approval->responder->name ?? 'N/A',
+                            'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
+                            'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
+                            'position_name' => $approval->responderPosition->title ?? 'N/A',
                             'ordinal' => $approval->ordinal,
                             'comment' => $approval->comment,
                             'created_at' => $approval->created_at?->toDateTimeString(),
@@ -169,10 +175,18 @@ class StockBeginningController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
+                $userPosition = auth()->user()->defaultPosition(); // returns model or null
+
+                if (!$userPosition) {
+                    return response()->json([
+                        'message' => 'No default position assigned to this user.',
+                    ], 404);
+                }
 
                 $mainStockBeginning = MainStockBeginning::create([
                     'reference_no' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
+                    'position_id' => $userPosition->id,
                     'beginning_date' => $validated['beginning_date'],
                     'created_by' => auth()->id() ?? 1,
                     'approval_status' => 'Pending',
@@ -194,7 +208,7 @@ class StockBeginningController extends Controller
 
                 StockBeginning::insert($items);
 
-                $this->initializeApprovals($mainStockBeginning, $validated['approvals']);
+                $this->storeApprovals($mainStockBeginning, $validated['approvals']);
 
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
@@ -265,6 +279,7 @@ class StockBeginningController extends Controller
                     return [
                         'id' => $approval->id,
                         'user_id' => $approval->responder_id,
+                        'position_id' => $approval->position_id,
                         'request_type' => $approval->request_type,
                     ];
                 })->toArray(),
@@ -273,11 +288,6 @@ class StockBeginningController extends Controller
             return view('Inventory.stockBeginning.form', [
                 'mainStockBeginning' => $mainStockBeginning,
                 'stockBeginningData' => $stockBeginningData,
-
-                Log::debug('Fetched stock beginning for editing', [
-                    'main_stock_beginning_id' => $mainStockBeginning->id,
-                    'stock_beginning_data' => $stockBeginningData,
-                ]),
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching stock beginning for editing', [
@@ -331,6 +341,24 @@ class StockBeginningController extends Controller
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
                 ]);
+
+                // ---------------- Reset Returned status ----------------
+                if ($mainStockBeginning->approval_status === 'Returned') {
+                    // Reset the stock request status
+                    $mainStockBeginning->update([
+                        'approval_status' => 'Pending',
+                    ]);
+
+                    // Reset all approvals related to this stock request
+                    Approval::where([
+                        'approvable_type' => MainStockBeginning::class,
+                        'approvable_id'   => $mainStockBeginning->id,
+                    ])->update([
+                        'approval_status' => 'Pending',
+                        'responded_date'  => null,
+                        'comment'         => null,
+                    ]);
+                }
 
                 // Build existing and new composite approval keys
                 $existingApprovalKeys = $mainStockBeginning->approvals->map(fn($a) => "{$a->responder_id}|{$a->request_type}")->toArray();
@@ -1083,7 +1111,7 @@ class StockBeginningController extends Controller
      * @param array $approvals
      * @return void
      */
-    protected function initializeApprovals(MainStockBeginning $mainStockBeginning, array $approvals)
+    protected function storeApprovals(MainStockBeginning $mainStockBeginning, array $approvals)
     {
         foreach ($approvals as $approval) {
             $approvalData = [
