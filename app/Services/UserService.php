@@ -33,8 +33,8 @@ class UserService
 
             $data = collect($users->items())->map(function ($user) {
                 $user->role = $user->roles->pluck('name')->implode(', ');
-                $user->default_department = $user->defaultDepartment() ? $user->defaultDepartment()->name : null;
-                $user->default_campus = $user->defaultCampus() ? $user->defaultCampus()->name : null;
+                $user->default_department = $user->defaultDepartment() ? $user->defaultDepartment()->short_name : null;
+                $user->default_campus = $user->defaultCampus() ? $user->defaultCampus()->short_name : null;
                 $user->default_position = $user->defaultPosition() ? $user->defaultPosition()->title : null;
                 return $user;
             });

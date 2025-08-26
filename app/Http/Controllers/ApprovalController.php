@@ -267,6 +267,7 @@ class ApprovalController extends Controller
 
         $blockingApproval = $previous->first(fn($a) => strtolower(trim($a->approval_status)) !== 'approved');
         $blockingRejected = $previous->last(fn($a) => strtolower(trim($a->approval_status)) === 'rejected');
+        $blockingReturned = $previous->last(fn($a) => strtolower(trim($a->approval_status)) === 'returned');
 
         if ($blockingApproval) {
             $displayStatus = 'Waiting ' . ucwords($blockingApproval->request_type);
@@ -275,6 +276,10 @@ class ApprovalController extends Controller
         if ($blockingRejected) {
             $displayStatus = 'Rejected by ' . ($blockingRejected->responder->name ?? 'Unknown');
             $displayResponseDate = $blockingRejected->responded_date;
+        }
+        if ($blockingReturned) {
+            $displayStatus = 'Returned by ' . ($blockingReturned->responder->name ?? 'Unknown');
+            $displayResponseDate = $blockingReturned->responded_date;
         }
 
         return [

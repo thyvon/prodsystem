@@ -85,15 +85,15 @@
 
         <div>
             <a href="#" data-toggle="dropdown" title="{{ Auth::user()->email }}" class="header-icon d-flex align-items-center justify-content-center ml-2">
-                <img src="{{ asset('template/img/demo/avatars/avatar-admin.png') }}" class="profile-image rounded-circle" alt="User Avatar">
+                <img src="{{ auth()->user()->profile_url }}" class="profile-image rounded-circle" alt="User Avatar">
             </a>
             <div class="dropdown-menu dropdown-menu-animated dropdown-lg">
                 <div class="dropdown-header bg-trans-gradient d-flex flex-row py-4 rounded-top">
                     <div class="d-flex flex-row align-items-center text-white">
-                        <img src="{{ asset('template/img/demo/avatars/avatar-admin.png') }}" class="rounded-circle profile-image mr-2" alt="User Avatar">
+                        <img src="{{ auth()->user()->profile_url }}" class="rounded-circle profile-image mr-2" alt="User Avatar">
                         <div>
                             <div class="fs-lg text-truncate">{{ Auth::user()->name }}</div>
-                            <span class="opacity-80">{{ Auth::user()->email }}</span>
+                            <span class="opacity-80">{{ Auth::user()->defaultPosition()->short_title }}</span>
                         </div>
                     </div>
                 </div>

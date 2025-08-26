@@ -46,6 +46,11 @@ class SharePendingApprovalCount
                         return false;
                     }
 
+                    // Exclude if any previous is Returned
+                    if ($previous->firstWhere('approval_status', 'Returned')) {
+                        return false;
+                    }
+
                     return true;
                 });
 
@@ -74,14 +79,17 @@ class SharePendingApprovalCount
                     });
 
                     // Exclude if any previous is Pending
-                    $pendingPrevious = $previous->firstWhere('approval_status', 'Pending');
-                    if ($pendingPrevious) {
+                    if ($previous->firstWhere('approval_status', 'Pending')) {
                         return false;
                     }
 
                     // Exclude if any previous is Rejected
-                    $rejectedPrevious = $previous->firstWhere('approval_status', 'Rejected');
-                    if ($rejectedPrevious) {
+                    if ($previous->firstWhere('approval_status', 'Rejected')) {
+                        return false;
+                    }
+
+                    // Exclude if any previous is Returned
+                    if ($previous->firstWhere('approval_status', 'Returned')) {
                         return false;
                     }
 

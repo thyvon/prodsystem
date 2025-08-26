@@ -172,18 +172,18 @@
               <i class="fal fa-plus"></i> Add Approval
             </button>
           </div>
-
           <div class="text-right">
             <button
               type="submit"
               class="btn btn-primary btn-sm mr-2"
               :disabled="isSubmitting || form.items.length === 0 || form.approvals.length === 0"
             >
-              <span
-                v-if="isSubmitting"
-                class="spinner-border spinner-border-sm mr-1"
-              ></span>
-              {{ isEditMode ? 'Update' : 'Create' }}
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
+              {{
+                isEditMode
+                  ? (initialData.approval_status === 'Returned' ? 'Re-Submit' : 'Update')
+                  : 'Create'
+              }}
             </button>
             <button
               type="button"
@@ -222,11 +222,11 @@ const products = ref([])
 const warehouses = ref([])
 const users = ref({ approve: [] })
 const warehouseSelect = ref(null)
-const departmentSelect = ref(null)
-const campusSelect = ref(null)
+// const departmentSelect = ref(null)
+// const campusSelect = ref(null)
 const typeSelect = ref(null)
 const productSelect = ref(null)
-const isEditMode = ref(!!props.initialData?.id)
+const isEditMode = computed(() => !!props.initialData?.id)
 const stockRequestId = ref(props.initialData?.id || null)
 const table = ref(null)
 let isAddingItem = false

@@ -3,7 +3,7 @@
 
 @section('content')
 <stock-request-form
-    :initial-data='@json($stockRequestItemData ?? [])'
+    :initial-data='@json($stockRequestData ?? [])'
     :departments='@json($departments)'
     :campuses='@json($campuses)'
     :default-department='@json($defaultDepartment)'

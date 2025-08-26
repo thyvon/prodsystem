@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 use App\Services\WarehouseService;
 use App\Services\ProductService;
 use App\Services\CampusService;
+use App\Services\ApprovalService;
 use App\Services\DepartmentService;
 use App\Http\Resources\StockRequestCollection;
 
@@ -33,24 +34,24 @@ class StockRequestController extends Controller
     private const MAX_LIMIT = 1000;
     private const DATE_FORMAT = 'Y-m-d';
 
-    protected $approvalController;
     protected $warehouseService;
     protected $productService;
     protected $campusService;
     protected $departmentService;
+    protected $approvalService;
 
     public function __construct(
-        ApprovalController $approvalController,
         WarehouseService $warehouseService,
         ProductService $productService,
         CampusService $campusService,
-        DepartmentService $departmentService
+        DepartmentService $departmentService,
+        ApprovalService $approvalService
     ) {
-        $this->approvalController = $approvalController;
         $this->warehouseService = $warehouseService;
         $this->productService = $productService;
         $this->campusService = $campusService;
         $this->departmentService = $departmentService;
+        $this->approvalService = $approvalService;
     }
 
     /**
@@ -143,6 +144,8 @@ class StockRequestController extends Controller
                             'request_type' => $approval->request_type,
                             'approval_status' => $approval->approval_status,
                             'responder_name' => $approval->responder->name ?? 'N/A',
+                            'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
+                            'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
                             'position_name' => $approval->responderPosition->title ?? 'N/A',
                             'ordinal' => $approval->ordinal,
                             'comment' => $approval->comment,
@@ -246,7 +249,7 @@ class StockRequestController extends Controller
 
                 StockRequestItem::insert($items);
 
-                $this->initializeApprovals($stockRequest, $validated['approvals']);
+                $this->storeApprovals($stockRequest, $validated['approvals']);
 
                 return response()->json([
                     'message' => 'Stock request created successfully.',
@@ -286,6 +289,8 @@ class StockRequestController extends Controller
                 'approvals.responder',
             ]);
 
+            Log::info('Stock Request Data: ', $stockRequest->toArray());
+
             // User-specific departments & campuses
             $departments = $user->departments()->select('departments.id', 'departments.name', 'departments.short_name')->get();
             $campuses = $user->campus()->select('campus.id', 'campus.name', 'campus.short_name')->get();
@@ -294,7 +299,7 @@ class StockRequestController extends Controller
             $defaultCampus = $user->defaultCampus();
 
             // Prepare data payload for Vue
-            $stockRequestItemData = [
+            $stockRequestData = [
                 'id' => $stockRequest->id,
                 'request_number' => $stockRequest->request_number,
                 'warehouse_id' => $stockRequest->warehouse_id,
@@ -302,6 +307,7 @@ class StockRequestController extends Controller
                 'position_id' => $stockRequest->position_id,
                 'type' => $stockRequest->type,
                 'purpose' => $stockRequest->purpose,
+                'approval_status' => $stockRequest->approval_status,
                 'request_date' => $stockRequest->request_date,
                 // Inline items with default department/campus fallback
                 'items' => $stockRequest->stockRequestItems->map(function ($item) use ($defaultDepartment, $defaultCampus) {
@@ -342,7 +348,7 @@ class StockRequestController extends Controller
 
             return view('Inventory.stockRequest.form', compact(
                 'stockRequest',
-                'stockRequestItemData',
+                'stockRequestData',
                 'departments',
                 'campuses',
                 'defaultDepartment',
@@ -416,6 +422,24 @@ class StockRequestController extends Controller
                     'updated_by' => auth()->id() ?? 1,
                 ]);
 
+                // ---------------- Reset Returned status ----------------
+                if ($stockRequest->approval_status === 'Returned') {
+                    // Reset the stock request status
+                    $stockRequest->update([
+                        'approval_status' => 'Pending',
+                    ]);
+
+                    // Reset all approvals related to this stock request
+                    Approval::where([
+                        'approvable_type' => StockRequest::class,
+                        'approvable_id'   => $stockRequest->id,
+                    ])->update([
+                        'approval_status' => 'Pending',
+                        'responded_date'  => null,
+                        'comment'         => null,
+                    ]);
+                }
+
                 // ---------------- Approvals Handling ----------------
                 // Build existing and new composite approval keys (include position_id for uniqueness)
                 $existingApprovalKeys = $stockRequest->approvals->map(
@@ -459,7 +483,7 @@ class StockRequestController extends Controller
                         'responder_id'       => $userId,
                         'position_id'        => $positionId,
                     ];
-                    $this->approvalController->storeApproval($approvalData);
+                    $this->approvalService->storeApproval($approvalData);
                 }
 
                 // ---------------- Items Handling ----------------
@@ -789,65 +813,79 @@ class StockRequestController extends Controller
         }
     }
 
-    /**
-     * Submit an approval action (approve or reject) for a stock request.
-     *
-     * @param Request $request
-     * @param int $documentId
-     * @return JsonResponse
-     */
-    public function submitApproval(Request $request, StockRequest $stockRequest): JsonResponse
+    //Approval Service
+    public function submitApproval(Request $request, StockRequest $stockRequest, ApprovalService $approvalService): JsonResponse
     {
+        // Validate request
         $validated = $request->validate([
             'request_type' => 'required|string|in:approve',
-            'action' => 'required|string|in:approve,reject',
-            'comment' => 'nullable|string|max:1000',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
         ]);
 
-        // Build permission string
+        // Check user permission
         $permission = "stockRequest.{$validated['request_type']}";
-
-        // Check permission using Spatie's `can`
         if (!auth()->user()->can($permission)) {
             return response()->json([
                 'message' => "You do not have permission to {$validated['request_type']} this stock request.",
             ], 403);
         }
 
-        $method = $validated['action'] === 'approve' ? 'confirmApproval' : 'rejectApproval';
-
-        $result = $this->approvalController->$method(
-            $request,
-            StockRequest::class,
-            $stockRequest->id,
-            $validated['request_type']
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $stockRequest,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
         );
 
-        if ($result['success']) {
-            // Update StockRequest approval_status based on request_type and action
-            if ($validated['action'] === 'approve') {
-                $statusMap = [
-                    'approve' => 'Approved',
-                ];
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
 
-                $stockRequest->approval_status = $statusMap[$validated['request_type']] ?? null;
-            } else {
-                // Reject action sets status to 'Rejected'
-                $stockRequest->approval_status = 'Rejected';
-            }
-
-            // Save the updated status
+        // Update StockRequest approval_status if successful
+        if ($success) {
+            $statusMap = [
+                'approve' => 'Approved',
+                'reject'  => 'Rejected',
+                'return'  => 'Returned',
+            ];
+            $stockRequest->approval_status = $statusMap[$validated['action']] ?? 'Pending';
             $stockRequest->save();
         }
 
         return response()->json([
-            'message' => $result['message'],
+            'message'      => $result['message'] ?? 'Action failed',
             'redirect_url' => route('approvals-stock-requests.show', $stockRequest->id),
-            'approval' => $result['approval'] ?? null,
-        ], $result['success'] ? 200 : 400);
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
     }
 
     /**
+     * Initialize approvals for a stock request.
+     *
+     * @param StockRequest $stockRequest
+     * @param array $approvals
+     * @return void
+     */
+    protected function storeApprovals(StockRequest $stockRequest, array $approvals)
+    {
+        foreach ($approvals as $approval) {
+            $approvalData = [
+                'approvable_type' => StockRequest::class,
+                'approvable_id' => $stockRequest->id,
+                'document_name' => 'Stock Request',
+                'document_reference' => $stockRequest->request_number,
+                'request_type' => $approval['request_type'],
+                'approval_status' => 'Pending',
+                'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
+                'requester_id' => $stockRequest->created_by,
+                'responder_id' => $approval['user_id'],
+            ];
+            $this->approvalService->storeApproval($approvalData);
+        }
+    }
+
+        /**
      * Reassign a responder for a specific request type.
      *
      * @param Request $request
@@ -866,9 +904,8 @@ class StockRequestController extends Controller
         ]);
 
         $user = User::findOrFail($validated['new_user_id']);
-
-        // Determine responder's position
         $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+
         if (!$positionId) {
             return response()->json([
                 'success' => false,
@@ -876,30 +913,28 @@ class StockRequestController extends Controller
             ], 422);
         }
 
-        // Check if user has required permission
-        $permission = "stockRequest.{$validated['request_type']}";
-        if (!$user->hasPermissionTo($permission)) {
+        if (!$user->hasPermissionTo("stockRequest.{$validated['request_type']}")) {
             return response()->json([
                 'success' => false,
                 'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
             ], 403);
         }
 
+        $approval = Approval::where([
+            'approvable_type' => StockRequest::class,
+            'approvable_id'   => $stockRequest->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
         try {
-            $approval = Approval::where([
-                'approvable_type' => StockRequest::class,
-                'approvable_id'   => $stockRequest->id,
-                'request_type'    => $validated['request_type'],
-                'approval_status' => 'Pending',
-            ])->first();
-
-            if (!$approval) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No pending approval found for the specified request type.',
-                ], 404);
-            }
-
             $approval->update([
                 'responder_id' => $user->id,
                 'position_id'  => $positionId,
@@ -925,6 +960,7 @@ class StockRequestController extends Controller
         }
     }
 
+
     /**
      * Determine if the authenticated user can see and interact with the approval button for a stock request.
      *
@@ -934,94 +970,52 @@ class StockRequestController extends Controller
     private function canShowApprovalButton(int $documentId): array
     {
         try {
-            $stockRequest = StockRequest::findOrFail($documentId);
             $userId = auth()->id();
             if (!$userId) {
-                return [
-                    'message' => 'Approval button not available: User not authenticated.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+                return $this->approvalButtonResponse('User not authenticated.');
             }
 
-            // Check user permissions for any approval-related actions
-            $hasPermission = auth()->user()->hasAnyPermission([
-                'stockRequest.approve'
-            ]);
-            if (!$hasPermission) {
-                return [
-                    'message' => 'Approval button not available: User lacks approval permissions.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+            if (!auth()->user()->hasAnyPermission(['stockRequest.approve'])) {
+                return $this->approvalButtonResponse('User lacks approval permissions.');
             }
 
-            // Get all approvals for this stock request, ordered by ordinal and id
             $approvals = Approval::where([
                 'approvable_type' => StockRequest::class,
-                'approvable_id' => $documentId,
-            ])
-            ->orderBy('ordinal', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
 
             if ($approvals->isEmpty()) {
-                return [
-                    'message' => 'Approval button not available: No approvals configured.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+                return $this->approvalButtonResponse('No approvals configured.');
             }
 
-            // Find the first pending approval
-            $currentApproval = $approvals->firstWhere('approval_status', 'Pending');
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
             if (!$currentApproval) {
-                return [
-                    'message' => 'Approval button not available: All approvals completed or none pending.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
             }
 
-            // Check if the current user is the responder for the pending approval
-            if ($currentApproval->responder_id !== $userId) {
-                return [
-                    'message' => 'Approval button not available: User is not the assigned responder.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) || 
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
             }
 
-            // Filter previous approvals (with lower ordinal)
-            $previousApprovals = $approvals->filter(function ($approval) use ($currentApproval) {
-                return ($approval->ordinal < $currentApproval->ordinal) ||
-                    ($approval->ordinal === $currentApproval->ordinal && $approval->id < $currentApproval->id);
-            });
-
-            // Check if any previous approval is rejected
-            $anyPreviousRejected = $previousApprovals->contains(function ($approval) {
-                return strtolower(trim($approval->approval_status)) === 'rejected';
-            });
-
-            if ($anyPreviousRejected) {
-                return [
-                    'message' => 'Approval button not available: A previous approval was rejected.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
             }
 
-            // Check if all previous approvals are approved
-            $allPreviousApproved = $previousApprovals->every(function ($approval) {
-                return strtolower(trim($approval->approval_status)) === 'approved';
-            });
-
-            if (!$allPreviousApproved) {
-                return [
-                    'message' => 'Approval button not available: Previous approval steps are not completed.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
             }
 
             return [
@@ -1033,40 +1027,21 @@ class StockRequestController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to check approval button visibility', [
                 'document_id' => $documentId,
-                'user_id' => auth()->id(),
+                'user_id' => $userId,
                 'error' => $e->getMessage(),
             ]);
-            return [
-                'message' => 'Failed to check approval button visibility',
-                'showButton' => false,
-                'requestType' => null,
-            ];
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
         }
     }
 
-    /**
-     * Initialize approvals for a stock request.
-     *
-     * @param StockRequest $stockRequest
-     * @param array $approvals
-     * @return void
-     */
-    protected function initializeApprovals(StockRequest $stockRequest, array $approvals)
+    private function approvalButtonResponse(string $reason): array
     {
-        foreach ($approvals as $approval) {
-            $approvalData = [
-                'approvable_type' => StockRequest::class,
-                'approvable_id' => $stockRequest->id,
-                'document_name' => 'Stock Request',
-                'document_reference' => $stockRequest->request_number,
-                'request_type' => $approval['request_type'],
-                'approval_status' => 'Pending',
-                'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
-                'requester_id' => $stockRequest->created_by,
-                'responder_id' => $approval['user_id'],
-            ];
-            $this->approvalController->storeApproval($approvalData);
-        }
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 
     /**

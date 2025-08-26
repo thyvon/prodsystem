@@ -168,6 +168,10 @@ const renderColumnData = (key, val) => {
     if (key === 'image' && val) {
       return `<div class="text-center"><img src="/storage/${val}" alt="Product Image" style="max-width:60px;max-height:60px;" /></div>`;
     }
+
+    if (key === 'profile_url' && val) {
+      return `<div class="text-center"><img class="rounded-circle" src="${val}" alt="User Profile" style="max-width:60px;max-height:60px;" /></div>`;
+    }
   return val ?? '';
 };
 

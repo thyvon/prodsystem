@@ -74,12 +74,17 @@ const datatableParams = reactive({
 
 // --- Datatable config ---
 const datatableHeaders = [
-  { text: 'Name', value: 'name', width: '25%', sortable: true },
-  { text: 'Email', value: 'email', width: '25%', sortable: true },
-  { text: 'Role', value: 'role', width: '15%', sortable: true },
+  { text: 'Profile', value: 'profile_url', width: '5%', sortable: false },
+  { text: 'Name', value: 'name', width: '15%', sortable: true },
+  { text: 'Department', value: 'default_department', width: '10%', sortable: true },
+  { text: 'Position', value: 'default_position', width: '10%', sortable: true },
+  { text: 'Campus', value: 'default_campus', width: '10%', sortable: true },
+  { text: 'Email', value: 'email', width: '20%', sortable: true },
+  { text: 'Phone', value: 'phone', width: '10%', sortable: true },
+  { text: 'Role', value: 'role', width: '10%', sortable: true },
   { text: 'Active', value: 'is_active', width: '5%', sortable: true },
-  { text: 'Created', value: 'created_at', width: '20%', sortable: true },
-  { text: 'Updated', value: 'updated_at', width: '15%', sortable: false },
+  { text: 'Created', value: 'created_at', width: '7%', sortable: true },
+  { text: 'Updated', value: 'updated_at', width: '8%', sortable: false },
 ];
 const datatableFetchUrl = '/api/users';
 const datatableActions = ['edit', 'delete', 'assignRole'];
