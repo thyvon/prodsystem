@@ -1099,6 +1099,17 @@ class StockRequestController extends Controller
     {
         $this->authorize('viewAny', StockRequest::class);
         $response = $this->productService->getStockManagedVariants($request);
-        return response()->json($response);
+        
+        // Filter response to include only items where is_active = 1
+        $filteredResponse = [
+            'data' => collect($response['data'])->filter(function ($item) {
+                return $item['is_active'] == 1;
+            })->values()->all(),
+            'recordsTotal' => $response['recordsTotal'],
+            'recordsFiltered' => count($response['data']), // Update recordsFiltered to reflect filtered count
+            'draw' => $response['draw'],
+        ];
+        
+        return response()->json($filteredResponse);
     }
 }
