@@ -409,6 +409,11 @@ class StockRequestController extends Controller
                         'message' => 'No default campus assigned to this user.',
                     ], 404);
                 }
+                if (!$userPosition) {
+                    return response()->json([
+                        'message' => 'No default position assigned to this user.',
+                    ], 404);
+                }
 
                 $stockRequest->update([
                     'warehouse_id' => $validated['warehouse_id'],
@@ -439,7 +444,7 @@ class StockRequestController extends Controller
                 }
 
                 // ---------------- Approvals Handling ----------------
-                // Build existing and new composite approval keys (include position_id for uniqueness)
+                // Build existing and new composite approval keys
                 $existingApprovalKeys = $stockRequest->approvals->map(
                     fn($a) => "{$a->responder_id}|{$a->position_id}|{$a->request_type}"
                 )->toArray();

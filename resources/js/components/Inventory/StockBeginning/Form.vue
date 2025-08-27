@@ -197,11 +197,12 @@
               class="btn btn-primary btn-sm mr-2"
               :disabled="isSubmitting || form.items.length === 0 || form.approvals.length === 0"
             >
-              <span
-                v-if="isSubmitting"
-                class="spinner-border spinner-border-sm mr-1"
-              ></span>
-              {{ isEditMode ? 'Update' : 'Create' }}
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
+              {{
+                isEditMode
+                  ? (initialData.approval_status === 'Returned' ? 'Re-Submit' : 'Update')
+                  : 'Create'
+              }}
             </button>
             <button
               type="button"

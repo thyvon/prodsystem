@@ -127,7 +127,7 @@ class SharePendingApprovalCount
     {
         $typeMap = [
             'App\\Models\\MainStockBeginning' => 'stock-beginnings',
-            'App\\Models\\PurchaseRequest' => 'purchase-requests',
+            'App\\Models\\StockRequest' => 'stock-requests',
             'App\\Models\\PurchaseOrder' => 'purchase-orders',
             // Add more mappings if needed
         ];
@@ -143,7 +143,7 @@ class SharePendingApprovalCount
             'created_at' => $approval->created_at?->toDateTimeString(),
             'responder_name' => $approval->responder->name ?? null,
             'requester_name' => $approval->requester->name ?? null,
-            'route_url' => $slug ? url("$slug/{$approval->approvable_id}/show") : null,
+            'route_url' => $slug ? url("/approvals/$slug/{$approval->approvable_id}/show") : null,
         ];
     }
 }

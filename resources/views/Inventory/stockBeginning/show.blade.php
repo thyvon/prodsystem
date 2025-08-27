@@ -6,6 +6,8 @@
         :stock='@json($mainStockBeginning)'
         :approvals='@json($approvals)'
         :show-approval-button='@json($showApprovalButton)'
+        :total-quantity='@json($totalQuantity)'
+        :total-value='@json($totalValue)'
         approval-request-type="{{ $approvalRequestType }}"
         submit-url="{{ route('api.stock-beginnings.submit-approval', $mainStockBeginning->id) }}"
     />

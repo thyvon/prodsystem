@@ -17,6 +17,7 @@ class MainStockBeginning extends Model
         'reference_no',
         'beginning_date',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
         'approval_status'
@@ -35,6 +36,11 @@ class MainStockBeginning extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 
     public function updatedBy()

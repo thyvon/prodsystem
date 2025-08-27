@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\WarehouseService;
 use App\Services\ProductService;
+use App\Services\ApprovalService;
 
 class StockBeginningController extends Controller
 {
@@ -29,16 +30,16 @@ class StockBeginningController extends Controller
     private const MAX_LIMIT = 1000;
     private const DATE_FORMAT = 'Y-m-d';
 
-    protected $approvalController;
+    protected $approvalService;
     protected $warehouseService;
     protected $productService;
 
     public function __construct(
-        ApprovalController $approvalController,
+        ApprovalService $approvalService,
         WarehouseService $warehouseService,
         ProductService $productService
     ) {
-        $this->approvalController = $approvalController;
+        $this->approvalService = $approvalService;
         $this->warehouseService = $warehouseService;
         $this->productService = $productService;
     }
@@ -109,10 +110,17 @@ class StockBeginningController extends Controller
                     ->sortBy('ordinal')
                     ->values()
                     ->map(function ($approval) {
+                        $typeMap = [
+                            'approve' => 'Approved',
+                            'check'   => 'Checked',
+                            'review'  => 'Reviewed',
+                        ];
+
                         return [
                             'id' => $approval->id,
                             'request_type' => $approval->request_type,
                             'approval_status' => $approval->approval_status,
+                            'request_type_label' => $typeMap[$approval->request_type] ?? ucfirst($approval->request_type),
                             'responder_name' => $approval->responder->name ?? 'N/A',
                             'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
                             'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
@@ -123,7 +131,7 @@ class StockBeginningController extends Controller
                             'updated_at' => $approval->updated_at?->toDateTimeString(),
                             'responded_date' => $approval->responded_date,
                         ];
-                })->toArray(),
+                    })->toArray(),
                 'responders' => $responders,
                 'showApprovalButton' => $approvalButtonData['showButton'],
                 'approvalRequestType' => $approvalButtonData['requestType'],
@@ -248,7 +256,9 @@ class StockBeginningController extends Controller
                 'id' => $mainStockBeginning->id,
                 'reference_no' => $mainStockBeginning->reference_no,
                 'warehouse_id' => $mainStockBeginning->warehouse_id,
+                'position_id' => $mainStockBeginning->position_id,
                 'beginning_date' => $mainStockBeginning->beginning_date,
+                'approval_status' => $mainStockBeginning->approval_status,
                 'items' => $mainStockBeginning->stockBeginnings->map(function ($item) {
                     return [
                         'id' => $item->id,
@@ -336,10 +346,18 @@ class StockBeginningController extends Controller
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
                 // Update main stock beginning header
+                $userPosition = auth()->user()->defaultPosition();
+                if(!$userPosition) {
+                    return response()->json([
+                        'message' => 'No default position assigned to this user.',
+                    ], 404);
+                }
+                
                 $mainStockBeginning->update([
                     'warehouse_id' => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
                     'updated_by' => auth()->id() ?? 1,
+                    'position_id' => $userPosition?->id,
                 ]);
 
                 // ---------------- Reset Returned status ----------------
@@ -361,17 +379,25 @@ class StockBeginningController extends Controller
                 }
 
                 // Build existing and new composite approval keys
-                $existingApprovalKeys = $mainStockBeginning->approvals->map(fn($a) => "{$a->responder_id}|{$a->request_type}")->toArray();
-                $newApprovalKeys = collect($validated['approvals'])->map(fn($a) => "{$a['user_id']}|{$a['request_type']}")->toArray();
+                $existingApprovalKeys = $mainStockBeginning->approvals->map(
+                    fn($a) => "{$a->responder_id}|{$a->position_id}|{$a->request_type}"
+                )->toArray();
+
+                $newApprovalKeys = collect($validated['approvals'])->map(function ($a) {
+                    $user = User::find($a['user_id']);
+                    $positionId = $user?->defaultPosition()?->id;
+                    return "{$a['user_id']}|{$positionId}|{$a['request_type']}";
+                })->toArray();
 
                 // Determine approvals to remove
                 $approvalsToRemove = array_diff($existingApprovalKeys, $newApprovalKeys);
                 foreach ($approvalsToRemove as $approvalKey) {
-                    [$userId, $requestType] = explode('|', $approvalKey);
+                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
                     Approval::where([
                         'approvable_type' => MainStockBeginning::class,
                         'approvable_id' => $mainStockBeginning->id,
                         'responder_id' => $userId,
+                        'position_id' => $positionId,
                         'request_type' => $requestType,
                     ])->delete();
                 }
@@ -379,7 +405,7 @@ class StockBeginningController extends Controller
                 // Determine approvals to add
                 $approvalsToAdd = array_diff($newApprovalKeys, $existingApprovalKeys);
                 foreach ($approvalsToAdd as $approvalKey) {
-                    [$userId, $requestType] = explode('|', $approvalKey);
+                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
                     $approvalData = [
                         'approvable_type' => MainStockBeginning::class,
                         'approvable_id' => $mainStockBeginning->id,
@@ -390,8 +416,9 @@ class StockBeginningController extends Controller
                         'ordinal' => $this->getOrdinalForRequestType($requestType),
                         'requester_id' => $mainStockBeginning->created_by,
                         'responder_id' => $userId,
+                        'position_id'  => $positionId,
                     ];
-                    $this->approvalController->storeApproval($approvalData);
+                    $this->approvalService->storeApproval($approvalData);
                 }
 
                 // Handle stock beginning line items
@@ -846,265 +873,59 @@ class StockBeginningController extends Controller
      * @param int $documentId
      * @return JsonResponse
      */
-    public function submitApproval(Request $request, MainStockBeginning $mainStockBeginning): JsonResponse
+    public function submitApproval(Request $request, MainStockBeginning $mainStockBeginning, ApprovalService $approvalService): JsonResponse 
     {
+        // Validate request
         $validated = $request->validate([
             'request_type' => 'required|string|in:review,check,approve',
-            'action' => 'required|string|in:approve,reject',
-            'comment' => 'nullable|string|max:1000',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
         ]);
 
-        // Build permission string
+        // Check user permission
         $permission = "mainStockBeginning.{$validated['request_type']}";
-
-        // Check permission using Spatie's `can`
         if (!auth()->user()->can($permission)) {
             return response()->json([
                 'message' => "You do not have permission to {$validated['request_type']} this stock beginning.",
             ], 403);
         }
 
-        $method = $validated['action'] === 'approve' ? 'confirmApproval' : 'rejectApproval';
-
-        $result = $this->approvalController->$method(
-            $request,
-            MainStockBeginning::class,
-            $mainStockBeginning->id,
-            $validated['request_type']
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $mainStockBeginning,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
         );
 
-        if ($result['success']) {
-            // Update MainStockBeginning approval_status based on request_type and action
-            if ($validated['action'] === 'approve') {
-                $statusMap = [
-                    'review' => 'Reviewed',
-                    'check' => 'Checked',
-                    'approve' => 'Approved',
-                ];
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
 
-                $mainStockBeginning->approval_status = $statusMap[$validated['request_type']] ?? null;
-            } else {
-                // Reject action sets status to 'Rejected'
-                $mainStockBeginning->approval_status = 'Rejected';
-            }
+        // Update MainStockBeginning approval_status if successful
+        if ($success) {
+            $statusMap = [
+                'review'  => 'Reviewed',
+                'check'   => 'Checked',
+                'approve' => 'Approved',
+                'reject'  => 'Rejected',
+                'return'  => 'Returned',
+            ];
 
-            // Save the updated status
+            $mainStockBeginning->approval_status =
+                $statusMap[$validated['action']] ??
+                ($statusMap[$validated['request_type']] ?? 'Pending');
+
             $mainStockBeginning->save();
         }
 
         return response()->json([
-            'message' => $result['message'],
+            'message'      => $result['message'] ?? 'Action failed',
             'redirect_url' => route('approvals-stock-beginnings.show', $mainStockBeginning->id),
-            'approval' => $result['approval'] ?? null,
-        ], $result['success'] ? 200 : 400);
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
     }
 
-    /**
-     * Reassign a responder for a specific request type.
-     *
-     * @param Request $request
-     * @param int $documentId
-     * @return JsonResponse
-     */
-    public function reassignResponder(Request $request, MainStockBeginning $mainStockBeginning): JsonResponse
-    {
-        $this->authorize('reassign', $mainStockBeginning);
-
-        $validated = $request->validate([
-            'request_type' => 'required|string|in:review,check,approve',
-            'new_user_id' => 'required|exists:users,id',
-            'comment' => 'nullable|string|max:1000',
-        ]);
-
-        $user = User::findOrFail($validated['new_user_id']);
-        $permission = "mainStockBeginning.{$validated['request_type']}";
-        if (!$user->hasPermissionTo($permission)) {
-            return response()->json([
-                'message' => "User ID {$validated['new_user_id']} does not have permission for {$validated['request_type']}.",
-            ], 403);
-        }
-
-        try {
-            $approval = Approval::where([
-                'approvable_type' => MainStockBeginning::class,
-                'approvable_id' => $mainStockBeginning->id,
-                'request_type' => $validated['request_type'],
-                'approval_status' => 'Pending',
-            ])->first();
-
-            if (!$approval) {
-                return response()->json([
-                    'message' => 'No pending approval found for the specified request type.',
-                    'success' => false,
-                ], 404);
-            }
-
-            $approval->update([
-                'responder_id' => $validated['new_user_id'],
-                'comment' => $validated['comment'],
-                'updated_at' => now(),
-            ]);
-
-            return response()->json([
-                'message' => 'Responder reassigned successfully.',
-                'success' => true,
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Failed to reassign responder', [
-                'document_id' => $mainStockBeginning->id,
-                'request_type' => $validated['request_type'],
-                'error' => $e->getMessage(),
-            ]);
-            return response()->json([
-                'message' => 'Failed to reassign responder.',
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * List approvals for a specific stock beginning.
-     *
-     * @param Request $request
-     * @param int $documentId
-     * @return JsonResponse
-     */
-    public function listApprovals(Request $request, $documentId): JsonResponse
-    {
-        $mainStockBeginning = MainStockBeginning::findOrFail($documentId);
-        $this->authorize('view', $mainStockBeginning);
-
-        $result = $this->approvalController->listApprovals($request, MainStockBeginning::class, $documentId);
-
-        return response()->json([
-            'message' => $result['message'],
-            'approvals' => $result['approvals'] ?? null,
-        ], $result['success'] ? 200 : 403);
-    }
-
-    /**
-     * Determine if the authenticated user can see and interact with the approval button for a stock beginning.
-     *
-     * @param int $documentId
-     * @return array
-     */
-    private function canShowApprovalButton(int $documentId): array
-    {
-        try {
-            $mainStockBeginning = MainStockBeginning::findOrFail($documentId);
-            $userId = auth()->id();
-            if (!$userId) {
-                return [
-                    'message' => 'Approval button not available: User not authenticated.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Check user permissions for any approval-related actions
-            $hasPermission = auth()->user()->hasAnyPermission([
-                'mainStockBeginning.review',
-                'mainStockBeginning.check',
-                'mainStockBeginning.approve'
-            ]);
-            if (!$hasPermission) {
-                return [
-                    'message' => 'Approval button not available: User lacks approval permissions.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Get all approvals for this stock beginning, ordered by ordinal and id
-            $approvals = Approval::where([
-                'approvable_type' => MainStockBeginning::class,
-                'approvable_id' => $documentId,
-            ])
-            ->orderBy('ordinal', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
-
-            if ($approvals->isEmpty()) {
-                return [
-                    'message' => 'Approval button not available: No approvals configured.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Find the first pending approval
-            $currentApproval = $approvals->firstWhere('approval_status', 'Pending');
-            if (!$currentApproval) {
-                return [
-                    'message' => 'Approval button not available: All approvals completed or none pending.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Check if the current user is the responder for the pending approval
-            if ($currentApproval->responder_id !== $userId) {
-                return [
-                    'message' => 'Approval button not available: User is not the assigned responder.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Filter previous approvals (with lower ordinal)
-            $previousApprovals = $approvals->filter(function ($approval) use ($currentApproval) {
-                return ($approval->ordinal < $currentApproval->ordinal) ||
-                    ($approval->ordinal === $currentApproval->ordinal && $approval->id < $currentApproval->id);
-            });
-
-            // Check if any previous approval is rejected
-            $anyPreviousRejected = $previousApprovals->contains(function ($approval) {
-                return strtolower(trim($approval->approval_status)) === 'rejected';
-            });
-
-            if ($anyPreviousRejected) {
-                return [
-                    'message' => 'Approval button not available: A previous approval was rejected.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            // Check if all previous approvals are approved
-            $allPreviousApproved = $previousApprovals->every(function ($approval) {
-                return strtolower(trim($approval->approval_status)) === 'approved';
-            });
-
-            if (!$allPreviousApproved) {
-                return [
-                    'message' => 'Approval button not available: Previous approval steps are not completed.',
-                    'showButton' => false,
-                    'requestType' => null,
-                ];
-            }
-
-            return [
-                'message' => 'Approval button available.',
-                'showButton' => true,
-                'requestType' => $currentApproval->request_type,
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Failed to check approval button visibility', [
-                'document_id' => $documentId,
-                'user_id' => auth()->id(),
-                'error' => $e->getMessage(),
-            ]);
-            return [
-                'message' => 'Failed to check approval button visibility',
-                'showButton' => false,
-                'requestType' => null,
-            ];
-        }
-    }
-
-    /**
+        /**
      * Initialize approvals for a stock beginning.
      *
      * @param MainStockBeginning $mainStockBeginning
@@ -1125,8 +946,166 @@ class StockBeginningController extends Controller
                 'requester_id' => $mainStockBeginning->created_by,
                 'responder_id' => $approval['user_id'],
             ];
-            $this->approvalController->storeApproval($approvalData);
+            $this->approvalService->storeApproval($approvalData);
         }
+    }
+
+    /**
+     * Reassign a responder for a specific request type.
+     *
+     * @param Request $request
+     * @param int $documentId
+     * @return JsonResponse
+     */
+    public function reassignResponder(Request $request, MainStockBeginning $mainStockBeginning): JsonResponse
+    {
+        $this->authorize('reassign', $mainStockBeginning);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:approve',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("mainStockBeginning.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => MainStockBeginning::class,
+            'approvable_id'   => $mainStockBeginning->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $mainStockBeginning->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Determine if the authenticated user can see and interact with the approval button for a stock beginning.
+     *
+     * @param int $documentId
+     * @return array
+     */
+    private function canShowApprovalButton(int $documentId): array
+    {
+        try {
+            $userId = auth()->id();
+            if (!$userId) {
+                return $this->approvalButtonResponse('User not authenticated.');
+            }
+
+            if (!auth()->user()->hasAnyPermission(['mainStockBeginning.approve'])) {
+                return $this->approvalButtonResponse('User lacks approval permissions.');
+            }
+
+            $approvals = Approval::where([
+                'approvable_type' => MainStockBeginning::class,
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
+
+            if ($approvals->isEmpty()) {
+                return $this->approvalButtonResponse('No approvals configured.');
+            }
+
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
+            if (!$currentApproval) {
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
+            }
+
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) || 
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
+            }
+
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
+            }
+
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
+        }
+    }
+
+    private function approvalButtonResponse(string $reason): array
+    {
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 
     /**

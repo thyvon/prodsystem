@@ -12,11 +12,38 @@
 
     <!-- Body -->
     <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
-      <!-- Title -->
-      <div class="text-center mb-4">
-        <h4 class="font-weight-bold text-dark">ស្តុកដើមគ្រា</h4>
-        <h5 class="font-weight-bold text-dark">CAMPUS: {{ stock.warehouse?.building?.campus?.name ?? 'N/A' }}</h5>
-        <h6 class="font-weight-bold text-dark">WAREHOUSE: {{ stock.warehouse?.name ?? 'N/A' }}</h6>
+      <div class="row mb-2">
+        <div class="col-3">
+          <p class="text-muted mb-1">
+            STAFF/ អ្នករៀបចំ:
+            <span class="font-weight-bold">{{ stock.created_by?.name ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            CARD ID/ អត្តលេខ:
+            <span class="font-weight-bold">{{ stock.created_by?.card_number ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            CAMPUS/ សាខា:
+            <span class="font-weight-bold">{{ stock.warehouse?.building?.campus?.name ?? 'N/A' }}</span>
+          </p>
+        </div>
+
+        <div class="col-6 text-center">
+          <h4 class="font-weight-bold text-dark">ស្តុកដើមគ្រា</h4>
+          <h4 class="font-weight-bold text-dark">STOCK BEGINNING</h4>
+        </div>
+
+        <div class="col-3">
+          <p class="text-muted mb-1">
+            REF./លេខយោង: <span class="font-weight-bold">{{ stock.reference_no ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            WAREHOUSE/ឃ្លាំង: <span class="font-weight-bold">{{ stock.warehouse?.name ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            DATE/កាលបរិច្ឆេទ: <span class="font-weight-bold">{{ formatDate(stock.beginning_date) ?? 'N/A' }}</span>
+          </p>
+        </div>
       </div>
 
       <!-- Line Items Table -->
@@ -39,10 +66,7 @@
             <tr v-for="(item, i) in stock.stock_beginnings" :key="i">
               <td class="text-center">{{ i + 1 }}</td>
               <td>{{ item.product_variant?.item_code ?? 'N/A' }}</td>
-              <td>
-                {{ item.product_variant?.product?.name ?? 'N/A' }}
-                {{ item.product_variant?.description ?? '' }}
-              </td>
+              <td>{{ item.product_variant?.product?.name ?? 'N/A' }} {{ item.product_variant?.description ?? '' }}</td>
               <td>{{ item.product_variant?.product?.khmer_name ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.unit?.name ?? 'N/A' }}</td>
               <td class="text-end">{{ format(item.unit_price) }}</td>
@@ -60,41 +84,86 @@
         </table>
       </div>
 
-      <!-- Approval History -->
+      <!-- Requested By & Approval Cards -->
       <div class="mt-4">
-        <h6 class="font-weight-bold text-dark mb-2">Approvals</h6>
-        <div class="row">
-          <div v-for="(approval, i) in approvals" :key="i" class="col-12 col-md-4 mb-3">
-            <div class="border rounded p-3 bg-light h-100">
-              <p><strong>#{{ i + 1 }} - Request Type:</strong> {{ capitalize(approval.request_type) }}</p>
-              <p><strong>Status:</strong> {{ capitalize(approval.approval_status) }}</p>
-              <p><strong>Responder:</strong> {{ approval.responder_name }}</p>
-              <p><strong>Comment:</strong> {{ approval.comment ?? '-' }}</p>
-              <p><strong>Responded Date:</strong> {{ formatDateTime(approval.responded_date) || 'N/A' }}</p>
+        <div class="row justify-content-center">
+          <!-- Requested By -->
+          <div class="col-12 col-md-2 mb-4">
+            <div class="card border shadow-sm h-100">
+              <div class="card-body">
+                <label class="font-weight-bold text-center d-block w-100">Requested By</label>
+                <div class="d-flex align-items-center mb-2 justify-content-center">
+                  <img :src="stock.created_by?.profile_url" class="rounded-circle" width="50" height="50">
+                </div>
+                <div class="font-weight-bold text-center mb-2">{{ stock.created_by?.name ?? 'N/A' }}</div>
+                <div v-if="stock.created_by?.signature_url" class="d-flex justify-content-center mb-2">
+                  <img :src="stock.created_by.signature_url" height="50">
+                </div>
+                <p class="mb-1">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
+                <p class="mb-1">Position: {{ stock.creator_position?.title ?? 'N/A' }}</p>
+                <p class="mb-0">Date: {{ formatDateTime(stock.created_at) || 'N/A' }}</p>
+              </div>
             </div>
           </div>
-          <div v-if="approvals.length === 0" class="col-12">
-            <div class="border rounded p-3 bg-light text-center">
-              No approvals available.
+
+          <!-- Approvals -->
+          <div v-for="(approval, i) in approvals" :key="i" class="col-12 col-md-2 mb-4">
+            <div class="card border shadow-sm h-100">
+              <div class="card-body">
+                <label class="font-weight-bold text-center d-block w-100">{{ approval.request_type_label }} By</label>
+                <div class="d-flex align-items-center mb-2 justify-content-center">
+                  <img :src="approval.responder_profile_url" class="rounded-circle" width="50" height="50">
+                </div>
+                <div class="font-weight-bold text-center mb-2">{{ approval.responder_name }}</div>
+                <div v-if="approval.approval_status === 'Approved'" class="d-flex justify-content-center mb-2">
+                  <img :src="approval.responder_signature_url" height="50">
+                </div>
+                <p class="mb-1">
+                  Status:
+                  <span class="badge"
+                        :class="{
+                          'badge-success': approval.approval_status === 'Approved',
+                          'badge-danger': approval.approval_status === 'Rejected',
+                          'badge-warning': approval.approval_status === 'Pending',
+                          'badge-info': approval.approval_status === 'Returned'
+                        }">
+                    <strong>
+                      {{
+                        approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status)
+                      }}
+                    </strong>
+                  </span>
+                </p>
+                <p class="mb-1">Position: {{ approval.position_name }}</p>
+                <p class="mb-0">Date: {{ formatDateTime(approval.responded_date) || 'N/A' }}</p>
+                <p class="mb-0">Comment: {{ approval.comment ?? '-' }}</p>
+              </div>
             </div>
+          </div>
+
+          <div v-if="approvals.length === 0" class="col-12 text-center">
+            No approvals available.
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer: Approval Action -->
     <div class="card-footer">
       <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
       <div v-if="showApprovalButton">
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
+          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success mr-1" :disabled="loading">
             <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
           </button>
-          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
-            <i><i class="fal fa-times"></i></i> Reject
+          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger mr-1" :disabled="loading">
+            <i class="fal fa-times"></i> Reject
           </button>
-          <button @click="openReassignModal" class="btn btn-sm btn-warning" :disabled="loading">
-            <i><i class="fal fa-exchange"></i></i> Reassign
+          <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning mr-1" :disabled="loading">
+            <i class="fal fa-undo"></i> Return
+          </button>
+          <button @click="openReassignModal" class="btn btn-sm btn-primary" :disabled="loading">
+            <i class="fal fa-exchange"></i> Reassign
           </button>
         </div>
       </div>
@@ -103,9 +172,9 @@
       </div>
     </div>
 
-    <!-- Modal for Reassignment -->
-    <div class="modal fade" id="reassignModal" tabindex="-1" role="dialog" aria-labelledby="reassignModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered" role="document">
+    <!-- Modals -->
+    <div class="modal fade" id="reassignModal" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Reassign {{ capitalize(approvalRequestType) }}</h5>
@@ -128,190 +197,116 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal" @click="cleanupReassignModal">Cancel</button>
-            <button type="button" class="btn btn-warning" @click="confirmReassign">Reassign</button>
+            <button class="btn btn-primary" @click="confirmReassign">Reassign</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal for Approval/Reject Confirmation -->
-    <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true" ref="confirmModal">
-      <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" ref="confirmModal">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="confirmModalLabel">{{ currentAction === 'approve' ? capitalize(approvalRequestType) : 'Reject' }} Confirmation</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close" @click="resetConfirmModal">
-              <span aria-hidden="true">&times;</span>
-            </button>
+            <h5 class="modal-title">
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
+                 : currentAction === 'reject' ? 'Reject' 
+                 : 'Return' }} Confirmation
+            </h5>
+            <button type="button" class="close" @click="resetConfirmModal">&times;</button>
           </div>
           <div class="modal-body">
-            <p>Please enter an optional comment before you {{ currentAction === 'approve' ? capitalize(approvalRequestType) : 'Reject' }} this stock beginning.</p>
-            <textarea
-              v-model="commentInput"
-              class="form-control"
-              rows="4"
-              placeholder="Enter your comment here (optional)"
-              :disabled="loading"
-            ></textarea>
+            <textarea v-model="commentInput" class="form-control" rows="4" placeholder="Enter your comment here (optional)" :disabled="loading"></textarea>
           </div>
           <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-dismiss="modal"
-              @click="resetConfirmModal"
-              :disabled="loading"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="btn"
-              :class="currentAction === 'approve' ? 'btn-success' : 'btn-danger'"
-              @click="submitApproval(currentAction)"
-              :disabled="loading"
-            >
-              {{currentAction === 'approve' ? capitalize(approvalRequestType) : 'Reject'}}
+            <button class="btn btn-secondary" @click="resetConfirmModal" :disabled="loading">Cancel</button>
+            <button class="btn"
+                    :class="currentAction === 'approve' ? 'btn-success' 
+                              : currentAction === 'reject' ? 'btn-danger' 
+                              : 'btn-warning'"
+                    @click="submitApproval(currentAction)"
+                    :disabled="loading">
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
+                 : currentAction === 'reject' ? 'Reject' 
+                 : 'Return' }}
             </button>
           </div>
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, nextTick } from 'vue'
 import axios from 'axios'
-import { showAlert} from '@/Utils/bootbox'
-import { formatDateWithTime } from '@/Utils/dateFormat'
+import { showAlert } from '@/Utils/bootbox'
+import { formatDateWithTime, formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
 const props = defineProps({
   stock: Object,
   approvals: Array,
   showApprovalButton: Boolean,
-  approvalRequestType: {
-    type: String,
-    default: 'approve'
-  },
+  approvalRequestType: { type: String, default: 'approve' },
   submitUrl: String,
+  totalQuantity: Number,
+  totalValue: Number
 })
 
 const loading = ref(false)
 const usersList = ref([])
-
-const currentAction = ref('approve') // 'approve' or 'reject'
+const currentAction = ref('approve')
 const commentInput = ref('')
 
-// Helpers
 const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
+const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 
-const totalQuantity = computed(() =>
-  props.stock.stock_beginnings.reduce((sum, i) => sum + Number(i.quantity || 0), 0)
-)
-const totalValue = computed(() =>
-  props.stock.stock_beginnings.reduce((sum, i) => sum + Number(i.total_value || 0), 0)
-)
+const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
+const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
 
-// Open confirmation modal and set current action
-const openConfirmModal = (action) => {
-  currentAction.value = action
-  commentInput.value = ''
-  $('#confirmModal').modal('show')
-}
-
-// Reset comment and hide modal
-const resetConfirmModal = () => {
-  commentInput.value = ''
-  $('#confirmModal').modal('hide')
-}
-
-// Submit Approve or Reject with modal comment
 const submitApproval = async (action) => {
   loading.value = true
   try {
-    const response = await axios.post(props.submitUrl, {
-      request_type: props.approvalRequestType,
-      action,
-      comment: commentInput.value.trim(),
-    })
-
-    showAlert('success', response.data.message || 'Approval submitted successfully.')
+    const res = await axios.post(props.submitUrl, { request_type: props.approvalRequestType, action, comment: commentInput.value.trim() })
+    showAlert('success', res.data.message || 'Action submitted successfully.')
     $('#confirmModal').modal('hide')
-    setTimeout(() => {
-      window.location.href = response.data.redirect_url || window.location.href
-    }, 1500)
-
-  } catch (error) {
-    showAlert('Error', error.response?.data?.message || 'Approval failed.','danger')
-  } finally {
-    loading.value = false
-  }
+    setTimeout(() => window.location.href = res.data.redirect_url || window.location.href, 1500)
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
+  } finally { loading.value = false }
 }
 
-// Open Reassign Modal and load users
 const openReassignModal = async () => {
   loading.value = true
   try {
-    const response = await axios.get('/api/inventory/stock-beginnings/users', {
-      params: { request_type: props.approvalRequestType ?? 'approve' },
-    })
-    usersList.value = response.data.data || []
-
+    const res = await axios.get('/api/inventory/stock-beginnings/users', { params: { request_type: props.approvalRequestType ?? 'approve' } })
+    usersList.value = res.data.data || []
     await nextTick()
-    const el = document.getElementById('userSelect')
-    initSelect2(el, {
-      width: '100%',
-      dropdownParent: $('#reassignModal')  // Fix dropdown inside modal
-    })
-
+    initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
     $('#reassignModal').modal('show')
-  } catch (err) {
-    console.error('Error loading users:', err)
-    showAlert('Error', 'Failed to load users.', 'danger')
-  } finally {
-    loading.value = false
-  }
+  } catch (err) { showAlert('Error', 'Failed to load users.', 'danger') }
+  finally { loading.value = false }
 }
 
-// Confirm reassignment
 const confirmReassign = async () => {
-  const userSelectEl = document.getElementById('userSelect')
-  const commentEl = document.getElementById('reassignComment')
-
-  const newUserId = userSelectEl?.value
-  const comment = commentEl?.value.trim()
-
-  if (!newUserId) {
-    showAlert('Error', 'Please select a user.', 'danger')
-    return
-  }
-
+  const newUserId = document.getElementById('userSelect')?.value
+  const comment = document.getElementById('reassignComment')?.value.trim()
+  if (!newUserId) { showAlert('Error', 'Please select a user.', 'danger'); return }
   loading.value = true
   try {
-    await axios.post(`/api/inventory/stock-beginnings/${props.stock.id}/reassign-approval`, {
-      request_type: props.approvalRequestType,
-      new_user_id: newUserId,
-      comment,
-    })
-
+    await axios.post(`/api/inventory/stock-beginnings/${props.stock.id}/reassign-approval`, { request_type: props.approvalRequestType, new_user_id: newUserId, comment })
     showAlert('success', 'Responder reassigned successfully.')
     $('#reassignModal').modal('hide')
-    destroySelect2(userSelectEl)
+    destroySelect2(document.getElementById('userSelect'))
     setTimeout(() => window.location.reload(), 1500)
-
-  } catch (error) {
-    showAlert('Error', error.response?.data?.message || 'Reassignment failed.', 'danger')
-  } finally {
-    loading.value = false
-  }
+  } catch (err) { showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger') }
+  finally { loading.value = false }
 }
 
-// Cleanup on modal close
 const cleanupReassignModal = () => {
   const el = document.getElementById('userSelect')
   if (el) destroySelect2(el)
@@ -319,11 +314,6 @@ const cleanupReassignModal = () => {
 </script>
 
 <style scoped>
-/* Fix z-index of Select2 dropdown inside Bootstrap modal */
-.modal {
-  overflow: visible !important; /* Prevent dropdown from being clipped */
-}
-.select2-container--default .select2-dropdown {
-  z-index: 1060 !important; /* Above Bootstrap modal z-index (1050) */
-}
+.modal { overflow: visible !important; }
+.select2-container--default .select2-dropdown { z-index: 1060 !important; }
 </style>

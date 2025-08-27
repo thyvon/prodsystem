@@ -39,7 +39,7 @@ const datatableParams = reactive({
 
 const datatableHeaders = [
   { text: 'Item Code', value: 'item_code', width: '10%', sortable: true },
-  { text: 'EN Name', value: 'product_name', width: '15%', sortable: true },
+  { text: 'EN Name', value: 'product_name', width: '35%', sortable: true },
   { text: 'KH Name', value: 'product_khmer_name', width: '15%', sortable: true },
   { text: 'Date', value: 'movement_date', width: '10%', sortable: true },
   { text: 'Type', value: 'movement_type', width: '10%', sortable: true },
