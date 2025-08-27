@@ -102,36 +102,54 @@ class StockBeginningController extends Controller
                 ];
             })->toArray();
 
+            // Track the count of each request_type as we process approvals
+            $typeOccurrenceCounts = [];
+
+            // Map approvals with dynamic request_type_label
+            $approvals = $mainStockBeginning->approvals
+                ->sortBy('ordinal')
+                ->values()
+                ->map(function ($approval) use (&$typeOccurrenceCounts) {
+                    $typeMap = [
+                        'approve' => 'Approved',
+                        'check'   => 'Checked',
+                        'review'  => 'Reviewed',
+                    ];
+
+                    // Get the base label from typeMap or fallback to ucfirst
+                    $label = $typeMap[$approval->request_type] ?? ucfirst($approval->request_type);
+
+                    // Increment the occurrence count for this request_type
+                    $typeOccurrenceCounts[$approval->request_type] = 
+                        ($typeOccurrenceCounts[$approval->request_type] ?? 0) + 1;
+
+                    // Add "Co-" prefix if this is the second or later occurrence
+                    if ($typeOccurrenceCounts[$approval->request_type] > 1) {
+                        $label = 'Co-' . $label;
+                    }
+
+                    return [
+                        'id' => $approval->id,
+                        'request_type' => $approval->request_type,
+                        'approval_status' => $approval->approval_status,
+                        'request_type_label' => $label,
+                        'responder_name' => $approval->responder->name ?? 'N/A',
+                        'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
+                        'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
+                        'position_name' => $approval->responderPosition->title ?? 'N/A',
+                        'ordinal' => $approval->ordinal,
+                        'comment' => $approval->comment,
+                        'created_at' => $approval->created_at?->toDateTimeString(),
+                        'updated_at' => $approval->updated_at?->toDateTimeString(),
+                        'responded_date' => $approval->responded_date,
+                    ];
+                })->toArray();
+
             return view('Inventory.stockBeginning.show', [
                 'mainStockBeginning' => $mainStockBeginning,
                 'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
                 'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
-                'approvals' => $mainStockBeginning->approvals
-                    ->sortBy('ordinal')
-                    ->values()
-                    ->map(function ($approval) {
-                        $typeMap = [
-                            'approve' => 'Approved',
-                            'check'   => 'Checked',
-                            'review'  => 'Reviewed',
-                        ];
-
-                        return [
-                            'id' => $approval->id,
-                            'request_type' => $approval->request_type,
-                            'approval_status' => $approval->approval_status,
-                            'request_type_label' => $typeMap[$approval->request_type] ?? ucfirst($approval->request_type),
-                            'responder_name' => $approval->responder->name ?? 'N/A',
-                            'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
-                            'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
-                            'position_name' => $approval->responderPosition->title ?? 'N/A',
-                            'ordinal' => $approval->ordinal,
-                            'comment' => $approval->comment,
-                            'created_at' => $approval->created_at?->toDateTimeString(),
-                            'updated_at' => $approval->updated_at?->toDateTimeString(),
-                            'responded_date' => $approval->responded_date,
-                        ];
-                    })->toArray(),
+                'approvals' => $approvals,
                 'responders' => $responders,
                 'showApprovalButton' => $approvalButtonData['showButton'],
                 'approvalRequestType' => $approvalButtonData['requestType'],
