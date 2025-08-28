@@ -12,15 +12,22 @@ class StockIssue extends Model
     use SoftDeletes;
     protected $table = 'stock_issues';
     protected $fillable = [
-        'issue_date',
+        'stock_request_id',
+        'transaction_date',
         'reference_no',
         'warehouse_id',
         'remarks',
         'approval_status',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
+
+    public function stockRequest()
+    {
+        return $this->belongsTo(StockRequest::class, 'stock_request_id');
+    }
 
     public function warehouse()
     {
@@ -36,7 +43,10 @@ class StockIssue extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
+    }
     public function updatedBy()
     {
         return $this->belongsTo(User::class, 'updated_by');
@@ -45,5 +55,10 @@ class StockIssue extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function approvals()
+    {
+        return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
     }
 }

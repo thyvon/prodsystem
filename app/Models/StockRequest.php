@@ -83,4 +83,9 @@ class StockRequest extends Model
     {
         return $isAdmin ? $query : $query->whereIn('campus_id', $campusIds);
     }
+
+    public function stockIssue()
+    {
+        return $this->hasMany(StockIssue::class, 'stock_request_id');
+    }
 }

@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('stock_issue_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('stock_issue_id');
+            $table->unsignedBigInteger('stock_request_item_id');
             $table->unsignedBigInteger('product_id');
             $table->decimal('quantity', 10, 4);
             $table->decimal('unit_price', 10, 4);
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->foreign('stock_issue_id')->references('id')->on('stock_issues')->onDelete('cascade');
+            $table->foreign('stock_request_item_id')->references('id')->on('stock_request_items')->onDelete('restrict');
             $table->foreign('product_id')->references('id')->on('product_variants')->onDelete('restrict');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
             $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');

@@ -60,4 +60,9 @@ class StockRequestItem extends Model
     {
         return $this->belongsTo(Department::class, 'department_id');
     }
+
+    public function stockIssueItems()
+    {
+        return $this->hasMany(StockIssueItem::class, 'stock_request_item_id');
+    }
 }

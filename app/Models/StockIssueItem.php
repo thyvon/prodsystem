@@ -13,6 +13,7 @@ class StockIssueItem extends Model
     protected $table = 'stock_issue_items';
     protected $fillable = [
         'stock_issue_id',
+        'stock_request_item_id',
         'product_id',
         'quantity',
         'average_price',
@@ -36,6 +37,11 @@ class StockIssueItem extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function stockRequestItem()
+    {
+        return $this->belongsTo(StockRequestItem::class, 'stock_request_item_id');
     }
 
     public function product()
