@@ -56,6 +56,9 @@ use App\Http\Controllers\StockBeginningController;
 use App\Models\StockRequest;
 use App\Http\Controllers\StockRequestController;
 
+use App\Models\StockIssue;
+use App\Http\Controllers\StockIssueController;
+
 use App\Http\Controllers\StockController;
 
 // Approval Management
@@ -265,6 +268,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-campuses');
         Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetchProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
 
+        // Stock Issue
+        Route::get('/stock-issues', [StockIssueController::class, 'getStockIssues'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.index');
+        Route::post('/stock-issues', [StockIssueController::class, 'store'])->middleware('can:create,' . StockIssue::class)->name('api.stock-issues.store');
+        Route::get('/stock-issues/{stockIssue}/edit', [StockIssueController::class, 'edit'])->middleware('can:update,stockIssue')->name('api.stock-issues.edit');
+        Route::put('/stock-issues/{stockIssue}', [StockIssueController::class, 'update'])->middleware('can:update,stockIssue')->name('api.stock-issues.update');
+        Route::delete('/stock-issues/{stockIssue}', [StockIssueController::class, 'destroy'])->middleware('can:delete,stockIssue')->name('api.stock-issues.destroy');
+        Route::get('/stock-issues/get-stock-requests', [StockIssueController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-stock-requests');
+        Route::get('/stock-issues/get-stock-request-items/{stockRequest}', [StockIssueController::class, 'getStockRequestItems'])
+        ->middleware('can:viewAny,' . StockIssue::class)
+        ->name('api.stock-issues.get-stock-request-items');
 
         // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');

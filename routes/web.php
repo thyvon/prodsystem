@@ -58,6 +58,9 @@ use App\Models\MainStockBeginning;
 use App\Http\Controllers\StockRequestController;
 use App\Models\StockRequest;
 
+use App\Http\Controllers\StockIssueController;
+use App\Models\StockIssue;
+
 use App\Http\Controllers\StockController;
 
 
@@ -183,6 +186,14 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-requests.edit')->middleware('can:update,stockRequest');
         Route::get('/stock-requests/{stockRequest}/show', [StockRequestController::class, 'show'])
             ->name('stock-requests.show')->middleware('can:view,stockRequest');
+
+        // Stock Issue
+        Route::get('/stock-issues/create', [StockIssueController::class, 'create'])
+            ->name('stock-issues.create')->middleware('can:create,' . StockIssue::class);
+        Route::get('/stock-issues/{stockIssue}/edit', [StockIssueController::class, 'edit'])
+            ->name('stock-issues.edit')->middleware('can:update,stockIssue');
+        Route::get('/stock-issues/{stockIssue}/show', [StockIssueController::class, 'show'])
+            ->name('stock-issues.show')->middleware('can:view,stockIssue');
 
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])

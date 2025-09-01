@@ -29,6 +29,7 @@ class StockRequestCollection extends ResourceCollection
                 'department_id' => $sb->department_id,
                 'campus_id' => $sb->campus_id,
                 'item_code' => $sb->productVariant?->item_code,
+                'description' => $sb->productVariant?->description,
                 'quantity' => $sb->quantity,
                 'average_price' => $sb->average_price,
                 'total_price' => $sb->total_price,

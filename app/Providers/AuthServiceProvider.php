@@ -46,6 +46,9 @@ use App\Policies\MainStockBeginningPolicy;
 use App\Models\StockRequest;
 use App\Policies\StockRequestPolicy;
 
+use App\Models\StockIssue;
+use App\Policies\StockIssuePolicy;
+
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -72,6 +75,7 @@ class AuthServiceProvider extends ServiceProvider
         MainStockBeginning::class => MainStockBeginningPolicy::class,
         Position::class => PositionPolicy::class,
         StockRequest::class => StockRequestPolicy::class,
+        StockIssue::class => StockIssuePolicy::class,
     ];
 
     /**

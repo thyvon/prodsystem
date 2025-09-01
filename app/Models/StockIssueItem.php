@@ -16,7 +16,7 @@ class StockIssueItem extends Model
         'stock_request_item_id',
         'product_id',
         'quantity',
-        'average_price',
+        'unit_price',
         'total_price',
         'remarks',
         'created_by',
@@ -44,7 +44,7 @@ class StockIssueItem extends Model
         return $this->belongsTo(StockRequestItem::class, 'stock_request_item_id');
     }
 
-    public function product()
+    public function productVariant()
     {
         return $this->belongsTo(ProductVariant::class, 'product_id');
     }
