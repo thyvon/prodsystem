@@ -97,6 +97,7 @@ class StockRequestService
                         'product_id' => $productId,
                         'item_code' => $sb->productVariant?->item_code,
                         'description' => $sb->productVariant?->description,
+                        'product_name' => $sb->productVariant?->product?->name,
                         'quantity' => $sb->quantity,
                         'unit_name' => $sb->productVariant?->product?->unit?->name,
                         'unit_price' => $averagePrice,

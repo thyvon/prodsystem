@@ -16,8 +16,17 @@ use App\Services\StockLedgerService;
 
 class StockIssueController extends Controller
 {
-    private const ALLOWED_SORT_COLUMNS = ['request_date', 'request_number', 'created_at', 'updated_at', 'created_by', 'updated_by'];
-    private const DEFAULT_SORT_COLUMN = 'created_at';
+    private const ALLOWED_SORT_COLUMNS = [
+        'transaction_date', 
+        'reference_no', 
+        'created_at', 
+        'updated_at', 
+        'created_by', 
+        'updated_by',
+        'warehouse_name',     // added
+        'request_number',     // added
+        'requester_name'      // added (createdBy)
+    ];
     private const DEFAULT_SORT_DIRECTION = 'desc';
     private const DEFAULT_LIMIT = 10;
     private const MAX_LIMIT = 1000;
@@ -51,45 +60,83 @@ class StockIssueController extends Controller
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
+            'sortColumn' => 'nullable|string',
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'page' => 'nullable|integer|min:1',
             'draw' => 'nullable|integer',
         ]);
 
+        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
+
+        $sortMap = [
+            'warehouse_name'   => ['table' => 'warehouses', 'column' => 'name', 'join' => true],
+            'request_number'   => ['table' => 'stock_requests', 'column' => 'request_number', 'join' => true],
+            'created_by'       => ['table' => 'users', 'column' => 'name', 'join' => true],
+            // default: sort by stock_issues table
+        ];
+
         $query = StockIssue::with([
-                'stockRequest.warehouse.building.campus',
-                'stockIssueItems.productVariant.product.unit',
-                'createdBy',
-                'updatedBy',
-            ])
-            // Filter based on user campus access through StockRequest's warehouse
-            ->whereHas('stockRequest.warehouse.building.campus', function ($q) use ($isAdmin, $campusIds) {
-                if (!$isAdmin) {
-                    $q->whereIn('id', $campusIds);
-                }
-            })
-            ->when($validated['search'] ?? null, function ($q, $search) {
-                $q->where(function ($subQ) use ($search) {
-                    $subQ->where('reference_no', 'like', "%{$search}%")
-                        ->orWhereHas('stockRequest', function ($srQ) use ($search) {
-                            $srQ->where('request_number', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->orderBy($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
+            'stockRequest.warehouse.building.campus',
+            'stockIssueItems.productVariant.product.unit',
+            'createdBy.campus',
+            'updatedBy',
+        ])
+        ->when(!$isAdmin, fn($q) => $q->whereHas('stockRequest.warehouse.building.campus', fn($q2) => $q2->whereIn('id', $campusIds)))
+        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) => 
+            $subQ->where('reference_no', 'like', "%{$search}%")
+                ->orWhereHas('stockRequest', fn($srQ) => $srQ->where('request_number', 'like', "%{$search}%"))
+                ->orWhereHas('stockRequest.warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                ->orWhereHas('createdBy', fn($cQ) => $cQ->where('name', 'like', "%{$search}%"))
+        ));
+
+        // Apply dynamic relational sorting
+        if (isset($sortMap[$sortColumn]) && $sortMap[$sortColumn]['join']) {
+            $info = $sortMap[$sortColumn];
+            if ($info['table'] === 'warehouses') {
+                $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
+                    ->join('warehouses', 'stock_requests.warehouse_id', '=', 'warehouses.id')
+                    ->orderBy("warehouses.{$info['column']}", $sortDirection)
+                    ->select('stock_issues.*');
+            } elseif ($info['table'] === 'stock_requests') {
+                $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
+                    ->orderBy("stock_requests.{$info['column']}", $sortDirection)
+                    ->select('stock_issues.*');
+            } elseif ($info['table'] === 'users') {
+                $query->join('users', 'stock_issues.created_by', '=', 'users.id')
+                    ->orderBy("users.{$info['column']}", $sortDirection)
+                    ->select('stock_issues.*');
+            }
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
 
         $stockIssues = $query->paginate($validated['limit'] ?? self::DEFAULT_LIMIT, ['*'], 'page', $validated['page'] ?? 1);
 
+        $stockIssuesMapped = $stockIssues->map(fn($issue) => [
+            'id' => $issue->id,
+            'reference_no' => $issue->reference_no,
+            'request_number' => $issue->stockRequest->request_number ?? null,
+            'transaction_date' => $issue->transaction_date,
+            'requester_name' => $issue->stockRequest->createdBy->name ?? null,
+            'requester_campus_name' => $issue->stockRequest->campus->short_name ?? null,
+            'warehouse_name' => $issue->stockRequest->warehouse->name ?? null,
+            'warehouse_campus_name' => $issue->stockRequest->warehouse->building->campus->short_name ?? null,
+            'quantity' => $issue->stockIssueItems->sum('quantity'),
+            'total_price' => $issue->stockIssueItems->sum('total_price'),
+            'created_by' => $issue->createdBy->name ?? null,
+            'created_at' => $issue->created_at,
+            'updated_at' => $issue->updated_at,
+        ]);
+
         return response()->json([
-            'data' => $stockIssues->items(), // you can wrap with a resource collection if needed
+            'data' => $stockIssuesMapped,
             'recordsTotal' => $stockIssues->total(),
             'recordsFiltered' => $stockIssues->total(),
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
-
 
     public function create()
     {
@@ -213,12 +260,12 @@ class StockIssueController extends Controller
                         'stock_request_item_id' => $item->stock_request_item_id,
                         'product_id' => $item->product_id,
                         'product_code' => $item->productVariant?->item_code ?? '',
-                        'product_description' => trim(
+                        'product_name' => trim(
                             ($item->productVariant?->product?->name ?? '') . ' ' . 
                             ($item->productVariant?->description ?? '')
                         ),
                         'variant' => $item->productVariant?->variant_name ?? null,
-                        'unit' => $unitName,
+                        'unit_name' => $unitName,
                         'quantity' => $item->quantity,
                         'unit_price' => $averagePrice,           // <-- Updated
                         'total_price' => round($item->quantity * $averagePrice, 4), // Updated total

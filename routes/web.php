@@ -188,6 +188,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-requests.show')->middleware('can:view,stockRequest');
 
         // Stock Issue
+        Route::get('/stock-issues', [StockIssueController::class, 'index'])
+            ->name('stock-issues.index')->middleware('can:viewAny,' . StockIssue::class);
         Route::get('/stock-issues/create', [StockIssueController::class, 'create'])
             ->name('stock-issues.create')->middleware('can:create,' . StockIssue::class);
         Route::get('/stock-issues/{stockIssue}/edit', [StockIssueController::class, 'edit'])
