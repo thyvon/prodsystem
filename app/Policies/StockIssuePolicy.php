@@ -23,7 +23,8 @@ class StockIssuePolicy
     public function view(User $user, StockIssue $stockIssue): bool
     {
         return $user->can('stockIssue.view') &&
-            $user->hasWarehouseAccess($stockIssue->stockRequest?->warehouse?->id);
+            $user->hasWarehouseAccess($stockIssue->warehouse_id) &&
+            $user->defaultWarehouse()?->id === $stockIssue->warehouse_id;
     }
 
     public function create(User $user): bool
@@ -34,26 +35,32 @@ class StockIssuePolicy
     public function update(User $user, StockIssue $stockIssue): bool
     {
         return $user->can('stockIssue.update') &&
-            $user->hasWarehouseAccess($stockIssue->stockRequest?->warehouse?->id) &&
+            $user->hasWarehouseAccess($stockIssue->warehouse_id) &&
+            $user->defaultWarehouse()?->id === $stockIssue->warehouse_id &&
             $stockIssue->created_by === $user->id;
     }
 
     public function delete(User $user, StockIssue $stockIssue): bool
     {
         return $user->can('stockIssue.delete') &&
-            $user->hasWarehouseAccess($stockIssue->stockRequest?->warehouse?->id) &&
+            $user->hasWarehouseAccess($stockIssue->warehouse_id) &&
+            $user->defaultWarehouse()?->id === $stockIssue->warehouse_id &&
             $stockIssue->created_by === $user->id;
     }
 
     public function restore(User $user, StockIssue $stockIssue): bool
     {
         return $user->can('stockIssue.restore') &&
-            $user->hasWarehouseAccess($stockIssue->stockRequest?->warehouse?->id);
+            $user->hasWarehouseAccess($stockIssue->warehouse_id) &&
+            $user->defaultWarehouse()?->id === $stockIssue->warehouse_id &&
+            $stockIssue->created_by === $user->id;
     }
 
     public function forceDelete(User $user, StockIssue $stockIssue): bool
     {
         return $user->can('stockIssue.forceDelete') &&
-            $user->hasWarehouseAccess($stockIssue->stockRequest?->warehouse?->id);
+            $user->hasWarehouseAccess($stockIssue->warehouse_id) &&
+            $user->defaultWarehouse()?->id === $stockIssue->warehouse_id &&
+            $stockIssue->created_by === $user->id;
     }
 }

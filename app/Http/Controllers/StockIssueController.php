@@ -67,15 +67,8 @@ class StockIssueController extends Controller
             'draw' => 'nullable|integer',
         ]);
 
-        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
-        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
-
-        $sortMap = [
-            'warehouse_name'   => ['table' => 'warehouses', 'column' => 'name', 'join' => true],
-            'request_number'   => ['table' => 'stock_requests', 'column' => 'request_number', 'join' => true],
-            'created_by'       => ['table' => 'users', 'column' => 'name', 'join' => true],
-            // default: sort by stock_issues table
-        ];
+        $sortColumn = $validated['sortColumn'] ?? 'stock_issues.id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
 
         $query = StockIssue::with([
             'stockRequest.warehouse.building.campus',
@@ -84,35 +77,37 @@ class StockIssueController extends Controller
             'updatedBy',
         ])
         ->when(!$isAdmin, fn($q) => $q->whereHas('stockRequest.warehouse.building.campus', fn($q2) => $q2->whereIn('id', $campusIds)))
-        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) => 
+        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) =>
             $subQ->where('reference_no', 'like', "%{$search}%")
                 ->orWhereHas('stockRequest', fn($srQ) => $srQ->where('request_number', 'like', "%{$search}%"))
                 ->orWhereHas('stockRequest.warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('createdBy', fn($cQ) => $cQ->where('name', 'like', "%{$search}%"))
         ));
 
-        // Apply dynamic relational sorting
-        if (isset($sortMap[$sortColumn]) && $sortMap[$sortColumn]['join']) {
-            $info = $sortMap[$sortColumn];
-            if ($info['table'] === 'warehouses') {
-                $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
-                    ->join('warehouses', 'stock_requests.warehouse_id', '=', 'warehouses.id')
-                    ->orderBy("warehouses.{$info['column']}", $sortDirection)
-                    ->select('stock_issues.*');
-            } elseif ($info['table'] === 'stock_requests') {
-                $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
-                    ->orderBy("stock_requests.{$info['column']}", $sortDirection)
-                    ->select('stock_issues.*');
-            } elseif ($info['table'] === 'users') {
-                $query->join('users', 'stock_issues.created_by', '=', 'users.id')
-                    ->orderBy("users.{$info['column']}", $sortDirection)
-                    ->select('stock_issues.*');
-            }
+        // Sorting via join for relational columns
+        if ($sortColumn === 'warehouse_name') {
+            $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
+                ->join('warehouses', 'stock_requests.warehouse_id', '=', 'warehouses.id')
+                ->orderBy('warehouses.name', $sortDirection)
+                ->select('stock_issues.*');
+        } elseif ($sortColumn === 'request_number') {
+            $query->join('stock_requests', 'stock_issues.stock_request_id', '=', 'stock_requests.id')
+                ->orderBy('stock_requests.request_number', $sortDirection)
+                ->select('stock_issues.*');
+        } elseif ($sortColumn === 'created_by') {
+            $query->join('users', 'stock_issues.created_by', '=', 'users.id')
+                ->orderBy('users.name', $sortDirection)
+                ->select('stock_issues.*');
         } else {
             $query->orderBy($sortColumn, $sortDirection);
         }
 
-        $stockIssues = $query->paginate($validated['limit'] ?? self::DEFAULT_LIMIT, ['*'], 'page', $validated['page'] ?? 1);
+        $stockIssues = $query->paginate(
+            $validated['limit'] ?? self::DEFAULT_LIMIT,
+            ['*'],
+            'page',
+            $validated['page'] ?? 1
+        );
 
         $stockIssuesMapped = $stockIssues->map(fn($issue) => [
             'id' => $issue->id,
@@ -146,7 +141,6 @@ class StockIssueController extends Controller
         $stockRequests = StockRequest::with(['stockRequestItems.product', 'warehouse'])
             ->where('approval_status', 'Approved')
             ->get();
-
         return view('Inventory.stockIssue.form', compact('stockRequests'));
     }
 
@@ -229,7 +223,6 @@ class StockIssueController extends Controller
         $this->authorize('update', $stockIssue);
 
         try {
-            // Load relations needed for edit form
             $stockIssue->load([
                 'stockIssueItems.productVariant.product.unit',
                 'warehouse',
@@ -246,32 +239,32 @@ class StockIssueController extends Controller
                 'created_by' => $stockIssue->created_by,
                 'position_id' => $stockIssue->position_id,
                 'items' => $stockIssue->stockIssueItems->map(function ($item) use ($stockIssue) {
-                    $productName = $item->productVariant?->product?->name ?? $item->product?->name ?? null;
-                    $unitName = $item->productVariant?->product?->unit?->name ?? $item->product?->unit?->name ?? null;
+                        $productName = $item->productVariant?->product?->name ?? $item->product?->name ?? null;
+                        $unitName = $item->productVariant?->product?->unit?->name ?? $item->product?->unit?->name ?? null;
 
-                    $warehouseId = $stockIssue->warehouse_id;
-                    $cutoffDate = $stockIssue->transaction_date;
-                    $stockMovements = $this->stockLedgerService->recalcProduct($item->product_id, $warehouseId, $cutoffDate);
-                    $stockOnHand = $stockMovements->last()->running_qty ?? 0;
-                    $averagePrice = $this->stockLedgerService->getGlobalAvgPrice($item->product_id, $cutoffDate);
+                        $warehouseId = $stockIssue->warehouse_id;
+                        $cutoffDate = $stockIssue->transaction_date;
+                        $stockMovements = $this->stockLedgerService->recalcProduct($item->product_id, $warehouseId, $cutoffDate);
+                        $stockOnHand = $stockMovements->last()->running_qty ?? 0;
+                        $averagePrice = $this->stockLedgerService->getGlobalAvgPrice($item->product_id, $cutoffDate);
 
-                    return [
-                        'id' => $item->id,
-                        'stock_request_item_id' => $item->stock_request_item_id,
-                        'product_id' => $item->product_id,
-                        'product_code' => $item->productVariant?->item_code ?? '',
-                        'product_name' => trim(
-                            ($item->productVariant?->product?->name ?? '') . ' ' . 
-                            ($item->productVariant?->description ?? '')
-                        ),
-                        'variant' => $item->productVariant?->variant_name ?? null,
-                        'unit_name' => $unitName,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $averagePrice,           // <-- Updated
-                        'total_price' => round($item->quantity * $averagePrice, 4), // Updated total
-                        'remarks' => $item->remarks,
-                        'stock_on_hand' => $stockOnHand,        // <-- Added
-                    ];
+                        return [
+                            'id' => $item->id,
+                            'stock_request_item_id' => $item->stock_request_item_id,
+                            'product_id' => $item->product_id,
+                            'product_code' => $item->productVariant?->item_code ?? '',
+                            'product_name' => trim(
+                                ($item->productVariant?->product?->name ?? '') . ' ' . 
+                                ($item->productVariant?->description ?? '')
+                            ),
+                            'variant' => $item->productVariant?->variant_name ?? null,
+                            'unit_name' => $unitName,
+                            'quantity' => $item->quantity,
+                            'unit_price' => $averagePrice,
+                            'total_price' => round($item->quantity * $averagePrice, 4),
+                            'remarks' => $item->remarks,
+                            'stock_on_hand' => $stockOnHand,
+                        ];
                 })->toArray(),
             ];
 
@@ -490,27 +483,32 @@ class StockIssueController extends Controller
     public function getStockRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockIssue::class);
-
+        $user = auth()->user();
         $stockRequests = $this->stockRequestService->getStockRequests($request);
-
+        if (!$user->hasRole('admin')) {
+            $defaultWarehouseId = $user->defaultWarehouse()?->id;
+            if (!$defaultWarehouseId) {
+                return response()->json(['message' => 'No default warehouse assigned for this user.'], 404);
+            }
+            $stockRequests['data'] = collect($stockRequests['data'])
+                ->where('warehouse_id', $defaultWarehouseId)
+                ->where('approval_status', 'Approved')
+                ->values();
+        }
         return response()->json($stockRequests);
     }
+
 
     public function getStockRequestItems(StockRequest $stockRequest, Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockIssue::class);
-
-        // Use the service to get only this stock request with items and cutoff date
-        $stockRequestsData = app(StockRequestService::class)
-            ->getStockRequests($request, $request->query('cutoff_date') ?? $stockRequest->transaction_date);
-
-        // Find the requested stock request
-        $stockRequestData = collect($stockRequestsData['data'])
-            ->firstWhere('id', $stockRequest->id);
-
-        return response()->json([
-            'items' => $stockRequestData['items'] ?? []
-        ]);
+        $stockRequestsData = $this->stockRequestService->getStockRequests(
+            $request,
+            $request->query('cutoff_date') ?? $stockRequest->transaction_date
+        );
+        $items = collect($stockRequestsData['data'])
+            ->firstWhere('id', $stockRequest->id)['items'] ?? [];
+        return response()->json(['items' => $items]);
     }
 
 }

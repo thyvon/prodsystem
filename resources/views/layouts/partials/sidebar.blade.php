@@ -171,7 +171,8 @@
                 || request()->is('inventory/items*') 
                 || request()->is('inventory/stock-movements*')
                 || request()->is('inventory/stock-beginnings*')
-                || request()->is('inventory/stock-requests*');
+                || request()->is('inventory/stock-requests*')
+                || request()->is('inventory/stock-issues*');
             @endphp
 
             @if (auth()->user()->hasAnyRole(['admin', 'stock']) || auth()->user()->hasPermissionTo('product.view'))
@@ -224,10 +225,10 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('view stock issue')
-                            <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                                <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
-                                    <span class="nav-link-text">Stock Issue</span>
+                        @can('stockIssue.view')
+                            <li class="{{ request()->is('inventory/stock-issues*') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-issues') }}" title="Stock Issues" data-filter-tags="stock issues">
+                                    <span class="nav-link-text">Stock Issues</span>
                                 </a>
                             </li>
                         @endcan

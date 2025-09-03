@@ -75,7 +75,24 @@ class RolePermissionSeeder extends Seeder
             ],
             'stockRequest' => [
                 'name' => 'Stock Request',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'review', 'check', 'approve','reassign'],
+                'actions' => [
+                    'create', 
+                    'view', 
+                    'update', 
+                    'delete', 
+                    'restore', 
+                    'forceDelete',
+                    'review', 
+                    'check', 
+                    'approve', 
+                    'reassign',
+                    'viewOwnRecord',
+                    'viewByDefaultWarehouse',
+                    'viewByWarehouseAccess',
+                    'viewByCampusAccess',
+                    'viewByDefaultCampus',
+                    'viewAllRecord'
+                ],
             ],
             'stockIssue' => [
                 'name' => 'Stock Issue',
@@ -91,14 +108,9 @@ class RolePermissionSeeder extends Seeder
             ]
         ];
 
-        // Update existing permissions with feature_name
-        foreach ($features as $feature => $data) {
-            Permission::where('name', 'like', "$feature.%")->update(['feature_name' => $data['name']]);
-        }
 
         $permissions = [];
 
-        // Generate permissions dynamically
         foreach ($features as $feature => $data) {
             foreach ($data['actions'] as $action) {
                 $permissions[] = [
@@ -108,47 +120,18 @@ class RolePermissionSeeder extends Seeder
             }
         }
 
-        // Create or update permissions with feature_name
+        // Create or update permissions
         foreach ($permissions as $perm) {
             $permission = Permission::firstOrCreate(
                 ['name' => $perm['name']],
-                ['guard_name' => 'web'] // Default guard
+                ['guard_name' => 'web']
             );
-            // Ensure feature_name is set
             $permission->update(['feature_name' => $perm['feature_name']]);
         }
 
-        // Create roles
+        // Create only admin role and assign all permissions
         $admin = Role::firstOrCreate(['name' => 'admin']);
-        $purchaser = Role::firstOrCreate(['name' => 'purchaser']);
-        $requester = Role::firstOrCreate(['name' => 'requester']);
-        $approver = Role::firstOrCreate(['name' => 'approver']);
-
-        // Assign all permissions to admin
         $admin->syncPermissions(Permission::all());
-
-        // Assign specific permissions to roles
-        $purchaser->syncPermissions([
-            'purchase_request.create',
-            'purchase_request.view',
-            'purchase_request.update',
-            'purchase_order.view',
-            'invoice_entry.view',
-            'evaluation.view',
-        ]);
-
-        $requester->syncPermissions([
-            'purchase_request.create',
-            'purchase_request.view',
-            'purchase_request.update',
-        ]);
-
-        $approver->syncPermissions([
-            'purchase_request.view',
-            'purchase_request.update',
-            'purchase_order.view',
-            'purchase_order.update',
-        ]);
 
         // Assign admin role to user ID 1
         $user = User::find(1);

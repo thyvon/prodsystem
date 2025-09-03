@@ -23,6 +23,7 @@ use App\Services\CampusService;
 use App\Services\ApprovalService;
 use App\Services\DepartmentService;
 use App\Http\Resources\StockRequestCollection;
+use App\Policies\StockRequestPolicy;
 
 class StockRequestController extends Controller
 {
@@ -573,18 +574,25 @@ class StockRequestController extends Controller
 
         $permission = "stockRequest.{$validated['request_type']}";
         $authUser = $request->user();
+        $isAdmin = $authUser->hasRole('admin');
 
         try {
-            // Get department IDs of the authenticated user
-            $authDepartmentIds = $authUser->departments()->pluck('departments.id')->toArray();
+            // Get department IDs of the authenticated user (only if not admin)
+            $authDepartmentIds = !$isAdmin
+                ? $authUser->departments()->pluck('departments.id')->toArray()
+                : [];
 
             // Fetch users with direct or role-based permission
             $usersQuery = User::query()
                 ->where(function ($query) use ($permission) {
                     $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
                         ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
-                })
-                ->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $authDepartmentIds));
+                });
+
+            // Apply department filter only for non-admin users
+            if (!$isAdmin) {
+                $usersQuery->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $authDepartmentIds));
+            }
 
             $users = $usersQuery->select('id', 'name')->get();
 
@@ -605,19 +613,19 @@ class StockRequestController extends Controller
             ], 500);
         }
     }
+
     /**
      * Retrieve paginated main stock requests with optional search and sort.
      *
      * @param Request $request
      * @return JsonResponse
      */
+
     public function getStockRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockRequest::class);
 
         $user = auth()->user();
-        $isAdmin = $user->hasRole('admin');
-        $campusIds = $user->campus->pluck('id')->toArray();
 
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
@@ -628,18 +636,40 @@ class StockRequestController extends Controller
             'draw' => 'nullable|integer',
         ]);
 
+        // Base query with relationships
         $query = StockRequest::with([
             'warehouse.building.campus',
             'campus',
             'stockRequestItems.productVariant.product.unit',
             'createdBy',
             'updatedBy',
-        ])
-        ->campusFilter($isAdmin, $campusIds)
-        ->search($validated['search'] ?? null)
-        ->orderBy($validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN, $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
+        ]);
 
-        $stockRequests = $query->paginate($validated['limit'] ?? self::DEFAULT_LIMIT, ['*'], 'page', $validated['page'] ?? 1);
+        // Apply policy scope for viewable stock requests
+        $query = app(StockRequestPolicy::class)->scopeViewable($query, $user);
+
+        // Apply search filter
+        if (!empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('request_number', 'like', "%{$search}%")
+                ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                ->orWhereHas('createdBy', fn($cQ) => $cQ->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // Sorting
+        $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+        $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
+        $query->orderBy($sortColumn, $sortDirection);
+
+        // Pagination
+        $stockRequests = $query->paginate(
+            $validated['limit'] ?? self::DEFAULT_LIMIT,
+            ['*'],
+            'page',
+            $validated['page'] ?? 1
+        );
 
         return response()->json([
             'data' => (new StockRequestCollection($stockRequests))->toArray($request),
@@ -648,6 +678,7 @@ class StockRequestController extends Controller
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
+
 
     /**
      * Export stock requests to an Excel file.

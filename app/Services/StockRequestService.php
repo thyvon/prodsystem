@@ -71,6 +71,7 @@ class StockRequestService
                 'id' => $item->id,
                 'request_number' => $item->request_number,
                 'request_date' => $item->request_date,
+                'warehouse_id' => $item->warehouse_id,
                 'warehouse_name' => $item->warehouse?->name,
                 'warehouse_campus_name' => $item->warehouse?->building?->campus?->short_name,
                 'user_campus_name' => $item->campus?->short_name,

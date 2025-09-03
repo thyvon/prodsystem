@@ -518,25 +518,32 @@ class StockBeginningController extends Controller
         ]);
 
         $permission = "mainStockBeginning.{$validated['request_type']}";
+        $authUser = $request->user();
+        $isAdmin = $authUser->hasRole('admin');
 
         try {
-            // Fetch users with direct or role-based permission
-            $users = User::query()
+            $usersQuery = User::query()
                 ->where(function ($query) use ($permission) {
-                    $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
-                        ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
-                })
-                ->select('id', 'name')
-                ->get();
+                    $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
+                        ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
+                });
+
+            // Apply department filter only for non-admin users
+            if (!$isAdmin) {
+                $authDepartmentIds = $authUser->departments()->pluck('departments.id')->toArray();
+                $usersQuery->whereHas('departments', fn($q) => $q->whereIn('departments.id', $authDepartmentIds));
+            }
+
+            $users = $usersQuery->select('id', 'name')->get();
 
             return response()->json([
                 'message' => 'Users fetched successfully.',
                 'data' => $users,
             ]);
         } catch (\Exception $e) {
-            // Log error
             Log::error('Failed to fetch users for approval', [
                 'request_type' => $validated['request_type'],
+                'auth_user_id' => $authUser->id,
                 'error' => $e->getMessage(),
             ]);
 

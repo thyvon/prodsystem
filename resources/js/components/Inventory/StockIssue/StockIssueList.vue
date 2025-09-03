@@ -80,7 +80,7 @@ const handlePreview = (stockIssue) => {
 
 const handleDelete = async (stockIssue) => {
   const confirmed = await confirmAction(
-    `Delete Stock Issue "${stockIssue.issue_number}"?`,
+    `Delete Stock Issue "${stockIssue.reference_no}"?`,
     '<strong>Warning:</strong> This action cannot be undone!'
   )
   if (!confirmed) return
