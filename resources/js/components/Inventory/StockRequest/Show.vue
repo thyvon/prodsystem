@@ -324,7 +324,7 @@ const format = val => Number(val || 0).toLocaleString(undefined, { minimumFracti
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
-const goBack = () => window.history.back()
+const goBack = () => window.location.href = `/inventory/stock-requests`
 
 // Modal open/reset
 const openConfirmModal = (action) => {

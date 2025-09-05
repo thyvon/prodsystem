@@ -119,11 +119,9 @@ public function recalcProduct(int $productId, ?int $warehouseId = null, ?string 
     return $allStockMovements;
 }
 
-
-
-    /**
-     * Get global average price across all warehouses
-     */
+/**
+ * Get global average price across all warehouses
+ */
 public function getGlobalAvgPrice(int $productId, ?string $cutoffDate = null)
 {
     $bindings = [$productId, $productId, $productId, $productId, $productId];
