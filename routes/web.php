@@ -61,6 +61,9 @@ use App\Models\StockRequest;
 use App\Http\Controllers\StockIssueController;
 use App\Models\StockIssue;
 
+use App\Http\Controllers\StockTransferController;
+use App\Models\StockTransfer;
+
 use App\Http\Controllers\StockController;
 
 
@@ -196,6 +199,16 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-issues.edit')->middleware('can:update,stockIssue');
         Route::get('/stock-issues/{stockIssue}/show', [StockIssueController::class, 'show'])
             ->name('stock-issues.show')->middleware('can:view,stockIssue');
+
+        // Stock Transfer
+        // Route::get('/stock-transfers', [StockTransferController::class, 'index'])
+        //     ->name('stock-transfers.index')->middleware('can:viewAny,' . StockTransfer::class);
+        Route::get('/stock-transfers/create', [StockTransferController::class, 'form'])->name('stock-transfers.create')
+            ->middleware('can:create,' . StockTransfer::class);
+        Route::get('/stock-transfers/{stockTransfer}/edit', [StockTransferController::class, 'form'])->name('stock-transfers.edit')
+            ->middleware('can:update,stockTransfer');
+        // Route::get('/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
+        //     ->name('stock-transfers.show')->middleware('can:view,stockTransfer');
 
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])

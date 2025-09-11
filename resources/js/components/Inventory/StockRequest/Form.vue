@@ -68,7 +68,7 @@
           <div class="border rounded p-3 mb-4">
             <div class="form-row mb-3">
               <div class="form-group col-md-12">
-                 <h5 class="font-weight-bold mb-3 text-primary">📦 Request Items <span class="text-danger">*</span></h5>
+                <h5 class="font-weight-bold mb-3 text-primary">📦 Request Items <span class="text-danger">*</span></h5>
                 <label for="product_select" class="font-weight-bold">Add Product</label>
                 <select
                   ref="productSelect"
@@ -81,28 +81,97 @@
                     :key="product.id"
                     :value="product.id"
                   >
+                    {{ `${product.item_code} - ${product.product_name} ${product.description} (Stock: ${product.stock_on_hand})` }}
                   </option>
                 </select>
               </div>
             </div>
             <div class="table-responsive">
-              <table id="stockItemsTable" class="table table-bordered table-sm table-hover">
+              <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
-                  <tr>
-                    <th style="min-width: 100px;">Code</th>
-                    <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 30px;">UoM</th>
-                    <th style="min-width: 100px;">Qty On Hand</th>
-                    <th style="min-width: 100px;">Request Qty</th>
-                    <th style="min-width: 120px;">Avg Price</th>
-                    <th style="min-width: 120px;">Total Value</th>
-                    <th style="min-width: 120px;">Department</th>
-                    <th style="min-width: 120px;">Campus</th>
-                    <th style="min-width: 200px;">Remarks</th>
-                    <th style="min-width: 100px;">Actions</th>
-                  </tr>
+                <tr>
+                  <th style="min-width: 80px;">Code</th>
+                  <th style="min-width: 200px;">Description</th>
+                  <th style="min-width: 60px;">UoM</th>
+                  <th style="min-width: 100px;">Qty On Hand</th>
+                  <th style="min-width: 100px;">Request Qty</th>
+                  <th style="min-width: 100px;">Avg Price</th>
+                  <th style="min-width: 120px;">Total Value</th>
+                  <th style="min-width: 150px;">Department</th>
+                  <th style="min-width: 150px;">Campus</th>
+                  <th style="min-width: 180px;">Remarks</th>
+                  <th style="min-width: 120px;">Actions</th>
+                </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                  <tr v-for="(item, index) in form.items" :key="item.product_id">
+                    <td>{{ ProductCode(item.product_id) }}</td>
+                    <td>{{ ProductDescription(item.product_id) }}</td>
+                    <td>{{ itemUnitName(item.product_id) }}</td>
+                    <td>
+                      <input class="form-control" :value="StockOnhand(item.product_id)" readonly />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        class="form-control quantity-input"
+                        v-model.number="item.quantity"
+                        :max="StockOnhand(item.product_id)"
+                        min="0.0001"
+                        step="0.0001"
+                        :data-row="index"
+                      />
+                    </td>
+                    <td>
+                      <input class="form-control" :value="ProductPrice(item.product_id)" readonly />
+                    </td>
+                    <td>
+                      <input class="form-control" :value="(item.quantity * item.average_price).toFixed(4)" readonly />
+                    </td>
+                    <td>
+                      <select
+                        class="form-control department-select"
+                        :data-row="index"
+                        v-model="item.department_id"
+                      >
+                        <option v-for="dep in form.departments" :value="dep.id" :key="dep.id">
+                          {{ dep.short_name }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        class="form-control campus-select"
+                        :data-row="index"
+                        v-model="item.campus_id"
+                      >
+                        <option v-for="c in form.campuses" :value="c.id" :key="c.id">
+                          {{ c.short_name }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      <textarea
+                        class="form-control remarks-input"
+                        :data-row="index"
+                        v-model="item.remarks"
+                      ></textarea>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm remove-btn"
+                        :data-row="index"
+                        @click="removeItem(index)"
+                      >
+                        <i class="fal fa-trash-alt"></i> Remove
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="form.items.length === 0">
+                    <td colspan="11" class="text-center">No items added.</td>
+                  </tr>
+                </tbody>
               </table>
             </div>
           </div>
@@ -113,9 +182,9 @@
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 200px;">Approval Type</th>
-                    <th style="min-width: 200px;">Assigned User</th>
-                    <th style="min-width: 100px;">Actions</th>
+                    <th>Approval Type</th>
+                    <th>Assigned User</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -160,6 +229,9 @@
                         <i class="fal fa-trash-alt"></i> Remove
                       </button>
                     </td>
+                  </tr>
+                  <tr v-if="form.approvals.length === 0">
+                    <td colspan="3" class="text-center">No approvals added.</td>
                   </tr>
                 </tbody>
               </table>
@@ -222,13 +294,10 @@ const products = ref([])
 const warehouses = ref([])
 const users = ref({ approve: [] })
 const warehouseSelect = ref(null)
-// const departmentSelect = ref(null)
-// const campusSelect = ref(null)
 const typeSelect = ref(null)
 const productSelect = ref(null)
 const isEditMode = computed(() => !!props.initialData?.id)
 const stockRequestId = ref(props.initialData?.id || null)
-const table = ref(null)
 let isAddingItem = false
 let isAddingApproval = false
 
@@ -240,8 +309,8 @@ const form = ref({
   request_date_display: '',
   items: [],
   approvals: [],
-  departments: props.departments, // Blade data
-  campuses: props.campuses,       // Blade data
+  departments: props.departments,
+  campuses: props.campuses,
   defaultDepartment: props.defaultDepartment,
   defaultCampus: props.defaultCampus
 })
@@ -269,17 +338,7 @@ const fetchProducts = async () => {
       }
     })
     products.value = Array.isArray(response.data) ? response.data : response.data.data
-
-    // After fetching, re-render the table values
-    await Promise.all([
-      updateTableValues(),
-      rebuildProductSelect()
-    ])
-
-    // Force DataTable to redraw with updated prices
-    if (table.value) {
-      table.value.rows().invalidate().draw()
-    }
+    await rebuildProductSelect()
   } catch (err) {
     console.error('Failed to load products:', err)
     showAlert('Error', 'Failed to load products.', 'danger')
@@ -287,64 +346,25 @@ const fetchProducts = async () => {
 }
 
 const rebuildProductSelect = async () => {
-  await nextTick();
-
-  // Destroy previous Select2 instance
-  if (productSelect.value) destroySelect2(productSelect.value);
-
-  // Clear options
-  const selectEl = productSelect.value;
-  selectEl.innerHTML = '<option value="">Select Product</option>';
-
-  products.value.forEach((p) => {
-    const option = document.createElement('option');
-    option.value = p.id;
-    option.textContent = `${p.item_code} - ${p.product_name} ${p.description} (Stock: ${p.stock_on_hand})`;
-
-    // Disable if stock_on_hand = 0
-    if (p.stock_on_hand === 0 || p.stock_on_hand === null) {
-      option.disabled = true;
-    }
-
-    selectEl.appendChild(option);
-  });
-
-  // Initialize Select2
-  if (selectEl) {
-    initSelect2(selectEl, { placeholder: 'Select Product', width: '100%', allowClear: true });
-
+  await nextTick()
+  if (productSelect.value) {
+    destroySelect2(productSelect.value)
+    const selectEl = productSelect.value
+    selectEl.innerHTML = '<option value="">Select Product</option>'
+    products.value.forEach((p) => {
+      const option = document.createElement('option')
+      option.value = p.id
+      option.textContent = `${p.item_code} - ${p.product_name} ${p.description} (Stock: ${p.stock_on_hand})`
+      if (p.stock_on_hand === 0 || p.stock_on_hand === null) {
+        option.disabled = true
+      }
+      selectEl.appendChild(option)
+    })
+    initSelect2(selectEl, { placeholder: 'Select Product', width: '100%', allowClear: true })
     $(selectEl).on('select2:select', (e) => {
-      const productId = e.params.data.id;
-      addItem(productId); // Your function to add the item row
-    });
-  }
-};
-
-const updateTableValues = () => {
-  form.value.items.forEach((item, index) => {
-    const product = products.value.find(p => p.id === item.product_id)
-    if (product) {
-      // Update the item's data to match the latest product info
-      item.average_price = product.average_price
-      item.stock_on_hand = product.stock_on_hand
-      // Update the DOM inputs
-      const $row = $(`#stockItemsTable tbody tr:eq(${index})`)
-      $row.find('input').eq(0).val(product.stock_on_hand)
-      $row.find('input').eq(1).val(product.average_price)
-      const $qtyInput = $row.find('input.quantity-input')
-      $qtyInput.val(Number(item.quantity) || 0)
-      $qtyInput.attr('max', Number(product.stock_on_hand) || 0)
-    }
-  })
-}
-
-const fetchWarehouses = async () => {
-  try {
-    const response = await axios.get(`/api/inventory/stock-requests/get-warehouses`)
-    warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
-  } catch (err) {
-    console.error('Failed to load warehouses:', err)
-    showAlert('Error', 'Failed to load warehouses.', 'danger')
+      const productId = e.params.data.id
+      addItem(productId)
+    })
   }
 }
 
@@ -388,11 +408,9 @@ const ProductCode = computed(() => {
   }
 })
 
-
 const addApproval = async () => {
   if (isAddingApproval) return
   isAddingApproval = true
-
   try {
     form.value.approvals.push({
       id: null,
@@ -401,18 +419,15 @@ const addApproval = async () => {
       isDefault: false,
       availableUsers: [],
     })
-
     await nextTick()
     const index = form.value.approvals.length - 1
     const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
     const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
-
     if (!approvalSelect || !userSelect) {
       console.warn(`DOM elements for row ${index} not found`)
       showAlert('Error', 'Failed to initialize approval dropdowns.', 'danger')
       return
     }
-
     initSelect2(approvalSelect, {
       placeholder: 'Select Type',
       width: '100%',
@@ -422,7 +437,6 @@ const addApproval = async () => {
       updateUsersForRow(index)
     })
     $(approvalSelect).val(form.value.approvals[index].request_type || '').trigger('change.select2')
-
     initSelect2(userSelect, {
       placeholder: 'Select User',
       width: '100%',
@@ -475,7 +489,6 @@ const updateUsersForRow = async (index) => {
         }, (value) => {
           form.value.approvals[index].user_id = value ? Number(value) : null
         })
-        // Only set user_id if it exists in the new availableUsers list
         const currentUserId = form.value.approvals[index].user_id
         const validUser = users.value[requestType].find(user => user.id === currentUserId)
         $(userSelect).val(validUser ? currentUserId : '').trigger('change.select2')
@@ -512,17 +525,14 @@ const validateApprovals = () => {
     showAlert('Error', 'At least one approval assignment (Approve) is required.', 'danger')
     return false
   }
-
   const defaultTypes = ['approve']
   const presentTypes = form.value.approvals
     .map(approval => approval.request_type)
     .filter(type => defaultTypes.includes(type))
-
   if (presentTypes.length < 1 || !defaultTypes.every(type => presentTypes.includes(type))) {
     showAlert('Error', 'All default approval types (Approve) must be present.', 'danger')
     return false
   }
-
   for (const approval of form.value.approvals) {
     if (!approval.request_type) {
       showAlert('Error', 'All approval types must be specified.', 'danger')
@@ -533,17 +543,13 @@ const validateApprovals = () => {
       return false
     }
   }
-
   return true
 }
 
 const addItem = (productId) => {
   try {
-    if (isAddingItem) {
-      return
-    }
+    if (isAddingItem) return
     isAddingItem = true
-
     if (!productId) {
       console.warn('No product ID provided')
       showAlert('Warning', 'Please select a product.', 'warning')
@@ -555,33 +561,22 @@ const addItem = (productId) => {
       showAlert('Error', 'Selected product not found.', 'danger')
       return
     }
-
     const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId))
     if (existingItemIndex !== -1) {
       form.value.items[existingItemIndex].quantity += 1
-      if (table.value) {
-        table.value.row(existingItemIndex).invalidate().draw()
-      }
       showAlert('Info', `Quantity increased for ${product.item_code}`, 'info')
     } else {
       const newItem = {
         product_id: Number(productId),
-        department_id: null,
-        campus_id: null,
+        department_id: props.defaultDepartment?.id || null,
+        campus_id: props.defaultCampus?.id || null,
         quantity: 1,
         average_price: product.average_price,
         stock_on_hand: product.stock_on_hand,
         remarks: '',
       }
       form.value.items.push(newItem)
-      if (table.value) {
-        table.value.rows.add([newItem]).draw()
-      } else {
-        console.warn('DataTable not initialized')
-        showAlert('Error', 'Table not initialized.', 'danger')
-      }
     }
-
     if (productSelect.value) {
       $(productSelect.value).val(null).trigger('select2:unselect')
     }
@@ -596,12 +591,19 @@ const addItem = (productId) => {
 const removeItem = (index) => {
   try {
     form.value.items.splice(index, 1)
-    if (table.value) {
-      table.value.clear().rows.add(form.value.items).draw()
-    }
   } catch (err) {
     console.error('Error removing item:', err)
     showAlert('Error', 'Failed to remove item.', 'danger')
+  }
+}
+
+const fetchWarehouses = async () => {
+  try {
+    const response = await axios.get(`/api/inventory/stock-requests/get-warehouses`)
+    warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
+  } catch (err) {
+    console.error('Failed to load warehouses:', err)
+    showAlert('Error', 'Failed to load warehouses.', 'danger')
   }
 }
 
@@ -618,7 +620,6 @@ const submitForm = async () => {
   if (!validateApprovals()) {
     return
   }
-
   isSubmitting.value = true
   try {
     const payload = {
@@ -641,19 +642,17 @@ const submitForm = async () => {
         request_type: approval.request_type,
       })),
     }
-
     const url = isEditMode.value
       ? `/api/inventory/stock-requests/${stockRequestId.value}`
       : `/api/inventory/stock-requests`
     const method = isEditMode.value ? 'put' : 'post'
-
     await axios[method](url, payload)
-    await showAlert('Success', isEditMode.value ? 'Stock beginning updated successfully.' : 'Stock beginning created successfully.', 'success')
+    await showAlert('Success', isEditMode.value ? 'Stock request updated successfully.' : 'Stock request created successfully.', 'success')
     emit('submitted')
     goToIndex()
   } catch (err) {
     console.error('Submit error:', err.response?.data || err)
-    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock beginning.', 'danger')
+    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock request.', 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -725,29 +724,24 @@ watch(
 
 onMounted(async () => {
   try {
-    const defaultApprovalTypes = ['approve'];
-    const seenTypes = new Set();
+    const defaultApprovalTypes = ['approve']
+    const seenTypes = new Set()
 
-    // ------------------ Initialize form ------------------
+    // Initialize form
     if (props.initialData?.id) {
-      // Edit mode
-      form.value.warehouse_id = props.initialData.warehouse_id;
-      form.value.type = props.initialData.type;
-      form.value.purpose = props.initialData.purpose;
-      form.value.request_date = props.initialData.request_date;
-
-      // Format display date
+      form.value.warehouse_id = props.initialData.warehouse_id
+      form.value.type = props.initialData.type
+      form.value.purpose = props.initialData.purpose
+      form.value.request_date = props.initialData.request_date
       if (props.initialData.request_date) {
-        const [year, month, day] = props.initialData.request_date.split('-');
-        const date = new Date(year, month - 1, day);
+        const [year, month, day] = props.initialData.request_date.split('-')
+        const date = new Date(year, month - 1, day)
         form.value.request_date_display = date.toLocaleDateString('en-US', {
           month: 'short',
           day: '2-digit',
           year: 'numeric',
-        });
+        })
       }
-
-      // Initialize stock items
       form.value.items = props.initialData.items?.map(item => ({
         id: item.id || null,
         product_id: Number(item.product_id),
@@ -756,215 +750,120 @@ onMounted(async () => {
         remarks: item.remarks || '',
         department_id: item.department_id || props.defaultDepartment?.id || null,
         campus_id: item.campus_id || props.defaultCampus?.id || null,
-      })) || [];
-
-      // Initialize approvals
+      })) || []
       form.value.approvals = props.initialData.approvals?.map(approval => {
-        const isFirst = !seenTypes.has(approval.request_type);
-        if (isFirst && defaultApprovalTypes.includes(approval.request_type)) seenTypes.add(approval.request_type);
-
+        const isFirst = !seenTypes.has(approval.request_type)
+        if (isFirst && defaultApprovalTypes.includes(approval.request_type)) seenTypes.add(approval.request_type)
         return {
           id: approval.id || null,
           user_id: Number(approval.user_id),
           request_type: approval.request_type || 'approve',
           isDefault: isFirst && defaultApprovalTypes.includes(approval.request_type),
           availableUsers: [],
-        };
-      }) || [];
+        }
+      }) || []
     } else {
-      // New form
       form.value.approvals = defaultApprovalTypes.map(type => ({
         id: null,
         request_type: type,
         user_id: null,
         isDefault: true,
         availableUsers: [],
-      }));
+      }))
     }
 
-    // ------------------ Fetch supporting data ------------------
-    await Promise.all([fetchProducts(), fetchWarehouses()]);
+    // Fetch supporting data
+    await Promise.all([fetchProducts(), fetchWarehouses()])
 
-    // ------------------ Initialize approval dropdowns ------------------
-    await nextTick();
+    // Initialize approval dropdowns
+    await nextTick()
     for (let i = 0; i < form.value.approvals.length; i++) {
-      const approvalSelect = document.querySelector(`.approval-type-select[data-row="${i}"]`);
-      const userSelect = document.querySelector(`.user-select[data-row="${i}"]`);
-
+      const approvalSelect = document.querySelector(`.approval-type-select[data-row="${i}"]`)
+      const userSelect = document.querySelector(`.user-select[data-row="${i}"]`)
       if (!approvalSelect || !userSelect) {
-        console.warn(`DOM elements for approval row ${i} not found`);
-        continue; // Skip if elements are missing
+        console.warn(`DOM elements for approval row ${i} not found`)
+        continue
       }
-
-      // Initialize approval type select
       initSelect2(approvalSelect, {
         placeholder: 'Select Type',
         width: '100%',
         allowClear: true,
-        data: defaultApprovalTypes.map(type => ({ id: type, text: type })), // Populate with valid types
+        data: defaultApprovalTypes.map(type => ({ id: type, text: type })),
       }, (value) => {
-        form.value.approvals[i].request_type = value || '';
-        updateUsersForRow(i); // Update user dropdown when type changes
-      });
-      $(approvalSelect).val(form.value.approvals[i].request_type || '').trigger('change.select2');
-
-      // Initialize user select (handled by updateUsersForRow)
-      await updateUsersForRow(i);
+        form.value.approvals[i].request_type = value || ''
+        updateUsersForRow(i)
+      })
+      $(approvalSelect).val(form.value.approvals[i].request_type || '').trigger('change.select2')
+      await updateUsersForRow(i)
     }
 
-    // ------------------ Initialize DataTable ------------------
-    table.value = $('#stockItemsTable').DataTable({
-      data: form.value.items,
-      responsive: true,
-      columns: [
-        { data: 'product_id', render: d => ProductCode.value(d) },
-        { data: 'product_id', render: d => ProductDescription.value(d) },
-        { data: 'product_id', render: d => itemUnitName.value(d) },
-        { data: 'product_id', render: d => `<input class="form-control" value="${StockOnhand.value(d)}" readonly />` },
-        {
-          data: 'quantity',
-          render: (d, t, r, m) => `<input type="number" class="form-control quantity-input" value="${d}" min="0.0001" step="0.0001" data-row="${m.row}" />`,
-        },
-        { data: 'product_id', render: d => `<input class="form-control" value="${ProductPrice.value(d)}" readonly />` },
-        { data: null, render: d => `<input class="form-control" value="${(d.quantity * d.average_price).toFixed(4)}" readonly />` },
-        {
-          data: 'department_id',
-          render: (d, t, r, m) => `
-            <select class="form-control department-select" data-row="${m.row}">
-              ${form.value.departments.map(dep => `<option value="${dep.id}" ${dep.id === (d || props.defaultDepartment?.id) ? 'selected' : ''}>${dep.short_name}</option>`).join('')}
-            </select>
-          `,
-        },
-        {
-          data: 'campus_id',
-          render: (d, t, r, m) => `
-            <select class="form-control campus-select" data-row="${m.row}">
-              ${form.value.campuses.map(c => `<option value="${c.id}" ${c.id === (d || props.defaultCampus?.id) ? 'selected' : ''}>${c.short_name}</option>`).join('')}
-            </select>
-          `,
-        },
-        { data: 'remarks', render: (d, t, r, m) => `<textarea class="form-control remarks-input" data-row="${m.row}">${d || ''}</textarea>` },
-        { data: null, orderable: false, searchable: false, render: (d, t, r, m) => `<button class="btn btn-danger btn-sm remove-btn" data-row="${m.row}"><i class="fal fa-trash-alt"></i> Remove</button>` },
-      ],
-    });
-
-    // ------------------ Table bindings ------------------
-    $('#stockItemsTable').on('change', '.quantity-input', function () {
-      const i = $(this).data('row');
-      form.value.items[i].quantity = parseFloat($(this).val()) || 1;
-      table.value.row(i).invalidate().draw();
-    });
-
-    $('#stockItemsTable').on('input', '.remarks-input', function () {
-      const i = $(this).data('row');
-      form.value.items[i].remarks = $(this).val();
-    });
-
-    $('#stockItemsTable').on('click', '.remove-btn', function () {
-      removeItem($(this).data('row'));
-    });
-
-    // ------------------ Inline Select2 for department & campus ------------------
-    const initInlineSelects = () => {
-      $('#stockItemsTable').find('.department-select').each(function () {
-        const idx = $(this).data('row');
-        if (!form.value.items[idx].department_id) form.value.items[idx].department_id = Number($(this).val()) || null;
-        if (!$(this).hasClass('select2-hidden-accessible')) {
-          initSelect2(this, { placeholder: 'Select Department', width: '100%' }, v => {
-            form.value.items[idx].department_id = Number(v) || null;
-          });
-        }
-      });
-
-      $('#stockItemsTable').find('.campus-select').each(function () {
-        const idx = $(this).data('row');
-        if (!form.value.items[idx].campus_id) form.value.items[idx].campus_id = Number($(this).val()) || null;
-        if (!$(this).hasClass('select2-hidden-accessible')) {
-          initSelect2(this, { placeholder: 'Select Campus', width: '100%' }, v => {
-            form.value.items[idx].campus_id = Number(v) || null;
-          });
-        }
-      });
-    };
-
-    initInlineSelects();
-    table.value.on('draw', initInlineSelects);
-
-    // ------------------ Regular Select2 for warehouse & type ------------------
-    await nextTick();
+    // Initialize regular Select2 for warehouse & type
+    await nextTick()
     if (warehouseSelect.value) {
-      initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse', width: '100%', allowClear: true }, v => form.value.warehouse_id = v);
-      if (form.value.warehouse_id) $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change');
+      initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse', width: '100%', allowClear: true }, v => form.value.warehouse_id = v)
+      if (form.value.warehouse_id) $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
     }
     if (typeSelect.value) {
       initSelect2(
         typeSelect.value,
-        {
-          placeholder: 'Select Type',
-          width: '100%',
-          allowClear: true,
-        },
-        value => {
-          form.value.type = value || '';
-        }
-      );
+        { placeholder: 'Select Type', width: '100%', allowClear: true },
+        value => { form.value.type = value || '' }
+      )
       if (form.value.type) {
-        $(typeSelect.value).val(form.value.type).trigger('change');
+        $(typeSelect.value).val(form.value.type).trigger('change')
       } else {
-        form.value.type = 'Using';
-        $(typeSelect.value).val('Using').trigger('change');
+        form.value.type = 'Using'
+        $(typeSelect.value).val('Using').trigger('change')
       }
     }
 
-    // ------------------ Initialize Datepicker ------------------
-    await initDatepicker();
+    // Initialize Select2 for department & campus in table
+    await nextTick()
+    const initInlineSelects = () => {
+      document.querySelectorAll('.department-select').forEach((el, idx) => {
+        if (!$(el).hasClass('select2-hidden-accessible')) {
+          initSelect2(el, { placeholder: 'Select Department', width: '100%' }, v => {
+            form.value.items[idx].department_id = Number(v) || null
+          })
+          $(el).val(form.value.items[idx].department_id || props.defaultDepartment?.id || '').trigger('change.select2')
+        }
+      })
+      document.querySelectorAll('.campus-select').forEach((el, idx) => {
+        if (!$(el).hasClass('select2-hidden-accessible')) {
+          initSelect2(el, { placeholder: 'Select Campus', width: '100%' }, v => {
+            form.value.items[idx].campus_id = Number(v) || null
+          })
+          $(el).val(form.value.items[idx].campus_id || props.defaultCampus?.id || '').trigger('change.select2')
+        }
+      })
+    }
+    initInlineSelects()
+
+    // Re-initialize Select2 on table updates
+    watch(() => form.value.items, () => {
+      nextTick(() => initInlineSelects())
+    }, { deep: true })
+
+    // Initialize Datepicker
+    await initDatepicker()
   } catch (err) {
-    console.error('Error in onMounted:', err);
-    showAlert('Error', 'Failed to initialize form.', 'danger');
+    console.error('Error in onMounted:', err)
+    showAlert('Error', 'Failed to initialize form.', 'danger')
   }
-});
+})
 
 onUnmounted(() => {
   try {
-    // Destroy DataTable
-    if (table.value) {
-      table.value.destroy()
-      table.value = null
-    }
-
-    // Destroy main selects
     if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
     if (typeSelect.value) destroySelect2(typeSelect.value)
     if (productSelect.value) destroySelect2(productSelect.value)
-
-    // Destroy approval selects
-    $('.approval-type-select').each(function () { destroySelect2(this) })
-    $('.user-select').each(function () { destroySelect2(this) })
-
-    // Destroy department & campus selects in DataTable rows
-    $('#stockItemsTable').find('.department-select').each(function () { destroySelect2(this) })
-    $('#stockItemsTable').find('.campus-select').each(function () { destroySelect2(this) })
-
-    // Destroy datepicker
+    document.querySelectorAll('.approval-type-select').forEach(el => destroySelect2(el))
+    document.querySelectorAll('.user-select').forEach(el => destroySelect2(el))
+    document.querySelectorAll('.department-select').forEach(el => destroySelect2(el))
+    document.querySelectorAll('.campus-select').forEach(el => destroySelect2(el))
     $('#request_date').datepicker('destroy')
-
   } catch (err) {
     console.error('Error in onUnmounted:', err)
   }
 })
-
 </script>
-
-<style scoped>
-.card-header {
-  border-bottom: 1px solid #e3e6f0;
-}
-
-.btn-icon {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-</style>
