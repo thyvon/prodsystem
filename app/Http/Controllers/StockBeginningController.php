@@ -580,7 +580,6 @@ class StockBeginningController extends Controller
 
         $query = MainStockBeginning::with([
                 'warehouse.building.campus',
-                'stockBeginnings.productVariant.product.unit',
                 'createdBy',
                 'updatedBy',
             ])
@@ -610,43 +609,27 @@ class StockBeginningController extends Controller
 
         $sortColumn = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
         $sortDirection = $validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION;
-
         $query->orderBy($sortColumn, $sortDirection);
-
         $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
         $page = $validated['page'] ?? 1;
 
         $mainStockBeginnings = $query->paginate($limit, ['*'], 'page', $page);
 
-        $data = $mainStockBeginnings->getCollection()->map(function ($item) {
+        $data = $mainStockBeginnings->getCollection()->map(function ($beginning) {
             return [
-                'id' => $item->id,
-                'reference_no' => $item->reference_no,
-                'beginning_date' => $item->beginning_date,
-                'warehouse_name' => $item->warehouse->name ?? null,
-                'campus_name' => $item->warehouse->building->campus->short_name ?? null,
-                'building_name' => $item->warehouse->building->short_name ?? null,
-                'quantity' => round($item->stockBeginnings->sum('quantity'), 4),
-                'total_value' => round($item->stockBeginnings->sum('total_value'), 4),
-                'created_at' => optional($item->created_at)->toDateTimeString(),
-                'updated_at' => optional($item->updated_at)->toDateTimeString(),
-                'created_by' => $item->createdBy->name ?? 'System',
-                'updated_by' => $item->updatedBy->name ?? 'System',
-                'approval_status' => $item->approval_status,
-                'items' => $item->stockBeginnings->map(function ($sb) {
-                    return [
-                        'id' => $sb->id,
-                        'product_id' => $sb->product_id,
-                        'item_code' => $sb->productVariant->item_code ?? null,
-                        'quantity' => $sb->quantity,
-                        'unit_price' => $sb->unit_price,
-                        'total_value' => $sb->total_value,
-                        'remarks' => $sb->remarks,
-                        'product_name' => $sb->productVariant->product->name ?? null,
-                        'product_khmer_name' => $sb->productVariant->product->khmer_name ?? null,
-                        'unit_name' => $sb->productVariant->product->unit->name ?? null,
-                    ];
-                })->toArray(),
+                'id' => $beginning->id,
+                'reference_no' => $beginning->reference_no,
+                'beginning_date' => $beginning->beginning_date,
+                'warehouse_name' => $beginning->warehouse->name ?? null,
+                'campus_name' => $beginning->warehouse->building->campus->short_name ?? null,
+                'building_name' => $beginning->warehouse->building->short_name ?? null,
+                'quantity' => round($beginning->stockBeginnings->sum('quantity'), 4),
+                'total_value' => round($beginning->stockBeginnings->sum('total_value'), 4),
+                'created_at' => optional($beginning->created_at)->toDateTimeString(),
+                'updated_at' => optional($beginning->updated_at)->toDateTimeString(),
+                'created_by' => $beginning->createdBy->name ?? 'System',
+                'updated_by' => $beginning->updatedBy->name ?? 'System',
+                'approval_status' => $beginning->approval_status,
             ];
         });
 

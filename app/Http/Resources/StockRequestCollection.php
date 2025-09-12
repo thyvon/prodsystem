@@ -23,21 +23,6 @@ class StockRequestCollection extends ResourceCollection
             'created_by' => $item->createdBy?->name ?? 'System',
             'updated_by' => $item->updatedBy?->name ?? 'System',
             'approval_status' => $item->approval_status,
-            'items' => $item->stockRequestItems->map(fn($sb) => [
-                'id' => $sb->id,
-                'product_id' => $sb->product_id,
-                'department_id' => $sb->department_id,
-                'campus_id' => $sb->campus_id,
-                'item_code' => $sb->productVariant?->item_code,
-                'description' => $sb->productVariant?->description,
-                'quantity' => $sb->quantity,
-                'average_price' => $sb->average_price,
-                'total_price' => $sb->total_price,
-                'remarks' => $sb->remarks,
-                'product_name' => $sb->productVariant?->product?->name,
-                'product_khmer_name' => $sb->productVariant?->product?->khmer_name,
-                'unit_name' => $sb->productVariant?->product?->unit?->name,
-            ]),
         ]);
     }
 }

@@ -283,12 +283,13 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('api.stock-issues.get-stock-request-items');
 
         // Stock Transfer
+        Route::get('/stock-transfers', [StockTransferController::class, 'getStockTransfers'])->middleware('can:viewAny,' . StockTransfer::class)->name('api.stock-transfers.index');
         Route::post('/stock-transfers', [StockTransferController::class, 'store'])->middleware('can:create,' . StockTransfer::class)->name('api.stock-transfers.store');
         Route::get('/stock-transfers/{stockTransfer}/edit', [StockTransferController::class, 'getEditData'])->middleware('can:update,stockTransfer')->name('api.stock-transfers.edit');
+        Route::put('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'update'])->middleware('can:update,stockTransfer')->name('api.stock-transfers.update');
         Route::get('/stock-transfers/get-warehouses-from', [StockTransferController::class, 'getWarehousesFrom'])->name('api.stock-transfers.get-warehouses-from');
         Route::get('/stock-transfers/get-warehouses-to', [StockTransferController::class, 'getWarehousesTo'])->name('api.stock-transfers.get-warehouses-to');
         Route::get('/stock-transfers/get-products', [StockTransferController::class, 'getProducts'])->name('api.stock-transfers.get-products-for-transfer');
-        Route::get('/stock-transfers/get-stock-and-price', [StockTransferController::class, 'getProductsStockAndPrice'])->name('api.stock-transfers.get-stock-and-price-for-transfer');
         Route::get('/stock-transfers/get-users-for-approval', [StockTransferController::class, 'getUsersForApproval'])->name('api.stock-transfers.approval-users');
         // Route::post('/stock-transfers/{stockTransfer}/submit-approval', [StockTransferController::class, 'submitApproval'])->name('api.stock-transfers.submit-approval');
         // Route::post('/stock-transfers/{stockTransfer}/reassign-approval', [StockTransferController::class, 'reassignResponder'])->middleware('can:reassign,stockTransfer')->name('api.stock-transfers.reassign-approval');

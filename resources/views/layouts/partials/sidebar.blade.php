@@ -172,7 +172,8 @@
                 || request()->is('inventory/stock-movements*')
                 || request()->is('inventory/stock-beginnings*')
                 || request()->is('inventory/stock-requests*')
-                || request()->is('inventory/stock-issues*');
+                || request()->is('inventory/stock-issues*')
+                || request()->is('inventory/stock-transfers*');
             @endphp
 
             @if (auth()->user()->hasAnyRole(['admin', 'stock']) || auth()->user()->hasPermissionTo('product.view'))
@@ -232,29 +233,13 @@
                                 </a>
                             </li>
                         @endcan
-                        @hasanyrole(['has stock', 'stock manager']) <!-- Example of multiple roles for Stock Transfer -->
-                            <li class="{{ request()->is('toca-policies*') || request()->is('toca-amounts*') ? 'active open' : '' }}">
-                                <a href="#" title="TOCA Policies" data-filter-tags="toca policies">
-                                    <span class="nav-link-text">Stock Transfer</span>
+                        @can('stockTransfer.view')
+                            <li class="{{ request()->is('inventory/stock-transfers*') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-transfers') }}" title="Stock Transfers" data-filter-tags="stock transfers">
+                                    <span class="nav-link-text">Stock Transfers</span>
                                 </a>
-                                <ul>
-                                    @can('view transfer in') <!-- Extra permission check -->
-                                        <li class="{{ request()->is('toca-policies') ? 'active' : '' }}">
-                                            <a href="{{ url('toca-policies') }}" title="TOCA Policies List" data-filter-tags="toca policies list">
-                                                <span class="nav-link-text">Transfer In</span>
-                                            </a>
-                                        </li>
-                                    @endcan
-                                    @can('view transfer out')
-                                        <li class="{{ request()->is('toca-amounts') ? 'active' : '' }}">
-                                            <a href="{{ url('toca-amounts') }}" title="TOCA Amounts" data-filter-tags="toca amounts">
-                                                <span class="nav-link-text">Transfer Out</span>
-                                            </a>
-                                        </li>
-                                    @endcan
-                                </ul>
                             </li>
-                        @endhasanyrole
+                        @endcan
                         @can('view stock adjustment')
                             <li class="{{ request()->is('stock/adjustment') ? 'active' : '' }}">
                                 <a href="{{ url('stock/adjustment') }}" title="Stock Adjustment" data-filter-tags="stock adjustment">

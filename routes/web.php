@@ -201,8 +201,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-issues.show')->middleware('can:view,stockIssue');
 
         // Stock Transfer
-        // Route::get('/stock-transfers', [StockTransferController::class, 'index'])
-        //     ->name('stock-transfers.index')->middleware('can:viewAny,' . StockTransfer::class);
+        Route::get('/stock-transfers', [StockTransferController::class, 'index'])
+             ->middleware('can:viewAny,' . StockTransfer::class)->name('stock-transfers.index');
         Route::get('/stock-transfers/create', [StockTransferController::class, 'form'])->name('stock-transfers.create')
             ->middleware('can:create,' . StockTransfer::class);
         Route::get('/stock-transfers/{stockTransfer}/edit', [StockTransferController::class, 'form'])->name('stock-transfers.edit')

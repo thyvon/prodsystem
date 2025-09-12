@@ -72,7 +72,6 @@ class StockIssueController extends Controller
 
         $query = StockIssue::with([
             'stockRequest.warehouse.building.campus',
-            'stockIssueItems.productVariant.product.unit',
             'createdBy.campus',
             'updatedBy',
         ])

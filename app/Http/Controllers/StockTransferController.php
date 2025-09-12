@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\View\View;
 
 use App\Services\ApprovalService;
 use App\Services\ProductService;
@@ -20,7 +21,12 @@ use App\Services\WarehouseService;
 
 class StockTransferController extends Controller
 {
-    private const ALLOWED_SORT_COLUMNS = ['transaction_date', 'reference_no', 'created_at', 'updated_at', 'created_by', 'updated_by'];
+    private const ALLOWED_SORT_COLUMNS = [
+        'reference_no',
+        'transaction_date',
+        'from_warehouse',
+        'created_at',
+    ];
     private const DEFAULT_SORT_COLUMN = 'created_at';
     private const DEFAULT_SORT_DIRECTION = 'desc';
     private const DEFAULT_LIMIT = 10;
@@ -48,10 +54,85 @@ class StockTransferController extends Controller
         return view('Inventory.stockTransfer.index');
     }
 
-    public function form(StockTransfer $stockTransfer = null): Response
+    public function getStockTransfers(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', StockTransfer::class);
+
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin');
+        $campusIds = $user->campus->pluck('id')->toArray();
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $sortColumn = $validated['sortColumn'] ?? 'stock_transfers.id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+
+        $query = StockTransfer::with([
+            'warehouse',
+            'destinationWarehouse',
+            'updatedBy',
+        ])
+        ->when(!$isAdmin, fn($q) => $q->whereHas('warehouse.building.campus', fn($q2) => $q2->whereIn('id', $campusIds)))
+        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) =>
+            $subQ->where('reference_no', 'like', "%{$search}%")
+                ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                ->orWhereHas('createdBy', fn($cQ) => $cQ->where('name', 'like', "%{$search}%"))
+        ));
+
+        // Sorting via join for relational columns
+        if ($sortColumn === 'from_warehouse') {
+            $query
+                ->join('warehouses', 'stock_transfers.warehouse_id', '=', 'warehouses.id')
+                ->orderBy('warehouses.name', $sortDirection)
+                ->select('stock_transfers.*');
+        } elseif ($sortColumn === 'created_by') {
+            $query->join('users', 'stock_transfers.created_by', '=', 'users.id')
+                ->orderBy('users.name', $sortDirection)
+                ->select('stock_transfers.*');
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
+
+        $stockTransfers = $query->paginate(
+            $validated['limit'] ?? self::DEFAULT_LIMIT,
+            ['*'],
+            'page',
+            $validated['page'] ?? 1
+        );
+
+        $stockTransfersMapped = $stockTransfers->map(fn($transfer) => [
+            'id' => $transfer->id,
+            'reference_no' => $transfer->reference_no,
+            'transaction_date' => $transfer->transaction_date,
+            'from_warehouse' => $transfer->warehouse->name ?? null,
+            'to_warehouse' => $transfer->destinationWarehouse->name ?? null,
+            'purpose' => $transfer->remarks,
+            'total_price' => $transfer->stockTransferItems->sum('total_price'),
+            'created_by' => $transfer->createdBy->name ?? null,
+            'created_at' => $transfer->created_at,
+            'updated_at' => $transfer->updated_at,
+            'approval_status' => $transfer->approval_status,
+        ]);
+
+        return response()->json([
+            'data' => $stockTransfersMapped,
+            'recordsTotal' => $stockTransfers->total(),
+            'recordsFiltered' => $stockTransfers->total(),
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
+
+    public function form(StockTransfer $stockTransfer = null): View
     {
         $this->authorize($stockTransfer ? 'update' : 'create', [StockTransfer::class, $stockTransfer]);
-        return view('Inventory/StockTransfer/Form', compact('stockTransfer'));
+        return view('Inventory.stockTransfer.form', compact('stockTransfer'));
     }
 
     public function store(Request $request): JsonResponse
@@ -327,7 +408,7 @@ class StockTransferController extends Controller
         return [
             'items' => 'required|array|min:1',
             'items.*.id' => 'nullable|exists:stock_transfer_items,id',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => 'required|exists:product_variants,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.remarks' => 'nullable|string|max:500',
@@ -442,30 +523,6 @@ class StockTransferController extends Controller
             'recordsFiltered' => count($response['data']),
             'draw' => $response['draw'],
         ];
-        return response()->json($filteredResponse);
-    }
-
-    public function getProductsStockAndPrice(Request $request): JsonResponse
-    {
-        $this->authorize('viewAny', StockTransfer::class);
-        
-        $response = $this->productService->getStockManagedVariants($request);
-        
-        $filteredResponse = [
-            'data' => collect($response['data'])->filter(function ($item) {
-                return $item['is_active'] == 1;
-            })->map(function ($item) {
-                return [
-                    'id' => $item['id'],
-                    'stock_on_hand' => $item['stock_on_hand'],
-                    'average_price' => $item['average_price'],
-                ];
-            })->values()->all(),
-            'recordsTotal' => $response['recordsTotal'],
-            'recordsFiltered' => count($response['data']),
-            'draw' => $response['draw'],
-        ];
-        
         return response()->json($filteredResponse);
     }
 

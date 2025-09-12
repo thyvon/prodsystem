@@ -640,7 +640,6 @@ class StockRequestController extends Controller
         $query = StockRequest::with([
             'warehouse.building.campus',
             'campus',
-            'stockRequestItems.productVariant.product.unit',
             'createdBy',
             'updatedBy',
         ]);
