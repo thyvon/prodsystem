@@ -207,8 +207,8 @@ Route::middleware(['auth'])->group(function () {
             ->middleware('can:create,' . StockTransfer::class);
         Route::get('/stock-transfers/{stockTransfer}/edit', [StockTransferController::class, 'form'])->name('stock-transfers.edit')
             ->middleware('can:update,stockTransfer');
-        // Route::get('/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
-        //     ->name('stock-transfers.show')->middleware('can:view,stockTransfer');
+        Route::get('/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
+            ->name('stock-transfers.show')->middleware('can:view,stockTransfer');
 
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])
@@ -222,6 +222,9 @@ Route::middleware(['auth'])->group(function () {
         //Stock Request View
         Route::get('/approvals/stock-requests/{stockRequest}/show', [StockRequestController::class, 'show'])
         ->name('approvals-stock-requests.show');
+        //Stock Transfer View
+        Route::get('/approvals/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
+        ->name('approvals-stock-transfers.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])

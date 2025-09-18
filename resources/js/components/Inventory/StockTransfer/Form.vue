@@ -153,7 +153,7 @@
                         @change="updateUsersForRow(index)"
                       >
                         <option value="">Select Type</option>
-                        <option value="receive">Receive</option>
+                        <option value="initial">Initial</option>
                         <option value="approve">Approve</option>
                       </select>
                     </td>
@@ -223,7 +223,7 @@ const isImporting = ref(false)
 const products = ref([])
 const warehousesFrom = ref([])
 const warehousesTo = ref([])
-const users = ref({ receive: [], approve: [] })
+const users = ref({ initial: [], approve: [] })
 const fromWarehouseSelect = ref(null)
 const toWarehouseSelect = ref(null)
 const productSelect = ref(null)
@@ -273,7 +273,7 @@ const fetchEditData = async (stockTransferId) => {
           id: approval.id || null,
           user_id: Number(approval.responder_id) || null,
           request_type: approval.request_type || '',
-          isDefault: ['receive', 'approve'].includes(approval.request_type),
+          isDefault: ['initial', 'approve'].includes(approval.request_type),
           availableUsers: [],
         })) || [],
       }
@@ -385,7 +385,7 @@ const removeApproval = async (index) => {
 
 const updateUsersForRow = async (index) => {
   const requestType = form.value.approvals[index].request_type
-  if (!requestType || !['receive', 'approve'].includes(requestType)) {
+  if (!requestType || !['initial', 'approve'].includes(requestType)) {
     form.value.approvals[index].availableUsers = []
     form.value.approvals[index].user_id = null
     await updateUserSelect(index, '')
@@ -418,10 +418,10 @@ const updateUserSelect = async (index, currentUserId) => {
 }
 
 const validateApprovals = () => {
-  const requiredTypes = ['receive', 'approve']
+  const requiredTypes = ['initial', 'approve']
   const presentTypes = form.value.approvals.map(a => a.request_type).filter(t => requiredTypes.includes(t))
   if (new Set(presentTypes).size !== requiredTypes.length || !requiredTypes.every(t => presentTypes.includes(t))) {
-    showAlert('Error', 'Exactly one Receive and one Approve assignment are required.', 'danger')
+    showAlert('Error', 'Exactly one Initial and one Approve assignment are required.', 'danger')
     return false
   }
   return true
@@ -604,7 +604,7 @@ watch([() => form.value.warehouse_id, () => form.value.transaction_date], async 
 })
 
 onMounted(async () => {
-  const defaultTypes = ['receive', 'approve']
+  const defaultTypes = ['initial', 'approve']
   if (isEditMode.value && props.initialData.id) {
     await fetchEditData(props.initialData.id)
   } else {

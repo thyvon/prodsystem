@@ -20,7 +20,7 @@ class SharePendingApprovalCount
         if ($user) {
             if ($user->hasRole('admin')) {
                 $rawApprovals = Approval::where('approval_status', 'Pending')
-                    ->with(['requester:id,name', 'responder:id,name'])
+                    ->with(['requester:id,name,profile_url', 'responder:id,name,profile_url'])
                     ->latest()
                     ->get();
 
@@ -128,7 +128,7 @@ class SharePendingApprovalCount
         $typeMap = [
             'App\\Models\\MainStockBeginning' => 'stock-beginnings',
             'App\\Models\\StockRequest' => 'stock-requests',
-            'App\\Models\\PurchaseOrder' => 'purchase-orders',
+            'App\\Models\\StockTransfer' => 'stock-transfers',
             // Add more mappings if needed
         ];
 
@@ -143,6 +143,7 @@ class SharePendingApprovalCount
             'created_at' => $approval->created_at?->toDateTimeString(),
             'responder_name' => $approval->responder->name ?? null,
             'requester_name' => $approval->requester->name ?? null,
+            'requester_photo' => $approval->requester->profile_url ?? null,
             'route_url' => $slug ? url("/approvals/$slug/{$approval->approvable_id}/show") : null,
         ];
     }

@@ -509,5 +509,4 @@ class StockIssueController extends Controller
             ->firstWhere('id', $stockRequest->id)['items'] ?? [];
         return response()->json(['items' => $items]);
     }
-
 }

@@ -29,8 +29,8 @@
         </div>
 
         <div class="col-6 text-center">
-          <h4 class="font-weight-bold text-dark">ស្តុកដើមគ្រា</h4>
-          <h4 class="font-weight-bold text-dark">STOCK BEGINNING</h4>
+          <h4 class="font-weight-bold text-dark">ផ្ទេរស្តុក</h4>
+          <h4 class="font-weight-bold text-dark">STOCK TRANSFER</h4>
         </div>
 
         <div class="col-3">
@@ -38,10 +38,10 @@
             REF./លេខយោង: <span class="font-weight-bold">{{ stock.reference_no ?? 'N/A' }}</span>
           </p>
           <p class="text-muted mb-1">
-            WAREHOUSE/ឃ្លាំង: <span class="font-weight-bold">{{ stock.warehouse?.name ?? 'N/A' }}</span>
+            WAREHOUSE/ឃ្លាំង: <span class="font-weight-bold">{{ stock.warehouse?.name ?? 'N/A' }} <i class="fal fa-arrow-right"></i> {{ stock.destination_warehouse?.name ?? 'N/A' }}</span>
           </p>
           <p class="text-muted mb-1">
-            DATE/កាលបរិច្ឆេទ: <span class="font-weight-bold">{{ formatDate(stock.beginning_date) ?? 'N/A' }}</span>
+            DATE/កាលបរិច្ឆេទ: <span class="font-weight-bold">{{ formatDate(stock.transaction_date) ?? 'N/A' }}</span>
           </p>
         </div>
       </div>
@@ -56,22 +56,22 @@
               <th>Product Description</th>
               <th>Khmer Name</th>
               <th>Unit</th>
-              <th class="text-end">Unit Price</th>
               <th class="text-center">Quantity</th>
+              <th class="text-end">Unit Price</th>
               <th class="text-end">Total Value</th>
               <th>Remarks</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, i) in stock.stock_beginnings" :key="i">
+            <tr v-for="(item, i) in stock.stock_transfer_items" :key="i">
               <td class="text-center">{{ i + 1 }}</td>
               <td>{{ item.product_variant?.item_code ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.name ?? 'N/A' }} {{ item.product_variant?.description ?? '' }}</td>
               <td>{{ item.product_variant?.product?.khmer_name ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.unit?.name ?? 'N/A' }}</td>
-              <td class="text-end">{{ format(item.unit_price) }}</td>
               <td class="text-center">{{ format(item.quantity) }}</td>
-              <td class="text-end">{{ format(item.total_value) }}</td>
+              <td class="text-end">{{ format(item.unit_price) }}</td>
+              <td class="text-end">{{ format(item.total_price) }}</td>
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
             <tr class="table-secondary">
@@ -283,7 +283,7 @@ const submitApproval = async (action) => {
 const openReassignModal = async () => {
   loading.value = true
   try {
-    const res = await axios.get('/api/inventory/stock-beginnings/users', { params: { request_type: props.approvalRequestType ?? 'approve' } })
+    const res = await axios.get('/api/inventory/stock-transfers/get-users-for-approval', { params: { request_type: props.approvalRequestType ?? 'approve' } })
     usersList.value = res.data.data || []
     await nextTick()
     initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
@@ -298,7 +298,7 @@ const confirmReassign = async () => {
   if (!newUserId) { showAlert('Error', 'Please select a user.', 'danger'); return }
   loading.value = true
   try {
-    await axios.post(`/api/inventory/stock-beginnings/${props.stock.id}/reassign-approval`, { request_type: props.approvalRequestType, new_user_id: newUserId, comment })
+    await axios.post(`/api/inventory/stock-transfers/${props.stock.id}/reassign-approval`, { request_type: props.approvalRequestType, new_user_id: newUserId, comment })
     showAlert('success', 'Responder reassigned successfully.')
     $('#reassignModal').modal('hide')
     destroySelect2(document.getElementById('userSelect'))

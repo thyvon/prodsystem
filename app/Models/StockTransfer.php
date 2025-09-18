@@ -19,6 +19,7 @@ class StockTransfer extends Model
         'remarks',
         'approval_status',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
@@ -37,6 +38,10 @@ class StockTransfer extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
     public function updatedBy()
     {

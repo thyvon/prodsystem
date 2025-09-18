@@ -100,7 +100,7 @@
       <div class="mt-4">
         <div class="row justify-content-center">
           <!-- Requested By Card -->
-          <div class="col-12 col-md-3 mb-4">
+          <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <label class="font-weight-bold text-center d-block w-100">Requested By</label>
@@ -141,7 +141,7 @@
           </div>
 
           <!-- Approval Cards -->
-          <div v-for="(approval, i) in approvals" :key="i" class="col-12 col-md-3 mb-4">
+          <div v-for="(approval, i) in approvals" :key="i" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <label class="font-weight-bold text-center d-block w-100">Approved by</label>
@@ -324,7 +324,7 @@ const format = val => Number(val || 0).toLocaleString(undefined, { minimumFracti
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
-const goBack = () => window.location.href = `/inventory/stock-requests`
+const goBack = () => window.history.back()
 
 // Modal open/reset
 const openConfirmModal = (action) => {

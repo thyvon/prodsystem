@@ -7,6 +7,8 @@ use App\Models\StockTransferItem;
 use App\Models\Warehouse;
 use App\Models\User;
 use App\Models\Approval;
+use App\Imports\StockTransfersImport;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -135,6 +137,59 @@ class StockTransferController extends Controller
         return view('Inventory.stockTransfer.form', compact('stockTransfer'));
     }
 
+    public function import(Request $request): JsonResponse
+    {
+        $this->authorize('create', StockTransfer::class);
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            $import = new StockTransfersImport();
+            Excel::import($import, $request->file('file'));
+
+            $data = $import->getData();
+
+            if (!empty($data['errors'])) {
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
+            }
+
+            if (empty($data['items'])) {
+                return response()->json([
+                    'message' => 'No valid data found in the Excel file.',
+                    'errors' => ['No valid rows processed.'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Stock transfers data parsed successfully.',
+                'data' => [
+                    'items' => $data['items'],
+                ],
+            ], 200);
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $errors = $e->failures()->map(function ($failure) {
+                $row = $failure->row();
+                $errorMessages = $failure->errors();
+                return "Row {$row}: " . implode('; ', $errorMessages);
+            })->toArray();
+
+            return response()->json([
+                'message' => 'Validation failed during import',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to parse stock transfers',
+                'errors' => [$e->getMessage()],
+            ], 500);
+        }
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('create', StockTransfer::class);
@@ -145,7 +200,7 @@ class StockTransferController extends Controller
             [
                 'approvals' => 'required|array|min:1',
                 'approvals.*.user_id' => 'required|exists:users,id',
-                'approvals.*.request_type' => 'required|string|in:approve,receive',
+                'approvals.*.request_type' => 'required|string|in:approve,initial',
             ]
         ))->validate();
 
@@ -235,7 +290,7 @@ class StockTransferController extends Controller
             [
                 'approvals' => 'required|array|min:1',
                 'approvals.*.user_id' => 'required|exists:users,id',
-                'approvals.*.request_type' => 'required|string|in:approve,receive',
+                'approvals.*.request_type' => 'required|string|in:approve,initial',
             ]
         ))->validate();
 
@@ -393,11 +448,148 @@ class StockTransferController extends Controller
         }
     }
 
+
+    public function show(StockTransfer $stockTransfer)
+    {
+        $this->authorize('view', $stockTransfer);
+
+        try {
+            // Load related data including approvals
+            $stockTransfer->load([
+                'stockTransferItems.productVariant.product.unit',
+                'warehouse.building.campus',
+                'destinationWarehouse.building.campus',
+                'createdBy',
+                'updatedBy',
+                'creatorPosition',
+                'approvals.responder',
+                'approvals.responderPosition',
+            ]);
+
+            // Check if the approval button should be shown
+            $approvalButtonData = $this->canShowApprovalButton($stockTransfer->id);
+
+            // Derive responders from approvals
+            $responders = $stockTransfer->approvals->map(function ($approval) {
+                return [
+                    'id' => $approval->id,
+                    'user_id' => $approval->responder_id,
+                    'position_id' => $approval->position_id,
+                    'request_type' => $approval->request_type,
+                    'name' => $approval->responder->name ?? 'N/A',
+                ];
+            })->toArray();
+
+            // Track the count of each request_type as we process approvals
+            $typeOccurrenceCounts = [];
+
+            // Map approvals with dynamic request_type_label
+            $approvals = $stockTransfer->approvals
+                ->sortBy('ordinal')
+                ->values()
+                ->map(function ($approval) use (&$typeOccurrenceCounts) {
+                    $typeMap = [
+                        'approve' => 'Approved',
+                        'initial'   => 'Initialed',
+                    ];
+
+                    // Get the base label from typeMap or fallback to ucfirst
+                    $label = $typeMap[$approval->request_type] ?? ucfirst($approval->request_type);
+
+                    // Increment the occurrence count for this request_type
+                    $typeOccurrenceCounts[$approval->request_type] = 
+                        ($typeOccurrenceCounts[$approval->request_type] ?? 0) + 1;
+
+                    // Add "Co-" prefix if this is the second or later occurrence
+                    if ($typeOccurrenceCounts[$approval->request_type] > 1) {
+                        $label = 'Co-' . $label;
+                    }
+
+                    return [
+                        'id' => $approval->id,
+                        'request_type' => $approval->request_type,
+                        'approval_status' => $approval->approval_status,
+                        'request_type_label' => $label,
+                        'responder_name' => $approval->responder->name ?? 'N/A',
+                        'responder_profile_url' => $approval->responder->profile_url ?? 'N/A',
+                        'responder_signature_url' => $approval->responder->signature_url ?? 'N/A',
+                        'position_name' => $approval->responderPosition->title ?? 'N/A',
+                        'ordinal' => $approval->ordinal,
+                        'comment' => $approval->comment,
+                        'created_at' => $approval->created_at?->toDateTimeString(),
+                        'updated_at' => $approval->updated_at?->toDateTimeString(),
+                        'responded_date' => $approval->responded_date,
+                    ];
+                })->toArray();
+
+            return view('Inventory.stockTransfer.show', [
+                'stockTransfer' => $stockTransfer,
+                'totalQuantity' => round($stockTransfer->stockTransferItems->sum('quantity'), 4),
+                'totalValue' => round($stockTransfer->stockTransferItems->sum('total_price'), 4),
+                'approvals' => $approvals,
+                'responders' => $responders,
+                'showApprovalButton' => $approvalButtonData['showButton'],
+                'approvalRequestType' => $approvalButtonData['requestType'],
+                'approvalButtonData' => $approvalButtonData,
+            ]);
+            Log::info('Stock transfer displayed', ['id' => $stockTransfer->id]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching stock transfer for display', [
+                'error_message' => $e->getMessage(),
+                'stock_transfer_id' => $stockTransfer->id,
+            ]);
+            return response()->view('errors.500', [
+                'message' => 'Failed to fetch stock transfer',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function destroy(StockTransfer $stockTransfer): JsonResponse
+    {
+        $this->authorize('delete', $stockTransfer);
+
+        try {
+            DB::transaction(function () use ($stockTransfer) {
+                $userId = auth()->id() ?? 1;
+
+                // Hard delete related approvals
+                Approval::where([
+                    'approvable_type' => StockTransfer::class,
+                    'approvable_id' => $stockTransfer->id,
+                ])->delete();
+
+                // Soft delete related stock transfers
+                foreach ($stockTransfer->stockTransferItems as $stockTransferItem) {
+                    $stockTransferItem->deleted_by = $userId;
+                    $stockTransferItem->save();
+                    $stockTransferItem->delete();
+                }
+
+                // Soft delete the stock transfer
+                $stockTransfer->deleted_by = $userId;
+                $stockTransfer->save();
+                $stockTransfer->delete();
+            });
+
+            return response()->json([
+                'message' => 'Stock transfer and related approvals deleted successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to delete stock transfer', ['error' => $e->getMessage(), 'id' => $stockTransfer->id]);
+            return response()->json([
+                'message' => 'Failed to delete stock transfer',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function stockTransferValidationRules(): array
     {
         return [
             'transaction_date' => 'required|date_format:' . self::DATE_FORMAT,
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_id' => 'required|exists:warehouses,id|different:destination_warehouse_id',
             'destination_warehouse_id' => 'required|exists:warehouses,id|different:warehouse_id',
             'remarks' => 'nullable|string|max:1000',
         ];
@@ -462,11 +654,130 @@ class StockTransferController extends Controller
         }
     }
 
+    public function submitApproval(Request $request, StockTransfer $stockTransfer, ApprovalService $approvalService): JsonResponse 
+    {
+        // Validate request
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:initial,approve',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
+        ]);
+
+        // Check user permission
+        $permission = "stockTransfer.{$validated['request_type']}";
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this stock transfer.",
+            ], 403);
+        }
+
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $stockTransfer,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
+        );
+
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
+
+        // Update StockTransfer approval_status if successful
+        if ($success) {
+            $statusMap = [
+                'initial' => 'Initialed',
+                'approve' => 'Approved',
+                'reject'  => 'Rejected',
+                'return'  => 'Returned',
+            ];
+
+            $stockTransfer->approval_status =
+                $statusMap[$validated['action']] ??
+                ($statusMap[$validated['request_type']] ?? 'Pending');
+
+            $stockTransfer->save();
+        }
+
+        return response()->json([
+            'message'      => $result['message'] ?? 'Action failed',
+            'redirect_url' => route('approvals-stock-transfers.show', $stockTransfer->id),
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
+    }
+
+    public function reassignResponder(Request $request, StockTransfer $stockTransfer): JsonResponse
+    {
+        $this->authorize('reassign', $stockTransfer);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:approve',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("stockTransfer.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => StockTransfer::class,
+            'approvable_id'   => $stockTransfer->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $stockTransfer->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     protected function getOrdinalForRequestType($requestType)
     {
         $ordinals = [
-            'approve' => 1,
-            'receive' => 2,
+            'approve' => 2,
+            'initial' => 1,
         ];
         return $ordinals[$requestType] ?? 1;
     }
@@ -532,7 +843,7 @@ class StockTransferController extends Controller
 
         // Validate request type
         $validated = $request->validate([
-            'request_type' => ['required', 'string', 'in:approve,receive'],
+            'request_type' => ['required', 'string', 'in:approve,initial'],
         ]);
 
         $permission = "stockTransfer.{$validated['request_type']}";
@@ -575,5 +886,78 @@ class StockTransferController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function canShowApprovalButton(int $documentId): array
+    {
+        try {
+            $userId = auth()->id();
+            if (!$userId) {
+                return $this->approvalButtonResponse('User not authenticated.');
+            }
+
+            $approvals = Approval::where([
+                'approvable_type' => StockTransfer::class,
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
+
+            if ($approvals->isEmpty()) {
+                return $this->approvalButtonResponse('No approvals configured.');
+            }
+
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
+            if (!$currentApproval) {
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
+            }
+
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) || 
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
+            }
+
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
+            }
+
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
+        }
+    }
+
+    private function approvalButtonResponse(string $reason): array
+    {
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 }

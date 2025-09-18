@@ -1008,10 +1008,6 @@ class StockRequestController extends Controller
                 return $this->approvalButtonResponse('User not authenticated.');
             }
 
-            if (!auth()->user()->hasAnyPermission(['stockRequest.approve'])) {
-                return $this->approvalButtonResponse('User lacks approval permissions.');
-            }
-
             $approvals = Approval::where([
                 'approvable_type' => StockRequest::class,
                 'approvable_id'   => $documentId,

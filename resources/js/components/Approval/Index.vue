@@ -72,7 +72,7 @@ const handlePreview = (approval) => {
   const typeRouteMap = {
     'App\\Models\\MainStockBeginning': 'approvals/stock-beginnings',
     'App\\Models\\StockRequest': 'approvals/stock-requests',
-    'App\\Models\\PurchaseOrder': 'purchase-orders',
+    'App\\Models\\StockTransfer': 'approvals/stock-transfers',
     // Add your other mappings here
   }
 

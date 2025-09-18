@@ -278,9 +278,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/stock-issues/{stockIssue}', [StockIssueController::class, 'update'])->middleware('can:update,stockIssue')->name('api.stock-issues.update');
         Route::delete('/stock-issues/{stockIssue}', [StockIssueController::class, 'destroy'])->middleware('can:delete,stockIssue')->name('api.stock-issues.destroy');
         Route::get('/stock-issues/get-stock-requests', [StockIssueController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-stock-requests');
-        Route::get('/stock-issues/get-stock-request-items/{stockRequest}', [StockIssueController::class, 'getStockRequestItems'])
-        ->middleware('can:viewAny,' . StockIssue::class)
-        ->name('api.stock-issues.get-stock-request-items');
+        Route::get('/stock-issues/get-stock-request-items/{stockRequest}', [StockIssueController::class, 'getStockRequestItems'])->name('api.stock-issues.get-stock-request-items');
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'getStockTransfers'])->middleware('can:viewAny,' . StockTransfer::class)->name('api.stock-transfers.index');
@@ -291,8 +289,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock-transfers/get-warehouses-to', [StockTransferController::class, 'getWarehousesTo'])->name('api.stock-transfers.get-warehouses-to');
         Route::get('/stock-transfers/get-products', [StockTransferController::class, 'getProducts'])->name('api.stock-transfers.get-products-for-transfer');
         Route::get('/stock-transfers/get-users-for-approval', [StockTransferController::class, 'getUsersForApproval'])->name('api.stock-transfers.approval-users');
-        // Route::post('/stock-transfers/{stockTransfer}/submit-approval', [StockTransferController::class, 'submitApproval'])->name('api.stock-transfers.submit-approval');
-        // Route::post('/stock-transfers/{stockTransfer}/reassign-approval', [StockTransferController::class, 'reassignResponder'])->middleware('can:reassign,stockTransfer')->name('api.stock-transfers.reassign-approval');
+        Route::delete('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])->middleware('can:delete,stockTransfer')->name('api.stock-transfers.destroy');
+        Route::post('/stock-transfers/import', [StockTransferController::class, 'import'])->middleware('can:create,' . StockTransfer::class)->name('api.stock-transfers.import');
+        Route::post('/stock-transfers/{stockTransfer}/submit-approval', [StockTransferController::class, 'submitApproval'])->name('api.stock-transfers.submit-approval');
+        Route::post('/stock-transfers/{stockTransfer}/reassign-approval', [StockTransferController::class, 'reassignResponder'])->middleware('can:reassign,stockTransfer')->name('api.stock-transfers.reassign-approval');
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
 

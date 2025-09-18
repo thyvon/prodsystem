@@ -54,7 +54,7 @@ import StockIssueList from './components/Inventory/StockIssue/StockIssueList.vue
 
 import StockTransferForm from './components/Inventory/StockTransfer/Form.vue'
 import StockTransferList from './components/Inventory/StockTransfer/StockTransferList.vue'
-// import StockTransferShow from './components/Inventory/StockTransfer/Show.vue'
+import StockTransferShow from './components/Inventory/StockTransfer/Show.vue'
 
 //Approval Management
 import ApprovalList from './components/Approval/Index.vue'
@@ -115,7 +115,7 @@ import Datatable from './components/Reusable/Datatable.vue'
   //=======Stock Transfer
  app.component('stock-transfer-form', StockTransferForm)
  app.component('stock-transfer-list', StockTransferList)
-// app.component('stock-transfer-show', StockTransferShow)
+ app.component('stock-transfer-show', StockTransferShow)
 
  //Approval Management
  app.component('approval-list', ApprovalList)

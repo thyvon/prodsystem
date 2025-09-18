@@ -107,7 +107,7 @@ class RolePermissionSeeder extends Seeder
                     'delete', 
                     'restore', 
                     'forceDelete',
-                    'receive',  
+                    'initial',  
                     'approve', 
                     'reassign',
                     // 'viewOwnRecord',

@@ -1047,10 +1047,6 @@ class StockBeginningController extends Controller
                 return $this->approvalButtonResponse('User not authenticated.');
             }
 
-            if (!auth()->user()->hasAnyPermission(['mainStockBeginning.approve'])) {
-                return $this->approvalButtonResponse('User lacks approval permissions.');
-            }
-
             $approvals = Approval::where([
                 'approvable_type' => MainStockBeginning::class,
                 'approvable_id'   => $documentId,
