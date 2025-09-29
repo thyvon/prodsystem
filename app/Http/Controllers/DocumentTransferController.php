@@ -162,8 +162,9 @@ class DocumentTransferController extends Controller
     //         ], 500);
     //     }
     // }
+
     public function store(Request $request): JsonResponse
-    {     
+    {
         $validated = Validator::make($request->all(), array_merge(
             $this->documentTransferValidationRules(),
             [
@@ -210,18 +211,28 @@ class DocumentTransferController extends Controller
                 if ($firstReceiverData) {
                     $user = User::find($firstReceiverData['receiver_id']);
                     if ($user && $user->telegram_id) {
+                        $creator = auth()->user(); // The user who created the document
+
+                        $messageText = "📢 *Dear {$user->name},*\n\n"
+                            ."📄 *You have a new document!*\n\n"
+                            ."📝 *Description:* {$documentTransfer->description}\n"
+                            ."📂 *Document Type:* {$documentTransfer->document_type}\n"
+                            ."🏷️ *Project:* {$documentTransfer->project_name}\n"
+                            ."👤 *Sent From:* {$creator->name}\n"
+                            ."🆔 *Reference:* {$documentTransfer->reference_no}";
+
                         $keyboard = Keyboard::make()
                             ->inline()
-                            ->row(
+                            ->row([
                                 Keyboard::inlineButton([
-                                    'text' => 'Mark as Received',
+                                    'text' => '✅ Mark as Received',
                                     'callback_data' => 'receive_'.$documentTransfer->id.'-'.$user->id
                                 ])
-                            );
+                            ]);
 
                         Telegram::sendMessage([
                             'chat_id' => $user->telegram_id,
-                            'text' => "📄 You have a new document: *{$documentTransfer->project_name}*\nReference: {$documentTransfer->reference_no}",
+                            'text' => $messageText,
                             'parse_mode' => 'Markdown',
                             'reply_markup' => $keyboard,
                         ]);
@@ -241,7 +252,6 @@ class DocumentTransferController extends Controller
             ], 500);
         }
     }
-
 
     private function documentTransferValidationRules(): array
     {
