@@ -27,9 +27,13 @@ return new class extends Migration
             $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('restrict');
             $table->foreign('destination_warehouse_id')->references('id')->on('warehouses')->onDelete('restrict');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('position_id')->references('id')->on('positions')->onDelete('restrict');
+
+            // Corrected position_id foreign key
+            $table->foreign('position_id')->references('id')->on('positions')->onDelete('set null');
+
             $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');
             $table->foreign('deleted_by')->references('id')->on('users')->onDelete('restrict');
+            
             $table->timestamps();
             $table->softDeletes();
         });
