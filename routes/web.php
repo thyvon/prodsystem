@@ -71,6 +71,10 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\ApprovalController;
 use App\Models\Approval;
 
+// Document Management
+use App\Http\Controllers\DocumentTransferController;
+use App\Models\DocumentTransfer;
+
 // use App\Http\Controllers\StockRequestController;
 // use App\Models\StockRequest;
 
@@ -231,13 +235,11 @@ Route::middleware(['auth'])->group(function () {
         ->name('approvals.index');
 
     
-    // Stock Requests
-    // Route::get('/stock-requests', [StockRequestController::class, 'index'])
-    //     ->name('stock-requests.index')->middleware('can:viewAny,' . StockRequest::class);
-    // Route::get('/stock-requests/create', [StockRequestController::class, 'create'])
-    //     ->name('stock-requests.create')->middleware('can:create,' . StockRequest::class);
-    // Route::get('/stock-requests/{stockRequest}/edit', [StockRequestController::class, 'edit'])
-    //     ->name('stock-requests.edit')->middleware('can:update,' . StockRequest::class);
 
+    // Document Transfers
+    Route::get('/document-transfers', [DocumentTransferController::class, 'index'])
+        ->name('document-transfers.index');
+    Route::get('/document-transfers/create', [DocumentTransferController::class, 'form'])
+        ->name('document-transfers.create');
 });
 require __DIR__.'/auth.php';

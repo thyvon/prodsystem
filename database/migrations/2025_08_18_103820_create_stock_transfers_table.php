@@ -20,12 +20,14 @@ return new class extends Migration
             $table->string('remarks')->nullable();
             $table->string('approval_status')->default('Pending');
             $table->unsignedBigInteger('created_by');
+            $table->unsignedBigInteger('position_id')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->unsignedBigInteger('deleted_by')->nullable();
 
             $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('restrict');
             $table->foreign('destination_warehouse_id')->references('id')->on('warehouses')->onDelete('restrict');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
+            $table->foreign('position_id')->references('id')->on('positions')->onDelete('restrict');
             $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');
             $table->foreign('deleted_by')->references('id')->on('users')->onDelete('restrict');
             $table->timestamps();

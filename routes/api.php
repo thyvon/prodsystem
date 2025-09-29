@@ -68,6 +68,13 @@ use App\Http\Controllers\StockController;
 use App\Models\Approval;
 use App\Http\Controllers\ApprovalController;
 
+// Document Management
+use App\Http\Controllers\DocumentTransferController;
+use App\Models\DocumentTransfer;
+
+
+// Telegram Bot
+use App\Http\Controllers\TelegramController;
 
 /*
 |--------------------------------------------------------------------------
@@ -304,12 +311,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'getApprovals'])->name('api.approvals.index');
 
-    
-    // Stock Requests
-    // Route::get('/stock-requests', [StockRequestController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.index');
-    // Route::get('/stock-requests/{stockRequest}', [StockRequestController::class, 'show'])->middleware('can:view,stockRequest')->name('api.stock-requests.show');
-    // Route::post('/stock-requests', [StockRequestController::class, 'store'])->middleware('can:create,' . StockRequest::class)->name('api.stock-requests.store');
-    // Route::put('/stock-requests/{stockRequest}', [StockRequestController::class, 'update'])->middleware('can:update,stockRequest')->name('api.stock-requests.update');
-    // Route::delete('/stock-requests/{stockRequest}', [StockRequestController::class, 'destroy'])->middleware('can:delete,stockRequest')->name('api.stock-requests.destroy');
+    // Document Transfers
+    Route::post('/document-transfers', [DocumentTransferController::class, 'store'])->name('api.document-transfers.store');
+    Route::get('/document-transfers/get-receivers', [DocumentTransferController::class, 'getReceivers'])->name('api.document-transfers.get-receivers');
+    Route::get('/document-transfers', [DocumentTransferController::class, 'getDocumentTransfers'])->name('api.document-transfers.index');
+    Route::put('/document-transfers/{documentTransfer}/update-or-reassign', [DocumentTransferController::class, 'updateReceiversOrReceive'])->name('api.document-transfers.update-or-reassign');
 
+    // Telgram Bot Webhook
+    Route::post('/telegram/webhook', [TelegramController::class, 'webhook'])->name('api.telegram.webhook');
 });

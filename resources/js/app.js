@@ -73,6 +73,10 @@ import Datatable from './components/Reusable/Datatable.vue'
  import UserForm from './components/UserManagement/UserForm.vue'
  import PositionList from './components/UserManagement/Position/PositionList.vue'
 
+ // Document Transfer
+ import DocumentTransferForm from './components/DocumentTransfer/Form.vue'
+import DocumentTransferList from './components/DocumentTransfer/DocsList.vue'
+
 // Create Vue app instance
  const app = createApp({})
 
@@ -123,12 +127,16 @@ import Datatable from './components/Reusable/Datatable.vue'
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)
 
-// // User Management
+// User Management
  app.component('user-page', UserPage)
  app.component('role-page', RolePage)
  app.component('permission-page', PermissionPage)
  app.component('user-form', UserForm)
  app.component('position-page', PositionList)
+
+ // Document Transfer
+ app.component('document-transfer-form', DocumentTransferForm)
+ app.component('document-transfer-list', DocumentTransferList)
 
 // Mount the Vue app
 app.mount('#app')

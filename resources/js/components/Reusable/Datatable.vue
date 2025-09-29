@@ -79,101 +79,78 @@ const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 // Renderers
 const renderColumnData = (key, val) => {
-  if (key === 'created_at') {
-    return formatDate(val);
+  if (!val) return '';
+
+  // Date formatting
+  if (key === 'created_at' || key === 'updated_at' || key === 'beginning_date' || /_date$/.test(key)) {
+    return key === 'updated_at' ? formatDateTime(val) : formatDate(val);
   }
-  if (key === 'updated_at') {
-    return formatDateTime(val);
+
+  // Status badges
+  const statusKeys = {
+    is_active: { true: ['badge-success', 'Active'], false: ['badge-secondary', 'Inactive'] },
+    has_variants: { true: ['badge-primary', 'Yes'], false: ['badge-danger', 'No'] },
+  };
+
+  if (statusKeys[key] !== undefined) {
+    const [badgeClass, text] = statusKeys[key][!!val];
+    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
   }
-  if (key === 'beginning_date') {
-    return formatDate(val);
-  }
-    if (/_date$/.test(key) && val) {
-    return formatDate(val);
-  }
-    if (key === 'is_active') {
-    const badgeClass = val ? 'badge badge-success' : 'badge badge-secondary';
-    const text = val ? 'Active' : 'Inactive';
-    return `<span class="${badgeClass} text-center">${text}</span>`;
-  }
-  
+
+  // Request type badge
   if (key === 'request_type') {
-  const status = (val || '').toString().trim().toLowerCase();
-  let badgeClass = 'badge badge-secondary';
-  let text = val || 'Unknown';
-
-  switch (status) {
-    case 'review':
-      badgeClass = 'badge badge-info';
-      text = 'Review';
-      break;
-    case 'check':
-      badgeClass = 'badge badge-primary';
-      text = 'Check';
-      break;
-    case 'approve':
-      badgeClass = 'badge badge-success';
-      text = 'Approve';
-      break;
+    const map = { review: 'badge-info', check: 'badge-primary', approve: 'badge-success' };
+    const status = (val || '').toLowerCase();
+    const badgeClass = map[status] || 'badge-secondary';
+    const text = capitalize(val);
+    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
   }
 
-  return `<span class="${badgeClass} text-center">${text}</span>`;
-}
-  
-
+  // Approval status badge
   if (key === 'approval_status') {
-    const status = (val || '').toString().trim().toLowerCase();
     let badgeClass = 'badge badge-secondary';
-    let text = val || 'Unknown'; // keep original full text by default
-
-    if (status.includes('rejected')) {
-      badgeClass = 'badge badge-danger';
-      // text = val;  // keep full original text, already assigned above
-    } else {
-      switch (status) {
-        case 'pending':
-          badgeClass = 'badge badge-warning';
-          text = 'Pending';
-          break;
-        case 'approved':
-          badgeClass = 'badge badge-success';
-          text = 'Approved';
-          break;
-        case 'reviewed':
-          badgeClass = 'badge badge-info';
-          text = 'Reviewed';
-          break;
-        case 'checked':
-          badgeClass = 'badge badge-primary';
-          text = 'Checked';
-          break;
-        default:
-          badgeClass = 'badge badge-secondary';
-          // text already set to val
-      }
-    }
-
-    return `<span class="${badgeClass} text-center">${text}</span>`;
+    const status = (val || '').toLowerCase();
+    if (status.includes('rejected')) badgeClass = 'badge badge-danger';
+    else if (status === 'pending') badgeClass = 'badge badge-warning';
+    else if (status === 'approved') badgeClass = 'badge badge-success';
+    else if (status === 'reviewed') badgeClass = 'badge badge-info';
+    else if (status === 'checked') badgeClass = 'badge badge-primary';
+    const text = capitalize(val);
+    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
   }
-    if (key === 'has_variants') {
-    const badgeClass = val ? 'badge badge-primary' : 'badge badge-danger';
-    const text = val ? 'Yes' : 'No';
-    return `<span class="${badgeClass} text-center">${text}</span>`;
-  }
-    if (key === 'toca_amounts' && Array.isArray(val)) {
-      return `<div class="text-start">` + 
-        val.map(amount => `<div class="mb-1">${amount}</div>`).join('') + 
-        `</div>`;
-    }
-    if (key === 'image' && val) {
-      return `<div class="text-center"><img src="/storage/${val}" alt="Product Image" style="max-width:60px;max-height:60px;" /></div>`;
-    }
 
-    if (key === 'profile_url' && val) {
-      return `<div class="text-center"><img class="rounded-circle" src="${val}" alt="User Profile" style="max-width:60px;max-height:60px;" /></div>`;
-    }
+  // Receivers
+  if (key === 'receivers' && Array.isArray(val)) {
+    return `<ul class="mb-0">
+      ${val.map(r => `
+        <li>
+          ${r.name} 
+          <span class="badge ${r.status === 'Pending' ? 'badge-warning' : 'badge-success'}">${r.status}</span>
+          ${r.received_date ? ` - <small class="text-muted">${r.received_date}</small>` : ''}
+        </li>
+      `).join('')}
+    </ul>`;
+  }
+
+
+  // Document Status
+  if (key === 'status') {
+    let badgeClass = 'badge badge-secondary';
+    const status = (val || '').toLowerCase();
+    if (status === 'pending') badgeClass = 'badge badge-warning';
+    else if (status === 'completed') badgeClass = 'badge badge-success';
+    const text = capitalize(val);
+    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
+  }
+
+  // Images
+  if (key === 'image') return `<div class="text-center"><img src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
+  if (key === 'profile_url') return `<div class="text-center"><img class="rounded-circle" src="${val}" style="max-width:60px;max-height:60px;" /></div>`;
+
+  // Default
   return val ?? '';
 };
+
 
 const createActionButtons = (row) => {
   const encodedRow = encodeURIComponent(JSON.stringify(row));
