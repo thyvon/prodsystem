@@ -22,7 +22,7 @@
                 </label>
                 <textarea v-model="form.description" class="form-control" rows="2" required></textarea>
               </div>
-              <div class="form-group col-md-3">
+              <div class="form-group col-md-2">
                 <label class="font-weight-bold">
                   Document Type <span class="text-danger">*</span>
                 </label>
@@ -30,7 +30,7 @@
                   <option value="">Select Type</option>
                 </select>
               </div>
-              <div class="form-group col-md-3">
+              <div class="form-group col-md-2">
                 <label class="font-weight-bold">
                   Project Name <span class="text-danger">*</span>
                 </label>
@@ -38,6 +38,17 @@
                   <option value="">Select Project</option>
                 </select>
               </div>
+              <div class="form-group col-md-2">
+              <div class="custom-control custom-checkbox mt-4">
+                <input
+                  type="checkbox"
+                  class="custom-control-input"
+                  id="isSendBack"
+                  v-model="form.is_send_back"
+                />
+                <label class="custom-control-label" for="isSendBack">Send Back ?</label>
+              </div>
+            </div>
             </div>
           </div>
 
@@ -125,6 +136,7 @@ const form = ref({
   project_name: props.initialData.project_name || '',
   description: props.initialData.description || '',
   receivers: props.initialData.receivers || [],
+  is_send_back: props.initialData.is_send_back ?? false,
 });
 
 // Load users from API
@@ -250,6 +262,7 @@ const submitForm = async () => {
       receivers: form.value.receivers.map(r => ({
             receiver_id: r.receiver_id
         })),
+      is_send_back: form.value.is_send_back ? 1 : 0,
     };
 
     const url = isEditMode.value

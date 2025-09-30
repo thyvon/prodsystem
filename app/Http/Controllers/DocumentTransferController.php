@@ -176,16 +176,20 @@ class DocumentTransferController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo();
+
+                // Create document transfer
                 $documentTransfer = DocumentTransfer::create([
                     'reference_no' => $referenceNo,
                     'document_type' => $validated['document_type'],
                     'project_name' => $validated['project_name'],
                     'description' => $validated['description'],
                     'status' => 'Pending',
+                    'is_send_back' => $validated['is_send_back'] ?? 0,
                     'created_by' => auth()->id(),
                 ]);
 
-                $receivers = array_map(function ($receiver) use ($documentTransfer) {
+                // Insert receivers
+                $receiversData = array_map(function ($receiver) use ($documentTransfer) {
                     return [
                         'documents_id' => $documentTransfer->id,
                         'document_reference' => $documentTransfer->reference_no,
@@ -199,19 +203,18 @@ class DocumentTransferController extends Controller
                     ];
                 }, $validated['receivers']);
 
-                DocumentTransferResponse::insert($receivers);
+                DocumentTransferResponse::insert($receiversData);
 
-                // -----------------------------
-                // Telegram: Notify first receiver only
-                // -----------------------------
-                $firstReceiverData = collect($receivers)
+                // Notify first receiver via Telegram
+                $firstReceiver = collect($receiversData)
                     ->sortBy(['id', 'created_at'])
                     ->first();
 
-                if ($firstReceiverData) {
-                    $user = User::find($firstReceiverData['receiver_id']);
+                if ($firstReceiver) {
+                    $user = User::find($firstReceiver['receiver_id']);
+
                     if ($user && $user->telegram_id) {
-                        $creator = auth()->user(); // The user who created the document
+                        $creator = auth()->user(); // Creator info
 
                         $messageText = "📢 *Dear {$user->name},*\n\n"
                             ."📄 *You have a new document!*\n\n"
@@ -259,6 +262,7 @@ class DocumentTransferController extends Controller
             'document_type' => 'required|string|max:255',
             'project_name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
+            'is_send_back' => 'nullable|boolean',
         ];
     }
 
@@ -281,76 +285,17 @@ class DocumentTransferController extends Controller
         return 'DOC-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
     }
 
-    public function receive(Request $request): JsonResponse
+    public function receive(Request $request)
     {
-        // This assumes Telegram webhook sends `callback_data` for the button
-        $callbackData = $request->input('callback_data'); 
+        [$documentId, $receiverId] = explode('-', $request->input('callback_data'));
+        $document = DocumentTransfer::findOrFail($documentId);
 
-        if (!str_starts_with($callbackData, 'receive_')) {
-            return response()->json(['message' => 'Invalid callback data'], 400);
-        }
-
-        // Parse document_id and receiver_id from the callback_data
-        [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $callbackData));
-
-        $documentTransfer = DocumentTransfer::find($documentId);
-        if (!$documentTransfer) {
-            return response()->json(['message' => 'Document not found'], 404);
-        }
-
-        $allReceivers = $documentTransfer->receivers()->orderBy('id')->get();
-        $currentIndex = $allReceivers->search(fn($r) => $r->receiver_id == $receiverId);
-
-        if ($currentIndex === false) {
-            return response()->json(['message' => 'You are not authorized to receive this document'], 403);
-        }
-
-        $currentReceiver = $allReceivers[$currentIndex];
-
-        // Ensure previous receivers have received
-        if ($currentIndex > 0) {
-            $previousReceiver = $allReceivers[$currentIndex - 1];
-            if ($previousReceiver->status !== 'Received') {
-                return response()->json(['message' => 'Previous receivers must receive the document first'], 400);
-            }
-        }
-
-        if ($currentReceiver->status !== 'Received') {
-            $currentReceiver->update([
-                'status' => 'Received',
-                'received_date' => now(), // record the receive timestamp
-            ]);
-        }
-
-        // Update document status if last receiver
-        $lastReceiver = $allReceivers->last();
-        if ($currentReceiver->id === $lastReceiver->id) {
-            $documentTransfer->update(['status' => 'Completed']);
-        } else {
-            // Notify the next receiver via Telegram
-            $nextReceiver = $allReceivers[$currentIndex + 1] ?? null;
-            if ($nextReceiver && $nextReceiver->receiver->telegram_id) {
-                $keyboard = Keyboard::make()
-                    ->inline()
-                    ->row(
-                        Keyboard::inlineButton([
-                            'text' => 'Mark as Received',
-                            'callback_data' => 'receive_'.$documentTransfer->id.'-'.$nextReceiver->receiver_id
-                        ])
-                    );
-
-                Telegram::sendMessage([
-                    'chat_id' => $nextReceiver->receiver->telegram_id,
-                    'text' => "📄 You are next to receive document: *{$documentTransfer->project_name}*\nReference: {$documentTransfer->reference_no}",
-                    'parse_mode' => 'Markdown',
-                    'reply_markup' => $keyboard,
-                ]);
-            }
-        }
+        $result = $document->markAsReceived($receiverId);
 
         return response()->json([
-            'message' => 'Document transfer received successfully',
-            'data' => $documentTransfer->load('receivers'),
+            'success' => $result['success'],
+            'message' => $result['success'] ? 'Document received' : $result['message'],
+            'data' => $result['document']->load('receivers')
         ]);
     }
 
