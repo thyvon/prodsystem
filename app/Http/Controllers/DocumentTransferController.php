@@ -111,6 +111,91 @@ class DocumentTransferController extends Controller
         );
     }
 
+    public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
+    {
+        $validated = $request->validate([
+            'receivers' => 'required|array|min:1',
+            'receivers.*.receiver_id' => 'required|integer|exists:users,id',
+            'receivers.*.status' => 'nullable|string|in:Pending,Received,Completed,Sent Back',
+        ]);
+
+        $validated['receivers'] = collect($validated['receivers'])->unique('receiver_id')->values()->all();
+        $submittedIds = collect($validated['receivers'])->pluck('receiver_id')->toArray();
+
+        return $this->executeTransaction(
+            function () use ($documentTransfer, $validated, $submittedIds) {
+                $existingReceivers = $documentTransfer->receivers()->get();
+                
+                // Delete removed receivers and their Telegram messages
+                $receiversToDelete = $existingReceivers->whereNotIn('receiver_id', $submittedIds);
+                foreach ($receiversToDelete as $receiver) {
+                    if (!empty($receiver->telegram_message_id)) {
+                        try {
+                            Telegram::deleteMessage([
+                                'chat_id' => $receiver->receiver->telegram_id,
+                                'message_id' => $receiver->telegram_message_id,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error("Failed to delete old Telegram message for receiver {$receiver->receiver_id}: ".$e->getMessage());
+                        }
+                    }
+                    $receiver->delete();
+                }
+
+                $newReceivers = [];
+                foreach ($validated['receivers'] as $input) {
+                    $receiver = $existingReceivers->firstWhere('receiver_id', $input['receiver_id']);
+                    
+                    if ($receiver) {
+                        // Update existing receiver
+                        $receiver->update([
+                            'status' => $input['status'] ?? $receiver->status,
+                            'owner_receive_status' => $input['status'] === 'Received' ? 'Received' : ($receiver->owner_receive_status ?? 'Pending'),
+                            'owner_received_date' => $input['status'] === 'Received' ? ($receiver->owner_received_date ?? now()) : $receiver->owner_received_date,
+                        ]);
+                    } else {
+                        // Create new receiver
+                        $receiver = $documentTransfer->receivers()->create([
+                            'receiver_id' => $input['receiver_id'],
+                            'documents_id' => $documentTransfer->id,
+                            'document_reference' => $documentTransfer->reference_no,
+                            'document_name' => $documentTransfer->project_name,
+                            'requester_id' => auth()->id(),
+                            'status' => $input['status'] ?? 'Pending',
+                            'owner_receive_status' => 'Pending',
+                            'owner_received_date' => null,
+                            'telegram_message_id' => null,
+                        ]);
+                        $newReceivers[] = $receiver;
+                    }
+                }
+
+                // Reload document with relationships
+                $documentTransfer->load(['receivers.receiver' => fn($q) => $q->orderBy('id'), 'receivers.requester']);
+
+                // Notify the first pending receiver
+                $nextReceiver = $this->getNextReceiver($documentTransfer, 0);
+                if ($nextReceiver && $nextReceiver->status === 'Pending') {
+                    $this->notifyFirstReceiver($nextReceiver, $documentTransfer);
+                }
+
+                // Notify new receivers
+                foreach ($newReceivers as $newReceiver) {
+                    if ($newReceiver->status === 'Pending' && $newReceiver->receiver && $newReceiver->receiver->telegram_id) {
+                        $this->notifyFirstReceiver($newReceiver, $documentTransfer);
+                    }
+                }
+
+                return response()->json([
+                    'message' => 'Receivers updated successfully.',
+                    'data' => $documentTransfer->receivers,
+                ]);
+            },
+            'Failed to update receivers for document transfer',
+            auth()->user()->telegram_id ?? null
+        );
+    }
+
     public function receive(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $request->input('callback_data')));
