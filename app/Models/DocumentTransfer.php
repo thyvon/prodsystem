@@ -38,7 +38,7 @@ class DocumentTransfer extends Model
     }
     public function receivers()
     {
-        return $this->hasMany(DocumentTransferResponse::class, 'documents_id');
+        return $this->hasMany(DocumentsReceiver::class, 'documents_id');
     }
 
 }
