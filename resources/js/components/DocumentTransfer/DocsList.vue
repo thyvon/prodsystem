@@ -290,12 +290,18 @@ const closeReassignModal = () => {
 const submitReassign = async () => {
   if (!selectedTransfer.id) return;
 
-  const payload = receiverRows.value
-    .filter((r) => r.user_id)
-    .map((r) => ({
-      receiver_id: r.user_id,
-      status: r.disabled ? r.status : 'Pending',
-    }));
+  // Remove duplicates and keep only valid user_ids
+  const uniqueReceivers = Array.from(
+    new Set(receiverRows.value.map(r => r.user_id).filter(Boolean))
+  );
+
+  const payload = uniqueReceivers.map(user_id => {
+    const row = receiverRows.value.find(r => r.user_id === user_id);
+    return {
+      receiver_id: row.user_id,
+      status: row.disabled ? row.status : 'Pending',
+    };
+  });
 
   try {
     await axios.put(
