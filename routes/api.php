@@ -319,5 +319,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
-// Telegram Bot Webhook
-Route::post('/telegram/webhook', [TelegramController::class, 'webhook'])->withoutMiddleware(['auth']);
+// Telegram Bot Document Transfer Webhook
+Route::post('/telegram/webhook', [DocumentTransferController::class, 'webhook'])->withoutMiddleware(['auth']);
