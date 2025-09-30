@@ -23,7 +23,7 @@ class DocumentsReceiver extends Model
         'receiver_id',
         'sent_date',
         'received_date',
-        'owner_receive_status',
+        'owner_received_status',
         'owner_received_date',
     ];
 
