@@ -212,10 +212,8 @@ class DocumentTransferController extends Controller
         $messageId = $request->input('message_id');
         $callbackQueryId = $request->input('callback_query.id');
 
-        $document = DocumentTransfer::with('receivers.receiver')->find($documentId);
-
+        $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
         if (!$document) {
-            // Show alert popup
             Telegram::answerCallbackQuery([
                 'callback_query_id' => $callbackQueryId,
                 'text' => "❌ Document not found.",
@@ -234,25 +232,34 @@ class DocumentTransferController extends Controller
             return response()->json();
         }
 
-        if ($receiver->status === 'Received') {
-            Telegram::answerCallbackQuery([
-                'callback_query_id' => $callbackQueryId,
-                'text' => "✅ Document already received.",
-                'show_alert' => true
-            ]);
-            return response()->json();
-        }
+        $user = $receiver->receiver;
+        $creator = $document->creator;
 
-        // Mark as received
+        $status = $receiver->status === 'Received' ? 'Already Received' : 'Received';
+
         $receiver->update([
             'status' => 'Received',
             'received_date' => now(),
         ]);
 
-        $text = "✅ Document received successfully:\n\n*{$document->project_name}*";
+        // Build the message
+        $message = "📢 *Dear {$user->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$document->description}\n"
+            ."📂 *Document Type:* {$document->document_type}\n"
+            ."🏷️ *Project:* {$document->project_name}\n"
+            ."👤 *Sent From:* {$creator->name}\n"
+            ."🆔 *Reference:* {$document->reference_no}\n\n"
+            ."🔄 *Status:* {$status}";
 
-        // Build new keyboard if send-back is enabled
-        $keyboard = null;
+        Telegram::editMessageText([
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $message,
+            'parse_mode' => 'Markdown',
+        ]);
+
+        // If send-back is enabled, add Send Back button
         if ($document->is_send_back) {
             $keyboard = Keyboard::make()->inline()->row([
                 Keyboard::inlineButton([
@@ -260,18 +267,15 @@ class DocumentTransferController extends Controller
                     'callback_data' => 'sendback_'.$document->id.'-'.$receiverId,
                 ])
             ]);
+
+            Telegram::sendMessage([
+                'chat_id' => $chatId,
+                'text' => "You can send back this document if needed.",
+                'reply_markup' => $keyboard,
+            ]);
         }
 
-        // Edit the original message
-        Telegram::editMessageText([
-            'chat_id' => $chatId,
-            'message_id' => $messageId,
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => $keyboard,
-        ]);
-
-        return response()->json(['success' => true, 'message' => $text]);
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
     // 🔹 Send Back via Telegram
@@ -283,9 +287,7 @@ class DocumentTransferController extends Controller
         $callbackQueryId = $request->input('callback_query.id');
 
         $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
-
         if (!$document) {
-            // Show alert popup instead of editing message
             Telegram::answerCallbackQuery([
                 'callback_query_id' => $callbackQueryId,
                 'text' => "❌ Document not found.",
@@ -304,41 +306,46 @@ class DocumentTransferController extends Controller
             return response()->json();
         }
 
-        if ($receiver->status !== 'Received') {
-            Telegram::answerCallbackQuery([
-                'callback_query_id' => $callbackQueryId,
-                'text' => "❌ You must receive the document first before sending back.",
-                'show_alert' => true
-            ]);
-            return response()->json();
-        }
-
-        // Update status
         $receiver->update([
             'status' => 'Sent Back',
             'sent_back_date' => now(),
         ]);
 
-        $text = "🔄 Document sent back successfully:\n\n*{$document->project_name}*";
+        $user = $receiver->receiver;
+        $creator = $document->creator;
 
-        // Only edit original message for success
+        // Build the message
+        $message = "📢 *Dear {$user->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$document->description}\n"
+            ."📂 *Document Type:* {$document->document_type}\n"
+            ."🏷️ *Project:* {$document->project_name}\n"
+            ."👤 *Sent From:* {$creator->name}\n"
+            ."🆔 *Reference:* {$document->reference_no}\n\n"
+            ."🔄 *Status:* Sent Back";
+
         Telegram::editMessageText([
             'chat_id' => $chatId,
             'message_id' => $messageId,
-            'text' => $text,
+            'text' => $message,
             'parse_mode' => 'Markdown',
         ]);
 
-        // Notify creator
-        if ($document->creator && $document->creator->telegram_id) {
+        // Notify creator with the same content
+        if ($creator && $creator->telegram_id) {
+            $text = "📢 Document Sent Back\n\n"
+                ."Document: *{$document->project_name}*\n"
+                ."Reference: {$document->reference_no}\n"
+                ."Sent by: {$user->name}";
+
             Telegram::sendMessage([
-                'chat_id' => $document->creator->telegram_id,
-                'text' => "📢 Document Sent Back\n\nDocument: *{$document->project_name}*\nReference: {$document->reference_no}\nSent by: {$receiver->receiver->name}",
+                'chat_id' => $creator->telegram_id,
+                'text' => $text,
                 'parse_mode' => 'Markdown',
             ]);
         }
 
-        return response()->json(['success' => true, 'message' => $text]);
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
     // 🔹 Update receivers via UI
@@ -424,4 +431,5 @@ class DocumentTransferController extends Controller
 
         return response()->json(['success' => true, 'message' => $text]);
     }
+    
 }
