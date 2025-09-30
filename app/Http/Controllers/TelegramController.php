@@ -9,12 +9,18 @@ use App\Models\DocumentTransfer;
 
 class TelegramController extends Controller
 {
+    /**
+     * Handle Telegram webhook
+     */
     public function webhook(Request $request)
     {
         $update = $request->all();
 
         try {
-            if (!isset($update['callback_query'])) return response()->json([]);
+            // Only handle callback queries
+            if (!isset($update['callback_query'])) {
+                return response()->json([]);
+            }
 
             $callback = $update['callback_query'];
             $callbackData = $callback['data'] ?? null;
@@ -22,34 +28,36 @@ class TelegramController extends Controller
             $messageId = $callback['message']['message_id'] ?? null;
             $chatId = $callback['message']['chat']['id'] ?? null;
 
-            if (!$callbackData || !str_starts_with($callbackData, 'receive_')) return response()->json([]);
+            // Only handle "receive_" actions
+            if (!$callbackData || !str_starts_with($callbackData, 'receive_')) {
+                return response()->json([]);
+            }
 
+            // Extract document_id and receiver_id
             [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $callbackData));
 
-            $document = DocumentTransfer::with(['receivers.receiver', 'created_by'])->find($documentId);
+            // Load document with receivers and creator
+            $document = DocumentTransfer::with(['receivers.receiver', 'creator'])->find($documentId);
             if (!$document) {
                 return $this->answerCallback($callback['id'], 'Document not found');
             }
 
+            // Use model method to mark as received
             $result = $document->markAsReceived($receiverId, $telegramUserId);
 
             if (!$result['success']) {
                 return $this->answerCallback($callback['id'], $result['message']);
             }
 
+            $receiver = $result['receiver'];
+
+            // Answer callback
             $this->answerCallback($callback['id'], 'Document received successfully');
 
-            $receivedDate = $result['receiver']->received_date->format('Y-m-d H:i');
+            // Prepare message text including received date
+            $messageText = $document->telegramMessageText($receiver);
 
-            $messageText = "📢 *Dear {$result['receiver']->receiver->name},*\n\n"
-                ."📄 *You have a new document!*\n\n"
-                ."📝 *Description:* {$result['document']->description}\n"
-                ."📂 *Document Type:* {$result['document']->document_type}\n"
-                ."🏷️ *Project:* {$result['document']->project_name}\n"
-                ."👤 *Sent From:* {$result['document']->created_by->name}\n"
-                ."🆔 *Reference:* {$result['document']->reference_no}\n\n"
-                ."✅ *Received Date:* {$receivedDate}";
-
+            // Edit Telegram message
             Telegram::editMessageText([
                 'chat_id' => $chatId,
                 'message_id' => $messageId,
@@ -59,11 +67,18 @@ class TelegramController extends Controller
 
             return response()->json([]);
         } catch (\Exception $e) {
-            Log::error('Telegram Webhook Error', ['error' => $e->getMessage(), 'update' => $update]);
+            Log::error('Telegram Webhook Error', [
+                'error' => $e->getMessage(),
+                'update' => $update,
+            ]);
+
             return response()->json([]);
         }
     }
 
+    /**
+     * Answer Telegram callback query
+     */
     private function answerCallback(string $callbackQueryId, string $message)
     {
         Telegram::answerCallbackQuery([
@@ -71,5 +86,7 @@ class TelegramController extends Controller
             'text' => $message,
             'show_alert' => true,
         ]);
+
+        return response()->json([]);
     }
 }

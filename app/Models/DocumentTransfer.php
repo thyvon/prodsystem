@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DocumentTransfer extends Model
 {
-    use HasFactory;
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'document_transfers';
+
     protected $fillable = [
         'reference_no',
         'document_type',
@@ -24,28 +24,35 @@ class DocumentTransfer extends Model
         'deleted_by',
     ];
 
+    // Relationships
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function updater()
     {
         return $this->belongsTo(User::class, 'updated_by');
     }
+
     public function deleter()
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
+
     public function receivers()
     {
         return $this->hasMany(DocumentTransferResponse::class, 'documents_id');
     }
 
+    /**
+     * Mark a receiver as received
+     */
     public function markAsReceived(int $receiverId, int $telegramUserId): array
     {
-        $receiver = $this->receivers()->with('receiver')->where('receiver_id', $receiverId)->first();
+        $receiver = $this->receivers()->with('receiver')->firstWhere('receiver_id', $receiverId);
 
-        if (!$receiver) {
+        if (!$receiver || !$receiver->receiver) {
             return ['success' => false, 'message' => 'You are not authorized to receive this document'];
         }
 
@@ -75,4 +82,22 @@ class DocumentTransfer extends Model
         ];
     }
 
+    /**
+     * Generate Telegram message text including received date
+     */
+    public function telegramMessageText($receiverData): string
+    {
+        $receivedDate = $receiverData->received_date
+            ? $receiverData->received_date->format('Y-m-d H:i')
+            : null;
+
+        return "📢 *Dear {$receiverData->receiver->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$this->description}\n"
+            ."📂 *Document Type:* {$this->document_type}\n"
+            ."🏷️ *Project:* {$this->project_name}\n"
+            ."👤 *Sent From:* {$this->creator->name}\n"
+            ."🆔 *Reference:* {$this->reference_no}"
+            .($receivedDate ? "\n\n✅ *Received Date:* {$receivedDate}" : '');
+    }
 }

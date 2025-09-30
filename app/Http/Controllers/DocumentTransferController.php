@@ -11,25 +11,15 @@ use Illuminate\View\View;
 use App\Models\DocumentTransfer;
 use App\Models\DocumentTransferResponse;
 use App\Models\User;
-
 use Telegram\Bot\Laravel\Facades\Telegram;
 use Telegram\Bot\Keyboard\Keyboard;
 
 class DocumentTransferController extends Controller
 {
-    private const ALLOWED_SORT_COLUMNS = [
-        'reference_no',
-        'document_type',
-        'project_name',
-        'status',
-        'created_at',
-    ];
-    private const DEFAULT_SORT_COLUMN = 'created_at';
-    private const DEFAULT_SORT_DIRECTION = 'desc';
     private const DEFAULT_LIMIT = 10;
     private const MAX_LIMIT = 1000;
-    private const DATE_FORMAT = 'Y-m-d';
-    public function index()
+
+    public function index(): View
     {
         return view('document-transfer.index');
     }
@@ -45,123 +35,63 @@ class DocumentTransferController extends Controller
             'draw' => 'nullable|integer',
         ]);
 
-        $sortColumn = $validated['sortColumn'] ?? 'document_transfers.id';
-        $sortDirection = $validated['sortDirection'] ?? 'desc';
-
-        // Base query
         $query = DocumentTransfer::with(['receivers.receiver', 'creator', 'updater'])
-            ->whereNull('document_transfers.deleted_at');
+            ->whereNull('deleted_at');
 
-        // Search filter
         if (!empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($q) use ($search) {
-                $q->where('reference_no', 'like', "%{$search}%")
-                ->orWhere('document_type', 'like', "%{$search}%")
-                ->orWhere('project_name', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+                $q->where('reference_no', 'like', "%$search%")
+                  ->orWhere('document_type', 'like', "%$search%")
+                  ->orWhere('project_name', 'like', "%$search%")
+                  ->orWhere('description', 'like', "%$search%");
             });
         }
 
-        // Save total filtered count before pagination
         $recordsFiltered = $query->count();
 
-        // Sorting
-        if ($sortColumn === 'created_by') {
-            $query->join('users', 'document_transfers.created_by', '=', 'users.id')
-                ->orderBy('users.name', $sortDirection)
-                ->select('document_transfers.*');
-        } else {
-            $query->orderBy($sortColumn, $sortDirection);
-        }
+        $sortColumn = $validated['sortColumn'] ?? 'id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $query->orderBy($sortColumn, $sortDirection);
 
-        // Pagination
         $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
         $page = $validated['page'] ?? 1;
 
         $documentTransfers = $query->paginate($limit, ['*'], 'page', $page);
 
-        $documentTransfersMapped = $documentTransfers->map(fn($transfer) => [
+        $data = $documentTransfers->map(fn($transfer) => [
             'id' => $transfer->id,
             'reference_no' => $transfer->reference_no,
             'document_type' => $transfer->document_type,
             'project_name' => $transfer->project_name,
             'description' => $transfer->description,
             'receivers' => $transfer->receivers
-            ->sortBy(fn($r) => [$r->id, $r->created_at])
-            ->map(fn($r) => [
-                'receiver_id' => $r->receiver_id,
-                'name'        => $r->receiver->name ?? 'N/A',
-                'email'       => $r->receiver->email ?? null,
-                'status'      => $r->status,
-                'received_date' => $r->sent_date ?? $r->received_date,
-            ]),
+                ->sortBy(fn($r) => [$r->id, $r->created_at])
+                ->map(fn($r) => [
+                    'receiver_id' => $r->receiver_id,
+                    'name' => $r->receiver->name ?? 'N/A',
+                    'email' => $r->receiver->email,
+                    'status' => $r->status,
+                    'received_date' => $r->sent_date ?? $r->received_date,
+                ]),
             'created_by' => $transfer->creator->name ?? null,
+            'status' => $transfer->status,
             'created_at' => $transfer->created_at,
             'updated_at' => $transfer->updated_at,
-            'status' => $transfer->status,
         ]);
 
         return response()->json([
-            'data' => $documentTransfersMapped,
+            'data' => $data,
             'recordsTotal' => DocumentTransfer::whereNull('deleted_at')->count(),
             'recordsFiltered' => $recordsFiltered,
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
 
-    public function form( DocumentTransfer $documentTransfer = null): View
+    public function form(DocumentTransfer $documentTransfer = null): View
     {
         return view('document-transfer.form', compact('documentTransfer'));
     }
-
-    // public function store(Request $request): JsonResponse
-    // {     
-    //     $validated = Validator::make($request->all(), array_merge(
-    //         $this->documentTransferValidationRules(),
-    //         [
-    //             'receivers' => 'required|array|min:1',
-    //             'receivers.*.receiver_id' => 'required|exists:users,id',
-    //         ]
-    //     ))->validate();
-
-    //     try {
-    //         return DB::transaction(function () use ($validated) {
-    //             $referenceNo = $this->generateReferenceNo();
-    //             $documentTransfer = DocumentTransfer::create([
-    //                 'reference_no' => $referenceNo,
-    //                 'document_type' => $validated['document_type'],
-    //                 'project_name' => $validated['project_name'],
-    //                 'description' => $validated['description'],
-    //                 'status' => 'Pending',
-    //                 'created_by' => auth()->id(),
-    //             ]);
-
-    //             $receivers = array_map(function ($receiver) use ($documentTransfer) {
-    //                 return [
-    //                     'documents_id' => $documentTransfer->id,
-    //                     'document_reference' => $documentTransfer->reference_no,
-    //                     'document_name' => $documentTransfer->project_name,
-    //                     'status' => 'Pending',
-    //                     'requester_id' => auth()->id(),
-    //                     'receiver_id' => $receiver['receiver_id'],
-    //                     'received_date' => null,
-    //                 ];
-    //             }, $validated['receivers']);
-    //             DocumentTransferResponse::insert($receivers);
-    //             return response()->json([
-    //                 'message' => 'Document transfer created successfully.',
-    //                 'data' => $documentTransfer->load('receivers'),
-    //             ], 201);
-    //         });
-    //     } catch (\Exception $e) {
-    //         Log::error('Failed to create document transfer', ['error' => $e->getMessage()]);
-    //         return response()->json([
-    //             'message' => 'Failed to create document transfer.',
-    //             'error' => $e->getMessage(),
-    //         ], 500);
-    //     }
-    // }
 
     public function store(Request $request): JsonResponse
     {
@@ -175,11 +105,8 @@ class DocumentTransferController extends Controller
 
         try {
             return DB::transaction(function () use ($validated) {
-                $referenceNo = $this->generateReferenceNo();
-
-                // Create document transfer
                 $documentTransfer = DocumentTransfer::create([
-                    'reference_no' => $referenceNo,
+                    'reference_no' => $this->generateReferenceNo(),
                     'document_type' => $validated['document_type'],
                     'project_name' => $validated['project_name'],
                     'description' => $validated['description'],
@@ -188,62 +115,24 @@ class DocumentTransferController extends Controller
                     'created_by' => auth()->id(),
                 ]);
 
-                // Insert receivers
-                $receiversData = array_map(function ($receiver) use ($documentTransfer) {
-                    return [
-                        'documents_id' => $documentTransfer->id,
-                        'document_reference' => $documentTransfer->reference_no,
-                        'document_name' => $documentTransfer->project_name,
-                        'status' => 'Pending',
-                        'requester_id' => auth()->id(),
-                        'receiver_id' => $receiver['receiver_id'],
-                        'received_date' => null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }, $validated['receivers']);
+                $receivers = array_map(fn($r) => [
+                    'documents_id' => $documentTransfer->id,
+                    'document_reference' => $documentTransfer->reference_no,
+                    'document_name' => $documentTransfer->project_name,
+                    'status' => 'Pending',
+                    'requester_id' => auth()->id(),
+                    'receiver_id' => $r['receiver_id'],
+                    'received_date' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ], $validated['receivers']);
 
-                DocumentTransferResponse::insert($receiversData);
+                DocumentTransferResponse::insert($receivers);
 
-                // Notify first receiver via Telegram
-                $firstReceiver = collect($receiversData)
-                    ->sortBy(['id', 'created_at'])
-                    ->first();
-
-                if ($firstReceiver) {
-                    $user = User::find($firstReceiver['receiver_id']);
-
-                    if ($user && $user->telegram_id) {
-                        $creator = auth()->user(); // Creator info
-
-                        $messageText = "📢 *Dear {$user->name},*\n\n"
-                            ."📄 *You have a new document!*\n\n"
-                            ."📝 *Description:* {$documentTransfer->description}\n"
-                            ."📂 *Document Type:* {$documentTransfer->document_type}\n"
-                            ."🏷️ *Project:* {$documentTransfer->project_name}\n"
-                            ."👤 *Sent From:* {$creator->name}\n"
-                            ."🆔 *Reference:* {$documentTransfer->reference_no}";
-
-                        $keyboard = Keyboard::make()
-                            ->inline()
-                            ->row([
-                                Keyboard::inlineButton([
-                                    'text' => '✅ Mark as Received',
-                                    'callback_data' => 'receive_'.$documentTransfer->id.'-'.$user->id
-                                ])
-                            ]);
-
-                        Telegram::sendMessage([
-                            'chat_id' => $user->telegram_id,
-                            'text' => $messageText,
-                            'parse_mode' => 'Markdown',
-                            'reply_markup' => $keyboard,
-                        ]);
-                    }
-                }
+                $this->notifyFirstReceiver($receivers, $documentTransfer);
 
                 return response()->json([
-                    'message' => 'Document transfer created successfully. Notification sent to first receiver.',
+                    'message' => 'Document transfer created successfully.',
                     'data' => $documentTransfer->load('receivers'),
                 ], 201);
             });
@@ -268,89 +157,112 @@ class DocumentTransferController extends Controller
 
     public function getReceivers(): JsonResponse
     {
-        $users = DB::table('users')
-            ->select('id', 'name', 'telegram_id')
-            ->whereNotNull('telegram_id')
+        return response()->json(User::whereNotNull('telegram_id')
             ->where('id', '!=', auth()->id())
-            ->get();
-
-        return response()->json($users);
+            ->select('id', 'name', 'telegram_id')
+            ->get());
     }
 
     private function generateReferenceNo(): string
     {
-        $createdAt = time(); // current timestamp
-        $date = date('Ymd', $createdAt);
-        $count = DocumentTransfer::whereDate('created_at', date('Y-m-d', $createdAt))->count() + 1;
+        $date = now()->format('Ymd');
+        $count = DocumentTransfer::whereDate('created_at', now())->count() + 1;
         return 'DOC-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
     }
 
-    public function receive(Request $request)
+    private function notifyFirstReceiver(array $receivers, DocumentTransfer $documentTransfer): void
+    {
+        $firstReceiver = collect($receivers)->sortBy(['id', 'created_at'])->first();
+        if (!$firstReceiver) return;
+
+        $user = User::find($firstReceiver['receiver_id']);
+        if (!$user || !$user->telegram_id) return;
+
+        $creator = auth()->user();
+        $message = "📢 *Dear {$user->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$documentTransfer->description}\n"
+            ."📂 *Document Type:* {$documentTransfer->document_type}\n"
+            ."🏷️ *Project:* {$documentTransfer->project_name}\n"
+            ."👤 *Sent From:* {$creator->name}\n"
+            ."🆔 *Reference:* {$documentTransfer->reference_no}";
+
+        $keyboard = Keyboard::make()->inline()->row([
+            Keyboard::inlineButton([
+                'text' => '✅ Mark as Received',
+                'callback_data' => 'receive_'.$documentTransfer->id.'-'.$user->id
+            ])
+        ]);
+
+        Telegram::sendMessage([
+            'chat_id' => $user->telegram_id,
+            'text' => $message,
+            'parse_mode' => 'Markdown',
+            'reply_markup' => $keyboard,
+        ]);
+    }
+
+    public function receive(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', $request->input('callback_data'));
         $document = DocumentTransfer::findOrFail($documentId);
-
         $result = $document->markAsReceived($receiverId);
 
         return response()->json([
             'success' => $result['success'],
             'message' => $result['success'] ? 'Document received' : $result['message'],
-            'data' => $result['document']->load('receivers')
+            'data' => $result['document']->load('receivers'),
         ]);
     }
-
-    /**
-     * Add or reassign receivers for a document transfer
-     */
     public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
     {
+        // 1️⃣ Validate request
         $validated = $request->validate([
-            'receivers' => 'required|array',
-            'receivers.*.id' => 'required|integer|exists:users,id', // user id
+            'receivers' => 'required|array|min:1',
+            'receivers.*.receiver_id' => 'required|integer|exists:users,id',
             'receivers.*.status' => 'nullable|string|in:Pending,Received,Completed',
         ]);
 
-        $submittedIds = collect($validated['receivers'])->pluck('id')->toArray();
+        // 1a️⃣ Remove duplicate receiver_ids
+        $validated['receivers'] = collect($validated['receivers'])
+            ->unique('receiver_id')
+            ->values()
+            ->all();
+
+        $submittedIds = collect($validated['receivers'])->pluck('receiver_id')->toArray();
 
         $existingReceivers = $documentTransfer->receivers()->get();
 
-        // 1️⃣ Delete receivers not in submittedIds
+        // 2️⃣ Delete removed receivers
         $documentTransfer->receivers()->whereNotIn('receiver_id', $submittedIds)->delete();
 
-        // 2️⃣ Update existing or create new
-        foreach ($validated['receivers'] as $inputReceiver) {
-            $receiver = $existingReceivers->firstWhere('receiver_id', $inputReceiver['id']);
+        // 3️⃣ Update existing or create new
+        foreach ($validated['receivers'] as $input) {
+            $receiver = $existingReceivers->firstWhere('receiver_id', $input['receiver_id']);
 
             if ($receiver) {
-                // Update status if not Completed
-                if ($receiver->status === 'Received') {
-                    $receiver->update([
-                        'owner_receive_status' => 'Received',
-                        'owner_received_date' => now(),
-                    ]);
-                }
-                elseif ($receiver->status !== 'Received') {
-                    $receiver->update([
-                        'status' => $inputReceiver['status'] ?? 'Pending',
-                    ]);
-                }
+                // Update status only if not already Received
+                $receiver->update([
+                    'status' => $input['status'] ?? $receiver->status,
+                    'owner_receive_status' => $receiver->status === 'Received' ? 'Received' : $receiver->owner_receive_status,
+                    'owner_received_date' => $receiver->status === 'Received' ? $receiver->owner_received_date ?? now() : $receiver->owner_received_date,
+                ]);
             } else {
                 // Add new receiver
-                
                 $documentTransfer->receivers()->create([
-                    'receiver_id' => $inputReceiver['id'],
+                    'receiver_id' => $input['receiver_id'],
                     'documents_id' => $documentTransfer->id,
                     'document_reference' => $documentTransfer->reference_no,
                     'document_name' => $documentTransfer->project_name,
                     'requester_id' => auth()->id(),
-                    'status' => $inputReceiver['status'] ?? 'Pending',
+                    'status' => $input['status'] ?? 'Pending',
                     'owner_receive_status' => 'Pending',
                     'owner_received_date' => null,
                 ]);
             }
         }
 
-        // Reload receivers ordered by id
+        // 4️⃣ Reload ordered receivers
         $documentTransfer->load(['receivers' => fn($q) => $q->orderBy('id')]);
 
         return response()->json([
@@ -358,5 +270,4 @@ class DocumentTransferController extends Controller
             'data' => $documentTransfer->receivers,
         ]);
     }
-
 }

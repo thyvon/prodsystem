@@ -176,6 +176,7 @@ const allUsers = ref([]);
 const receiverRows = ref([]);
 const receiverSelectRefs = reactive({});
 const reassignModal = ref(null);
+const oldReceiverIds = ref([]); // Track DB IDs
 
 // --- Helpers ---
 const filteredUsers = (currentId) => {
@@ -258,31 +259,22 @@ const openReassignModal = async (transfer) => {
   selectedTransfer.id = transfer.id;
   selectedTransfer.reference_no = transfer.reference_no;
 
-  const oldReceivers = transfer.receivers.map((r) => ({
-    user_id: r.receiver_id,
-    status: r.status,
-    disabled: r.status !== 'Pending',
-  }));
+  oldReceiverIds.value = [];
+  receiverRows.value = transfer.receivers.map((r) => {
+    oldReceiverIds.value.push(r.receiver_id);
+    return {
+      uid: Date.now() + Math.random(),
+      user_id: r.receiver_id,
+      status: r.status,
+      disabled: r.status !== 'Pending',
+    };
+  });
 
   const { data } = await axios.get('/api/document-transfers/get-receivers');
   allUsers.value = data;
 
-  receiverRows.value = oldReceivers.map((r) => ({
-    uid: Date.now() + Math.random(),
-    user_id: r.user_id,
-    status: r.status,
-    disabled: r.disabled,
-  }));
-
   await nextTick();
   initReceiverSelects();
-  receiverRows.value.forEach((row, index) => {
-    const el = receiverSelectRefs[index];
-    if (el && row.user_id) {
-      $(el).val(row.user_id).trigger('change.select2');
-    }
-  });
-
   $(reassignModal.value).modal('show');
 };
 
@@ -292,6 +284,7 @@ const closeReassignModal = () => {
   selectedTransfer.reference_no = '';
   receiverRows.value = [];
   Object.values(receiverSelectRefs).forEach((el) => destroySelect2(el));
+  oldReceiverIds.value = [];
 };
 
 const submitReassign = async () => {
@@ -300,7 +293,7 @@ const submitReassign = async () => {
   const payload = receiverRows.value
     .filter((r) => r.user_id)
     .map((r) => ({
-      id: r.user_id,
+      receiver_id: r.user_id,
       status: r.disabled ? r.status : 'Pending',
     }));
 
