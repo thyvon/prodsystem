@@ -63,6 +63,8 @@ class DocumentTransferController extends Controller
                     'status' => $r->status,
                     'received_date' => $r->received_date,
                     'sent_date' => $r->sent_date,
+                    'owner_received_status' => $r->owner_received_status,
+                    'owner_received_date' => $r->owner_received_date,
                     'telegram_message_id' => $r->telegram_message_id,
                     'telegram_creator_message_id' => $r->telegram_creator_message_id,
                 ]),
@@ -158,30 +160,17 @@ class DocumentTransferController extends Controller
         }
         $firstReceiverData = collect($receiversData)->first();
         if (!$firstReceiverData) {
-            Log::warning('notifyFirstReceiver: No receiver data provided', ['document_id' => $documentTransfer->id]);
             return;
         }
 
         $receiverId = $firstReceiverData['receiver_id'] ?? null;
         $user = User::find($receiverId);
         if (!$user || !$user->telegram_id) {
-            Log::warning('notifyFirstReceiver: Invalid user or missing telegram_id', [
-                'receiver_id' => $receiverId,
-                'user' => $user?->toArray(),
-                'document_id' => $documentTransfer->id
-            ]);
             return;
         }
 
         $creator = auth()->user() ?? User::find($documentTransfer->created_by);
         $message = $this->buildTelegramMessage($documentTransfer, $user->name, $creator->name);
-
-        Log::info('notifyFirstReceiver: Attempting to send message', [
-            'document_id' => $documentTransfer->id,
-            'receiver_id' => $receiverId,
-            'receiver_name' => $user->name,
-            'telegram_id' => $user->telegram_id
-        ]);
 
         try {
             $response = Telegram::sendMessage([
@@ -193,22 +182,10 @@ class DocumentTransferController extends Controller
                 ]),
             ]);
 
-            // Update telegram_message_id using the correct table
             DocumentsReceiver::where('documents_id', $documentTransfer->id)
                 ->where('receiver_id', $user->id)
                 ->update(['telegram_message_id' => $response->getMessageId()]);
-
-            Log::info('notifyFirstReceiver: Message sent successfully', [
-                'document_id' => $documentTransfer->id,
-                'message_id' => $response->getMessageId(),
-                'receiver_id' => $receiverId
-            ]);
         } catch (\Exception $e) {
-            Log::error('notifyFirstReceiver: Failed to send message', [
-                'error' => $e->getMessage(),
-                'receiver_id' => $receiverId,
-                'document_id' => $documentTransfer->id
-            ]);
             $this->logAndNotifyError("Failed to notify receiver {$receiverId}", $e, $creator->telegram_id ?? null);
         }
     }
@@ -304,28 +281,21 @@ class DocumentTransferController extends Controller
 
                 $receiver->update(['telegram_message_id' => $response->getMessageId()]);
 
-                // Notify creator with "Send to Next Receiver" button if applicable
+                // Notify creator with "Receive to Complete" and optional "Send to Next Receiver" buttons
                 if ($creator && $creator->telegram_id) {
                     $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
-                    Log::info('sendBack: Next receiver check', [
-                        'document_id' => $document->id,
-                        'current_receiver_id' => $receiver->receiver_id,
-                        'next_receiver_id' => $nextReceiver?->receiver_id ?? 'none',
-                        'total_receivers' => $document->receivers->count()
-                    ]);
-
-                    $keyboard = null;
+                    $buttons = [
+                        Keyboard::inlineButton(['text' => '✅ Receive to Complete', 'callback_data' => "complete_{$document->id}"])
+                    ];
                     if ($nextReceiver) {
-                        $keyboard = Keyboard::make()->inline()->row([
-                            Keyboard::inlineButton(['text' => '➡️ Send to Next Receiver', 'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"])
-                        ]);
+                        $buttons[] = Keyboard::inlineButton(['text' => '➡️ Send to Next Receiver', 'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"]);
                     }
 
                     $response = Telegram::sendMessage([
                         'chat_id' => $creator->telegram_id,
                         'text' => $this->buildTelegramMessage($document, $creator->name, $user->name, 'Sent Back', $receiver->received_date, $sentDate, true),
                         'parse_mode' => 'Markdown',
-                        'reply_markup' => $keyboard,
+                        'reply_markup' => Keyboard::make()->inline()->row($buttons),
                     ]);
 
                     $receiver->update(['telegram_creator_message_id' => $response->getMessageId()]);
@@ -340,37 +310,73 @@ class DocumentTransferController extends Controller
         }
     }
 
+    public function completeDocument(Request $request): JsonResponse
+    {
+        $documentId = str_replace('complete_', '', $request->input('callback_data'));
+        $chatId = $request->input('chat_id');
+        $messageId = $request->input('message_id');
+        $callbackQueryId = $request->input('callback_query_id');
+
+        $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
+
+        $creator = $document->creator;
+        if (!$creator || $creator->telegram_id != $chatId) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to complete this document.");
+        }
+
+        // Find the receiver who sent back (latest sent_date)
+        $receiver = $document->receivers->sortByDesc('sent_date')->first();
+        if (!$receiver || $receiver->status != 'Sent Back') {
+            return $this->telegramAlert($callbackQueryId, "❌ No valid sent back receiver found.");
+        }
+
+        $user = $receiver->receiver;
+        $receivedDate = now();
+
+        try {
+            DB::transaction(function () use ($document, $receiver, $receivedDate, $creator, $chatId, $messageId) {
+                $document->update(['status' => 'Completed']);
+                $receiver->update([
+                    'owner_received_status' => 'Received',
+                    'owner_received_date' => $receivedDate
+                ]);
+
+                // Update creator's message
+                $response = Telegram::editMessageText([
+                    'chat_id' => $chatId,
+                    'message_id' => $receiver->telegram_creator_message_id ?? $messageId,
+                    'text' => $this->buildTelegramMessage($document, $creator->name, $user->name, 'Completed', $receivedDate, $receiver->sent_date, true),
+                    'parse_mode' => 'Markdown',
+                ]);
+
+                $receiver->update(['telegram_creator_message_id' => $response->getMessageId()]);
+            });
+
+            Telegram::answerCallbackQuery(['callback_query_id' => $callbackQueryId, 'text' => "✅ Document marked as Completed.", 'show_alert' => false]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            $this->logAndNotifyError("Failed to complete document {$documentId}", $e, $creator->telegram_id);
+            return $this->telegramAlert($callbackQueryId, "❌ Failed to mark document as completed.");
+        }
+    }
+
     public function sendToNextReceiver(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('sendto_', '', $request->input('callback_data')));
         $callbackQueryId = $request->input('callback_query_id');
 
-        Log::info('sendToNextReceiver: Called', [
-            'document_id' => $documentId,
-            'receiver_id' => $receiverId
-        ]);
-
         $document = DocumentTransfer::with('receivers.receiver')->find($documentId);
         if (!$document) {
-            Log::error('sendToNextReceiver: Document not found', ['document_id' => $documentId]);
             return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
         }
 
         $nextReceiver = $document->receivers->firstWhere('receiver_id', $receiverId);
         if (!$nextReceiver) {
-            Log::error('sendToNextReceiver: Next receiver not found', [
-                'document_id' => $documentId,
-                'receiver_id' => $receiverId,
-                'available_receivers' => $document->receivers->pluck('receiver_id')->toArray()
-            ]);
             return $this->telegramAlert($callbackQueryId, "❌ Next receiver not found.");
         }
-
-        Log::info('sendToNextReceiver: Sending to receiver', [
-            'document_id' => $documentId,
-            'receiver_id' => $nextReceiver->receiver_id,
-            'receiver_name' => $nextReceiver->receiver->name
-        ]);
 
         $this->notifyFirstReceiver($nextReceiver, $document);
 
@@ -421,11 +427,11 @@ class DocumentTransferController extends Controller
         $sentDate = $sentDate instanceof \Illuminate\Support\Carbon ? $sentDate->format('Y-m-d H:i') : ($sentDate ?? 'N/A');
 
         if ($isCreatorNotification) {
-            return "📢 *Document Sent Back*\n\n"
+            return "📢 *Document " . ($status === 'Completed' ? 'Completed' : 'Sent Back') . "*\n\n"
                 . "📄 *Document:* {$document->project_name}\n"
                 . "🆔 *Reference:* {$document->reference_no}\n"
                 . "👤 *Sent Back by:* {$senderName}\n"
-                . "✅ *Received Date:* {$receivedDate}\n"
+                . "✅ *Owner Received Date:* {$receivedDate}\n"
                 . "🗓️ *Send Back Date:* {$sentDate}";
         }
 
@@ -451,27 +457,13 @@ class DocumentTransferController extends Controller
     private function getNextReceiver(DocumentTransfer $document, int $currentReceiverId)
     {
         $receivers = $document->receivers->sortBy('id')->values();
-        Log::info('getNextReceiver: Sorted receivers', [
-            'document_id' => $document->id,
-            'receivers' => $receivers->map(fn($r) => ['id' => $r->id, 'receiver_id' => $r->receiver_id])->toArray(),
-            'current_receiver_id' => $currentReceiverId
-        ]);
-
         $currentIndex = $receivers->search(fn($receiver) => $receiver->receiver_id === $currentReceiverId);
 
-        Log::info('getNextReceiver: Index check', [
-            'current_index' => $currentIndex,
-            'total_count' => $receivers->count()
-        ]);
-
         if ($currentIndex === false || $currentIndex >= $receivers->count() - 1) {
-            Log::info('getNextReceiver: No next receiver', ['reason' => $currentIndex === false ? 'current not found' : 'last receiver']);
             return null;
         }
 
-        $next = $receivers->get($currentIndex + 1);
-        Log::info('getNextReceiver: Found next', ['next_receiver_id' => $next->receiver_id]);
-        return $next;
+        return $receivers->get($currentIndex + 1);
     }
 
     public function webhook(Request $request): JsonResponse
@@ -492,6 +484,7 @@ class DocumentTransferController extends Controller
             str_starts_with($callbackData, 'receive_') => $this->receive($request),
             str_starts_with($callbackData, 'sendback_') => $this->sendBack($request),
             str_starts_with($callbackData, 'sendto_') => $this->sendToNextReceiver($request),
+            str_starts_with($callbackData, 'complete_') => $this->completeDocument($request),
             default => response()->json(['success' => false]),
         };
     }
