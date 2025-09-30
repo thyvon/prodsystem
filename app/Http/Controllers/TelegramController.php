@@ -17,56 +17,40 @@ class TelegramController extends Controller
 
         if (!$callbackData) return response()->json();
 
-        if (str_starts_with($callbackData, 'receive_')) {
-            [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $callbackData));
-
-            $document = DocumentTransfer::with(['receivers.receiver'])->findOrFail($documentId);
-            $result = $document->markAsReceived((int)$receiverId, (int)$telegramUserId);
-
-            if ($result['success']) {
-                $keyboard = Keyboard::make()->inline();
-                if ($document->is_send_back == 1) {
-                    $keyboard->row([
-                        Keyboard::inlineButton([
-                            'text' => '🔄 Send Back',
-                            'callback_data' => 'sendback_'.$document->id.'-'.$receiverId
-                        ])
-                    ]);
-                }
-
-                Telegram::editMessageText([
-                    'chat_id' => $telegramUserId,
-                    'message_id' => $messageId,
-                    'text' => $document->telegramMessageText($result['receiver']) . "\n\n✅ Document received",
-                    'parse_mode' => 'Markdown',
-                    'reply_markup' => $keyboard
-                ]);
-            }
-
-        } elseif (str_starts_with($callbackData, 'sendback_')) {
-            [$documentId, $receiverId] = explode('-', str_replace('sendback_', '', $callbackData));
+        // 🔹 Parse action and IDs
+        if (preg_match('/^(receive|sendback)_(\d+)_(\d+)$/', $callbackData, $matches)) {
+            [$full, $action, $documentId, $receiverId] = $matches;
 
             $document = DocumentTransfer::with(['receivers.receiver', 'creator'])->findOrFail($documentId);
-            $result = $document->sendBack((int)$receiverId, (int)$telegramUserId);
 
-            if ($result['success']) {
-                $creator = $document->creator;
-                if ($creator && $creator->telegram_id) {
-                    Telegram::sendMessage([
-                        'chat_id' => $creator->telegram_id,
-                        'text' => "📢 *Document Sent Back*\n\n"
-                            .$document->telegramMessageText($result['receiver']),
-                        'parse_mode' => 'Markdown',
-                    ]);
-                }
+            // 🔹 Determine status
+            $status = $action === 'receive' ? 'Received' : 'Sent Back';
+            $result = $document->updateReceiverStatus((int)$receiverId, (int)$telegramUserId, $status);
 
-                Telegram::editMessageText([
-                    'chat_id' => $telegramUserId,
-                    'message_id' => $messageId,
-                    'text' => $document->telegramMessageText($result['receiver']) . "\n\n🔄 Document sent back",
-                    'parse_mode' => 'Markdown',
+            $text = $result['success']
+                ? ($status === 'Received'
+                    ? "✅ Document received successfully:\n\n*{$document->project_name}*"
+                    : "🔄 Document sent back successfully:\n\n*{$document->project_name}*")
+                : "❌ Failed: {$result['message']}";
+
+            // 🔹 Send back button if allowed
+            $keyboard = Keyboard::make()->inline();
+            if ($status === 'Received' && $result['success'] && $document->is_send_back) {
+                $keyboard->row([
+                    Keyboard::inlineButton([
+                        'text' => '🔄 Send Back',
+                        'callback_data' => "sendback_{$document->id}_{$receiverId}"
+                    ])
                 ]);
             }
+
+            Telegram::editMessageText([
+                'chat_id' => $telegramUserId,
+                'message_id' => $messageId,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => $keyboard
+            ]);
         }
 
         return response()->json();

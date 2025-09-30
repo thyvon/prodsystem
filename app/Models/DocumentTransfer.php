@@ -36,13 +36,19 @@ class DocumentTransfer extends Model
         return $this->hasMany(DocumentTransferResponse::class, 'documents_id');
     }
 
-    // 🔹 Update receiver status (Received or Sent Back)
-    public function updateReceiverStatus(int $receiverId, string $status): array
+    /**
+     * 🔹 Update receiver status (Receive or Send Back) and send Telegram feedback.
+     */
+    public function updateReceiverStatus(int $receiverId, int $telegramUserId, string $status): array
     {
         $receiver = $this->receivers()->with('receiver')->firstWhere('receiver_id', $receiverId);
 
         if (!$receiver || !$receiver->receiver) {
             return ['success' => false, 'message' => 'Receiver not found or unauthorized.'];
+        }
+
+        if ($receiver->receiver->telegram_id != $telegramUserId) {
+            return ['success' => false, 'message' => 'This Telegram account is not authorized'];
         }
 
         if ($receiver->status === $status) {
@@ -56,50 +62,34 @@ class DocumentTransfer extends Model
         $receiver->update($updateData);
 
         // Update document status
-        if ($status === 'Received') {
-            if ($this->receivers()->count() === $this->receivers()->where('status', 'Received')->count()) {
-                $this->update(['status' => 'Completed']);
-            }
+        if ($status === 'Received' && $this->receivers()->count() === $this->receivers()->where('status', 'Received')->count()) {
+            $this->update(['status' => 'Completed']);
         } elseif ($status === 'Sent Back') {
             $this->update(['status' => 'Sent Back']);
+        }
+
+        // Notify creator if document is sent back
+        if ($status === 'Sent Back' && $this->creator?->telegram_id) {
+            Telegram::sendMessage([
+                'chat_id' => $this->creator->telegram_id,
+                'text' => "📢 Document Sent Back\nDocument: {$this->project_name}\nReference: {$this->reference_no}\nReceiver: {$receiver->receiver->name}",
+                'parse_mode' => 'Markdown',
+            ]);
         }
 
         return ['success' => true, 'receiver' => $receiver, 'document' => $this];
     }
 
-    // 🔹 Notify receiver via Telegram
-    public function notifyReceiver(User $user, string $action = 'receive'): void
-    {
-        if (!$user || !$user->telegram_id) return;
-
-        $receiverData = $this->receivers()->where('receiver_id', $user->id)->first();
-        if (!$receiverData) return;
-
-        $message = $this->telegramMessageText($receiverData);
-
-        $keyboard = Keyboard::make()->inline()->row([
-            Keyboard::inlineButton([
-                'text' => $action === 'receive' ? '✅ Mark as Received' : '🔄 Send Back',
-                'callback_data' => "{$action}_{$this->id}_{$user->id}"
-            ])
-        ]);
-
-        Telegram::sendMessage([
-            'chat_id' => $user->telegram_id,
-            'text' => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => $keyboard,
-        ]);
-    }
-
-    // 🔹 Generate Telegram message text
+    /**
+     * 🔹 Generate Telegram message text
+     */
     public function telegramMessageText($receiverData): string
     {
         $receivedDate = $receiverData->received_date
             ? $receiverData->received_date->format('Y-m-d H:i')
             : null;
 
-        $message = "📢 *Dear {$receiverData->receiver->name},*\n\n"
+        return "📢 *Dear {$receiverData->receiver->name},*\n\n"
             ."📄 *You have a new document!*\n\n"
             ."📝 *Description:* {$this->description}\n"
             ."📂 *Document Type:* {$this->document_type}\n"
@@ -107,7 +97,5 @@ class DocumentTransfer extends Model
             ."👤 *Sent From:* {$this->creator->name}\n"
             ."🆔 *Reference:* {$this->reference_no}"
             .($receivedDate ? "\n\n✅ *Received Date:* {$receivedDate}" : '');
-
-        return $message;
     }
 }
