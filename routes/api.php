@@ -317,6 +317,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/document-transfers', [DocumentTransferController::class, 'getDocumentTransfers'])->name('api.document-transfers.index');
     Route::put('/document-transfers/{documentTransfer}/update-or-reassign', [DocumentTransferController::class, 'updateReceiversOrReceive'])->name('api.document-transfers.update-or-reassign');
 
-    // Telgram Bot Webhook
-    Route::post('/telegram/webhook', [TelegramController::class, 'webhook'])->name('api.telegram.webhook');
 });
+
+// Telegram Bot Webhook
+Route::post('/telegram/webhook', [TelegramController::class, 'webhook'])->withoutMiddleware(['auth']);
