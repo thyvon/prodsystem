@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('documents_receivers', function (Blueprint $table) {
-            $table->string('owner_receive_status')->default('Pending')->after('status');
+            $table->string('owner_received_status')->default('Pending')->after('status');
             $table->datetime('owner_received_date')->nullable()->after('owner_receive_status');
         });
     }
@@ -23,7 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('documents_receivers', function (Blueprint $table) {
-            $table->dropColumn('owner_receive_status');
+            $table->dropColumn('owner_received_status');
             $table->dropColumn('owner_received_date');
         });
     }
