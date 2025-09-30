@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('documents_receivers', function (Blueprint $table) {
             $table->string('telegram_message_id')->nullable()->after('documents_id');
+            $table->string('telegram_creator_message_id')->nullable()->after('telegram_message_id');
         });
     }
 
@@ -23,6 +24,7 @@ return new class extends Migration
     {
         Schema::table('documents_receivers', function (Blueprint $table) {
             $table->dropColumn('telegram_message_id');
+            $table->dropColumn('telegram_creator_message_id');
         });
     }
 };

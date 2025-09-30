@@ -72,8 +72,9 @@ class DocumentTransferController extends Controller
                     'email' => $r->receiver->email ?? null,
                     'status' => $r->status,
                     'received_date' => $r->received_date,
-                    'sent_date' => $r->sent_date,
-                    'sent_date' => $r->sent_date,
+                    'sent_date' => $r->sent_date, // only one sent_date, for send-back
+                    'telegram_message_id' => $r->telegram_message_id,
+                    'telegram_creator_message_id' => $r->telegram_creator_message_id,
                 ]),
             'created_by' => $transfer->creator->name ?? null,
             'status' => $transfer->status,
@@ -125,8 +126,8 @@ class DocumentTransferController extends Controller
                     'receiver_id' => $r['receiver_id'],
                     'received_date' => null,
                     'sent_date' => null,
-                    'sent_date' => null,
                     'telegram_message_id' => null,
+                    'telegram_creator_message_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ], $validated['receivers']);
@@ -175,7 +176,6 @@ class DocumentTransferController extends Controller
         return 'DOC-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
     }
 
-    // 🔹 Notify first receiver and store telegram_message_id
     private function notifyFirstReceiver(array $receivers, DocumentTransfer $documentTransfer): void
     {
         $firstReceiver = collect($receivers)->sortBy(['id', 'created_at'])->first();
@@ -208,7 +208,6 @@ class DocumentTransferController extends Controller
                 'reply_markup' => $keyboard,
             ]);
 
-            // ✅ Store telegram_message_id for the receiver
             $documentTransfer->receivers()->where('receiver_id', $user->id)
                 ->update(['telegram_message_id' => $response->getMessageId()]);
         } catch (\Exception $e) {
@@ -217,19 +216,6 @@ class DocumentTransferController extends Controller
         }
     }
 
-    private function notifyNextReceiver(DocumentTransfer $documentTransfer): void
-    {
-        $nextReceiver = $documentTransfer->receivers
-            ->where('status', 'Pending')
-            ->sortBy(['id', 'created_at'])
-            ->first();
-
-        if (!$nextReceiver) return;
-
-        $this->notifyFirstReceiver([$nextReceiver->toArray()], $documentTransfer);
-    }
-
-    // 🔹 Receive method stores telegram_message_id for Send Back message
     public function receive(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $request->input('callback_data')));
@@ -238,25 +224,50 @@ class DocumentTransferController extends Controller
         $callbackQueryId = $request->input('callback_query_id');
 
         $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
-        if (!$document) return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
 
         $receiver = $document->receivers->firstWhere('receiver_id', $receiverId);
-        if (!$receiver) return $this->telegramAlert($callbackQueryId, "❌ You are not authorized.");
-
-        if ($receiver->status === 'Received') {
-            return $this->telegramAlert($callbackQueryId, "ℹ️ Already Received", false);
+        if (!$receiver) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to receive this document.");
         }
+
+        $user = $receiver->receiver;
+        $creator = $document->creator;
 
         $receiver->update([
             'status' => 'Received',
             'received_date' => now(),
         ]);
 
-        $user = $receiver->receiver;
-        $creator = $document->creator;
+        $receivedDate = now()->format('Y-m-d H:i');
 
-        // 🔹 Build keyboard with Send Back button if enabled
-        $keyboard = null;
+        $messageText = "📢 *Dear {$user->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$document->description}\n"
+            ."📂 *Document Type:* {$document->document_type}\n"
+            ."🏷️ *Project:* {$document->project_name}\n"
+            ."👤 *Sent From:* {$creator->name}\n"
+            ."🆔 *Reference:* {$document->reference_no}\n\n"
+            ."✅ *Received Date:* {$receivedDate}\n"
+            ."🔄 *Status:* Received";
+
+        try {
+            $response = Telegram::editMessageText([
+                'chat_id' => $chatId,
+                'message_id' => $receiver->telegram_message_id ?? $messageId,
+                'text' => $messageText,
+                'parse_mode' => 'Markdown',
+            ]);
+
+            if ($response && $response->getMessageId()) {
+                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to edit receiver message: ".$e->getMessage());
+        }
+
         if ($document->is_send_back) {
             $keyboard = Keyboard::make()->inline()->row([
                 Keyboard::inlineButton([
@@ -264,35 +275,20 @@ class DocumentTransferController extends Controller
                     'callback_data' => 'sendback_'.$document->id.'-'.$receiverId,
                 ])
             ]);
-        }
 
-        // 🔹 Edit the original message with updated status + Send Back button
-        $message = "📢 *Dear {$user->name},*\n\n"
-            ."📄 *You have a new document!*\n\n"
-            ."📝 *Description:* {$document->description}\n"
-            ."📂 *Document Type:* {$document->document_type}\n"
-            ."🏷️ *Project:* {$document->project_name}\n"
-            ."👤 *Sent From:* {$creator->name}\n"
-            ."🆔 *Reference:* {$document->reference_no}\n\n"
-            ."✅ *Received Date:* ".now()->format('Y-m-d H:i')."\n"
-            ."🔄 *Status:* Received";
+            try {
+                $responseBtn = Telegram::sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => "You can send back this document if needed.",
+                    'reply_markup' => $keyboard,
+                ]);
 
-        try {
-            $response = Telegram::editMessageText([
-                'chat_id' => $chatId,
-                'message_id' => $receiver->telegram_message_id ?? $messageId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => $keyboard,
-            ]);
-
-            // ✅ Store telegram_message_id for receiver
-            if ($response && $response->getMessageId()) {
-                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
+                if ($responseBtn && $responseBtn->getMessageId()) {
+                    $receiver->update(['telegram_message_id' => $responseBtn->getMessageId()]);
+                }
+            } catch (\Exception $e) {
+                Log::error("Failed to send back button message: ".$e->getMessage());
             }
-        } catch (\Exception $e) {
-            Log::error("Failed to update message with Send Back button: ".$e->getMessage());
-            $this->telegramErrorAlert($user->telegram_id, "Failed to update message: ".$e->getMessage());
         }
 
         Telegram::answerCallbackQuery([
@@ -301,22 +297,27 @@ class DocumentTransferController extends Controller
             'show_alert' => false
         ]);
 
-        return response()->json(['success' => true, 'message' => $message]);
+        return response()->json(['success' => true]);
     }
 
-    // 🔹 Send Back stores telegram_message_id and edits message
     public function sendBack(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('sendback_', '', $request->input('callback_data')));
         $chatId = $request->input('chat_id');
+        $messageId = $request->input('message_id');
         $callbackQueryId = $request->input('callback_query_id');
 
         $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
-        if (!$document) return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
 
         $receiver = $document->receivers->firstWhere('receiver_id', $receiverId);
-        if (!$receiver) return $this->telegramAlert($callbackQueryId, "❌ You are not authorized.");
+        if (!$receiver) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized.");
+        }
 
+        // Update status and sent_date for send-back
         $receiver->update([
             'status' => 'Sent Back',
             'sent_date' => now(),
@@ -325,37 +326,107 @@ class DocumentTransferController extends Controller
         $user = $receiver->receiver;
         $creator = $document->creator;
         $receivedDate = $receiver->received_date ? $receiver->received_date->format('Y-m-d H:i') : 'N/A';
+        $sentBackDate = $receiver->sent_date->format('Y-m-d H:i');
 
-        $receiverMessage = "📢 *Dear {$user->name},*\n\n"
-            ."📄 Document: {$document->description}\n"
-            ."📂 Type: {$document->document_type}\n"
-            ."🏷️ Project: {$document->project_name}\n"
-            ."👤 Sent From: {$creator->name}\n"
-            ."🆔 Reference: {$document->reference_no}\n\n"
-            ."✅ Received Date: {$receivedDate}\n"
-            ."🔄 Status: Sent Back\n"
-            ."🗓️ Sent Back Date: ".now()->format('Y-m-d H:i');
-
-        $response = null;
         try {
+            $receiverMessage = "📢 *Dear {$user->name},*\n\n"
+                ."📄 *You have a new document!*\n\n"
+                ."📝 *Description:* {$document->description}\n"
+                ."📂 *Document Type:* {$document->document_type}\n"
+                ."🏷️ *Project:* {$document->project_name}\n"
+                ."👤 *Sent From:* {$creator->name}\n"
+                ."🆔 *Reference:* {$document->reference_no}\n\n"
+                ."✅ *Received Date:* {$receivedDate}\n"
+                ."🔄 *Status:* Sent Back\n"
+                ."🗓️ *Send Back Date:* {$sentBackDate}";
+
             $response = Telegram::editMessageText([
                 'chat_id' => $chatId,
-                'message_id' => $receiver->telegram_message_id,
+                'message_id' => $receiver->telegram_message_id ?? $messageId,
                 'text' => $receiverMessage,
                 'parse_mode' => 'Markdown',
             ]);
-            // ✅ Store telegram_message_id in case message was edited or updated
+
             if ($response && $response->getMessageId()) {
                 $receiver->update(['telegram_message_id' => $response->getMessageId()]);
             }
         } catch (\Exception $e) {
-            Log::error("Failed to edit Send Back message: ".$e->getMessage());
-            $this->telegramErrorAlert($user->telegram_id, "Failed to update Send Back message: ".$e->getMessage());
+            Log::error("Failed to edit receiver message: ".$e->getMessage());
         }
 
-        return response()->json(['success' => true, 'message' => 'Document marked as Sent Back']);
+        // Notify creator
+        if ($creator && $creator->telegram_id) {
+            try {
+                $creatorMessage = "📢 Document Sent Back\n\n"
+                    ."Document: *{$document->project_name}*\n"
+                    ."Reference: {$document->reference_no}\n"
+                    ."Sent Back by: {$user->name}\n"
+                    ."✅ Received Date: {$receivedDate}\n"
+                    ."🗓️ Send Back Date: {$sentBackDate}";
+
+                $responseCreator = Telegram::sendMessage([
+                    'chat_id' => $creator->telegram_id,
+                    'text' => $creatorMessage,
+                    'parse_mode' => 'Markdown',
+                ]);
+
+                if ($responseCreator && $responseCreator->getMessageId()) {
+                    $receiver->update(['telegram_creator_message_id' => $responseCreator->getMessageId()]);
+                }
+            } catch (\Exception $e) {
+                Log::error("Failed to notify creator: ".$e->getMessage());
+            }
+        }
+
+        Telegram::answerCallbackQuery([
+            'callback_query_id' => $callbackQueryId,
+            'text' => "✅ Document marked as Sent Back.",
+            'show_alert' => false
+        ]);
+
+        return response()->json(['success' => true]);
     }
-    // Webhook entry
+
+    public function sendToNextReceiver(Request $request): JsonResponse
+    {
+        [$documentId, $receiverId] = explode('-', str_replace('sendto_', '', $request->input('callback_data')));
+        $callbackQueryId = $request->input('callback_query_id');
+
+        $document = DocumentTransfer::with('receivers.receiver')->find($documentId);
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
+
+        $nextReceiver = $document->receivers->firstWhere('receiver_id', $receiverId);
+        if (!$nextReceiver) {
+            return $this->telegramAlert($callbackQueryId, "❌ Next receiver not found.");
+        }
+
+        $this->notifyFirstReceiver([$nextReceiver->toArray()], $document);
+
+        Telegram::answerCallbackQuery([
+            'callback_query_id' => $callbackQueryId,
+            'text' => "✅ Document sent to {$nextReceiver->receiver->name}.",
+            'show_alert' => false
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    private function telegramAlert(string $callbackQueryId, string $text): JsonResponse
+    {
+        try {
+            Telegram::answerCallbackQuery([
+                'callback_query_id' => $callbackQueryId,
+                'text' => $text,
+                'show_alert' => true
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to send Telegram alert: ".$e->getMessage());
+        }
+        return response()->json(['success' => false, 'message' => $text]);
+    }
+
     public function webhook(Request $request)
     {
         $callbackData = $request->input('callback_query.data');
@@ -379,9 +450,7 @@ class DocumentTransferController extends Controller
         return response()->json();
     }
 
-    // 🔹 Helpers
-
-    private function telegramEditMessage($chatId, $messageId, $text, $callbackQueryId = null)
+    private function telegramEditMessage(int $chatId, int $messageId, string $text)
     {
         try {
             Telegram::editMessageText([
@@ -391,52 +460,17 @@ class DocumentTransferController extends Controller
                 'parse_mode' => 'Markdown',
             ]);
         } catch (\Exception $e) {
-            Log::error('Telegram editMessageText failed', ['error' => $e->getMessage()]);
-            if ($callbackQueryId) {
-                $this->telegramAlert($callbackQueryId, "⚠️ Failed to update message: ".$e->getMessage());
-            }
+            Log::error("Failed to edit Telegram message: ".$e->getMessage());
         }
     }
 
-    private function telegramAlert($callbackQueryId, $text, $showAlert = true)
-    {
-        try {
-            Telegram::answerCallbackQuery([
-                'callback_query_id' => $callbackQueryId,
-                'text' => $text,
-                'show_alert' => $showAlert
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Telegram answerCallbackQuery failed', ['error' => $e->getMessage()]);
-        }
-        return response()->json();
-    }
-
-    private function telegramErrorAlert($chatId, $text)
+    private function telegramErrorAlert(?string $chatId, string $text)
     {
         if (!$chatId) return;
         try {
-            Telegram::sendMessage([
-                'chat_id' => $chatId,
-                'text' => "⚠️ Error: ".$text,
-            ]);
+            Telegram::sendMessage(['chat_id' => $chatId, 'text' => $text]);
         } catch (\Exception $e) {
             Log::error("Failed to send Telegram error alert: ".$e->getMessage());
         }
-    }
-
-    private function formatReceiverMessage(DocumentTransfer $document, User $user, User $creator, $receiver)
-    {
-        $receivedDate = $receiver->received_date ? $receiver->received_date->format('Y-m-d H:i') : 'N/A';
-        return "📢 *Dear {$user->name},*\n\n"
-            ."📄 *You have a new document!*\n"
-            ."📝 {$document->description}\n"
-            ."📂 Type: {$document->document_type}\n"
-            ."🏷️ Project: {$document->project_name}\n"
-            ."👤 Sent From: {$creator->name}\n"
-            ."🆔 Reference: {$document->reference_no}\n\n"
-            ."✅ *Received Date:* {$receivedDate}\n"
-            ."🔄 Status: {$receiver->status}\n"
-            .($receiver->sent_date ? "🗓️ Sent Back Date: ".$receiver->sent_date->format('Y-m-d H:i') : '');
     }
 }
