@@ -326,6 +326,7 @@ class DocumentTransferController extends Controller
             return response()->json();
         }
 
+        // Update receiver status
         $receiver->update([
             'status' => 'Sent Back',
             'sent_back_date' => now(),
@@ -334,60 +335,64 @@ class DocumentTransferController extends Controller
         $user = $receiver->receiver;
         $creator = $document->creator;
 
-        $message = "📢 *Dear {$user->name},*\n\n"
-            ."📄 *You have a new document!*\n\n"
-            ."📝 *Description:* {$document->description}\n"
-            ."📂 *Document Type:* {$document->document_type}\n"
-            ."🏷️ *Project:* {$document->project_name}\n"
-            ."👤 *Sent From:* {$creator->name}\n"
-            ."🆔 *Reference:* {$document->reference_no}\n\n"
-            ."🔄 *Status:* Sent Back";
+        // Keep original received date if exists
+        $receivedDate = $receiver->received_date ? $receiver->received_date->format('Y-m-d H:i') : 'N/A';
 
-        Telegram::editMessageText([
-            'chat_id' => $chatId,
-            'message_id' => $messageId,
-            'text' => $message,
-            'parse_mode' => 'Markdown',
-        ]);
+        // Edit receiver's old message
+        if ($receiver->telegram_message_id) {
+            $receiverMessage = "📢 *Dear {$user->name},*\n\n"
+                ."📄 *You have a new document!*\n\n"
+                ."📝 *Description:* {$document->description}\n"
+                ."📂 *Document Type:* {$document->document_type}\n"
+                ."🏷️ *Project:* {$document->project_name}\n"
+                ."👤 *Sent From:* {$creator->name}\n"
+                ."🆔 *Reference:* {$document->reference_no}\n\n"
+                ."✅ *Received Date:* {$receivedDate}\n"
+                ."🔄 *Status:* Sent Back\n"
+                ."🗓️ *Sent Back Date:* ".now()->format('Y-m-d H:i');
 
-        // Notify creator
-        if ($creator && $creator->telegram_id) {
-            $text = "📢 Document Sent Back\n\n"
-                ."Document: *{$document->project_name}*\n"
-                ."Reference: {$document->reference_no}\n"
-                ."Sent by: {$user->name}";
-
-            $nextReceiver = $document->receivers
-                ->where('status', 'Pending')
-                ->sortBy(['id', 'created_at'])
-                ->first();
-
-            $keyboard = null;
-            if ($nextReceiver) {
-                $nextUser = $nextReceiver->receiver;
-                $keyboard = Keyboard::make()->inline()->row([
-                    Keyboard::inlineButton([
-                        'text' => "➡ Send to {$nextUser->name}",
-                        'callback_data' => "sendto_{$document->id}-{$nextUser->id}"
-                    ])
+            try {
+                Telegram::editMessageText([
+                    'chat_id' => $chatId,
+                    'message_id' => $receiver->telegram_message_id,
+                    'text' => $receiverMessage,
+                    'parse_mode' => 'Markdown',
                 ]);
-            }
-
-            $response = Telegram::sendMessage([
-                'chat_id' => $creator->telegram_id,
-                'text' => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => $keyboard,
-            ]);
-
-            // Save message_id for deletion if needed
-            if ($nextReceiver) {
-                $document->receivers()->where('receiver_id', $nextReceiver->id)
-                    ->update(['telegram_message_id' => $response->getMessageId()]);
+            } catch (\Exception $e) {
+                Log::error("Failed to edit receiver Telegram message: ".$e->getMessage());
             }
         }
 
-        return response()->json(['success' => true, 'message' => $message]);
+        // Edit creator's original message if exists
+        $creatorReceiver = $document->receivers->firstWhere('receiver_id', $creator->id);
+        if ($creator && $creator->telegram_id && $creatorReceiver && $creatorReceiver->telegram_message_id) {
+            $creatorMessage = "📢 Document Status Update\n\n"
+                ."Document: *{$document->project_name}*\n"
+                ."Reference: {$document->reference_no}\n"
+                ."Sent Back by: {$user->name}\n"
+                ."✅ Received Date: {$receivedDate}\n"
+                ."🗓️ Sent Back Date: ".now()->format('Y-m-d H:i');
+
+            try {
+                Telegram::editMessageText([
+                    'chat_id' => $creator->telegram_id,
+                    'message_id' => $creatorReceiver->telegram_message_id,
+                    'text' => $creatorMessage,
+                    'parse_mode' => 'Markdown',
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Failed to edit creator Telegram message: ".$e->getMessage());
+            }
+        }
+
+        // Answer callback query
+        Telegram::answerCallbackQuery([
+            'callback_query_id' => $callbackQueryId,
+            'text' => "✅ Document marked as Sent Back.",
+            'show_alert' => false
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Document marked as Sent Back']);
     }
 
     // 🔹 Send to next receiver via Telegram
