@@ -129,12 +129,12 @@ class DocumentTransferController extends Controller
                 $receivedDate = now();
                 $receiver->update(['status' => 'Received', 'received_date' => $receivedDate]);
 
-                $this->updateTelegramMessage(
+                $response = $this->updateTelegramMessage(
                     $chatId,
                     $receiver->telegram_message_id ?? $messageId,
                     $this->buildTelegramMessage($document, $user->name, $requester->name, 'Received', $receivedDate)
                 );
-                $receiver->update(['telegram_message_id' => Telegram::getMessageId()]);
+                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
 
                 if ($document->is_send_back) {
                     $response = Telegram::sendMessage([
@@ -176,12 +176,12 @@ class DocumentTransferController extends Controller
                 $sentDate = now();
                 $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
-                $this->updateTelegramMessage(
+                $response = $this->updateTelegramMessage(
                     $chatId,
                     $receiver->telegram_message_id ?? $messageId,
                     $this->buildTelegramMessage($document, $user->name, $requester->name, 'Sent Back', $receiver->received_date, $sentDate)
                 );
-                $receiver->update(['telegram_message_id' => Telegram::getMessageId()]);
+                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
 
                 if ($requester && $requester->telegram_id) {
                     $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
@@ -233,12 +233,12 @@ class DocumentTransferController extends Controller
                     'owner_received_date' => $receivedDate
                 ]);
 
-                $this->updateTelegramMessage(
+                $response = $this->updateTelegramMessage(
                     $chatId,
                     $receiver->telegram_creator_message_id ?? $messageId,
                     $this->buildTelegramMessage($document, $requester->name, $user->name, 'Completed', $receivedDate, $receiver->sent_date, true)
                 );
-                $receiver->update(['telegram_creator_message_id' => Telegram::getMessageId()]);
+                $receiver->update(['telegram_creator_message_id' => $response->getMessageId()]);
 
                 Telegram::answerCallbackQuery(['callback_query_id' => $callbackQueryId, 'text' => "✅ Document marked as Completed.", 'show_alert' => false]);
                 return response()->json(['success' => true]);
@@ -441,16 +441,14 @@ class DocumentTransferController extends Controller
         }
     }
 
-    private function updateTelegramMessage(string $chatId, ?int $messageId, string $text): void
+    private function updateTelegramMessage(string $chatId, ?int $messageId, string $text): \Telegram\Bot\Objects\Message
     {
-        if ($messageId) {
-            Telegram::editMessageText([
-                'chat_id' => $chatId,
-                'message_id' => $messageId,
-                'text' => $text,
-                'parse_mode' => 'Markdown',
-            ]);
-        }
+        return $messageId ? Telegram::editMessageText([
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $text,
+            'parse_mode' => 'Markdown',
+        ]) : null;
     }
 
     private function handleUserNotFound(string $message, ?string $telegramId, string $callbackQueryId, string $alertText): JsonResponse
@@ -520,7 +518,7 @@ class DocumentTransferController extends Controller
 
         $message = "📢 *Dear {$receiverName},*\n\n"
             . "📄 *Document:* {$document->project_name}\n"
-            . "�ID *Reference:* {$document->reference_no}\n"
+            . "🆔 *Reference:* {$document->reference_no}\n"
             . "📝 *Description:* {$document->description}\n"
             . "📂 *Document Type:* {$document->document_type}\n"
             . "👤 *Sent From:* {$senderName}\n"
