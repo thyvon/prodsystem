@@ -124,6 +124,7 @@ class DocumentTransferController extends Controller
                     'receiver_id' => $r['receiver_id'],
                     'received_date' => null,
                     'sent_date' => null,
+                    'telegram_message_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ], $validated['receivers']);
@@ -196,12 +197,28 @@ class DocumentTransferController extends Controller
             ])
         ]);
 
-        Telegram::sendMessage([
+        $response = Telegram::sendMessage([
             'chat_id' => $user->telegram_id,
             'text' => $message,
             'parse_mode' => 'Markdown',
             'reply_markup' => $keyboard,
         ]);
+
+        // Save message_id for later deletion
+        $documentTransfer->receivers()->where('receiver_id', $user->id)
+            ->update(['telegram_message_id' => $response->getMessageId()]);
+    }
+
+    private function notifyNextReceiver(DocumentTransfer $documentTransfer): void
+    {
+        $nextReceiver = $documentTransfer->receivers
+            ->where('status', 'Pending')
+            ->sortBy(['id', 'created_at'])
+            ->first();
+
+        if (!$nextReceiver) return;
+
+        $this->notifyFirstReceiver([$nextReceiver->toArray()], $documentTransfer);
     }
 
     // 🔹 Receive via Telegram
@@ -210,7 +227,7 @@ class DocumentTransferController extends Controller
         [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $request->input('callback_data')));
         $chatId = $request->input('chat_id');
         $messageId = $request->input('message_id');
-        $callbackQueryId = $request->input('callback_query.id');
+        $callbackQueryId = $request->input('callback_query_id');
 
         $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
         if (!$document) {
@@ -242,7 +259,7 @@ class DocumentTransferController extends Controller
             'received_date' => now(),
         ]);
 
-        // Build the message
+        // Update Telegram message
         $message = "📢 *Dear {$user->name},*\n\n"
             ."📄 *You have a new document!*\n\n"
             ."📝 *Description:* {$document->description}\n"
@@ -259,7 +276,7 @@ class DocumentTransferController extends Controller
             'parse_mode' => 'Markdown',
         ]);
 
-        // If send-back is enabled, add Send Back button
+        // Send Back button if enabled
         if ($document->is_send_back) {
             $keyboard = Keyboard::make()->inline()->row([
                 Keyboard::inlineButton([
@@ -268,11 +285,14 @@ class DocumentTransferController extends Controller
                 ])
             ]);
 
-            Telegram::sendMessage([
+            $response = Telegram::sendMessage([
                 'chat_id' => $chatId,
                 'text' => "You can send back this document if needed.",
                 'reply_markup' => $keyboard,
             ]);
+
+            // Save message_id for potential deletion
+            $receiver->update(['telegram_message_id' => $response->getMessageId()]);
         }
 
         return response()->json(['success' => true, 'message' => $message]);
@@ -284,7 +304,7 @@ class DocumentTransferController extends Controller
         [$documentId, $receiverId] = explode('-', str_replace('sendback_', '', $request->input('callback_data')));
         $chatId = $request->input('chat_id');
         $messageId = $request->input('message_id');
-        $callbackQueryId = $request->input('callback_query.id');
+        $callbackQueryId = $request->input('callback_query_id');
 
         $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
         if (!$document) {
@@ -314,7 +334,6 @@ class DocumentTransferController extends Controller
         $user = $receiver->receiver;
         $creator = $document->creator;
 
-        // Build the message
         $message = "📢 *Dear {$user->name},*\n\n"
             ."📄 *You have a new document!*\n\n"
             ."📝 *Description:* {$document->description}\n"
@@ -331,21 +350,81 @@ class DocumentTransferController extends Controller
             'parse_mode' => 'Markdown',
         ]);
 
-        // Notify creator with the same content
+        // Notify creator
         if ($creator && $creator->telegram_id) {
             $text = "📢 Document Sent Back\n\n"
                 ."Document: *{$document->project_name}*\n"
                 ."Reference: {$document->reference_no}\n"
                 ."Sent by: {$user->name}";
 
-            Telegram::sendMessage([
+            $nextReceiver = $document->receivers
+                ->where('status', 'Pending')
+                ->sortBy(['id', 'created_at'])
+                ->first();
+
+            $keyboard = null;
+            if ($nextReceiver) {
+                $nextUser = $nextReceiver->receiver;
+                $keyboard = Keyboard::make()->inline()->row([
+                    Keyboard::inlineButton([
+                        'text' => "➡ Send to {$nextUser->name}",
+                        'callback_data' => "sendto_{$document->id}-{$nextUser->id}"
+                    ])
+                ]);
+            }
+
+            $response = Telegram::sendMessage([
                 'chat_id' => $creator->telegram_id,
                 'text' => $text,
                 'parse_mode' => 'Markdown',
+                'reply_markup' => $keyboard,
             ]);
+
+            // Save message_id for deletion if needed
+            if ($nextReceiver) {
+                $document->receivers()->where('receiver_id', $nextReceiver->id)
+                    ->update(['telegram_message_id' => $response->getMessageId()]);
+            }
         }
 
         return response()->json(['success' => true, 'message' => $message]);
+    }
+
+    // 🔹 Send to next receiver via Telegram
+    public function sendToNextReceiver(Request $request): JsonResponse
+    {
+        [$documentId, $receiverId] = explode('-', str_replace('sendto_', '', $request->input('callback_data')));
+        $callbackQueryId = $request->input('callback_query_id');
+
+        $document = DocumentTransfer::with('receivers.receiver')->find($documentId);
+        if (!$document) {
+            Telegram::answerCallbackQuery([
+                'callback_query_id' => $callbackQueryId,
+                'text' => "❌ Document not found.",
+                'show_alert' => true
+            ]);
+            return response()->json();
+        }
+
+        $nextReceiver = $document->receivers->firstWhere('receiver_id', $receiverId);
+        if (!$nextReceiver) {
+            Telegram::answerCallbackQuery([
+                'callback_query_id' => $callbackQueryId,
+                'text' => "❌ Next receiver not found or already received.",
+                'show_alert' => true
+            ]);
+            return response()->json();
+        }
+
+        $this->notifyFirstReceiver([$nextReceiver->toArray()], $document);
+
+        Telegram::answerCallbackQuery([
+            'callback_query_id' => $callbackQueryId,
+            'text' => "✅ Document sent to {$nextReceiver->receiver->name}.",
+            'show_alert' => true
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     // 🔹 Update receivers via UI
@@ -373,7 +452,7 @@ class DocumentTransferController extends Controller
                     'owner_received_date' => $receiver->status === 'Received' ? $receiver->owner_received_date ?? now() : $receiver->owner_received_date,
                 ]);
             } else {
-                $documentTransfer->receivers()->create([
+                $receiver = $documentTransfer->receivers()->create([
                     'receiver_id' => $input['receiver_id'],
                     'documents_id' => $documentTransfer->id,
                     'document_reference' => $documentTransfer->reference_no,
@@ -382,11 +461,27 @@ class DocumentTransferController extends Controller
                     'status' => $input['status'] ?? 'Pending',
                     'owner_receive_status' => 'Pending',
                     'owner_received_date' => null,
+                    'telegram_message_id' => null,
                 ]);
+            }
+
+            // Delete old message if exists
+            if (!empty($receiver->telegram_message_id)) {
+                try {
+                    Telegram::deleteMessage([
+                        'chat_id' => $receiver->receiver->telegram_id,
+                        'message_id' => $receiver->telegram_message_id,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to delete old Telegram message: ".$e->getMessage());
+                }
             }
         }
 
         $documentTransfer->load(['receivers.receiver' => fn($q) => $q->orderBy('id')]);
+
+        // Notify the next pending receiver
+        $this->notifyNextReceiver($documentTransfer);
 
         return response()->json([
             'message' => 'Receivers updated successfully.',
@@ -400,17 +495,20 @@ class DocumentTransferController extends Controller
         $callbackData = $request->input('callback_query.data');
         $telegramUserId = $request->input('callback_query.from.id');
         $messageId = $request->input('callback_query.message.message_id');
+        $callbackQueryId = $request->input('callback_query.id');
 
         if (!$callbackData) return response()->json();
 
         $request->merge([
             'chat_id' => $telegramUserId,
             'message_id' => $messageId,
+            'callback_query_id' => $callbackQueryId,
             'callback_data' => $callbackData,
         ]);
 
         if (str_starts_with($callbackData, 'receive_')) return $this->receive($request);
         if (str_starts_with($callbackData, 'sendback_')) return $this->sendBack($request);
+        if (str_starts_with($callbackData, 'sendto_')) return $this->sendToNextReceiver($request);
 
         return response()->json();
     }
@@ -431,5 +529,4 @@ class DocumentTransferController extends Controller
 
         return response()->json(['success' => true, 'message' => $text]);
     }
-    
 }

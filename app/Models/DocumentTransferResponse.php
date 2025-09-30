@@ -14,6 +14,7 @@ class DocumentTransferResponse extends Model
     protected $table = 'documents_receivers';
     protected $fillable = [
         'documents_id',
+        'telegram_message_id',
         'document_reference',
         'document_name',
         'status',
