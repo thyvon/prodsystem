@@ -11,8 +11,8 @@ use Illuminate\View\View;
 use App\Models\DocumentTransfer;
 use App\Models\DocumentTransferResponse;
 use App\Models\User;
-use Telegram\Bot\Laravel\Facades\Telegram;
 use Telegram\Bot\Keyboard\Keyboard;
+use Telegram\Bot\Laravel\Facades\Telegram;
 
 class DocumentTransferController extends Controller
 {
@@ -35,7 +35,7 @@ class DocumentTransferController extends Controller
             'draw' => 'nullable|integer',
         ]);
 
-        $query = DocumentTransfer::with(['receivers.receiver', 'creator', 'updater'])
+        $query = DocumentTransfer::with(['receivers.receiver', 'creator'])
             ->whereNull('deleted_at');
 
         if (!empty($validated['search'])) {
@@ -129,7 +129,11 @@ class DocumentTransferController extends Controller
 
                 DocumentTransferResponse::insert($receivers);
 
-                $this->notifyFirstReceiver($receivers, $documentTransfer);
+                // Notify first receiver
+                $firstReceiver = collect($receivers)->sortBy(['id', 'created_at'])->first();
+                if ($firstReceiver) {
+                    $documentTransfer->notifyReceiver(User::find($firstReceiver['receiver_id']));
+                }
 
                 return response()->json([
                     'message' => 'Document transfer created successfully.',
@@ -170,85 +174,76 @@ class DocumentTransferController extends Controller
         return 'DOC-' . $date . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
     }
 
-    private function notifyFirstReceiver(array $receivers, DocumentTransfer $documentTransfer): void
-    {
-        $firstReceiver = collect($receivers)->sortBy(['id', 'created_at'])->first();
-        if (!$firstReceiver) return;
-
-        $user = User::find($firstReceiver['receiver_id']);
-        if (!$user || !$user->telegram_id) return;
-
-        $creator = auth()->user();
-        $message = "📢 *Dear {$user->name},*\n\n"
-            ."📄 *You have a new document!*\n\n"
-            ."📝 *Description:* {$documentTransfer->description}\n"
-            ."📂 *Document Type:* {$documentTransfer->document_type}\n"
-            ."🏷️ *Project:* {$documentTransfer->project_name}\n"
-            ."👤 *Sent From:* {$creator->name}\n"
-            ."🆔 *Reference:* {$documentTransfer->reference_no}";
-
-        $keyboard = Keyboard::make()->inline()->row([
-            Keyboard::inlineButton([
-                'text' => '✅ Mark as Received',
-                'callback_data' => 'receive_'.$documentTransfer->id.'-'.$user->id
-            ])
-        ]);
-
-        Telegram::sendMessage([
-            'chat_id' => $user->telegram_id,
-            'text' => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => $keyboard,
-        ]);
-    }
-
+    // 🔹 Unified receive action
     public function receive(Request $request): JsonResponse
     {
-        [$documentId, $receiverId] = explode('-', $request->input('callback_data'));
+        [$action, $documentId, $receiverId] = explode('_', $request->input('callback_data'));
         $document = DocumentTransfer::findOrFail($documentId);
-        $result = $document->markAsReceived($receiverId);
+
+        $result = $document->updateReceiverStatus((int)$receiverId, 'Received');
+
+        if ($result['success'] && $document->is_send_back) {
+            $document->notifyReceiver(User::find($receiverId), 'sendback');
+        }
 
         return response()->json([
             'success' => $result['success'],
             'message' => $result['success'] ? 'Document received' : $result['message'],
-            'data' => $result['document']->load('receivers'),
+            'data' => $document->load('receivers'),
         ]);
     }
+
+    // 🔹 Unified send back action
+    public function sendBack(Request $request): JsonResponse
+    {
+        [$action, $documentId, $receiverId] = explode('_', $request->input('callback_data'));
+        $document = DocumentTransfer::findOrFail($documentId);
+
+        $result = $document->updateReceiverStatus((int)$receiverId, 'Sent Back');
+
+        // Notify creator
+        if ($result['success'] && $document->creator?->telegram_id) {
+            Telegram::sendMessage([
+                'chat_id' => $document->creator->telegram_id,
+                'text' => "📢 Document Sent Back\nDocument: {$document->project_name}\nReference: {$document->reference_no}\nReceiver: {$result['receiver']->receiver->name}",
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['success'] ? 'Document sent back' : $result['message'],
+            'data' => $document->load('receivers'),
+        ]);
+    }
+
+    // 🔹 Update receivers (add/update/delete)
     public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
     {
-        // 1️⃣ Validate request
         $validated = $request->validate([
             'receivers' => 'required|array|min:1',
             'receivers.*.receiver_id' => 'required|integer|exists:users,id',
             'receivers.*.status' => 'nullable|string|in:Pending,Received,Completed',
         ]);
 
-        // 1a️⃣ Remove duplicate receiver_ids
-        $validated['receivers'] = collect($validated['receivers'])
-            ->unique('receiver_id')
-            ->values()
-            ->all();
-
+        $validated['receivers'] = collect($validated['receivers'])->unique('receiver_id')->values()->all();
         $submittedIds = collect($validated['receivers'])->pluck('receiver_id')->toArray();
-
         $existingReceivers = $documentTransfer->receivers()->get();
 
-        // 2️⃣ Delete removed receivers
+        // Delete removed receivers
         $documentTransfer->receivers()->whereNotIn('receiver_id', $submittedIds)->delete();
 
-        // 3️⃣ Update existing or create new
+        // Add/update receivers
         foreach ($validated['receivers'] as $input) {
             $receiver = $existingReceivers->firstWhere('receiver_id', $input['receiver_id']);
 
             if ($receiver) {
-                // Update status only if not already Received
                 $receiver->update([
                     'status' => $input['status'] ?? $receiver->status,
                     'owner_receive_status' => $receiver->status === 'Received' ? 'Received' : $receiver->owner_receive_status,
                     'owner_received_date' => $receiver->status === 'Received' ? $receiver->owner_received_date ?? now() : $receiver->owner_received_date,
                 ]);
             } else {
-                // Add new receiver
                 $documentTransfer->receivers()->create([
                     'receiver_id' => $input['receiver_id'],
                     'documents_id' => $documentTransfer->id,
@@ -262,7 +257,6 @@ class DocumentTransferController extends Controller
             }
         }
 
-        // 4️⃣ Reload ordered receivers
         $documentTransfer->load(['receivers' => fn($q) => $q->orderBy('id')]);
 
         return response()->json([
