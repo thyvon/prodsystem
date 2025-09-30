@@ -323,7 +323,7 @@ class DocumentTransferController extends Controller
         }
 
         $creator = $document->creator;
-        if (!$creator || $creator->telegram_id != $chatId) {
+        if (!$creator || $creator->telegram_id != $chatId || $creator->id != $document->created_by) {
             return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to complete this document.");
         }
 
@@ -366,11 +366,24 @@ class DocumentTransferController extends Controller
     public function sendToNextReceiver(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('sendto_', '', $request->input('callback_data')));
+        $chatId = $request->input('chat_id');
         $callbackQueryId = $request->input('callback_query_id');
 
-        $document = DocumentTransfer::with('receivers.receiver')->find($documentId);
+        $document = DocumentTransfer::with('receivers.receiver', 'creator')->find($documentId);
         if (!$document) {
             return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
+
+        // Verify the user is the creator
+        $creator = $document->creator;
+        if (!$creator || $creator->telegram_id != $chatId || $creator->id != $document->created_by) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to send this document.");
+        }
+
+        // Find the receiver who sent back (latest sent_date)
+        $sentBackReceiver = $document->receivers->sortByDesc('sent_date')->first();
+        if (!$sentBackReceiver || $sentBackReceiver->status != 'Sent Back') {
+            return $this->telegramAlert($callbackQueryId, "❌ No valid sent back receiver found.");
         }
 
         $nextReceiver = $document->receivers->firstWhere('receiver_id', $receiverId);
@@ -378,10 +391,24 @@ class DocumentTransferController extends Controller
             return $this->telegramAlert($callbackQueryId, "❌ Next receiver not found.");
         }
 
-        $this->notifyFirstReceiver($nextReceiver, $document);
+        try {
+            DB::transaction(function () use ($sentBackReceiver, $nextReceiver, $document) {
+                // Update sent-back receiver's owner_received_status and owner_received_date
+                $sentBackReceiver->update([
+                    'owner_received_status' => 'Received',
+                    'owner_received_date' => now()
+                ]);
 
-        Telegram::answerCallbackQuery(['callback_query_id' => $callbackQueryId, 'text' => "✅ Document sent to {$nextReceiver->receiver->name}.", 'show_alert' => false]);
-        return response()->json(['success' => true]);
+                // Notify the next receiver
+                $this->notifyFirstReceiver($nextReceiver, $document);
+            });
+
+            Telegram::answerCallbackQuery(['callback_query_id' => $callbackQueryId, 'text' => "✅ Document sent to {$nextReceiver->receiver->name}.", 'show_alert' => false]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            $this->logAndNotifyError("Failed to send document {$documentId} to next receiver", $e, $creator->telegram_id);
+            return $this->telegramAlert($callbackQueryId, "❌ Failed to send document to next receiver.");
+        }
     }
 
     private function telegramAlert(string $callbackQueryId, string $text): JsonResponse
