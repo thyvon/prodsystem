@@ -255,10 +255,8 @@ class DocumentTransferController extends Controller
         $user = $receiver->receiver;
         $creator = $document->creator;
 
-        $message = $this->formatReceiverMessage($document, $user, $creator, $receiver);
-        $this->telegramEditMessage($chatId, $receiver->telegram_message_id, $message, $callbackQueryId);
-
-        // ✅ Send Send Back button if enabled
+        // 🔹 Build keyboard with Send Back button if enabled
+        $keyboard = null;
         if ($document->is_send_back) {
             $keyboard = Keyboard::make()->inline()->row([
                 Keyboard::inlineButton([
@@ -266,20 +264,42 @@ class DocumentTransferController extends Controller
                     'callback_data' => 'sendback_'.$document->id.'-'.$receiverId,
                 ])
             ]);
-
-            try {
-                $response = Telegram::sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => "You can send back this document if needed.",
-                    'reply_markup' => $keyboard,
-                ]);
-                // ✅ Store telegram_message_id for the Send Back button
-                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
-            } catch (\Exception $e) {
-                Log::error("Failed to send Send Back button: ".$e->getMessage());
-                $this->telegramErrorAlert($user->telegram_id, "Failed to add Send Back button: ".$e->getMessage());
-            }
         }
+
+        // 🔹 Edit the original message with updated status + Send Back button
+        $message = "📢 *Dear {$user->name},*\n\n"
+            ."📄 *You have a new document!*\n\n"
+            ."📝 *Description:* {$document->description}\n"
+            ."📂 *Document Type:* {$document->document_type}\n"
+            ."🏷️ *Project:* {$document->project_name}\n"
+            ."👤 *Sent From:* {$creator->name}\n"
+            ."🆔 *Reference:* {$document->reference_no}\n\n"
+            ."✅ *Received Date:* ".now()->format('Y-m-d H:i')."\n"
+            ."🔄 *Status:* Received";
+
+        try {
+            $response = Telegram::editMessageText([
+                'chat_id' => $chatId,
+                'message_id' => $receiver->telegram_message_id ?? $messageId,
+                'text' => $message,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => $keyboard,
+            ]);
+
+            // ✅ Store telegram_message_id for receiver
+            if ($response && $response->getMessageId()) {
+                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to update message with Send Back button: ".$e->getMessage());
+            $this->telegramErrorAlert($user->telegram_id, "Failed to update message: ".$e->getMessage());
+        }
+
+        Telegram::answerCallbackQuery([
+            'callback_query_id' => $callbackQueryId,
+            'text' => "✅ Document marked as Received.",
+            'show_alert' => false
+        ]);
 
         return response()->json(['success' => true, 'message' => $message]);
     }
