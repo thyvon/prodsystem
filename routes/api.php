@@ -274,9 +274,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock-requests/users-for-approval', [StockRequestController::class, 'getUsersForApproval'])->name('api.stock-requests.approval-users');
         Route::post('/stock-requests/{stockRequest}/submit-approval', [StockRequestController::class, 'submitApproval'])->name('api.stock-requests.submit-approval');
         Route::post('/stock-requests/{stockRequest}/reassign-approval', [StockRequestController::class, 'reassignResponder'])->middleware('can:reassign,stockRequest')->name('api.stock-requests.reassign-approval');
-        Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-warehouses');
-        Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-campuses');
-        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetchProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-beginnings.get-products');
+        Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-warehouses');
+        Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-campuses');
+        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetchProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-products');
 
         // Stock Issue
         Route::get('/stock-issues', [StockIssueController::class, 'getStockIssues'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.index');
