@@ -259,6 +259,7 @@ class DocumentTransferController extends Controller
             DB::transaction(function () use ($receiver, $sentDate, $document, $user, $creator, $chatId, $messageId) {
                 $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
+                // Update receiver's message
                 $response = Telegram::editMessageText([
                     'chat_id' => $chatId,
                     'message_id' => $receiver->telegram_message_id ?? $messageId,
@@ -268,11 +269,18 @@ class DocumentTransferController extends Controller
 
                 $receiver->update(['telegram_message_id' => $response->getMessageId()]);
 
+                // Notify creator with "Send to Next Receiver" button if applicable
                 if ($creator && $creator->telegram_id) {
+                    $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
+                    $keyboard = $nextReceiver ? Keyboard::make()->inline()->row([
+                        Keyboard::inlineButton(['text' => '➡️ Send to Next Receiver', 'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"])
+                    ]) : null;
+
                     $response = Telegram::sendMessage([
                         'chat_id' => $creator->telegram_id,
                         'text' => $this->buildTelegramMessage($document, $creator->name, $user->name, 'Sent Back', $receiver->received_date, $sentDate, true),
                         'parse_mode' => 'Markdown',
+                        'reply_markup' => $keyboard,
                     ]);
 
                     $receiver->update(['telegram_creator_message_id' => $response->getMessageId()]);
@@ -328,19 +336,6 @@ class DocumentTransferController extends Controller
 
         Log::error($message, $errorDetails);
 
-        $debugChatId = env('TELEGRAM_DEBUG_CHAT_ID');
-        if ($debugChatId) {
-            try {
-                Telegram::sendMessage([
-                    'chat_id' => $debugChatId,
-                    'text' => "⚠️ *{$message}*\n\nError: {$e->getMessage()}\nFile: {$e->getFile()}:{$e->getLine()}\nTrace: ```\n{$e->getTraceAsString()}\n```",
-                    'parse_mode' => 'Markdown',
-                ]);
-            } catch (\Exception $telegramException) {
-                Log::error("Failed to send Telegram debug alert: {$telegramException->getMessage()}");
-            }
-        }
-
         if ($telegramId) {
             try {
                 Telegram::sendMessage(['chat_id' => $telegramId, 'text' => "⚠️ {$message}: {$e->getMessage()}", 'parse_mode' => 'Markdown']);
@@ -388,6 +383,18 @@ class DocumentTransferController extends Controller
         }
 
         return $message;
+    }
+
+    private function getNextReceiver(DocumentTransfer $document, int $currentReceiverId)
+    {
+        $receivers = $document->receivers->sortBy('id');
+        $currentIndex = $receivers->search(fn($receiver) => $receiver->receiver_id === $currentReceiverId);
+
+        if ($currentIndex === false || $currentIndex >= $receivers->count() - 1) {
+            return null;
+        }
+
+        return $receivers->get($currentIndex + 1);
     }
 
     public function webhook(Request $request): JsonResponse
