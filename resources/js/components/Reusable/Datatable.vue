@@ -143,6 +143,13 @@ const renderColumnData = (key, val) => {
     return `<span class="badge ${badgeClass} text-center">${text}</span>`;
   }
 
+  // Document is send back
+  if (key === 'is_send_back') {
+    const badgeClass = val ? 'badge badge-danger' : 'badge badge-success';
+    const text = val ? 'Yes' : 'No';
+    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
+  }
+
   // Images
   if (key === 'image') return `<div class="text-center"><img src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
   if (key === 'profile_url') return `<div class="text-center"><img class="rounded-circle" src="${val}" style="max-width:60px;max-height:60px;" /></div>`;

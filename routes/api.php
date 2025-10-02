@@ -313,6 +313,9 @@ Route::middleware(['auth:sanctum', 'refresh.microsoft'])->group(function () {
 
     // Document Transfers
     Route::post('/document-transfers', [DocumentTransferController::class, 'store'])->name('api.document-transfers.store');
+    Route::get('/document-transfers/{documentTransfer}/edit', [DocumentTransferController::class, 'getEdit'])->name('api.document-transfers.edit');
+    Route::delete('/document-transfers/{documentTransfer}', [DocumentTransferController::class, 'destroy'])->name('api.document-transfers.destroy');
+    Route::put('/document-transfers/{documentTransfer}', [DocumentTransferController::class, 'update'])->name('api.document-transfers.update');
     Route::get('/document-transfers/get-receivers', [DocumentTransferController::class, 'getReceivers'])->name('api.document-transfers.get-receivers');
     Route::get('/document-transfers', [DocumentTransferController::class, 'getDocumentTransfers'])->name('api.document-transfers.index');
     Route::put('/document-transfers/{documentTransfer}/update-or-reassign', [DocumentTransferController::class, 'updateReceiversOrReceive'])->name('api.document-transfers.update-or-reassign');

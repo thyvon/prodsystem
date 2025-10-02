@@ -92,7 +92,7 @@ use App\Models\DocumentTransfer;
 // Home Route - Choose one (Dashboard or Welcome)
 Route::get('/', function () {
     return view('dashboard'); // Show the dashboard view
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'refresh.microsoft'])->name('dashboard');
 
 // Profile Routes (Authenticated Users)
 Route::middleware('auth')->group(function () {
@@ -102,7 +102,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Admin Routes - Only accessible to users with 'admin' role
-Route::middleware(['auth', 'role:admin'])->group(function () {
+Route::middleware(['auth', 'role:admin', 'refresh.microsoft'])->group(function () {
     // Route::resource('roles', RoleController::class);
     Route::resource('permissions', PermissionController::class);
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
@@ -112,7 +112,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
 });
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth','refresh.microsoft'])->group(function () {
     // Campuses
     Route::get('/campuses', [CampusController::class, 'index'])
         ->name('campuses.index')->middleware('can:viewAny,' . Campus::class);
@@ -235,13 +235,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/approvals', [ApprovalController::class, 'index'])
         ->name('approvals.index');
 
-    
 
     // Document Transfers
     Route::get('/document-transfers', [DocumentTransferController::class, 'index'])
         ->name('document-transfers.index');
     Route::get('/document-transfers/create', [DocumentTransferController::class, 'form'])
         ->name('document-transfers.create');
+    Route::get('/document-transfers/{documentTransfer}/edit', [DocumentTransferController::class, 'form'])
+        ->name('document-transfers.edit');
+    // Route::get('/document-transfers/{documentTransfer}/show', [DocumentTransferController::class, 'show'])
+    //     ->name('document-transfers.show');
 });
 
 // Microsoft OAuth Login Route

@@ -141,20 +141,15 @@ const datatableParams = reactive({
   sortDirection: 'desc',
 });
 const datatableHeaders = [
-  { text: 'Date', value: 'created_at', width: '8%' },
-  { text: 'Reference No', value: 'reference_no', width: '10%' },
-  { text: 'Document Type', value: 'document_type', width: '10%' },
-  { text: 'Project Name', value: 'project_name', width: '10%' },
-  { text: 'Description', value: 'description', width: '20%' },
-  { text: 'Requested By', value: 'created_by', width: '10%' },
-  {
-    text: 'Receivers',
-    value: 'receivers',
-    width: '30%',
-    slot: 'receivers',
-    sortable: false,
-  },
-  { text: 'Status', value: 'status', width: '10%', slot: 'status' },
+  { text: 'Date', value: 'created_at', width: '6%' },
+  { text: 'Reference No', value: 'reference_no', width: '8%' },
+  { text: 'Document Type', value: 'document_type', width: '8%' },
+  { text: 'Project Name', value: 'project_name', width: '8%' },
+  { text: 'Description', value: 'description', width: '18%' },
+  { text: 'Requested By', value: 'created_by', width: '8%' },
+  { text: 'Send Back?', value: 'is_send_back', width: '6%', slot: 'actions' },
+  { text: 'Receivers', value: 'receivers', width: '20%', slot: 'receivers', sortable: false },
+  { text: 'Status', value: 'status', width: '8%', slot: 'status' },
 ];
 const datatableFetchUrl = '/api/document-transfers';
 const datatableActions = ['edit', 'delete', 'preview', 'receive_reassign'];

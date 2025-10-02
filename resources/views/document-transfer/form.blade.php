@@ -3,7 +3,9 @@
 
 @section('content')
 <document-transfer-form
-    :initial-data='@json($documentTransfer ?? [])'
+    @if(isset($documentTransfer))
+        :document-transfer-id="{{ $documentTransfer->id }}"
+    @endif
 />
 @endsection
 

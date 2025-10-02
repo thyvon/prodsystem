@@ -39,16 +39,16 @@
                 </select>
               </div>
               <div class="form-group col-md-2">
-              <div class="custom-control custom-checkbox mt-4">
-                <input
-                  type="checkbox"
-                  class="custom-control-input"
-                  id="isSendBack"
-                  v-model="form.is_send_back"
-                />
-                <label class="custom-control-label" for="isSendBack">Send Back ?</label>
+                <div class="custom-control custom-checkbox mt-4">
+                  <input
+                    type="checkbox"
+                    class="custom-control-input"
+                    id="isSendBack"
+                    v-model="form.is_send_back"
+                  />
+                  <label class="custom-control-label" for="isSendBack">Send Back ?</label>
+                </div>
               </div>
-            </div>
             </div>
           </div>
 
@@ -117,101 +117,71 @@ import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
 
 const props = defineProps({
-  initialData: {
-    type: Object,
-    default: () => ({}),
+  documentTransferId: {
+    type: Number,
+    required: false,
   },
 });
 
 const emit = defineEmits(['submitted']);
 
+const isEditMode = ref(!!props.documentTransferId);
 const isSubmitting = ref(false);
 const users = ref([]);
 const documentTypes = ref(['LOA', 'PAYMENT']);
-const projectName = ref(['MJQR', 'MJQE']);
-const isEditMode = ref(!!props.initialData.id);
+const projectNames = ref(['MJQR', 'MJQE']);
 
 const form = ref({
-  document_type: props.initialData.document_type || '',
-  project_name: props.initialData.project_name || '',
-  description: props.initialData.description || '',
-  receivers: props.initialData.receivers || [],
-  is_send_back: props.initialData.is_send_back ?? false,
+  document_type: '',
+  project_name: '',
+  description: '',
+  receivers: [],
+  is_send_back: false,
 });
 
-// Load users from API
-const fetchReceivers = async () => {
+// Fetch users list
+const fetchUsers = async () => {
   try {
     const response = await axios.get('/api/document-transfers/get-receivers');
     users.value = response.data;
-  } catch (error) {
-    console.error('Error fetching users:', error);
+  } catch (err) {
+    console.error(err);
     showAlert('Error', 'Failed to fetch users list.', 'danger');
   }
 };
 
-onMounted(async () => {
-  await fetchReceivers();
-
-  await nextTick();
-
+// Fetch document transfer in edit mode
+const fetchDocumentTransfer = async () => {
+  if (!isEditMode.value) return;
   try {
-    // Init Document Type select2
-    initSelect2(
-      document.querySelector('.select2-doc-type'),
-      {
-        placeholder: 'Select Type',
-        allowClear: true,
-        width: '100%',
-        data: documentTypes.value.map((d) => ({ id: d, text: d })),
-      },
-      (value) => {
-        form.value.document_type = value || '';
-      }
-    );
-    if (form.value.document_type) {
-      $('.select2-doc-type').val(form.value.document_type).trigger('change.select2');
-    }
+    // Updated to use your route
+    const response = await axios.get(`/api/document-transfers/${props.documentTransferId}/edit`);
+    const data = response.data.data;
 
-    // Init Project Name select2
-    initSelect2(
-      document.querySelector('.select2-project-name'),
-      {
-        placeholder: 'Select Project',
-        allowClear: true,
-        width: '100%',
-        data: projectName.value.map((p) => ({ id: p, text: p })),
-      },
-      (value) => {
-        form.value.project_name = value || '';
-      }
-    );
-    if (form.value.project_name) {
-      $('.select2-project-name').val(form.value.project_name).trigger('change.select2');
-    }
+    form.value.document_type = data.document_type || '';
+    form.value.project_name = data.project_name || '';
+    form.value.description = data.description || '';
+    form.value.is_send_back = !!data.is_send_back;
+
+    // Map receivers
+    form.value.receivers = data.receivers.map(r => ({
+      receiver_id: r.receiver_id,
+    }));
   } catch (err) {
-    console.error('Error initializing Select2:', err);
-    showAlert('Error', 'Failed to initialize Document Type or Project Name dropdown.', 'danger');
+    console.error(err);
+    showAlert('Error', 'Failed to fetch document transfer data', 'danger');
   }
-
-  // Init receivers if edit mode
-  form.value.receivers.forEach((r, index) => {
-    initReceiverSelect(index, r.receiver_id);
-  });
-});
+};
 
 // Go back
 const goToIndex = () => {
   window.location.href = '/document-transfers';
 };
 
-// Init Select2 for one receiver row
-const initReceiverSelect = (index, selectedId = null) => {
+// Initialize receiver select
+const initReceiverSelect = (index) => {
   const receiverSelect = document.querySelector(`.user-select[data-row="${index}"]`);
-  if (!receiverSelect) {
-    showAlert('Error', 'Failed to initialize receiver dropdown.', 'danger');
-    return;
-  }
+  if (!receiverSelect) return;
 
   initSelect2(
     receiverSelect,
@@ -219,55 +189,49 @@ const initReceiverSelect = (index, selectedId = null) => {
       placeholder: 'Select User',
       allowClear: true,
       width: '100%',
-      data: users.value.map((u) => ({
-        id: u.id,
-        text: `${u.name} (Telegram ID: ${u.telegram_id || 'N/A'})`,
-      })),
+      data: users.value.map(u => ({ id: u.id, text: u.name })),
     },
     (value) => {
       form.value.receivers[index].receiver_id = value ? Number(value) : null;
     }
   );
 
-  if (selectedId) {
-    $(receiverSelect).val(selectedId).trigger('change.select2');
+  const oldId = form.value.receivers[index].receiver_id;
+  if (oldId) {
+    $(receiverSelect).val(oldId).trigger('change.select2');
   }
 };
 
-// Add receiver row
+// Add/remove receiver
 const addReceiver = async () => {
-  form.value.receivers.push({ id: null, receiver_id: null });
+  form.value.receivers.push({ receiver_id: null });
   await nextTick();
-  const index = form.value.receivers.length - 1;
-  initReceiverSelect(index);
+  initReceiverSelect(form.value.receivers.length - 1);
 };
 
-// Remove receiver row
 const removeReceiver = (index) => {
-  const receiverSelect = document.querySelector(`.user-select[data-row="${index}"]`);
-  if (receiverSelect) {
-    destroySelect2(receiverSelect);
-  }
+  const sel = document.querySelector(`.user-select[data-row="${index}"]`);
+  if (sel) destroySelect2(sel);
   form.value.receivers.splice(index, 1);
 };
 
+// Submit form
 const submitForm = async () => {
   if (isSubmitting.value) return;
   isSubmitting.value = true;
+
   try {
     const payload = {
       document_type: form.value.document_type,
       project_name: form.value.project_name,
-      description: form.value.description?.toString().trim() || null,
-      receivers: form.value.receivers.map(r => ({
-            receiver_id: r.receiver_id
-        })),
+      description: form.value.description?.trim() || null,
+      receivers: form.value.receivers.map(r => ({ receiver_id: r.receiver_id })),
       is_send_back: form.value.is_send_back ? 1 : 0,
     };
 
     const url = isEditMode.value
-      ? `/api/document-transfers/${props.initialData.id}`
-      : `/api/document-transfers`;
+      ? `/api/document-transfers/${props.documentTransferId}`
+      : '/api/document-transfers';
     const method = isEditMode.value ? 'put' : 'post';
 
     await axios[method](url, payload);
@@ -283,7 +247,7 @@ const submitForm = async () => {
     emit('submitted');
     goToIndex();
   } catch (err) {
-    console.error('Submit error:', err.response?.data || err);
+    console.error(err.response?.data || err);
     await showAlert(
       'Error',
       err.response?.data?.message || err.message || 'Failed to save document transfer.',
@@ -294,4 +258,43 @@ const submitForm = async () => {
   }
 };
 
+// On mounted
+onMounted(async () => {
+  await fetchUsers();
+  await fetchDocumentTransfer();
+  await nextTick();
+
+  // Init Document Type select2
+  initSelect2(
+    document.querySelector('.select2-doc-type'),
+    {
+      placeholder: 'Select Type',
+      allowClear: true,
+      width: '100%',
+      data: documentTypes.value.map(d => ({ id: d, text: d })),
+    },
+    (val) => (form.value.document_type = val || '')
+  );
+  if (form.value.document_type) {
+    $('.select2-doc-type').val(form.value.document_type).trigger('change.select2');
+  }
+
+  // Init Project Name select2
+  initSelect2(
+    document.querySelector('.select2-project-name'),
+    {
+      placeholder: 'Select Project',
+      allowClear: true,
+      width: '100%',
+      data: projectNames.value.map(p => ({ id: p, text: p })),
+    },
+    (val) => (form.value.project_name = val || '')
+  );
+  if (form.value.project_name) {
+    $('.select2-project-name').val(form.value.project_name).trigger('change.select2');
+  }
+
+  // Init receiver selects
+  form.value.receivers.forEach((_, i) => initReceiverSelect(i));
+});
 </script>

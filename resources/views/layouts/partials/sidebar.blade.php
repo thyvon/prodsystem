@@ -58,6 +58,16 @@
             </li>
 
             @php
+                $documentActive = request()->is('document-transfers');
+            @endphp
+            <li class="{{ $documentActive ? 'active' : '' }}">
+                <a href="{{ url('document-transfers') }}" title="Document Transfers" data-filter-tags="document transfers">
+                    <i class="fal fa-file-alt"></i>
+                    <span class="nav-link-text">Document Transfers</span>
+                </a>
+            </li>
+
+            @php
                 $productActive = request()->is('products*') || 
                 request()->is('sub-categories*') || 
                 request()->is('main-categories*') || 

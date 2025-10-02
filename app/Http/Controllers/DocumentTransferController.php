@@ -14,6 +14,7 @@ use App\Models\DocumentsReceiver;
 use App\Models\User;
 use Telegram\Bot\Laravel\Facades\Telegram;
 use Telegram\Bot\Keyboard\Keyboard;
+use Carbon\Carbon;
 
 class DocumentTransferController extends Controller
 {
@@ -61,17 +62,18 @@ class DocumentTransferController extends Controller
                     'name' => $r->receiver->name ?? 'N/A',
                     'email' => $r->receiver->email ?? null,
                     'status' => $r->status,
-                    'received_date' => $r->received_date,
-                    'sent_date' => $r->sent_date,
+                    'received_date' => $r->received_date ? Carbon::parse($r->received_date)->format('d-m-y H:i') : null,
+                    'sent_date' => $r->sent_date ? Carbon::parse($r->sent_date)->format('d-m-y H:i') : null,
                     'owner_received_status' => $r->owner_received_status,
-                    'owner_received_date' => $r->owner_received_date,
+                    'owner_received_date' => $r->owner_received_date ? Carbon::parse($r->owner_received_date)->format('d-m-y H:i') : null,
                     'telegram_message_id' => $r->telegram_message_id,
                     'telegram_creator_message_id' => $r->telegram_creator_message_id,
                 ]),
                 'created_by' => $t->receivers->first()->requester->name ?? 'N/A',
                 'status' => $t->status,
-                'created_at' => $t->created_at,
-                'updated_at' => $t->updated_at,
+                'created_at' => $t->created_at ? : null,
+                'updated_at' => $t->updated_at ? : null,
+                'is_send_back' => $t->is_send_back,
             ]),
             'recordsTotal' => DocumentTransfer::whereNull('deleted_at')->count(),
             'recordsFiltered' => $query->count(),
@@ -82,6 +84,13 @@ class DocumentTransferController extends Controller
     public function form(DocumentTransfer $documentTransfer = null): View
     {
         return view('document-transfer.form', compact('documentTransfer'));
+    }
+    public function getEdit(DocumentTransfer $documentTransfer): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $documentTransfer->load('receivers.receiver', 'receivers.requester'),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -100,6 +109,78 @@ class DocumentTransferController extends Controller
             'Failed to create document transfer',
             auth()->user()->telegram_id ?? null
         );
+    }
+
+    public function update(Request $request, DocumentTransfer $documentTransfer): JsonResponse
+    {
+        $validated = $request->validate([
+            'document_type' => 'required|string|max:255',
+            'project_name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
+            'is_send_back' => 'nullable|boolean',
+            'receivers' => 'required|array|min:1',
+            'receivers.*.receiver_id' => 'required|exists:users,id',
+            'receivers.*.status' => 'nullable|string|in:Pending,Received,Completed,Sent Back',
+        ]);
+
+        $validated['receivers'] = collect($validated['receivers'])->unique('receiver_id')->values()->all();
+        $submittedIds = collect($validated['receivers'])->pluck('receiver_id')->toArray();
+
+        return $this->executeTransaction(function () use ($documentTransfer, $validated, $submittedIds) {
+            // Update document fields
+            $documentTransfer->update([
+                'document_type' => $validated['document_type'],
+                'project_name' => $validated['project_name'],
+                'description' => $validated['description'] ?? null,
+                'is_send_back' => $validated['is_send_back'] ?? false,
+            ]);
+
+            $existingReceivers = $documentTransfer->receivers()->get();
+
+            // Delete removed receivers
+            $receiversToDelete = $existingReceivers->whereNotIn('receiver_id', $submittedIds);
+            foreach ($receiversToDelete as $receiver) {
+                $receiver->delete();
+            }
+
+            // Update or create receivers
+            foreach ($validated['receivers'] as $input) {
+                $receiver = $existingReceivers->firstWhere('receiver_id', $input['receiver_id']);
+
+                if ($receiver) {
+                    $receiver->update([
+                        'status' => $input['status'] ?? $receiver->status,
+                    ]);
+                } else {
+                    $documentTransfer->receivers()->create([
+                        'receiver_id' => $input['receiver_id'],
+                        'documents_id' => $documentTransfer->id,
+                        'document_reference' => $documentTransfer->reference_no,
+                        'document_name' => $documentTransfer->project_name,
+                        'requester_id' => auth()->id(),
+                        'status' => $input['status'] ?? 'Pending',
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Document transfer updated successfully.',
+                'data' => $documentTransfer->load('receivers.receiver', 'receivers.requester'),
+            ]);
+        }, 'Failed to update document transfer', auth()->user()->telegram_id ?? null);
+    }
+
+    // Delete a document transfer
+    public function destroy(DocumentTransfer $documentTransfer): JsonResponse
+    {
+        return $this->executeTransaction(function () use ($documentTransfer) {
+            $documentTransfer->delete(); // soft delete if using SoftDeletes
+            return response()->json([
+                'success' => true,
+                'message' => 'Document transfer deleted successfully.'
+            ]);
+        }, "Failed to delete document transfer {$documentTransfer->id}", auth()->user()->telegram_id ?? null);
     }
 
     public function getReceivers(): JsonResponse
