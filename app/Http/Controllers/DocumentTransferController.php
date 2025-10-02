@@ -255,12 +255,15 @@ class DocumentTransferController extends Controller
             $sentDate = now();
             $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
-            // Edit receiver's message to add send back date and remove send back button
-            $this->updateTelegramMessage(
+            // Edit receiver's message: add Send Back date, remove Send Back button
+            $receiverMessageText = $this->buildTelegramMessage($document, $user->name, $requester->name, 'Sent Back', $receiver->received_date, $sentDate);
+            $receiverMessage = $this->updateTelegramMessage(
                 $user->telegram_id,
                 $receiver->telegram_message_id,
-                $this->buildTelegramMessage($document, $user->name, $requester->name, 'Sent Back', $receiver->received_date, $sentDate)
+                $receiverMessageText,
+                Keyboard::make() // empty buttons
             );
+            $receiver->update(['telegram_message_id' => $receiverMessage->getMessageId()]);
 
             // Notify creator with buttons: Send to Next Receiver or Receive to Complete
             $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
@@ -276,11 +279,25 @@ class DocumentTransferController extends Controller
                 'callback_data' => "complete_{$document->id}"
             ]);
 
-            $this->updateTelegramMessage(
+            $creatorMessageText = $this->buildTelegramMessage(
+                $document,
+                $requester->name,
+                $user->name,
+                'Sent Back',
+                $receiver->received_date,
+                $sentDate,
+                true
+            );
+
+            $creatorMessage = $this->updateTelegramMessage(
                 $requester->telegram_id,
                 $receiver->telegram_creator_message_id,
-                $this->buildTelegramMessage($document, $requester->name, $user->name, 'Sent Back', $receiver->received_date, $sentDate, true),
+                $creatorMessageText,
+                Keyboard::make()->inline()->row($buttons)
             );
+
+            // Update creator message ID if needed
+            $receiver->update(['telegram_creator_message_id' => $creatorMessage->getMessageId()]);
 
             Telegram::answerCallbackQuery([
                 'callback_query_id' => $callbackQueryId,
