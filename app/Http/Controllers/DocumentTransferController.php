@@ -111,8 +111,93 @@ class DocumentTransferController extends Controller
                 ->get()
         );
     }
+    private function createDocumentTransfer(array $validated): JsonResponse
+    {
+        $documentTransfer = DocumentTransfer::create([
+            'reference_no' => $this->generateReferenceNo(),
+            'document_type' => $validated['document_type'],
+            'project_name' => $validated['project_name'],
+            'description' => $validated['description'],
+            'status' => 'Pending',
+            'is_send_back' => $validated['is_send_back'] ?? false,
+            'created_by' => auth()->id(),
+        ]);
 
-    public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
+        $receivers = array_map(fn($r) => [
+            'documents_id' => $documentTransfer->id,
+            'document_reference' => $documentTransfer->reference_no,
+            'document_name' => $documentTransfer->project_name,
+            'status' => 'Pending',
+            'requester_id' => auth()->id(),
+            'receiver_id' => $r['receiver_id'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $validated['receivers']);
+
+        DocumentsReceiver::insert($receivers);
+        $this->notifyFirstReceiver($receivers, $documentTransfer);
+
+        return response()->json([
+            'message' => 'Document transfer created successfully.',
+            'data' => $documentTransfer->load('receivers.receiver', 'receivers.requester'),
+        ], 201);
+    }
+
+    private function validateDocumentAndReceiver(string $documentId, string $receiverId, string $chatId, string $callbackQueryId): array|JsonResponse
+    {
+        $document = DocumentTransfer::with('receivers.receiver', 'receivers.requester')->find($documentId);
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
+
+        $receiver = $document->receivers->firstWhere('receiver_id', $receiverId);
+        if (!$receiver) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to receive this document.");
+        }
+
+        $user = $receiver->receiver;
+        if (!$user) {
+            return $this->handleUserNotFound("Receiver user not found for receiver_id {$receiverId}", $receiver->requester->telegram_id, $callbackQueryId, "❌ Receiver user not found.");
+        }
+
+        $requester = $receiver->requester;
+        if (!$requester) {
+            return $this->handleUserNotFound("Requester user not found for document {$documentId}", null, $callbackQueryId, "❌ Requester user not found.");
+        }
+
+        return compact('document', 'receiver', 'user', 'requester');
+    }
+
+    private function validateDocumentAndSentBackReceiver(string $documentId, string $chatId, string $callbackQueryId): array|JsonResponse
+    {
+        $document = DocumentTransfer::with('receivers.receiver', 'receivers.requester')->find($documentId);
+        if (!$document) {
+            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
+        }
+
+        $receiver = $document->receivers->sortByDesc('sent_date')->first();
+        if (!$receiver || $receiver->status != 'Sent Back') {
+            return $this->telegramAlert($callbackQueryId, "❌ No valid sent back receiver found.");
+        }
+
+        $user = $receiver->receiver;
+        if (!$user) {
+            return $this->handleUserNotFound("Receiver user not found for receiver_id {$receiver->receiver_id}", $receiver->requester->telegram_id, $callbackQueryId, "❌ Receiver user not found.");
+        }
+
+        $requester = $receiver->requester;
+        if (!$requester) {
+            return $this->handleUserNotFound("Requester user not found for document {$documentId}", null, $callbackQueryId, "❌ Requester user not found.");
+        }
+
+        if ($requester->telegram_id != $chatId || $requester->id != $receiver->requester_id) {
+            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to complete this document.");
+        }
+
+        return compact('document', 'receiver', 'user', 'requester');
+    }
+
+        public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
     {
         $validated = $request->validate([
             'receivers' => 'required|array|min:1',
@@ -255,17 +340,25 @@ class DocumentTransferController extends Controller
             $sentDate = now();
             $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
-            // Edit receiver's message: add Send Back date, remove Send Back button
-            $receiverMessageText = $this->buildTelegramMessage($document, $user->name, $requester->name, 'Sent Back', $receiver->received_date, $sentDate);
+            // 1️⃣ Update receiver's message: remove button, add unique timestamp
+            $receiverMessageText = $this->buildTelegramMessage(
+                $document,
+                $user->name,
+                $requester->name,
+                'Sent Back',
+                $receiver->received_date,
+                $sentDate
+            ) . "\n\n🕒 Sent Back at: {$sentDate->format('Y-m-d H:i:s')}"; // unique change
+
             $receiverMessage = $this->updateTelegramMessage(
                 $user->telegram_id,
                 $receiver->telegram_message_id,
                 $receiverMessageText,
                 Keyboard::make() // empty buttons
             );
-            $receiver->update(['telegram_message_id' => $receiverMessage->getMessageId()]);
+            $receiver->update(['telegram_message_id' => $receiverMessage?->getMessageId()]);
 
-            // Notify creator with buttons: Send to Next Receiver or Receive to Complete
+            // 2️⃣ Notify creator with buttons: Send to Next Receiver or Receive to Complete
             $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
             $buttons = [];
             if ($nextReceiver) {
@@ -287,7 +380,7 @@ class DocumentTransferController extends Controller
                 $receiver->received_date,
                 $sentDate,
                 true
-            );
+            ) . "\n\n🕒 Sent Back at: {$sentDate->format('Y-m-d H:i:s')}"; // unique change
 
             $creatorMessage = $this->updateTelegramMessage(
                 $requester->telegram_id,
@@ -296,9 +389,10 @@ class DocumentTransferController extends Controller
                 Keyboard::make()->inline()->row($buttons)
             );
 
-            // Update creator message ID if needed
-            $receiver->update(['telegram_creator_message_id' => $creatorMessage->getMessageId()]);
+            // Update creator message ID
+            $receiver->update(['telegram_creator_message_id' => $creatorMessage?->getMessageId()]);
 
+            // Answer callback query
             Telegram::answerCallbackQuery([
                 'callback_query_id' => $callbackQueryId,
                 'text' => "✅ Document marked as Sent Back.",
@@ -401,92 +495,6 @@ class DocumentTransferController extends Controller
         );
     }
 
-    private function createDocumentTransfer(array $validated): JsonResponse
-    {
-        $documentTransfer = DocumentTransfer::create([
-            'reference_no' => $this->generateReferenceNo(),
-            'document_type' => $validated['document_type'],
-            'project_name' => $validated['project_name'],
-            'description' => $validated['description'],
-            'status' => 'Pending',
-            'is_send_back' => $validated['is_send_back'] ?? false,
-            'created_by' => auth()->id(),
-        ]);
-
-        $receivers = array_map(fn($r) => [
-            'documents_id' => $documentTransfer->id,
-            'document_reference' => $documentTransfer->reference_no,
-            'document_name' => $documentTransfer->project_name,
-            'status' => 'Pending',
-            'requester_id' => auth()->id(),
-            'receiver_id' => $r['receiver_id'],
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], $validated['receivers']);
-
-        DocumentsReceiver::insert($receivers);
-        $this->notifyFirstReceiver($receivers, $documentTransfer);
-
-        return response()->json([
-            'message' => 'Document transfer created successfully.',
-            'data' => $documentTransfer->load('receivers.receiver', 'receivers.requester'),
-        ], 201);
-    }
-
-    private function validateDocumentAndReceiver(string $documentId, string $receiverId, string $chatId, string $callbackQueryId): array|JsonResponse
-    {
-        $document = DocumentTransfer::with('receivers.receiver', 'receivers.requester')->find($documentId);
-        if (!$document) {
-            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
-        }
-
-        $receiver = $document->receivers->firstWhere('receiver_id', $receiverId);
-        if (!$receiver) {
-            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to receive this document.");
-        }
-
-        $user = $receiver->receiver;
-        if (!$user) {
-            return $this->handleUserNotFound("Receiver user not found for receiver_id {$receiverId}", $receiver->requester->telegram_id, $callbackQueryId, "❌ Receiver user not found.");
-        }
-
-        $requester = $receiver->requester;
-        if (!$requester) {
-            return $this->handleUserNotFound("Requester user not found for document {$documentId}", null, $callbackQueryId, "❌ Requester user not found.");
-        }
-
-        return compact('document', 'receiver', 'user', 'requester');
-    }
-
-    private function validateDocumentAndSentBackReceiver(string $documentId, string $chatId, string $callbackQueryId): array|JsonResponse
-    {
-        $document = DocumentTransfer::with('receivers.receiver', 'receivers.requester')->find($documentId);
-        if (!$document) {
-            return $this->telegramAlert($callbackQueryId, "❌ Document not found.");
-        }
-
-        $receiver = $document->receivers->sortByDesc('sent_date')->first();
-        if (!$receiver || $receiver->status != 'Sent Back') {
-            return $this->telegramAlert($callbackQueryId, "❌ No valid sent back receiver found.");
-        }
-
-        $user = $receiver->receiver;
-        if (!$user) {
-            return $this->handleUserNotFound("Receiver user not found for receiver_id {$receiver->receiver_id}", $receiver->requester->telegram_id, $callbackQueryId, "❌ Receiver user not found.");
-        }
-
-        $requester = $receiver->requester;
-        if (!$requester) {
-            return $this->handleUserNotFound("Requester user not found for document {$documentId}", null, $callbackQueryId, "❌ Requester user not found.");
-        }
-
-        if ($requester->telegram_id != $chatId || $requester->id != $receiver->requester_id) {
-            return $this->telegramAlert($callbackQueryId, "❌ You are not authorized to complete this document.");
-        }
-
-        return compact('document', 'receiver', 'user', 'requester');
-    }
-
     private function notifyFirstReceiver($receiversData, DocumentTransfer $document): void
     {
         $firstReceiverData = is_object($receiversData) && method_exists($receiversData, 'toArray')
@@ -539,14 +547,17 @@ class DocumentTransferController extends Controller
         }
     }
 
-    private function updateTelegramMessage(string $chatId, ?int $messageId, string $text): \Telegram\Bot\Objects\Message
+    private function updateTelegramMessage(string $chatId, ?int $messageId, string $text, ?Keyboard $keyboard = null): ?\Telegram\Bot\Objects\Message
     {
-        return $messageId ? Telegram::editMessageText([
+        if (!$messageId) return null;
+
+        return Telegram::editMessageText([
             'chat_id' => $chatId,
             'message_id' => $messageId,
             'text' => $text,
             'parse_mode' => 'Markdown',
-        ]) : null;
+            'reply_markup' => $keyboard
+        ]);
     }
 
     private function handleUserNotFound(string $message, ?string $telegramId, string $callbackQueryId, string $alertText): JsonResponse
