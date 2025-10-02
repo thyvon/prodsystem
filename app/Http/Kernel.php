@@ -40,12 +40,14 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\SharePendingApprovalCount::class,
+            \App\Http\Middleware\RefreshMicrosoftToken::class,
         ],
 
         'api' => [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\RefreshMicrosoftToken::class,
         ],
     ];
 
@@ -71,6 +73,8 @@ class Kernel extends HttpKernel
         'role' => RoleMiddleware::class,
         'permission' => PermissionMiddleware::class,
         'role_or_permission' => RoleOrPermissionMiddleware::class,
+
+        'refresh.microsoft' => \App\Http\Middleware\RefreshMicrosoftToken::class,
     ];
 
     // Clean PDF
