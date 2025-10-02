@@ -21,6 +21,9 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'microsoft_id',
+        'microsoft_token',
+        'microsoft_refresh_token',
+        'microsoft_token_expires_at',
         'name',
         'email',
         'password',
