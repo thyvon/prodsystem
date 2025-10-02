@@ -197,7 +197,7 @@ class DocumentTransferController extends Controller
         return compact('document', 'receiver', 'user', 'requester');
     }
 
-        public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
+    public function updateReceiversOrReceive(Request $request, DocumentTransfer $documentTransfer): JsonResponse
     {
         $validated = $request->validate([
             'receivers' => 'required|array|min:1',
@@ -720,7 +720,7 @@ class DocumentTransferController extends Controller
 
         Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/sendMessage", [
             'chat_id' => $chatId,
-            'text' => 'Welcome! Click below to register:',
+            'text' => "📄 **Welcome to Document Transfer Bot!**\n\n🔔 Click below to register and start receiving notifications about your documents.\n\n➡️ Register now to stay updated!",
             'reply_markup' => $keyboard
         ]);
     }
