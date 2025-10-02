@@ -52,7 +52,7 @@ class MicrosoftAuthController extends Controller
             if ($response->ok()) {
                 $imageName = 'profile_'.$user->id.'.jpg';
                 Storage::put('public/profiles/' . $imageName, $response->body());
-                $user->profile_url = 'storage/profiles/' . $imageName;
+                $user->profile_url = 'profiles/' . $imageName;
                 $user->save();
             }
         } catch (\Exception $e) {

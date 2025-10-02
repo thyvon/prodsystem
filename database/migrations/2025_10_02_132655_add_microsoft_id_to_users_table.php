@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('microsoft_id')->nullable()->after('id')->unique();
-            $table->string('microsoft_token')->nullable()->after('microsoft_id');
-            $table->string('microsoft_refresh_token')->nullable()->after('microsoft_token');
+            $table->text('microsoft_token')->nullable()->after('microsoft_id');
+            $table->text('microsoft_refresh_token')->nullable()->after('microsoft_token');
             $table->timestamp('microsoft_token_expires_at')->nullable()->after('microsoft_refresh_token');
         });
     }
