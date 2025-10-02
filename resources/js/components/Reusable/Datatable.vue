@@ -152,7 +152,7 @@ const renderColumnData = (key, val) => {
 
   // Images
   if (key === 'image') return `<div class="text-center"><img src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
-  if (key === 'profile_url') return `<div class="text-center"><img class="rounded-circle" src="${val}" style="max-width:60px;max-height:60px;" /></div>`;
+  if (key === 'profile_url') return `<div class="text-center"><img class="rounded-circle" src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
 
   // Default
   return val ?? '';

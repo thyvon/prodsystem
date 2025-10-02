@@ -128,7 +128,7 @@ const emit = defineEmits(['submitted']);
 const isEditMode = ref(!!props.documentTransferId);
 const isSubmitting = ref(false);
 const users = ref([]);
-const documentTypes = ref(['LOA', 'PAYMENT']);
+const documentTypes = ref(['LOA', 'Request Payment', 'BID History Report', 'Bidding Procedure', 'Evaluation', 'Additional Work', 'Other']);
 const projectNames = ref(['MJQR', 'MJQE']);
 
 const form = ref({
