@@ -633,15 +633,15 @@ class DocumentTransferController extends Controller
         $sentDate = null,
         bool $isCreatorNotification = false
     ): string {
-        $receivedDate = $receivedDate instanceof \Illuminate\Support\Carbon ? $receivedDate->format('Y-m-d H:i') : ($receivedDate ?? 'N/A');
-        $sentDate = $sentDate instanceof \Illuminate\Support\Carbon ? $sentDate->format('Y-m-d H:i') : ($sentDate ?? 'N/A');
+        $receivedDate = $receivedDate instanceof \Illuminate\Support\Carbon ? $receivedDate->format('M d, Y h:i A') : ($receivedDate ?? 'N/A');
+        $sentDate = $sentDate instanceof \Illuminate\Support\Carbon ? $sentDate->format('M d, Y h:i A') : ($sentDate ?? 'N/A');
 
         if ($isCreatorNotification) {
             return "📢 *Document " . ($status === 'Completed' ? 'Completed' : 'Sent Back') . "*\n\n"
                 . "📄 *Document:* {$document->project_name}\n"
                 . "🆔 *Reference:* {$document->reference_no}\n"
                 . "👤 *Sent Back by:* {$senderName}\n"
-                . "✅ *Owner Received Date:* {$receivedDate}\n"
+                . "✅ *Receiver Date:* {$receivedDate}\n"
                 . "🗓️ *Send Back Date:* {$sentDate}";
         }
 
