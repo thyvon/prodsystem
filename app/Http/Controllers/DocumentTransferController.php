@@ -353,17 +353,25 @@ class DocumentTransferController extends Controller
 
             // 2️⃣ Notify creator
             $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
-            $buttons = [];
+
+            // Build buttons correctly using Keyboard::make
+            $keyboard = Keyboard::make()->inline();
+
             if ($nextReceiver) {
-                $buttons[] = [
-                    'text' => "➡️ Send to {$nextReceiver->receiver->name}",
-                    'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"
-                ];
+                $keyboard->row([
+                    Keyboard::inlineButton([
+                        'text' => "➡️ Send to {$nextReceiver->receiver->name}",
+                        'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"
+                    ])
+                ]);
             }
-            $buttons[] = [
-                'text' => "✅ Receive to Complete",
-                'callback_data' => "complete_{$document->id}"
-            ];
+
+            $keyboard->row([
+                Keyboard::inlineButton([
+                    'text' => "✅ Receive to Complete",
+                    'callback_data' => "complete_{$document->id}"
+                ])
+            ]);
 
             $creatorMessageText = $this->buildTelegramMessage(
                 $document,
@@ -376,21 +384,19 @@ class DocumentTransferController extends Controller
             );
 
             if ($receiver->telegram_creator_message_id) {
-                // edit existing creator message
                 $creatorMessage = Telegram::editMessageText([
                     'chat_id' => $requester->telegram_id,
                     'message_id' => $receiver->telegram_creator_message_id,
                     'text' => $creatorMessageText,
                     'parse_mode' => 'Markdown',
-                    'reply_markup' => ['inline_keyboard' => [$buttons]]
+                    'reply_markup' => $keyboard
                 ]);
             } else {
-                // send new creator message
                 $creatorMessage = Telegram::sendMessage([
                     'chat_id' => $requester->telegram_id,
                     'text' => $creatorMessageText,
                     'parse_mode' => 'Markdown',
-                    'reply_markup' => ['inline_keyboard' => [$buttons]]
+                    'reply_markup' => $keyboard
                 ]);
             }
 
