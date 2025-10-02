@@ -13,6 +13,9 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('microsoft_id')->nullable()->after('id')->unique();
+            $table->string('microsoft_token')->nullable()->after('microsoft_id');
+            $table->string('microsoft_refresh_token')->nullable()->after('microsoft_token');
+            $table->timestamp('microsoft_token_expires_at')->nullable()->after('microsoft_refresh_token');
         });
     }
 
@@ -23,6 +26,9 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('microsoft_id');
+            $table->dropColumn('microsoft_token');
+            $table->dropColumn('microsoft_refresh_token');
+            $table->dropColumn('microsoft_token_expires_at');
         });
     }
 };
