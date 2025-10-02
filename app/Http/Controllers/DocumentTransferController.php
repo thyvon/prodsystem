@@ -633,23 +633,89 @@ class DocumentTransferController extends Controller
     public function webhook(Request $request): JsonResponse
     {
         $callbackData = $request->input('callback_query.data');
-        if (!$callbackData) {
-            return response()->json(['success' => false]);
+
+        // Handle callback_query buttons
+        if ($callbackData) {
+            $request->merge([
+                'chat_id' => $request->input('callback_query.from.id'),
+                'message_id' => $request->input('callback_query.message.message_id'),
+                'callback_query_id' => $request->input('callback_query.id'),
+                'callback_data' => $callbackData,
+            ]);
+
+            return match (true) {
+                str_starts_with($callbackData, 'register') => $this->registerUser($request),
+                str_starts_with($callbackData, 'receive_') => $this->receive($request),
+                str_starts_with($callbackData, 'sendback_') => $this->sendBack($request),
+                str_starts_with($callbackData, 'sendto_') => $this->sendToNextReceiver($request),
+                str_starts_with($callbackData, 'complete_') => $this->completeDocument($request),
+                default => response()->json(['success' => false]),
+            };
         }
 
-        $request->merge([
-            'chat_id' => $request->input('callback_query.from.id'),
-            'message_id' => $request->input('callback_query.message.message_id'),
-            'callback_query_id' => $request->input('callback_query.id'),
-            'callback_data' => $callbackData,
+        // Handle normal messages (like /start)
+        $messageText = $request->input('message.text') ?? '';
+        $chatId = $request->input('message.chat.id') ?? null;
+
+        if ($chatId && $messageText === '/start') {
+            $this->sendRegisterButton($chatId);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    private function sendRegisterButton($chatId)
+    {
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => 'Register', 'callback_data' => 'register']
+                ]
+            ]
+        ];
+
+        Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/sendMessage", [
+            'chat_id' => $chatId,
+            'text' => 'Welcome! Click below to register:',
+            'reply_markup' => $keyboard
+        ]);
+    }
+
+    private function registerUser(Request $request)
+    {
+        $chatId = $request->input('chat_id');
+
+        // Get Telegram user info
+        $from = $request->input('callback_query.from');
+        $firstName = $from['first_name'] ?? '';
+        $lastName  = $from['last_name'] ?? '';
+        $fullName  = trim($firstName . ' ' . $lastName);
+
+        $user = \App\Models\User::firstOrCreate(
+            ['telegram_id' => $chatId],
+            [
+                'name' => $fullName ?: 'Telegram User', // fallback if no name
+                'email' => "user{$chatId}@example.com",
+                'password' => bcrypt('password') // temporary password
+            ]
+        );
+
+        // Answer callback to remove "loading" animation
+        Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/answerCallbackQuery", [
+            'callback_query_id' => $request->input('callback_query_id'),
+            'text' => 'You are now registered! 🎉',
+            'show_alert' => false
         ]);
 
-        return match (true) {
-            str_starts_with($callbackData, 'receive_') => $this->receive($request),
-            str_starts_with($callbackData, 'sendback_') => $this->sendBack($request),
-            str_starts_with($callbackData, 'sendto_') => $this->sendToNextReceiver($request),
-            str_starts_with($callbackData, 'complete_') => $this->completeDocument($request),
-            default => response()->json(['success' => false]),
-        };
+        // Optional: edit original message
+        Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/editMessageText", [
+            'chat_id' => $chatId,
+            'message_id' => $request->input('message_id'),
+            'text' => '✅ You are registered successfully.'
+        ]);
+
+        return response()->json(['success' => true]);
     }
+
+
 }
