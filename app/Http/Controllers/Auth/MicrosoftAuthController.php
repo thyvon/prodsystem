@@ -16,6 +16,7 @@ class MicrosoftAuthController extends Controller
     public function redirect()
     {
         return Socialite::driver('microsoft')
+            ->stateless() // important for cross-domain/session
             ->scopes(['openid', 'profile', 'email', 'User.Read'])
             ->redirect();
     }
@@ -25,19 +26,28 @@ class MicrosoftAuthController extends Controller
      */
     public function callback()
     {
-        $microsoftUser = Socialite::driver('microsoft')->user();
+        // Get Microsoft user
+        $microsoftUser = Socialite::driver('microsoft')->stateless()->user();
 
-        // Find or create local user
-        $user = User::firstOrCreate(
+        // Find or create user
+        $user = User::updateOrCreate(
             ['email' => $microsoftUser->getEmail()],
             [
                 'name' => $microsoftUser->getName(),
-                'password' => bcrypt(Str::random(16)),
+                'microsoft_id' => $microsoftUser->getId(),
+                'password' => bcrypt(Str::random(16)), // random password for new users
             ]
         );
 
+        // Save Microsoft profile URL if exists
+        if (!empty($microsoftUser->avatar)) {
+            $user->profile_url = $microsoftUser->avatar;
+            $user->save();
+        }
+
+        // Login the user
         Auth::login($user);
 
-        return redirect('/');
+        return redirect('/'); // or your dashboard
     }
 }
