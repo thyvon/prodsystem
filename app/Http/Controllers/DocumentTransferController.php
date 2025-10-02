@@ -211,30 +211,38 @@ class DocumentTransferController extends Controller
         ['document' => $document, 'receiver' => $receiver, 'user' => $user, 'requester' => $requester] = $data;
 
         return $this->executeTransaction(
-            function () use ($receiver, $document, $user, $requester, $chatId, $messageId, $callbackQueryId) {
+            function () use ($receiver, $document, $user, $requester, $chatId, $callbackQueryId) {
                 $receivedDate = now();
                 $receiver->update(['status' => 'Received', 'received_date' => $receivedDate]);
 
-                $response = $this->updateTelegramMessage(
-                    $chatId,
-                    $receiver->telegram_message_id ?? $messageId,
-                    $this->buildTelegramMessage($document, $user->name, $requester->name, 'Received', $receivedDate)
-                );
-                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
-
+                // Build buttons for the same message
+                $buttons = [];
                 if ($document->is_send_back) {
-                    $response = Telegram::sendMessage([
-                        'chat_id' => $chatId,
-                        'text' => "You can send back this document if needed.",
-                        'parse_mode' => 'Markdown',
-                        'reply_markup' => Keyboard::make()->inline()->row([
-                            Keyboard::inlineButton(['text' => '🔄 Send Back', 'callback_data' => "sendback_{$document->id}-{$receiver->receiver_id}"])
-                        ]),
+                    $buttons[] = Keyboard::inlineButton([
+                        'text' => '🔄 Send Back',
+                        'callback_data' => "sendback_{$document->id}-{$receiver->receiver_id}"
                     ]);
-                    $receiver->update(['telegram_message_id' => $response->getMessageId()]);
                 }
 
-                Telegram::answerCallbackQuery(['callback_query_id' => $callbackQueryId, 'text' => "✅ Document marked as Received.", 'show_alert' => false]);
+                $keyboard = !empty($buttons) ? Keyboard::make()->inline()->row($buttons) : null;
+
+                // Edit the existing message with updated text and buttons
+                $response = Telegram::editMessageText([
+                    'chat_id' => $chatId,
+                    'message_id' => $receiver->telegram_message_id ?? $request->input('message_id'),
+                    'text' => $this->buildTelegramMessage($document, $user->name, $requester->name, 'Received', $receivedDate),
+                    'parse_mode' => 'Markdown',
+                    'reply_markup' => $keyboard
+                ]);
+
+                $receiver->update(['telegram_message_id' => $response->getMessageId()]);
+
+                Telegram::answerCallbackQuery([
+                    'callback_query_id' => $callbackQueryId,
+                    'text' => "✅ Document marked as Received.",
+                    'show_alert' => false
+                ]);
+
                 return response()->json(['success' => true]);
             },
             "Failed to process receive for document {$documentId}",
@@ -250,6 +258,7 @@ class DocumentTransferController extends Controller
         $chatId = $request->input('chat_id');
         $callbackQueryId = $request->input('callback_query_id');
 
+        // Validate receiver and document
         $data = $this->validateDocumentAndReceiver($documentId, $receiverId, $chatId, $callbackQueryId);
         if ($data instanceof JsonResponse) {
             return $data;
@@ -258,23 +267,44 @@ class DocumentTransferController extends Controller
         ['document' => $document, 'receiver' => $receiver, 'user' => $user, 'requester' => $requester] = $data;
 
         return $this->executeTransaction(
-            function () use ($receiver, $document, $user, $callbackQueryId) {
+            function () use ($receiver, $document, $user, $requester, $callbackQueryId) {
                 $sentDate = now();
                 $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
-                // **Update the original message for sender**
-                if ($receiver->telegram_message_id) {
-                    $this->updateTelegramMessage(
-                        $user->telegram_id,
-                        $receiver->telegram_message_id,
-                        $this->buildTelegramMessage($document, $user->name, '', 'Sent Back', $receiver->received_date, $sentDate)
-                    );
+                // Notify next receiver if exists
+                $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
+                if ($nextReceiver && $nextReceiver->status === 'Pending') {
+                    $this->notifyFirstReceiver($nextReceiver, $document);
                 }
 
-                // Notify next receiver if exists and is not the sender
-                $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
-                if ($nextReceiver && $nextReceiver->status === 'Pending' && $nextReceiver->receiver_id !== $receiver->receiver_id) {
-                    $this->notifyFirstReceiver($nextReceiver, $document);
+                // Update creator's message with new status and buttons
+                if ($receiver->telegram_creator_message_id) {
+                    $buttons = [];
+                    if ($nextReceiver && $nextReceiver->status === 'Pending') {
+                        $buttons[] = Keyboard::inlineButton([
+                            'text' => "➡️ Send to {$nextReceiver->receiver->name}",
+                            'callback_data' => "sendto_{$document->id}-{$nextReceiver->receiver_id}"
+                        ]);
+                    }
+                    // Always have the "Complete" button
+                    $buttons[] = Keyboard::inlineButton([
+                        'text' => "✅ Complete",
+                        'callback_data' => "complete_{$document->id}"
+                    ]);
+
+                    // Update message text
+                    $this->updateTelegramMessage(
+                        $requester->telegram_id,
+                        $receiver->telegram_creator_message_id,
+                        $this->buildTelegramMessage($document, $requester->name, $user->name, 'Sent Back', $receiver->received_date, $sentDate)
+                    );
+
+                    // Update message buttons
+                    Telegram::editMessageReplyMarkup([
+                        'chat_id' => $requester->telegram_id,
+                        'message_id' => $receiver->telegram_creator_message_id,
+                        'reply_markup' => Keyboard::make()->inline()->row($buttons),
+                    ]);
                 }
 
                 Telegram::answerCallbackQuery([
