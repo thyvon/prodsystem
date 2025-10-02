@@ -34,10 +34,14 @@
                 <!-- Submit Buttons -->
                 <div class="row no-gutters">
                     <div class="col-lg-6 pr-lg-1 my-2">
-                        <button type="submit" class="btn btn-info btn-block btn-lg">Sign in with <i class="fab fa-google"></i></button>
+                        <a href="{{ route('microsoft.login') }}" class="btn btn-info btn-block btn-lg">
+                            Sign in with <i class="fab fa-microsoft"></i>
+                        </a>
                     </div>
                     <div class="col-lg-6 pl-lg-1 my-2">
-                        <button type="submit" class="btn btn-danger btn-block btn-lg">Secure login</button>
+                        <button type="submit" class="btn btn-danger btn-block btn-lg">
+                            Login <i class="fas fa-lock"></i>
+                        </button>
                     </div>
                 </div>
             </form>

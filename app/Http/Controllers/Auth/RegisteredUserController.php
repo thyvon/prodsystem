@@ -45,7 +45,7 @@ class RegisteredUserController extends Controller
             'phone' => ['nullable', 'string', 'max:255'],
             'building_id' => ['nullable', 'exists:buildings,id'],
             'default_department_id' => ['nullable', 'exists:departments,id'],
-            'default_campus_id' => ['nullable', 'exists:campuses,id'],
+            'default_campus_id' => ['nullable', 'exists:campus,id'],
             'current_position_id' => ['nullable', 'exists:positions,id'],
 
             'profile_url' => ['nullable', 'image', 'max:2048'],

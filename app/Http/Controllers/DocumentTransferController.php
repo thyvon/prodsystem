@@ -282,6 +282,16 @@ class DocumentTransferController extends Controller
         );
     }
 
+    private function generateReferenceNo(): string
+    {
+        return 'DOC-' . now()->format('Ymd') . '-' . str_pad(
+            DocumentTransfer::whereDate('created_at', now())->count() + 1,
+            4,
+            '0',
+            STR_PAD_LEFT
+        );
+    }
+
     public function receive(Request $request): JsonResponse
     {
         [$documentId, $receiverId] = explode('-', str_replace('receive_', '', $request->input('callback_data')));
@@ -612,16 +622,6 @@ class DocumentTransferController extends Controller
                 Log::error("Failed to notify user of error: {$telegramException->getMessage()}");
             }
         }
-    }
-
-    private function generateReferenceNo(): string
-    {
-        return 'DOC-' . now()->format('Ymd') . '-' . str_pad(
-            DocumentTransfer::whereDate('created_at', now())->count() + 1,
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
     }
 
     private function buildTelegramMessage(

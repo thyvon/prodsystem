@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Auth\MicrosoftAuthController;
 
 use App\Http\Controllers\PdfController;
 use Illuminate\Support\Facades\Route;
@@ -242,4 +243,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/document-transfers/create', [DocumentTransferController::class, 'form'])
         ->name('document-transfers.create');
 });
+
+// Microsoft OAuth Login Route
+Route::get('/auth/microsoft', [MicrosoftAuthController::class, 'redirect'])->name('microsoft.login');
+Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback']);
 require __DIR__.'/auth.php';
