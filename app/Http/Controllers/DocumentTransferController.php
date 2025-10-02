@@ -341,28 +341,17 @@ class DocumentTransferController extends Controller
             $sentDate = now();
             $receiver->update(['status' => 'Sent Back', 'sent_date' => $sentDate]);
 
-            // 1️⃣ Update receiver's message: add Send Back date, remove Send Back button
-            $receiverMessageText = $this->buildTelegramMessage(
-                $document,
-                $user->name,
-                $requester->name,
-                'Sent Back',
-                $receiver->received_date,
-                $sentDate
-            );
-
-            $receiverMessage = $this->updateTelegramMessage(
-                $user->telegram_id,
-                $receiver->telegram_message_id,
-                $receiverMessageText,
-                Keyboard::make() // empty buttons
-            );
-
-            if ($receiverMessage) {
-                $receiver->update(['telegram_message_id' => $receiverMessage->getMessageId()]);
+            // 1️⃣ Update receiver message (remove buttons)
+            if ($receiver->telegram_message_id) {
+                Telegram::editMessageText([
+                    'chat_id' => $user->telegram_id,
+                    'message_id' => $receiver->telegram_message_id,
+                    'text' => $this->buildTelegramMessage($document, $user->name, $requester->name, 'Sent Back', $receiver->received_date, $sentDate),
+                    'parse_mode' => 'Markdown'
+                ]);
             }
 
-            // 2️⃣ Notify creator with buttons: Send to Next Receiver or Receive to Complete
+            // 2️⃣ Notify creator
             $nextReceiver = $this->getNextReceiver($document, $receiver->receiver_id);
             $buttons = [];
             if ($nextReceiver) {
@@ -383,33 +372,34 @@ class DocumentTransferController extends Controller
                 'Sent Back',
                 $receiver->received_date,
                 $sentDate,
-                true // creator notification
+                true
             );
 
             if ($receiver->telegram_creator_message_id) {
-                // Edit existing creator message if exists
-                $creatorMessage = $this->updateTelegramMessage(
-                    $requester->telegram_id,
-                    $receiver->telegram_creator_message_id,
-                    $creatorMessageText,
-                    Keyboard::make()->inline()->row($buttons)
-                );
+                // edit existing creator message
+                $creatorMessage = Telegram::editMessageText([
+                    'chat_id' => $requester->telegram_id,
+                    'message_id' => $receiver->telegram_creator_message_id,
+                    'text' => $creatorMessageText,
+                    'parse_mode' => 'Markdown',
+                    'reply_markup' => ['inline_keyboard' => [$buttons]]
+                ]);
             } else {
-                // Send new message to creator
+                // send new creator message
                 $creatorMessage = Telegram::sendMessage([
                     'chat_id' => $requester->telegram_id,
                     'text' => $creatorMessageText,
                     'parse_mode' => 'Markdown',
-                    'reply_markup' => ['inline_keyboard' => [$buttons]],
+                    'reply_markup' => ['inline_keyboard' => [$buttons]]
                 ]);
             }
 
-            // Save creator message ID for future edits
+            // Save creator message ID
             if ($creatorMessage) {
                 $receiver->update(['telegram_creator_message_id' => $creatorMessage->getMessageId()]);
             }
 
-            // 3️⃣ Answer callback query for the receiver
+            // 3️⃣ Answer callback
             Telegram::answerCallbackQuery([
                 'callback_query_id' => $callbackQueryId,
                 'text' => "✅ Document marked as Sent Back.",
