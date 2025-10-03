@@ -45,7 +45,7 @@ class DigitalDocsApprovalController extends Controller
             ], 401);
         }
 
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjpEJMrAkn_RR7PJLX2Xvrtc'; // <-- Replace with your drive ID
+        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
         $sharePoint = new SharePointService($accessToken, $customDriveId);
 
         try {
@@ -54,15 +54,20 @@ class DigitalDocsApprovalController extends Controller
                 // --- Step 1: Build dynamic folder path: document_type/year/month ---
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
 
-                // --- Step 2: Upload file to SharePoint (only inside transaction) ---
+                // --- Step 2: Generate reference number (used as file name) ---
+                $referenceNo = $this->generateReferenceNo();
+
+                // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
+                $file = $request->file('file');
+                $extension = $file->getClientOriginalExtension();
                 $fileData = $sharePoint->uploadFile(
-                    $request->file('file'),
+                    $file,
                     $folderPath,
-                    ['Title' => $validated['description']] // optional metadata
+                    ['Title' => $validated['description']],
+                    "{$referenceNo}.{$extension}" // pass file name
                 );
 
-                // --- Step 3: Create DigitalDocsApproval record ---
-                $referenceNo = $this->generateReferenceNo();
+                // --- Step 4: Create DigitalDocsApproval record ---
                 $digitalDocsApproval = DigitalDocsApproval::create([
                     'reference_no' => $referenceNo,
                     'description' => $validated['description'],
@@ -74,7 +79,7 @@ class DigitalDocsApprovalController extends Controller
                     'created_by' => auth()->id(),
                 ]);
 
-                // --- Step 4: Store approvals ---
+                // --- Step 5: Store approvals ---
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
                 return response()->json([
@@ -186,8 +191,10 @@ class DigitalDocsApprovalController extends Controller
     private function getSharePointFolderPath(string $documentType): string
     {
         $year = now()->format('Y');
-        $month = now()->format('m');
-        return "{$documentType}/{$year}/{$month}";
+        $monthNumber = now()->format('m');       // 01, 02, ..., 12
+        $monthName = now()->format('M');         // Jan, Feb, ..., Dec (short name)
+        
+        return "{$documentType}/{$year}/{$monthNumber} {$monthName}";
     }
 
     public function getApprovalUsers(): JsonResponse
