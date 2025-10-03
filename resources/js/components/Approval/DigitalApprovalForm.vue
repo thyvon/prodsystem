@@ -196,11 +196,22 @@ const submitForm = async () => {
 
     await axios.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
-    showAlert('Success', 'Document approval saved successfully.', 'success')
+    await showAlert(
+      'Success',
+      isEditMode.value
+        ? 'Document updated successfully.'
+        : 'Document created successfully.',
+      'success'
+    );
     emit('submitted')
     goToIndex()
   } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to save document approval.', 'danger')
+    console.error(err.response?.data || err);
+    await showAlert(
+      'Error',
+      err.response?.data?.message || err.message || 'Failed to save document.',
+      'danger'
+    );
   } finally {
     isSubmitting.value = false
   }

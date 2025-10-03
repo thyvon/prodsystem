@@ -64,7 +64,7 @@ class DigitalDocsApprovalController extends Controller
                     $file,
                     $folderPath,
                     ['Title' => $validated['description']],
-                    "{$referenceNo}.{$extension}" // pass file name
+                    "{$referenceNo}.{$extension}" 
                 );
 
                 // --- Step 4: Create DigitalDocsApproval record ---
