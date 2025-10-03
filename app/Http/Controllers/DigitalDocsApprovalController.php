@@ -77,11 +77,8 @@ class DigitalDocsApprovalController extends Controller
                     'id' => $a->id,
                     'request_type' => $a->request_type,
                     'approval_status' => $a->approval_status,
-                    'responder' => $a->responder ? [
-                        'id' => $a->responder->id,
-                        'name' => $a->responder->name,
-                        'email' => $a->responder->email,
-                    ] : null,
+                    'response_date' => $a->responded_date?->format('Y-m-d H:i'), // optional response date
+                    'approver_name' => $a->responder ? $a->responder->name : 'Unknown',
                 ]),
             ]),
             'recordsTotal' => DigitalDocsApproval::whereNull('deleted_at')->count(),

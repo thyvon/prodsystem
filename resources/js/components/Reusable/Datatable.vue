@@ -133,18 +133,23 @@ const renderColumnData = (key, val) => {
   }
 
   if (key === 'approvals' && Array.isArray(val)) {
-    return `<ul class="mb-0">
-      ${val.map(a => `
-        <li>
-          ${a.approver_name} (${capitalize(a.request_type)}) 
-          <span class="badge ${a.approval_status === 'Pending' ? 'badge-warning' : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success')}">
-            ${a.approval_status}
-          </span>
-          ${a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : ''}
-        </li>
-      `).join('')}
+    return `<ul class="mb-0 ps-2">
+      ${val.map(a => {
+        const statusClass = a.approval_status === 'Pending' 
+          ? 'badge-warning' 
+          : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success');
+
+        const approvedDate = a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : '';
+
+        return `<li>
+          ${a.approver_name || 'Unknown'} (${capitalize(a.request_type || '')}) 
+          <span class="badge ${statusClass}">${a.approval_status || 'Pending'}</span>
+          ${approvedDate}
+        </li>`;
+      }).join('')}
     </ul>`;
   }
+
 
 
   // Document Status
