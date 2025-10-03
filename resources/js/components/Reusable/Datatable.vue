@@ -132,6 +132,20 @@ const renderColumnData = (key, val) => {
     </ul>`;
   }
 
+  if (key === 'approvals' && Array.isArray(val)) {
+    return `<ul class="mb-0">
+      ${val.map(a => `
+        <li>
+          ${a.approver_name} (${capitalize(a.request_type)}) 
+          <span class="badge ${a.approval_status === 'Pending' ? 'badge-warning' : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success')}">
+            ${a.approval_status}
+          </span>
+          ${a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : ''}
+        </li>
+      `).join('')}
+    </ul>`;
+  }
+
 
   // Document Status
   if (key === 'status') {

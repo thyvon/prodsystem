@@ -56,7 +56,15 @@
                     <span class="nav-link-text">Dashboard</span>
                 </a>
             </li>
-
+            @php
+                $digitalDocumentActive = request()->is('digital-docs-approvals*');
+            @endphp
+            <li class="{{ $digitalDocumentActive ? 'active' : '' }}">
+                <a href="{{ url('digital-docs-approvals') }}" title="Digital Approvals" data-filter-tags="digital approvals">
+                    <i class="fal fa-stamp"></i>
+                    <span class="nav-link-text">Digital Approvals</span>
+                </a>
+            </li>
             @php
                 $documentActive = request()->is('document-transfers');
             @endphp

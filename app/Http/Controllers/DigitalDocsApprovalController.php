@@ -64,15 +64,16 @@ class DigitalDocsApprovalController extends Controller
             ->paginate($limit, ['*'], 'page', $page);
 
         return response()->json([
-            'data' => $digitalDocsApprovals->map(fn($t) => [
-                'id' => $t->id,
-                'reference_no' => $t->reference_no,
-                'document_type' => $t->document_type,
-                'description' => $t->description,
-                'approval_status' => $t->approval_status,
-                'created_at' => $t->created_at,
-                'updated_at' => $t->updated_at,
-                'approvals' => $t->approvals->map(fn($a) => [
+            'data' => $digitalDocsApprovals->map(fn($digitaldoc) => [
+                'id' => $digitaldoc->id,
+                'reference_no' => $digitaldoc->reference_no,
+                'document_type' => $digitaldoc->document_type,
+                'description' => $digitaldoc->description,
+                'approval_status' => $digitaldoc->approval_status,
+                'created_at' => $digitaldoc->created_at,
+                'created_by' => $digitaldoc->creator->name ?? 'Unknown',
+                'updated_at' => $digitaldoc->updated_at,
+                'approvals' => $digitaldoc->approvals->map(fn($a) => [
                     'id' => $a->id,
                     'request_type' => $a->request_type,
                     'approval_status' => $a->approval_status,

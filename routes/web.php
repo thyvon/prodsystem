@@ -255,6 +255,9 @@ Route::middleware(['auth','refresh.microsoft'])->group(function () {
         ->name('digital-docs-approvals.index');
     Route::get('/digital-docs-approvals/create', [DigitalDocsApprovalController::class, 'form'])
         ->name('digital-docs-approvals.create');
+    Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'form'])
+        ->name('digital-docs-approvals.edit');
+
 });
 
 // Microsoft OAuth Login Route
