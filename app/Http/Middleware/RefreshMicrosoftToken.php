@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Carbon\Carbon;
 
 class RefreshMicrosoftToken
 {
@@ -15,7 +16,11 @@ class RefreshMicrosoftToken
 
         if ($user && $user->microsoft_refresh_token) {
             // Check if token is expired or about to expire (e.g., within 1 min)
-            if (!$user->microsoft_token_expires_at || now()->greaterThan($user->microsoft_token_expires_at->subMinute())) {
+            $expiresAt = $user->microsoft_token_expires_at
+                ? Carbon::parse($user->microsoft_token_expires_at)
+                : null;
+
+            if (!$expiresAt || now()->greaterThan($expiresAt->subMinute())) {
                 $this->refreshAccessToken($user);
             }
         }

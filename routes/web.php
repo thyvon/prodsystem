@@ -72,6 +72,10 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\ApprovalController;
 use App\Models\Approval;
 
+// Digital Document Management
+use App\Http\Controllers\DigitalDocsApprovalController;
+use App\Models\DigitalDocsApproval;
+
 // Document Management
 use App\Http\Controllers\DocumentTransferController;
 use App\Models\DocumentTransfer;
@@ -245,6 +249,12 @@ Route::middleware(['auth','refresh.microsoft'])->group(function () {
         ->name('document-transfers.edit');
     // Route::get('/document-transfers/{documentTransfer}/show', [DocumentTransferController::class, 'show'])
     //     ->name('document-transfers.show');
+
+    // Digital Document Approval
+    Route::get('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'index'])
+        ->name('digital-docs-approvals.index');
+    Route::get('/digital-docs-approvals/create', [DigitalDocsApprovalController::class, 'form'])
+        ->name('digital-docs-approvals.create');
 });
 
 // Microsoft OAuth Login Route

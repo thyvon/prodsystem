@@ -72,6 +72,9 @@ use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DocumentTransferController;
 use App\Models\DocumentTransfer;
 
+// Digital Document Management
+use App\Http\Controllers\DigitalDocsApprovalController;
+use App\Models\DigitalDocsApproval;
 
 // Telegram Bot
 use App\Http\Controllers\TelegramController;
@@ -319,6 +322,13 @@ Route::middleware(['auth:sanctum', 'refresh.microsoft'])->group(function () {
     Route::get('/document-transfers/get-receivers', [DocumentTransferController::class, 'getReceivers'])->name('api.document-transfers.get-receivers');
     Route::get('/document-transfers', [DocumentTransferController::class, 'getDocumentTransfers'])->name('api.document-transfers.index');
     Route::put('/document-transfers/{documentTransfer}/update-or-reassign', [DocumentTransferController::class, 'updateReceiversOrReceive'])->name('api.document-transfers.update-or-reassign');
+
+    // Digital Document Approval
+    Route::post('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'store'])->name('digital-docs-approvals.store');
+    Route::post('/digital-docs-approvals/upload-temp', [DigitalDocsApprovalController::class, 'uploadTemp'])
+    ->name('digital-docs-approvals.upload-temp');
+    Route::get('/digital-docs-approvals/get-users-for-approval', [DigitalDocsApprovalController::class, 'getApprovalUsers'])
+    ->name('digital-docs-approvals.get-users-for-approval');
 
 });
 

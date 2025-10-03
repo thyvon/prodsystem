@@ -38,4 +38,9 @@ return [
         'tenant' => env('MICROSOFT_TENANT_ID'),
     ],
 
+    'sharepoint' => [
+        'site_id' => env('SHAREPOINT_SITE_ID'),
+        'drive_id' => env('SHAREPOINT_DRIVE_ID'),
+    ],
+
 ];
