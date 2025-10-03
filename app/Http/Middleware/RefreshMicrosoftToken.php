@@ -14,16 +14,27 @@ class RefreshMicrosoftToken
     {
         $user = Auth::user();
 
+        // Log that middleware is triggered
+        \Log::info('RefreshMicrosoftToken middleware triggered for user: ' . optional($user)->id);
+
         if ($user && $user->microsoft_refresh_token) {
             // Parse expiry safely
             $expiresAt = $user->microsoft_token_expires_at
                 ? Carbon::parse($user->microsoft_token_expires_at)
                 : null;
 
+            // Log current token status
+            \Log::info('Current token expires at: ' . ($expiresAt ? $expiresAt->toDateTimeString() : 'null'));
+
             // Refresh if expired or will expire in 1 minute
             if (!$expiresAt || Carbon::now()->greaterThan($expiresAt->subMinute())) {
+                \Log::info('Access token expired or about to expire. Refreshing...');
                 $this->refreshAccessToken($user);
+            } else {
+                \Log::info('Access token is still valid. No refresh needed.');
             }
+        } else {
+            \Log::info('No user or no refresh token available.');
         }
 
         return $next($request);
@@ -51,10 +62,13 @@ class RefreshMicrosoftToken
                 $user->microsoft_token_expires_at = Carbon::now()->addSeconds($data['expires_in'] ?? 3600);
 
                 $user->save();
+
+                \Log::info('Microsoft access token refreshed successfully for user: ' . $user->id);
+            } else {
+                \Log::warning('Microsoft token refresh failed with status ' . $response->status() . ': ' . $response->body());
             }
         } catch (\Exception $e) {
-            // Optional: log the error
-            \Log::error('Microsoft token refresh failed: ' . $e->getMessage());
+            \Log::error('Microsoft token refresh exception: ' . $e->getMessage());
         }
     }
 }
