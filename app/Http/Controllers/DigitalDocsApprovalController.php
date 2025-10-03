@@ -73,6 +73,7 @@ class DigitalDocsApprovalController extends Controller
                 'created_at' => $digitaldoc->created_at,
                 'created_by' => $digitaldoc->creator->name ?? 'Unknown',
                 'updated_at' => $digitaldoc->updated_at,
+                'sharepoint_file_url' => $digitaldoc->sharepoint_file_url,
                 'approvals' => $digitaldoc->approvals->map(fn($a) => [
                     'id' => $a->id,
                     'request_type' => $a->request_type,
@@ -270,36 +271,6 @@ class DigitalDocsApprovalController extends Controller
 
             return response()->json([
                 'message' => 'Failed to delete digital document approval.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function uploadTemp(Request $request): JsonResponse
-    {
-        $request->validate([
-            'file' => 'required|file|max:10240', // max 10MB
-        ]);
-
-        try {
-            $file = $request->file('file');
-
-            // Generate a unique temporary filename
-            $tempFileName = Str::uuid() . '.' . $file->getClientOriginalExtension();
-
-            // Store in temporary folder (storage/app/temp)
-            $path = $file->storeAs('temp', $tempFileName);
-
-            return response()->json([
-                'message' => 'File uploaded temporarily.',
-                'file_name' => $tempFileName,
-                'original_name' => $file->getClientOriginalName(),
-                'temp_path' => $path,
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to upload file temporarily.',
                 'error' => $e->getMessage(),
             ], 500);
         }

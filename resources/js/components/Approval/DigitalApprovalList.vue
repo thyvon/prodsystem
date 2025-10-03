@@ -45,6 +45,7 @@ const datatableHeaders = [
   { text: 'Description', value: 'description', width: '25%' },
   { text: 'Created By', value: 'created_by', width: '10%' },
   { text: 'Approvals', value: 'approvals', width: '25%', slot: 'approvals', sortable: false },
+  { text: 'File', value: 'sharepoint_file_url', width: '8%' },
   { text: 'Status', value: 'approval_status', width: '8%' },
 ];
 const datatableFetchUrl = '/api/digital-docs-approvals';

@@ -119,19 +119,8 @@ const renderColumnData = (key, val) => {
     return `<span class="badge ${badgeClass} text-center">${text}</span>`;
   }
 
-  // Receivers
-  if (key === 'receivers' && Array.isArray(val)) {
-    return `<ul class="mb-0">
-      ${val.map(r => `
-        <li>
-          ${r.name} 
-          <span class="badge ${r.status === 'Pending' ? 'badge-warning' : 'badge-success'}">${r.status}</span>
-          ${r.received_date ? ` - <small class="text-muted">${r.received_date}</small>` : ''}
-        </li>
-      `).join('')}
-    </ul>`;
-  }
 
+  // Digital Document Approvals
   if (key === 'approvals' && Array.isArray(val)) {
     return `<ul class="mb-0 ps-2">
       ${val.map(a => {
@@ -150,6 +139,11 @@ const renderColumnData = (key, val) => {
     </ul>`;
   }
 
+  if (key === 'sharepoint_file_url' && val) {
+    return `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary">
+              <i class="fal fa-folder"></i> View Document
+            </a>`;
+  }
 
 
   // Document Status
@@ -167,6 +161,19 @@ const renderColumnData = (key, val) => {
     const badgeClass = val ? 'badge badge-danger' : 'badge badge-success';
     const text = val ? 'Yes' : 'No';
     return `<span class="badge ${badgeClass} text-center">${text}</span>`;
+  }
+
+    // Receivers
+  if (key === 'receivers' && Array.isArray(val)) {
+    return `<ul class="mb-0">
+      ${val.map(r => `
+        <li>
+          ${r.name} 
+          <span class="badge ${r.status === 'Pending' ? 'badge-warning' : 'badge-success'}">${r.status}</span>
+          ${r.received_date ? ` - <small class="text-muted">${r.received_date}</small>` : ''}
+        </li>
+      `).join('')}
+    </ul>`;
   }
 
   // Images
