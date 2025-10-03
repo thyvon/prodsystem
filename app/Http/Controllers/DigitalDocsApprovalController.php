@@ -194,4 +194,16 @@ class DigitalDocsApprovalController extends Controller
         );
     }
 
+    protected function getOrdinalForRequestType($requestType)
+    {
+        $ordinals = [
+        'initial' => 1,
+        'check' => 2,
+        'review' => 3,
+        'approve' => 4,
+        'acknowledge' => 5,
+        ];
+        return $ordinals[$requestType] ?? 1;
+    }
+
 }
