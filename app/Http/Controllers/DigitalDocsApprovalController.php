@@ -23,6 +23,71 @@ class DigitalDocsApprovalController extends Controller
     {
         $this->approvalService = $approvalService;
     }
+
+    private const DEFAULT_LIMIT = 10;
+    private const MAX_LIMIT = 1000;
+
+    public function index(): View
+    {
+        return view('approval.digital-approval-list');
+    }
+
+    public function getDigitalDocuments(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $query = DigitalDocsApproval::with(['approvals.responder'])
+            ->whereNull('deleted_at');
+
+        if ($search = $validated['search'] ?? null) {
+            $query->where(fn($q) => $q->where('reference_no', 'like', "%$search%")
+                ->orWhere('document_type', 'like', "%$search%")
+                ->orWhere('description', 'like', "%$search%"));
+        }
+
+        $sortColumn = $validated['sortColumn'] ?? 'id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
+        $page = $validated['page'] ?? 1;
+
+        // Clone the query for filtered count before pagination
+        $recordsFiltered = (clone $query)->count();
+
+        $digitalDocsApprovals = $query->orderBy($sortColumn, $sortDirection)
+            ->paginate($limit, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $digitalDocsApprovals->map(fn($t) => [
+                'id' => $t->id,
+                'reference_no' => $t->reference_no,
+                'document_type' => $t->document_type,
+                'description' => $t->description,
+                'approval_status' => $t->approval_status,
+                'created_at' => $t->created_at,
+                'updated_at' => $t->updated_at,
+                'approvals' => $t->approvals->map(fn($a) => [
+                    'id' => $a->id,
+                    'request_type' => $a->request_type,
+                    'approval_status' => $a->approval_status,
+                    'responder' => $a->responder ? [
+                        'id' => $a->responder->id,
+                        'name' => $a->responder->name,
+                        'email' => $a->responder->email,
+                    ] : null,
+                ]),
+            ]),
+            'recordsTotal' => DigitalDocsApproval::whereNull('deleted_at')->count(),
+            'recordsFiltered' => $recordsFiltered,
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
     /**
      * Show the form for creating/editing a digital document approval
      */
@@ -105,6 +170,113 @@ class DigitalDocsApprovalController extends Controller
         ]);
     }
 
+    public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
+    {
+        $validated = Validator::make($request->all(), array_merge(
+            $this->digitalDocsApprovalValidationRules(),
+            ['file' => 'nullable|file|max:10240'] // allow updating without changing file
+        ))->validate();
+
+        $accessToken = auth()->user()->microsoft_token;
+        if (empty($accessToken)) {
+            return response()->json([
+                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
+            ], 401);
+        }
+
+        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+        $sharePoint = new SharePointService($accessToken, $customDriveId);
+
+        try {
+            return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint) {
+
+                // Update file if provided
+                if ($request->hasFile('file')) {
+                    $file = $request->file('file');
+                    $extension = $file->getClientOriginalExtension();
+                    $fileData = $sharePoint->updateFile(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        $file,
+                        ['Title' => $validated['description']]
+                    );
+
+                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
+                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
+                } else {
+                    // Only update metadata
+                    $sharePoint->updateFileProperties(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        ['Title' => $validated['description']]
+                    );
+                }
+
+                // Update description and document type
+                $digitalDocsApproval->description = $validated['description'];
+                $digitalDocsApproval->document_type = $validated['document_type'];
+                $digitalDocsApproval->save();
+
+                // Update approvals (optional: clear old and re-insert)
+                $digitalDocsApproval->approvals()->delete();
+                $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
+
+                return response()->json([
+                    'message' => 'Digital document approval updated successfully.',
+                    'data' => $digitalDocsApproval->load('approvals.responder'),
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to update digital document approval', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'message' => 'Failed to update digital document approval.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Destroy a digital document approval
+     */
+    public function destroy(DigitalDocsApproval $digitalDocsApproval): JsonResponse
+    {
+        $accessToken = auth()->user()->microsoft_token;
+        if (empty($accessToken)) {
+            return response()->json([
+                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
+            ], 401);
+        }
+
+        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+        $sharePoint = new SharePointService($accessToken, $customDriveId);
+
+        try {
+            return DB::transaction(function () use ($digitalDocsApproval, $sharePoint) {
+                
+                // Delete file from SharePoint
+                if ($digitalDocsApproval->sharepoint_file_id) {
+                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id);
+                }
+
+                // Delete approvals
+                $digitalDocsApproval->approvals()->delete();
+
+                // Delete the main record
+                $digitalDocsApproval->delete();
+
+                return response()->json([
+                    'message' => 'Digital document approval deleted successfully.',
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to delete digital document approval', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'message' => 'Failed to delete digital document approval.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function uploadTemp(Request $request): JsonResponse
     {
         $request->validate([
@@ -155,7 +327,7 @@ class DigitalDocsApprovalController extends Controller
      */
     private function generateReferenceNo(): string
     {
-        return 'DOC-' . now()->format('Ymd') . '-' . str_pad(
+        return 'DOC-' . now()->format('Ym') . '-' . str_pad(
             DigitalDocsApproval::whereDate('created_at', now())->count() + 1,
             4,
             '0',

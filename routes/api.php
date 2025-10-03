@@ -324,6 +324,7 @@ Route::middleware(['auth:sanctum', 'refresh.microsoft'])->group(function () {
     Route::put('/document-transfers/{documentTransfer}/update-or-reassign', [DocumentTransferController::class, 'updateReceiversOrReceive'])->name('api.document-transfers.update-or-reassign');
 
     // Digital Document Approval
+    Route::get('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'getDigitalDocuments'])->name('digital-docs-approvals.index');
     Route::post('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'store'])->name('digital-docs-approvals.store');
     Route::post('/digital-docs-approvals/upload-temp', [DigitalDocsApprovalController::class, 'uploadTemp'])
     ->name('digital-docs-approvals.upload-temp');
