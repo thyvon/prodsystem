@@ -38,33 +38,30 @@ class DigitalDocsApprovalController extends Controller
     {
         $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
 
+        $accessToken = auth()->user()->microsoft_token; // AD token
+        if (empty($accessToken)) {
+            return response()->json([
+                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
+            ], 401);
+        }
+
+        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjpEJMrAkn_RR7PJLX2Xvrtc'; // <-- Replace with your drive ID
+        $sharePoint = new SharePointService($accessToken, $customDriveId);
+
         try {
-            return DB::transaction(function () use ($validated, $request) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint) {
 
                 // --- Step 1: Build dynamic folder path: document_type/year/month ---
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
 
-                // --- Step 2: Set custom SharePoint drive/library ID ---
-                $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjpEJMrAkn_RR7PJLX2Xvrtc'; // <-- Replace with your drive ID
-
-                // --- Step 3: Upload file to SharePoint ---
-                $accessToken = auth()->user()->microsoft_token; // AD token
-
-                if (empty($accessToken)) {
-                    return response()->json([
-                        'message' => 'Microsoft access token not found. Please re-authenticate your account.',
-                    ], 401);
-                }
-
-                $sharePoint = new SharePointService($accessToken, $customDriveId);
-
+                // --- Step 2: Upload file to SharePoint (only inside transaction) ---
                 $fileData = $sharePoint->uploadFile(
                     $request->file('file'),
                     $folderPath,
                     ['Title' => $validated['description']] // optional metadata
                 );
 
-                // --- Step 4: Create DigitalDocsApproval record ---
+                // --- Step 3: Create DigitalDocsApproval record ---
                 $referenceNo = $this->generateReferenceNo();
                 $digitalDocsApproval = DigitalDocsApproval::create([
                     'reference_no' => $referenceNo,
@@ -77,6 +74,7 @@ class DigitalDocsApprovalController extends Controller
                     'created_by' => auth()->id(),
                 ]);
 
+                // --- Step 4: Store approvals ---
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
                 return response()->json([
@@ -86,6 +84,7 @@ class DigitalDocsApprovalController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('Failed to create digital document approval', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'message' => 'Failed to create digital document approval.',
                 'error' => $e->getMessage(),
