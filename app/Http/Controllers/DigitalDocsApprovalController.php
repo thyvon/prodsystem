@@ -17,6 +17,12 @@ use App\Services\ApprovalService;
 
 class DigitalDocsApprovalController extends Controller
 {
+    protected ApprovalService $approvalService;
+
+    public function __construct(ApprovalService $approvalService)
+    {
+        $this->approvalService = $approvalService;
+    }
     /**
      * Show the form for creating/editing a digital document approval
      */
