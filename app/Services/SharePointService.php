@@ -10,61 +10,87 @@ class SharePointService
     protected string $accessToken;
     protected string $siteId;
     protected string $driveId;
+    protected int $chunkSize; // default 10MB
 
-    /**
-     * @param string $accessToken User delegated token
-     * @param string|null $driveId Optional: override default drive/library ID
-     */
-    public function __construct(string $accessToken, string $driveId = null)
+    public function __construct(string $accessToken, string $driveId = null, int $chunkSize = 10 * 1024 * 1024)
     {
-        $siteId = config('services.sharepoint.site_id');
-        $finalDriveId = $driveId ?? config('services.sharepoint.drive_id');
-
-        if (empty($siteId) || empty($finalDriveId)) {
-            throw new \InvalidArgumentException('SharePoint site_id or drive_id is not configured.');
-        }
-
+        $this->siteId = config('services.sharepoint.site_id') ?: throw new \InvalidArgumentException('site_id not set');
+        $this->driveId = $driveId ?? config('services.sharepoint.drive_id') ?: throw new \InvalidArgumentException('drive_id not set');
         $this->accessToken = $accessToken;
-        $this->siteId = $siteId;
-        $this->driveId = $finalDriveId;
+        $this->chunkSize = $chunkSize;
     }
 
     public function uploadFile(UploadedFile $file, string $folderPath, array $properties = []): array
     {
         $fileName = time() . '_' . $file->getClientOriginalName();
-        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$this->driveId}/root:/{$folderPath}/{$fileName}:/content";
 
-        $response = Http::withToken($this->accessToken)
-            ->attach('file', file_get_contents($file->getRealPath()), $fileName)
-            ->put($url);
-
-        if ($response->failed()) {
-            throw new \Exception('Failed to upload file to SharePoint: ' . $response->body());
-        }
-
-        $fileInfo = $response->json();
+        $fileInfo = $file->getSize() <= 4 * 1024 * 1024
+            ? $this->uploadSmallFile($file, $folderPath, $fileName)
+            : $this->uploadLargeFile($file, $folderPath, $fileName);
 
         if (!empty($properties)) {
             $this->updateFileProperties($fileInfo['id'], $properties);
         }
 
+        return $fileInfo;
+    }
+
+    protected function uploadSmallFile(UploadedFile $file, string $folderPath, string $fileName): array
+    {
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$this->driveId}/root:/{$folderPath}/{$fileName}:/content";
+
+        $response = Http::withToken($this->accessToken)
+            ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
+            ->put($url)
+            ->throw();
+
         return [
-            'id' => $fileInfo['id'],
-            'name' => $fileInfo['name'],
-            'url' => $fileInfo['webUrl'],
+            'id' => $response->json('id'),
+            'name' => $response->json('name'),
+            'url' => $response->json('webUrl'),
         ];
     }
 
-    protected function updateFileProperties(string $fileId, array $properties)
+    protected function uploadLargeFile(UploadedFile $file, string $folderPath, string $fileName): array
     {
-        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$this->driveId}/items/{$fileId}/listItem/fields";
+        // create upload session
+        $uploadUrl = Http::withToken($this->accessToken)
+            ->post("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$this->driveId}/root:/{$folderPath}/{$fileName}:/createUploadSession", [
+                'item' => ['@microsoft.graph.conflictBehavior' => 'replace']
+            ])
+            ->throw()
+            ->json('uploadUrl');
 
-        $response = Http::withToken($this->accessToken)->patch($url, $properties);
+        $stream = fopen($file->getRealPath(), 'rb');
+        $size = $file->getSize();
+        $offset = 0;
 
-        if ($response->failed()) {
-            throw new \Exception('Failed to update SharePoint file properties: ' . $response->body());
+        while ($offset < $size) {
+            $chunk = fread($stream, $this->chunkSize);
+            $end = $offset + strlen($chunk) - 1;
+
+            $response = Http::withHeaders([
+                'Content-Range' => "bytes {$offset}-{$end}/{$size}"
+            ])->put($uploadUrl, $chunk)
+              ->throw();
+
+            $offset += strlen($chunk);
         }
 
-        return $response->json();
+        fclose($stream);
+
+        return [
+            'id' => $response->json('id'),
+            'name' => $response->json('name'),
+            'url' => $response->json('webUrl'),
+        ];
+    }
+
+    protected function updateFileProperties(string $fileId, array $properties): array
+    {
+        return Http::withToken($this->accessToken)
+            ->patch("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$this->driveId}/items/{$fileId}/listItem/fields", $properties)
+            ->throw()
+            ->json();
     }
 }
