@@ -17,9 +17,16 @@ class SharePointService
      */
     public function __construct(string $accessToken, string $driveId = null)
     {
+        $siteId = config('services.sharepoint.site_id');
+        $finalDriveId = $driveId ?? config('services.sharepoint.drive_id');
+
+        if (empty($siteId) || empty($finalDriveId)) {
+            throw new \InvalidArgumentException('SharePoint site_id or drive_id is not configured.');
+        }
+
         $this->accessToken = $accessToken;
-        $this->siteId = config('services.sharepoint.site_id');
-        $this->driveId = $driveId ?? config('services.sharepoint.drive_id');
+        $this->siteId = $siteId;
+        $this->driveId = $finalDriveId;
     }
 
     public function uploadFile(UploadedFile $file, string $folderPath, array $properties = []): array
