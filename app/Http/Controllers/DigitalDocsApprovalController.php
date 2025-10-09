@@ -267,7 +267,7 @@ class DigitalDocsApprovalController extends Controller
             abort(404, 'No file linked to this record.');
         }
 
-        $service = new SharePointService(auth()->user()->microsoft_access_token);
+        $service = new SharePointService(auth()->user()->microsoft_token);
         return $service->streamFile($approval->sharepoint_file_id);
     }
 
