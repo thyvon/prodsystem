@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\User;
@@ -262,20 +263,29 @@ class DigitalDocsApprovalController extends Controller
      */
     public function viewFile(DigitalDocsApproval $digitalDocsApproval)
     {
-        if (!$digitalDocsApproval->sharepoint_file_id) {
+        // Ensure file info exists
+        if (!$digitalDocsApproval->sharepoint_file_id || !$digitalDocsApproval->sharepoint_drive_id) {
             abort(404, "File not found.");
         }
 
-        // Use SharePointService to fetch and stream file
-        $sharepointService = new SharePointService(Auth::user()->microsoft_token);
+        // Use authenticated user's Microsoft token
+        $accessToken = Auth::user()->microsoft_token;
+        if (!$accessToken) {
+            abort(403, "No Microsoft access token available.");
+        }
+
+        $sharepointService = new SharePointService($accessToken);
 
         try {
-            return $sharepointService->streamFile($digitalDocsApproval->sharepoint_file_id);
+            // Stream file from SharePoint using stored IDs
+            return $sharepointService->streamFile(
+                $digitalDocsApproval->sharepoint_file_id,
+                $digitalDocsApproval->sharepoint_drive_id
+            );
         } catch (\Exception $e) {
-            abort(404, "File not found or access denied.");
+            abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
     }
-
 
     private function digitalDocsApprovalValidationRules(): array
     {

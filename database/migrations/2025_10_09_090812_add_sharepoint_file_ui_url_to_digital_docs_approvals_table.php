@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('digital_docs_approvals', function (Blueprint $table) {
-            $table->string('sharepoint_file_ui_url')->nullable();
+            $table->text('sharepoint_file_ui_url')->nullable()->after('sharepoint_file_id');
+            $table->string('sharepoint_drive_id')->nullable()->after('sharepoint_file_ui_url');
         });
     }
 
@@ -23,6 +24,7 @@ return new class extends Migration
     {
         Schema::table('digital_docs_approvals', function (Blueprint $table) {
             $table->dropColumn('sharepoint_file_ui_url');
+            $table->dropColumn('sharepoint_drive_id');
         });
     }
 };
