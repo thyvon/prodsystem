@@ -106,7 +106,7 @@ class SharePointService
     /**
      * Update file properties
      */
-    protected function updateFileProperties(string $fileId, array $properties, ?string $driveId): array
+    public function updateFileProperties(string $fileId, array $properties, ?string $driveId): array
     {
         $driveId = $driveId ?? $this->getDefaultDriveId();
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
@@ -160,37 +160,26 @@ class SharePointService
     /**
      * Generate SharePoint modern UI link dynamically
      */
-/**
- * Generate SharePoint modern UI link dynamically
- */
     protected function generateUiLink(string $webUrl): string
     {
-        // Remove domain
         $siteRelativePath = str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl);
-
-        // Decode any encoded characters first
         $siteRelativePath = rawurldecode($siteRelativePath);
 
-        // Extract folder and file
         $fileName = basename($siteRelativePath);
         $folderPath = dirname($siteRelativePath);
 
-        // Encode for URL parameters
         $encodedFile = rawurlencode($siteRelativePath);
         $encodedParent = rawurlencode($folderPath);
 
-        // Extract library name from path (first segment after /sites/PRODMJQE/)
         $segments = explode('/', trim($siteRelativePath, '/'));
         if (isset($segments[2])) {
-            $libraryName = $segments[2]; // e.g., "Digital Approval" or "Disposal Asset"
+            $libraryName = $segments[2];
         } else {
             $libraryName = $segments[1] ?? $segments[0];
         }
 
-        // Construct UI link
         return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$libraryName}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
     }
-
 
     /**
      * Get default drive ID from config
@@ -219,4 +208,73 @@ class SharePointService
 
         throw new \Exception("Drive not found: {$libraryName}");
     }
+
+    /**
+     * Get file content for inline viewing
+     */
+    public function getFileContent(string $fileId, ?string $driveId = null): array
+    {
+        $driveId = $driveId ?? $this->getDefaultDriveId();
+
+        // Get file metadata
+        $metaUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+        $meta = Http::withToken($this->accessToken)
+            ->get($metaUrl)
+            ->throw()
+            ->json();
+
+        $mime = $meta['file']['mimeType'] ?? 'application/octet-stream';
+
+        // Download file content
+        $contentUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+
+        $response = Http::withToken($this->accessToken)
+            ->get($contentUrl)
+            ->throw();
+
+        return [
+            'body' => $response->body(),
+            'mime' => $mime,
+        ];
+    }
+
+    /**
+ * Stream a file from SharePoint inline (view in browser)
+ */
+    public function viewFile(string $fileId, ?string $driveId = null)
+    {
+        $driveId = $driveId ?? $this->getDefaultDriveId();
+
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+
+        $response = Http::withToken($this->accessToken)
+            ->withOptions(['stream' => true])
+            ->get($url);
+
+        if ($response->failed()) {
+            throw new \Exception('Failed to fetch file from SharePoint');
+        }
+
+        // Determine content type
+        $contentType = $response->header('Content-Type') ?? 'application/octet-stream';
+        $fileName = $fileId; // fallback filename
+
+        // Try to get real filename from Graph metadata
+        $meta = Http::withToken($this->accessToken)
+            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}")
+            ->json();
+
+        if (!empty($meta['name'])) {
+            $fileName = $meta['name'];
+        }
+
+        // Stream file inline
+        return response()->stream(function () use ($response) {
+            echo $response->body();
+        }, 200, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => "inline; filename=\"{$fileName}\"",
+        ]);
+    }
+
 }

@@ -18,8 +18,8 @@ class MicrosoftAuthController extends Controller
     public function redirect()
     {
         return Socialite::driver('microsoft')
-            ->stateless() // important
-            ->scopes(['openid', 'profile', 'email', 'User.Read'])
+            ->stateless()
+            ->scopes(['openid', 'profile', 'email', 'User.Read', 'offline_access']) // <-- add offline_access
             ->redirect();
     }
 
@@ -44,7 +44,7 @@ class MicrosoftAuthController extends Controller
             ]
         );
 
-        // Fetch profile photo from Microsoft Graph
+        // Fetch profile photo from Microsoft Graph (optional)
         try {
             $response = Http::withToken($user->microsoft_token)
                 ->get('https://graph.microsoft.com/v1.0/me/photo/$value');
@@ -56,7 +56,7 @@ class MicrosoftAuthController extends Controller
                 $user->save();
             }
         } catch (\Exception $e) {
-            // Could not fetch avatar, ignore for now
+            // ignore photo errors
         }
 
         // Login user

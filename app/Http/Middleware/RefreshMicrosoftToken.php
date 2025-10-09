@@ -20,7 +20,7 @@ class RefreshMicrosoftToken
                 ? Carbon::parse($user->microsoft_token_expires_at)
                 : null;
 
-            // Refresh if expired or about to expire in 1 minute
+            // Refresh if expired or expiring within 1 minute
             if (!$expiresAt || now()->greaterThanOrEqualTo($expiresAt->copy()->subMinute())) {
                 $this->refreshAccessToken($user);
             }
@@ -58,21 +58,10 @@ class RefreshMicrosoftToken
 
             $data = $response->json();
 
-            $updateData = [
+            $user->update([
                 'microsoft_token' => $data['access_token'] ?? $user->microsoft_token,
+                'microsoft_refresh_token' => $data['refresh_token'] ?? $user->microsoft_refresh_token,
                 'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
-            ];
-
-            // Only update refresh token if Microsoft returns a new one
-            if (!empty($data['refresh_token'])) {
-                $updateData['microsoft_refresh_token'] = $data['refresh_token'];
-            }
-
-            $user->update($updateData);
-
-            Log::info('Microsoft token refreshed successfully', [
-                'user_id' => $user->id,
-                'expires_at' => $updateData['microsoft_token_expires_at'],
             ]);
         } catch (\Throwable $e) {
             Log::error('Microsoft token refresh exception', [

@@ -10,10 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\User;
-use Illuminate\View\View;   
+use Illuminate\View\View;
 use App\Models\DigitalDocsApproval;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DigitalDocsApprovalController extends Controller
 {
@@ -57,7 +58,6 @@ class DigitalDocsApprovalController extends Controller
         $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
         $page = $validated['page'] ?? 1;
 
-        // Clone the query for filtered count before pagination
         $recordsFiltered = (clone $query)->count();
 
         $digitalDocsApprovals = $query->orderBy($sortColumn, $sortDirection)
@@ -79,7 +79,7 @@ class DigitalDocsApprovalController extends Controller
                     'id' => $a->id,
                     'request_type' => $a->request_type,
                     'approval_status' => $a->approval_status,
-                    'response_date' => $a->responded_date?->format('Y-m-d H:i'), // optional response date
+                    'response_date' => $a->responded_date?->format('Y-m-d H:i'),
                     'approver_name' => $a->responder ? $a->responder->name : 'Unknown',
                 ]),
             ]),
@@ -88,26 +88,19 @@ class DigitalDocsApprovalController extends Controller
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
-    /**
-     * Show the form for creating/editing a digital document approval
-     */
+
     public function form(DigitalDocsApproval $digitalDocsApproval = null): View
     {
         return view('approval.digital-approval-form', compact('digitalDocsApproval'));
     }
 
-    /**
-     * Store a new digital document approval with SharePoint upload
-     */
     public function store(Request $request): JsonResponse
     {
-        // 1️⃣ Validate request
         $validated = Validator::make(
             $request->all(),
             $this->digitalDocsApprovalValidationRules()
         )->validate();
 
-        // 2️⃣ Get Microsoft access token
         $accessToken = auth()->user()->microsoft_token;
         if (empty($accessToken)) {
             return response()->json([
@@ -115,45 +108,36 @@ class DigitalDocsApprovalController extends Controller
             ], 401);
         }
 
-        // 3️⃣ Optional: specify a custom library / drive ID
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
+        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
         $sharePoint = new SharePointService($accessToken);
 
         try {
             return DB::transaction(function () use ($validated, $request, $sharePoint, $customDriveId) {
-
-                // --- Step 1: Build dynamic folder path: document_type/year/month ---
-                $folderPath = $this->getSharePointFolderPath($validated['document_type']); // e.g., "DDD/2025/10 Oct"
-
-                // --- Step 2: Generate reference number (used as file name) ---
-                $referenceNo = $this->generateReferenceNo(); // e.g., "DOC-202510-0016"
-
-                // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
+                $folderPath = $this->getSharePointFolderPath($validated['document_type']);
+                $referenceNo = $this->generateReferenceNo();
                 $file = $request->file('file');
                 $extension = $file->getClientOriginalExtension();
 
                 $fileData = $sharePoint->uploadFile(
                     $file,
                     $folderPath,
-                    ['Title' => $validated['description']], // optional metadata
-                    "{$referenceNo}.{$extension}",          // File name
-                    $customDriveId                           // Dynamic library support
+                    ['Title' => $validated['description']],
+                    "{$referenceNo}.{$extension}",
+                    $customDriveId
                 );
 
-                // --- Step 4: Create DigitalDocsApproval record ---
                 $digitalDocsApproval = DigitalDocsApproval::create([
                     'reference_no' => $referenceNo,
                     'description' => $validated['description'],
                     'document_type' => $validated['document_type'],
                     'sharepoint_file_id' => $fileData['id'],
                     'sharepoint_file_name' => $fileData['name'],
-                    'sharepoint_file_url' => $fileData['url'],        // Direct link
-                    'sharepoint_file_ui_url' => $fileData['ui_url'],  // SharePoint UI link
+                    'sharepoint_file_url' => $fileData['url'],
+                    'sharepoint_file_ui_url' => $fileData['ui_url'],
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
                 ]);
 
-                // --- Step 5: Store approvals ---
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
                 return response()->json([
@@ -163,7 +147,6 @@ class DigitalDocsApprovalController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('Failed to create digital document approval', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'Failed to create digital document approval.',
                 'error' => $e->getMessage(),
@@ -183,7 +166,7 @@ class DigitalDocsApprovalController extends Controller
     {
         $validated = Validator::make($request->all(), array_merge(
             $this->digitalDocsApprovalValidationRules(),
-            ['file' => 'nullable|file|max:10240'] // allow updating without changing file
+            ['file' => 'nullable|file|max:10240']
         ))->validate();
 
         $accessToken = auth()->user()->microsoft_token;
@@ -194,15 +177,12 @@ class DigitalDocsApprovalController extends Controller
         }
 
         $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
+        $sharePoint = new SharePointService($accessToken);
 
         try {
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint) {
-
-                // Update file if provided
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
-                    $extension = $file->getClientOriginalExtension();
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
@@ -212,19 +192,16 @@ class DigitalDocsApprovalController extends Controller
                     $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                 } else {
-                    // Only update metadata
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,
                         ['Title' => $validated['description']]
                     );
                 }
 
-                // Update description and document type
                 $digitalDocsApproval->description = $validated['description'];
                 $digitalDocsApproval->document_type = $validated['document_type'];
                 $digitalDocsApproval->save();
 
-                // Update approvals (optional: clear old and re-insert)
                 $digitalDocsApproval->approvals()->delete();
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
@@ -235,7 +212,6 @@ class DigitalDocsApprovalController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('Failed to update digital document approval', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'Failed to update digital document approval.',
                 'error' => $e->getMessage(),
@@ -243,9 +219,6 @@ class DigitalDocsApprovalController extends Controller
         }
     }
 
-    /**
-     * Destroy a digital document approval
-     */
     public function destroy(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
         $accessToken = auth()->user()->microsoft_token;
@@ -256,20 +229,15 @@ class DigitalDocsApprovalController extends Controller
         }
 
         $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
+        $sharePoint = new SharePointService($accessToken);
 
         try {
             return DB::transaction(function () use ($digitalDocsApproval, $sharePoint) {
-                
-                // Delete file from SharePoint
                 if ($digitalDocsApproval->sharepoint_file_id) {
                     $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id);
                 }
 
-                // Delete approvals
                 $digitalDocsApproval->approvals()->delete();
-
-                // Delete the main record
                 $digitalDocsApproval->delete();
 
                 return response()->json([
@@ -278,7 +246,6 @@ class DigitalDocsApprovalController extends Controller
             });
         } catch (\Exception $e) {
             Log::error('Failed to delete digital document approval', ['error' => $e->getMessage()]);
-
             return response()->json([
                 'message' => 'Failed to delete digital document approval.',
                 'error' => $e->getMessage(),
@@ -287,23 +254,41 @@ class DigitalDocsApprovalController extends Controller
     }
 
     /**
-     * Validation rules for digital document approval
+     * View a file securely from SharePoint using user token
      */
+    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
+    {
+        $accessToken = auth()->user()->microsoft_token;
+
+        if (empty($accessToken)) {
+            abort(401, 'Microsoft access token not found. Please re-authenticate.');
+        }
+
+        $sharePoint = new SharePointService($accessToken);
+
+        try {
+            return $sharePoint->viewFile($digitalDocsApproval->sharepoint_file_id);
+        } catch (\Exception $e) {
+            abort(500, 'Failed to load file: ' . $e->getMessage());
+        }
+    }
+
+    // ===========================
+    // Helper Methods
+    // ===========================
+
     private function digitalDocsApprovalValidationRules(): array
     {
         return [
             'description' => 'required|string|max:1000',
             'document_type' => 'required|string|max:255',
-            'file' => 'required|file|max:10240',              // max 10MB
+            'file' => 'required|file|max:10240',
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',
         ];
     }
 
-    /**
-     * Generate a unique reference number for the document
-     */
     private function generateReferenceNo(): string
     {
         $prefix = 'DOC-' . now()->format('Ym') . '-';
@@ -323,10 +308,6 @@ class DigitalDocsApprovalController extends Controller
         return $referenceNo;
     }
 
-
-    /**
-     * Store approvals (you may already have this implemented)
-     */
     protected function storeApprovals(DigitalDocsApproval $digitalDocsApproval, array $approvals)
     {
         foreach ($approvals as $approval) {
@@ -346,15 +327,12 @@ class DigitalDocsApprovalController extends Controller
         }
     }
 
-    /**
-     * Build dynamic SharePoint folder path: document_type/year/month
-     */
     private function getSharePointFolderPath(string $documentType): string
     {
         $year = now()->format('Y');
-        $monthNumber = now()->format('m');       // 01, 02, ..., 12
-        $monthName = now()->format('M');         // Jan, Feb, ..., Dec (short name)
-        
+        $monthNumber = now()->format('m');
+        $monthName = now()->format('M');
+
         return "{$documentType}/{$year}/{$monthNumber} {$monthName}";
     }
 
@@ -371,13 +349,12 @@ class DigitalDocsApprovalController extends Controller
     protected function getOrdinalForRequestType($requestType)
     {
         $ordinals = [
-        'initial' => 1,
-        'check' => 2,
-        'review' => 3,
-        'approve' => 4,
-        'acknowledge' => 5,
+            'initial' => 1,
+            'check' => 2,
+            'review' => 3,
+            'approve' => 4,
+            'acknowledge' => 5,
         ];
         return $ordinals[$requestType] ?? 1;
     }
-
 }
