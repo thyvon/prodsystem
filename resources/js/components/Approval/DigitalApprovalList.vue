@@ -71,8 +71,7 @@ const handlePreview = (approval) => {
 };
 
 const handleViewFile = (approval) => {
-  const viewUrl = `/digital-docs-approvals/${approval.id}/view`;
-  window.open(viewUrl, '_blank'); // open in a new tab
+  window.open(`/digital-docs-approvals/${approval.id}/view`, '_blank');
 };
 const handleDelete = async (approval) => {
   const confirmed = await confirmAction(

@@ -245,38 +245,29 @@ class SharePointService
     {
         $driveId = $driveId ?? $this->getDefaultDriveId();
 
-        // Step 1: Get file metadata first (for filename & MIME type)
-        $metaUrl = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}";
+        // Get metadata first to find filename
+        $meta = Http::withToken($this->accessToken)
+            ->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")
+            ->json();
 
-        $metaResponse = Http::withToken($this->accessToken)->get($metaUrl);
-
-        if ($metaResponse->failed()) {
-            throw new \Exception('Failed to fetch file metadata from SharePoint: ' . $metaResponse->body());
+        if (empty($meta['id'])) {
+            throw new \Exception("File metadata not found");
         }
-
-        $meta = $metaResponse->json();
 
         $fileName = $meta['name'] ?? $fileId;
         $contentType = $meta['file']['mimeType'] ?? 'application/octet-stream';
 
-        // Step 2: Fetch the file content
-        $contentUrl = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content";
+        // Stream content
+        $url = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content";
+        $response = Http::withToken($this->accessToken)->get($url);
 
-        $fileResponse = Http::withToken($this->accessToken)
-            ->withOptions(['stream' => true])
-            ->get($contentUrl);
-
-        if ($fileResponse->failed()) {
-            throw new \Exception('Failed to fetch file from SharePoint: ' . $fileResponse->body());
+        if ($response->failed()) {
+            throw new \Exception("Failed to fetch file from SharePoint");
         }
 
-        // Step 3: Stream the file to browser
-        return response()->stream(function () use ($fileResponse) {
-            echo $fileResponse->body();
-        }, 200, [
-            'Content-Type' => $contentType,
-            'Content-Disposition' => "inline; filename=\"{$fileName}\"",
-        ]);
+        return response($response->body(), 200)
+            ->header('Content-Type', $contentType)
+            ->header('Content-Disposition', "inline; filename=\"{$fileName}\"");
     }
 
 }
