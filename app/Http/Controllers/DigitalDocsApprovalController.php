@@ -74,6 +74,7 @@ class DigitalDocsApprovalController extends Controller
                 'created_by' => $digitaldoc->creator->name ?? 'Unknown',
                 'updated_at' => $digitaldoc->updated_at,
                 'sharepoint_file_url' => $digitaldoc->sharepoint_file_url,
+                'sharepoint_file_ui_url' => $digitaldoc->sharepoint_file_ui_url,
                 'approvals' => $digitaldoc->approvals->map(fn($a) => [
                     'id' => $a->id,
                     'request_type' => $a->request_type,
