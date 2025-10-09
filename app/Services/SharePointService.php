@@ -160,21 +160,37 @@ class SharePointService
     /**
      * Generate SharePoint modern UI link dynamically
      */
+/**
+ * Generate SharePoint modern UI link dynamically
+ */
     protected function generateUiLink(string $webUrl): string
     {
+        // Remove domain
         $siteRelativePath = str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl);
+
+        // Decode any encoded characters first
         $siteRelativePath = rawurldecode($siteRelativePath);
 
+        // Extract folder and file
+        $fileName = basename($siteRelativePath);
+        $folderPath = dirname($siteRelativePath);
+
+        // Encode for URL parameters
         $encodedFile = rawurlencode($siteRelativePath);
-        $encodedParent = rawurlencode(dirname($siteRelativePath));
+        $encodedParent = rawurlencode($folderPath);
 
+        // Extract library name from path (first segment after /sites/PRODMJQE/)
         $segments = explode('/', trim($siteRelativePath, '/'));
-        $siteLibrary = isset($segments[0], $segments[1]) 
-            ? $segments[0] . '/' . $segments[1] 
-            : $segments[0];
+        if (isset($segments[2])) {
+            $libraryName = $segments[2]; // e.g., "Digital Approval" or "Disposal Asset"
+        } else {
+            $libraryName = $segments[1] ?? $segments[0];
+        }
 
-        return "https://mjqeducationplc.sharepoint.com/{$siteLibrary}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
+        // Construct UI link
+        return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$libraryName}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
     }
+
 
     /**
      * Get default drive ID from config
