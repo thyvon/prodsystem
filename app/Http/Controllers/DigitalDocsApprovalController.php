@@ -260,11 +260,9 @@ class DigitalDocsApprovalController extends Controller
      * NEW METHOD: View SharePoint File Securely
      * -------------------
      */
-    public function viewFile($id)
+    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
     {
-        $approval = DigitalDocsApproval::findOrFail($id);
-
-        if (!$approval->sharepoint_file_id) {
+        if (!$digitalDocsApproval->sharepoint_file_id) {
             abort(404, "File not found.");
         }
 
@@ -272,11 +270,12 @@ class DigitalDocsApprovalController extends Controller
         $sharepointService = new SharePointService(Auth::user()->microsoft_token);
 
         try {
-            return $sharepointService->streamFile($approval->sharepoint_file_id);
+            return $sharepointService->streamFile($digitalDocsApproval->sharepoint_file_id);
         } catch (\Exception $e) {
             abort(404, "File not found or access denied.");
         }
     }
+
 
     private function digitalDocsApprovalValidationRules(): array
     {
