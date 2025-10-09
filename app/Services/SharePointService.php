@@ -245,35 +245,38 @@ class SharePointService
     {
         $driveId = $driveId ?? $this->getDefaultDriveId();
 
-        try {
-            // 1️⃣ Get file metadata (name + content type)
-            $metaResponse = Http::withToken($this->accessToken)
-                ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}")
-                ->throw()
-                ->json();
+        // Step 1: Get file metadata first (for filename & MIME type)
+        $metaUrl = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}";
 
-            $fileName = $metaResponse['name'] ?? 'file';
-            $mimeType = $metaResponse['file']['mimeType'] ?? 'application/octet-stream';
+        $metaResponse = Http::withToken($this->accessToken)->get($metaUrl);
 
-            // 2️⃣ Stream the file content
-            $streamResponse = Http::withToken($this->accessToken)
-                ->withOptions(['stream' => true])
-                ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content");
-
-            if ($streamResponse->failed()) {
-                throw new \Exception('Failed to fetch file content from SharePoint.');
-            }
-
-            // 3️⃣ Return inline stream (open in browser)
-            return response()->stream(function () use ($streamResponse) {
-                echo $streamResponse->body();
-            }, 200, [
-                'Content-Type' => $mimeType,
-                'Content-Disposition' => "inline; filename=\"{$fileName}\"",
-            ]);
-        } catch (\Throwable $e) {
-            throw new \Exception('Failed to fetch file from SharePoint: ' . $e->getMessage());
+        if ($metaResponse->failed()) {
+            throw new \Exception('Failed to fetch file metadata from SharePoint: ' . $metaResponse->body());
         }
+
+        $meta = $metaResponse->json();
+
+        $fileName = $meta['name'] ?? $fileId;
+        $contentType = $meta['file']['mimeType'] ?? 'application/octet-stream';
+
+        // Step 2: Fetch the file content
+        $contentUrl = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content";
+
+        $fileResponse = Http::withToken($this->accessToken)
+            ->withOptions(['stream' => true])
+            ->get($contentUrl);
+
+        if ($fileResponse->failed()) {
+            throw new \Exception('Failed to fetch file from SharePoint: ' . $fileResponse->body());
+        }
+
+        // Step 3: Stream the file to browser
+        return response()->stream(function () use ($fileResponse) {
+            echo $fileResponse->body();
+        }, 200, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => "inline; filename=\"{$fileName}\"",
+        ]);
     }
 
 }

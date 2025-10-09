@@ -261,14 +261,13 @@ class DigitalDocsApprovalController extends Controller
      */
     public function viewFile($id)
     {
-        $approval = DigitalDocsApproval::findOrFail($id);
-
-        if (!$approval->sharepoint_file_id) {
-            abort(404, 'No file linked to this record.');
+        $accessToken = auth()->user()->microsoft_token;
+        if (!$accessToken) {
+            abort(401, 'Microsoft access token not found.');
         }
 
-        $service = new SharePointService(auth()->user()->microsoft_token);
-        return $service->streamFile($approval->sharepoint_file_id);
+        $sharePoint = new SharePointService($accessToken);
+        return $sharePoint->streamFile($digitalDocsApproval->sharepoint_file_id);
     }
 
     private function digitalDocsApprovalValidationRules(): array
