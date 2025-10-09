@@ -140,7 +140,12 @@ const renderColumnData = (key, val) => {
   }
 
   if (key === 'sharepoint_file_url' && val) {
-    return `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary">
+    // Convert direct file link to SharePoint modern UI link
+    const encodedFile = encodeURIComponent(val.replace('https://mjqeducationplc.sharepoint.com', ''));
+    const parentFolder = encodeURIComponent(val.substring(0, val.lastIndexOf('/')).replace('https://mjqeducationplc.sharepoint.com', ''));
+    const uiLink = `https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/Digital%20Approval/Forms/AllItems.aspx?id=${encodedFile}&parent=${parentFolder}&p=true&ga=1`;
+
+    return `<a href="${uiLink}" target="_blank" class="btn btn-sm btn-outline-primary">
               <i class="fal fa-folder"></i> View Document
             </a>`;
   }

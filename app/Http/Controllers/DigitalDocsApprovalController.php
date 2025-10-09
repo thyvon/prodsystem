@@ -138,7 +138,7 @@ class DigitalDocsApprovalController extends Controller
                     'document_type' => $validated['document_type'],
                     'sharepoint_file_id' => $fileData['id'],
                     'sharepoint_file_name' => $fileData['name'],
-                    'sharepoint_file_url' => $fileData['webUrl'],
+                    'sharepoint_file_url' => $fileData['url'],
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
                 ]);
