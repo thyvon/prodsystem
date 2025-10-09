@@ -257,7 +257,7 @@ Route::middleware(['auth','refresh.microsoft'])->group(function () {
         ->name('digital-docs-approvals.create');
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'form'])
         ->name('digital-docs-approvals.edit');
-    Route::get('/digital-approval/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
+    Route::get('/digital-docs-approvals/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
     ->name('api.digital-approval.view-file');
 
 });
