@@ -9,7 +9,7 @@ class SharePointService
 {
     protected string $accessToken;
     protected string $siteId;
-    protected int $chunkSize; // default 10MB
+    protected int $chunkSize;
 
     public function __construct(string $accessToken, int $chunkSize = 10 * 1024 * 1024)
     {
@@ -19,37 +19,39 @@ class SharePointService
         $this->chunkSize = $chunkSize;
     }
 
-    /**
-     * Upload file to SharePoint
-     */
-    public function uploadFile(
-        UploadedFile $file,
-        string $folderPath,
-        array $properties = [],
-        string $fileName = null,
-        string $driveId = null
-    ): array {
-        $fileName = $fileName ?? time() . '_' . $file->getClientOriginalName();
+    // =========================
+    //  UPLOAD METHODS
+    // =========================
 
+    public function uploadFiles(array $files, string $folderPath, array $properties = [], ?string $driveId = null): array
+    {
+        $results = [];
+        foreach ($files as $file) {
+            if ($file instanceof UploadedFile) {
+                $results[] = $this->uploadFile($file, $folderPath, $properties, $driveId);
+            }
+        }
+        return $results;
+    }
+
+    public function uploadFile(UploadedFile $file, string $folderPath, array $properties = [], ?string $driveId = null): array
+    {
+        $fileName = time() . '_' . $file->getClientOriginalName();
         $fileInfo = $file->getSize() <= 4 * 1024 * 1024
             ? $this->uploadSmallFile($file, $folderPath, $fileName, $driveId)
             : $this->uploadLargeFile($file, $folderPath, $fileName, $driveId);
 
-        if (!empty($properties)) {
+        if ($properties) {
             $this->updateFileProperties($fileInfo['id'], $properties, $driveId);
         }
 
         $fileInfo['ui_url'] = $this->generateUiLink($fileInfo['url']);
-
         return $fileInfo;
     }
 
-    /**
-     * Upload small file (<= 4MB)
-     */
     protected function uploadSmallFile(UploadedFile $file, string $folderPath, string $fileName, ?string $driveId): array
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/content";
 
         $response = Http::withToken($this->accessToken)
@@ -57,19 +59,12 @@ class SharePointService
             ->put($url)
             ->throw();
 
-        return [
-            'id' => $response->json('id'),
-            'name' => $response->json('name'),
-            'url' => $response->json('webUrl'),
-        ];
+        return $this->extractFileInfo($response);
     }
 
-    /**
-     * Upload large file (> 4MB) in chunks
-     */
     protected function uploadLargeFile(UploadedFile $file, string $folderPath, string $fileName, ?string $driveId): array
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
         $session = Http::withToken($this->accessToken)
             ->post("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/createUploadSession", [
                 'item' => ['@microsoft.graph.conflictBehavior' => 'replace']
@@ -95,20 +90,46 @@ class SharePointService
         }
 
         fclose($stream);
-
-        return [
-            'id' => $response->json('id'),
-            'name' => $response->json('name'),
-            'url' => $response->json('webUrl'),
-        ];
+        return $this->extractFileInfo($response);
     }
 
-    /**
-     * Update file properties
-     */
+    // =========================
+    //  UPDATE METHODS
+    // =========================
+
+    public function updateFiles(array $files, array $fileIds, array $properties = [], ?string $driveId = null): array
+    {
+        $results = [];
+        foreach ($files as $index => $file) {
+            if ($file instanceof UploadedFile && isset($fileIds[$index])) {
+                $results[] = $this->updateFile($fileIds[$index], $file, $properties, $driveId);
+            }
+        }
+        return $results;
+    }
+
+    public function updateFile(string $fileId, UploadedFile $file, array $properties = [], ?string $driveId = null): array
+    {
+        $driveId = $this->resolveDriveId($driveId);
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+
+        $response = Http::withToken($this->accessToken)
+            ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
+            ->put($url)
+            ->throw();
+
+        if ($properties) {
+            $this->updateFileProperties($fileId, $properties, $driveId);
+        }
+
+        $info = $this->extractFileInfo($response);
+        $info['ui_url'] = $this->generateUiLink($info['url']);
+        return $info;
+    }
+
     public function updateFileProperties(string $fileId, array $properties, ?string $driveId): array
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
 
         return Http::withToken($this->accessToken)
@@ -117,157 +138,85 @@ class SharePointService
             ->json();
     }
 
-    /**
-     * Delete a file by ID
-     */
+    // =========================
+    //  DELETE METHOD
+    // =========================
+
     public function deleteFile(string $fileId, ?string $driveId = null): bool
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
 
-        Http::withToken($this->accessToken)
-            ->delete($url)
-            ->throw();
-
+        Http::withToken($this->accessToken)->delete($url)->throw();
         return true;
     }
 
-    /**
-     * Update existing file content
-     */
-    public function updateFile(string $fileId, UploadedFile $file, array $properties = [], ?string $driveId = null): array
+    // =========================
+    //  GET / STREAM METHODS
+    // =========================
+
+    public function getFileContent(string $fileId, ?string $driveId = null): array
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
+        $meta = $this->getFileMetadata($fileId, $driveId);
+
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+        $response = Http::withToken($this->accessToken)->get($url)->throw();
 
-        $response = Http::withToken($this->accessToken)
-            ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
-            ->put($url)
-            ->throw();
+        return [
+            'body' => $response->body(),
+            'mime' => $meta['file']['mimeType'] ?? 'application/octet-stream',
+        ];
+    }
 
-        if (!empty($properties)) {
-            $this->updateFileProperties($fileId, $properties, $driveId);
-        }
+    public function streamFile(string $fileId, ?string $driveId = null)
+    {
+        $driveId = $this->resolveDriveId($driveId);
+        $meta = $this->getFileMetadata($fileId, $driveId);
 
+        $url = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content";
+        $response = Http::withToken($this->accessToken)->get($url)->throw();
+
+        return response($response->body(), 200)
+            ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
+            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
+    }
+
+    // =========================
+    //  HELPERS
+    // =========================
+
+    protected function resolveDriveId(?string $driveId): string
+    {
+        return $driveId ?? config('services.sharepoint.drive_id')
+            ?: throw new \InvalidArgumentException('SharePoint default drive_id not set');
+    }
+
+    protected function getFileMetadata(string $fileId, string $driveId): array
+    {
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+        return Http::withToken($this->accessToken)->get($url)->throw()->json();
+    }
+
+    protected function extractFileInfo($response): array
+    {
         return [
             'id' => $response->json('id'),
             'name' => $response->json('name'),
             'url' => $response->json('webUrl'),
-            'ui_url' => $this->generateUiLink($response->json('webUrl')),
         ];
     }
 
-    /**
-     * Generate SharePoint modern UI link dynamically
-     */
     protected function generateUiLink(string $webUrl): string
     {
-        $siteRelativePath = str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl);
-        $siteRelativePath = rawurldecode($siteRelativePath);
+        $path = str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl);
+        $path = rawurldecode($path);
 
-        $fileName = basename($siteRelativePath);
-        $folderPath = dirname($siteRelativePath);
+        $file = rawurlencode($path);
+        $folder = rawurlencode(dirname($path));
+        $segments = explode('/', trim($path, '/'));
+        $library = $segments[2] ?? $segments[1] ?? $segments[0];
 
-        $encodedFile = rawurlencode($siteRelativePath);
-        $encodedParent = rawurlencode($folderPath);
-
-        $segments = explode('/', trim($siteRelativePath, '/'));
-        if (isset($segments[2])) {
-            $libraryName = $segments[2];
-        } else {
-            $libraryName = $segments[1] ?? $segments[0];
-        }
-
-        return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$libraryName}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
+        return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$library}/Forms/AllItems.aspx?id={$file}&parent={$folder}&p=true&ga=1";
     }
-
-    /**
-     * Get default drive ID from config
-     */
-    protected function getDefaultDriveId(): string
-    {
-        return config('services.sharepoint.drive_id') 
-            ?: throw new \InvalidArgumentException('SharePoint default drive_id not set');
-    }
-
-    /**
-     * Get Drive ID by library name dynamically
-     */
-    public function getDriveIdByName(string $libraryName): string
-    {
-        $response = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives")
-            ->throw()
-            ->json('value');
-
-        foreach ($response as $drive) {
-            if ($drive['name'] === $libraryName) {
-                return $drive['id'];
-            }
-        }
-
-        throw new \Exception("Drive not found: {$libraryName}");
-    }
-
-    /**
-     * Get file content for inline viewing
-     */
-    public function getFileContent(string $fileId, ?string $driveId = null): array
-    {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
-
-        // Get file metadata
-        $metaUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
-        $meta = Http::withToken($this->accessToken)
-            ->get($metaUrl)
-            ->throw()
-            ->json();
-
-        $mime = $meta['file']['mimeType'] ?? 'application/octet-stream';
-
-        // Download file content
-        $contentUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
-
-        $response = Http::withToken($this->accessToken)
-            ->get($contentUrl)
-            ->throw();
-
-        return [
-            'body' => $response->body(),
-            'mime' => $mime,
-        ];
-    }
-
-    /**
- * Stream a file from SharePoint inline (view in browser)
- */
-    public function streamFile(string $fileId, ?string $driveId = null)
-    {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
-
-        // Get metadata first to find filename
-        $meta = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")
-            ->json();
-
-        if (empty($meta['id'])) {
-            throw new \Exception("File metadata not found");
-        }
-
-        $fileName = $meta['name'] ?? $fileId;
-        $contentType = $meta['file']['mimeType'] ?? 'application/octet-stream';
-
-        // Stream content
-        $url = "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content";
-        $response = Http::withToken($this->accessToken)->get($url);
-
-        if ($response->failed()) {
-            throw new \Exception("Failed to fetch file from SharePoint");
-        }
-
-        return response($response->body(), 200)
-            ->header('Content-Type', $contentType)
-            ->header('Content-Disposition', "inline; filename=\"{$fileName}\"");
-    }
-
 }

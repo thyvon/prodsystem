@@ -20,8 +20,8 @@ class RefreshMicrosoftToken
                 ? Carbon::parse($user->microsoft_token_expires_at)
                 : null;
 
-            // Refresh if expired or expiring within 1 minute
-            if (!$expiresAt || now()->greaterThanOrEqualTo($expiresAt->copy()->subMinute())) {
+            // Refresh if expired or expiring within 5 minutes
+            if (!$expiresAt || now()->greaterThanOrEqualTo($expiresAt->copy()->subMinutes(5))) {
                 $this->refreshAccessToken($user);
             }
         }
@@ -43,7 +43,7 @@ class RefreshMicrosoftToken
                     'client_secret' => $clientSecret,
                     'grant_type' => 'refresh_token',
                     'refresh_token' => $user->microsoft_refresh_token,
-                    'scope' => 'User.Read offline_access',
+                    'scope' => 'User.Read Files.ReadWrite.All offline_access',
                 ]
             );
 
@@ -53,7 +53,7 @@ class RefreshMicrosoftToken
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
-                return;
+                abort(403, "Microsoft access token could not be refreshed. Please re-login.");
             }
 
             $data = $response->json();
@@ -68,6 +68,7 @@ class RefreshMicrosoftToken
                 'user_id' => $user->id ?? null,
                 'message' => $e->getMessage(),
             ]);
+            abort(403, "Microsoft access token refresh failed. Please re-login.");
         }
     }
 }
