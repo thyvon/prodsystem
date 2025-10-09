@@ -110,10 +110,10 @@ class DigitalDocsApprovalController extends Controller
         }
 
         $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
+        $sharePoint = new SharePointService($accessToken);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $customDriveId) {
 
                 // --- Step 1: Build dynamic folder path: document_type/year/month ---
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
@@ -124,11 +124,13 @@ class DigitalDocsApprovalController extends Controller
                 // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
                 $file = $request->file('file');
                 $extension = $file->getClientOriginalExtension();
+
                 $fileData = $sharePoint->uploadFile(
                     $file,
                     $folderPath,
-                    ['Title' => $validated['description']],
-                    "{$referenceNo}.{$extension}" 
+                    ['Title' => $validated['description']], // SharePoint metadata
+                    "{$referenceNo}.{$extension}",          // File name
+                    $customDriveId                           // Dynamic library support
                 );
 
                 // --- Step 4: Create DigitalDocsApproval record ---
@@ -138,7 +140,8 @@ class DigitalDocsApprovalController extends Controller
                     'document_type' => $validated['document_type'],
                     'sharepoint_file_id' => $fileData['id'],
                     'sharepoint_file_name' => $fileData['name'],
-                    'sharepoint_file_url' => $fileData['url'],
+                    'sharepoint_file_url' => $fileData['url'],    // Direct link
+                    'sharepoint_file_ui_url' => $fileData['ui_url'], // SharePoint UI link
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
                 ]);
@@ -160,6 +163,7 @@ class DigitalDocsApprovalController extends Controller
             ], 500);
         }
     }
+
 
     public function getEdit(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
