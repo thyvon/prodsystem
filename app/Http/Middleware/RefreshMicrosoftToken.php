@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class RefreshMicrosoftToken
@@ -14,61 +15,59 @@ class RefreshMicrosoftToken
     {
         $user = Auth::user();
 
-        // Log that middleware is triggered
-        \Log::info('RefreshMicrosoftToken middleware triggered for user: ' . optional($user)->id);
-
-        if ($user && $user->microsoft_refresh_token) {
-            // Parse expiry safely
+        if ($user?->microsoft_refresh_token) {
             $expiresAt = $user->microsoft_token_expires_at
                 ? Carbon::parse($user->microsoft_token_expires_at)
                 : null;
 
-            // Log current token status
-            \Log::info('Current token expires at: ' . ($expiresAt ? $expiresAt->toDateTimeString() : 'null'));
-
-            // Refresh if expired or will expire in 1 minute
-            if (!$expiresAt || Carbon::now()->greaterThan($expiresAt->subMinute())) {
-                \Log::info('Access token expired or about to expire. Refreshing...');
+            // Refresh if expired or expiring within 1 minute
+            if (!$expiresAt || now()->greaterThanOrEqualTo($expiresAt->copy()->subMinute())) {
                 $this->refreshAccessToken($user);
-            } else {
-                \Log::info('Access token is still valid. No refresh needed.');
             }
-        } else {
-            \Log::info('No user or no refresh token available.');
         }
 
         return $next($request);
     }
 
-    protected function refreshAccessToken($user)
+    protected function refreshAccessToken($user): void
     {
         try {
+            $tenantId = config('services.microsoft.tenant_id');
+            $clientId = config('services.microsoft.client_id');
+            $clientSecret = config('services.microsoft.client_secret');
+
             $response = Http::asForm()->post(
-                'https://login.microsoftonline.com/' . config('services.microsoft.tenant_id') . '/oauth2/v2.0/token',
+                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
                 [
-                    'client_id' => config('services.microsoft.client_id'),
-                    'client_secret' => config('services.microsoft.client_secret'),
+                    'client_id' => $clientId,
+                    'client_secret' => $clientSecret,
                     'grant_type' => 'refresh_token',
                     'refresh_token' => $user->microsoft_refresh_token,
                     'scope' => 'User.Read offline_access',
                 ]
             );
 
-            if ($response->successful()) {
-                $data = $response->json();
-
-                $user->microsoft_token = $data['access_token'] ?? $user->microsoft_token;
-                $user->microsoft_refresh_token = $data['refresh_token'] ?? $user->microsoft_refresh_token;
-                $user->microsoft_token_expires_at = Carbon::now()->addSeconds($data['expires_in'] ?? 3600);
-
-                $user->save();
-
-                \Log::info('Microsoft access token refreshed successfully for user: ' . $user->id);
-            } else {
-                \Log::warning('Microsoft token refresh failed with status ' . $response->status() . ': ' . $response->body());
+            if ($response->failed()) {
+                Log::error('Microsoft token refresh failed', [
+                    'user_id' => $user->id,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return;
             }
-        } catch (\Exception $e) {
-            \Log::error('Microsoft token refresh exception: ' . $e->getMessage());
+
+            $data = $response->json();
+
+            $user->update([
+                'microsoft_token' => $data['access_token'] ?? $user->microsoft_token,
+                'microsoft_refresh_token' => $data['refresh_token'] ?? $user->microsoft_refresh_token,
+                'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Microsoft token refresh exception', [
+                'user_id' => $user->id ?? null,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 }

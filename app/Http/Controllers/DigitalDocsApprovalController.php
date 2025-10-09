@@ -296,13 +296,13 @@ class DigitalDocsApprovalController extends Controller
      */
     private function generateReferenceNo(): string
     {
-        return 'DOC-' . now()->format('Ym') . '-' . str_pad(
-            DigitalDocsApproval::whereDate('created_at', now())->count() + 1,
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
+        $countToday = DigitalDocsApproval::withTrashed()
+            ->whereDate('created_at', now())
+            ->count() + 1;
+
+        return 'DOC-' . now()->format('Ym') . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
     }
+
 
     /**
      * Store approvals (you may already have this implemented)

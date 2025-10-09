@@ -30,7 +30,7 @@
     <link rel="mask-icon" href="{{ asset('template/img/favicon/safari-pinned-tab.svg') }}" color="#5bbad5">
 </head>
 
-<body class="mod-skin-dark mod-nav-link header-function-fixed nav-function-fixed footer-function-fixed">
+<body class="mod-nav-link header-function-fixed footer-function-fixed nav-function-fixed nav-mobile-push mod-clean-page-bg mod-hide-info-card mod-nav-dark desktop chrome webkit pace-done blur">
 <div id="preloader" style="position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 30, 45, 0.7); display: flex; align-items: center; justify-content: center;">
     <div class="spinner-border text-light" role="status">
         <span class="visually-hidden"></span>
