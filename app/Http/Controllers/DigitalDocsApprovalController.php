@@ -226,34 +226,45 @@ class DigitalDocsApprovalController extends Controller
     public function destroy(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
         $accessToken = auth()->user()->microsoft_token;
+
         if (empty($accessToken)) {
             return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate.',
+                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
             ], 401);
         }
 
         $sharePoint = new SharePointService($accessToken);
 
         try {
-            // Try deleting SharePoint file, ignore if not found
-            if ($digitalDocsApproval->sharepoint_file_id) {
-                $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, true);
-            }
+            return DB::transaction(function () use ($digitalDocsApproval, $sharePoint) {
+                // Delete SharePoint file if exists
+                if ($digitalDocsApproval->sharepoint_file_id) {
+                    $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, $customDriveId, true);
+                }
 
-            // Delete approvals and main record
-            $digitalDocsApproval->approvals()->delete();
-            $digitalDocsApproval->delete();
+                // Delete related approvals
+                $digitalDocsApproval->approvals()->delete();
 
-            return response()->json(['message' => 'Deleted successfully.']);
+                // Delete the main record
+                $digitalDocsApproval->delete();
+
+                return response()->json([
+                    'message' => 'Digital document approval deleted successfully.',
+                ]);
+            });
         } catch (\Exception $e) {
-            Log::error('Delete failed', ['error' => $e->getMessage()]);
+            Log::error('Failed to delete digital document approval', [
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'message' => 'Failed to delete.',
                 'error' => $e->getMessage(),
             ], 500);
         }
     }
-
+    
     /**
      * -------------------
      * NEW METHOD: View SharePoint File Securely
