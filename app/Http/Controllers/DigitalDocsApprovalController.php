@@ -233,12 +233,12 @@ class DigitalDocsApprovalController extends Controller
         }
 
         $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
+        $sharePoint = new SharePointService($accessToken);
 
         try {
-            return DB::transaction(function () use ($digitalDocsApproval, $sharePoint) {
+            return DB::transaction(function () use ($digitalDocsApproval, $sharePoint, $customDriveId) {
                 if ($digitalDocsApproval->sharepoint_file_id) {
-                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id);
+                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, $customDriveId);
                 }
 
                 $digitalDocsApproval->approvals()->delete();
