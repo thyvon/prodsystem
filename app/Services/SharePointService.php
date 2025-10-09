@@ -149,14 +149,12 @@ class SharePointService
             $this->updateFileProperties($fileId, $properties, $driveId);
         }
 
-        $fileInfo = [
+        return [
             'id' => $response->json('id'),
             'name' => $response->json('name'),
             'url' => $response->json('webUrl'),
             'ui_url' => $this->generateUiLink($response->json('webUrl')),
         ];
-
-        return $fileInfo;
     }
 
     /**
@@ -164,16 +162,12 @@ class SharePointService
      */
     protected function generateUiLink(string $webUrl): string
     {
-        // Remove domain
         $siteRelativePath = str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl);
-
-        // Decode first to avoid double encoding
         $siteRelativePath = rawurldecode($siteRelativePath);
 
         $encodedFile = rawurlencode($siteRelativePath);
         $encodedParent = rawurlencode(dirname($siteRelativePath));
 
-        // Extract site + library dynamically
         $segments = explode('/', trim($siteRelativePath, '/'));
         $siteLibrary = isset($segments[0], $segments[1]) 
             ? $segments[0] . '/' . $segments[1] 
@@ -182,9 +176,8 @@ class SharePointService
         return "https://mjqeducationplc.sharepoint.com/{$siteLibrary}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
     }
 
-
     /**
-     * Get default drive ID from config (optional)
+     * Get default drive ID from config
      */
     protected function getDefaultDriveId(): string
     {

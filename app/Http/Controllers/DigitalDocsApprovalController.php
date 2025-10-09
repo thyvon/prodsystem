@@ -101,15 +101,21 @@ class DigitalDocsApprovalController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
+        // 1️⃣ Validate request
+        $validated = Validator::make(
+            $request->all(),
+            $this->digitalDocsApprovalValidationRules()
+        )->validate();
 
-        $accessToken = auth()->user()->microsoft_token; // AD token
+        // 2️⃣ Get Microsoft access token
+        $accessToken = auth()->user()->microsoft_token;
         if (empty($accessToken)) {
             return response()->json([
                 'message' => 'Microsoft access token not found. Please re-authenticate your account.',
             ], 401);
         }
 
+        // 3️⃣ Optional: specify a custom library / drive ID
         $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
         $sharePoint = new SharePointService($accessToken);
 
@@ -117,10 +123,10 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $sharePoint, $customDriveId) {
 
                 // --- Step 1: Build dynamic folder path: document_type/year/month ---
-                $folderPath = $this->getSharePointFolderPath($validated['document_type']);
+                $folderPath = $this->getSharePointFolderPath($validated['document_type']); // e.g., "DDD/2025/10 Oct"
 
                 // --- Step 2: Generate reference number (used as file name) ---
-                $referenceNo = $this->generateReferenceNo();
+                $referenceNo = $this->generateReferenceNo(); // e.g., "DOC-202510-0016"
 
                 // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
                 $file = $request->file('file');
@@ -129,7 +135,7 @@ class DigitalDocsApprovalController extends Controller
                 $fileData = $sharePoint->uploadFile(
                     $file,
                     $folderPath,
-                    ['Title' => $validated['description']], // SharePoint metadata
+                    ['Title' => $validated['description']], // optional metadata
                     "{$referenceNo}.{$extension}",          // File name
                     $customDriveId                           // Dynamic library support
                 );
@@ -141,8 +147,8 @@ class DigitalDocsApprovalController extends Controller
                     'document_type' => $validated['document_type'],
                     'sharepoint_file_id' => $fileData['id'],
                     'sharepoint_file_name' => $fileData['name'],
-                    'sharepoint_file_url' => $fileData['url'],    // Direct link
-                    'sharepoint_file_ui_url' => $fileData['ui_url'], // SharePoint UI link
+                    'sharepoint_file_url' => $fileData['url'],        // Direct link
+                    'sharepoint_file_ui_url' => $fileData['ui_url'],  // SharePoint UI link
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
                 ]);
@@ -164,7 +170,6 @@ class DigitalDocsApprovalController extends Controller
             ], 500);
         }
     }
-
 
     public function getEdit(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
