@@ -49,7 +49,7 @@ const datatableHeaders = [
   { text: 'Status', value: 'approval_status', width: '8%' },
 ];
 const datatableFetchUrl = '/api/digital-docs-approvals';
-const datatableActions = ['edit', 'delete', 'preview'];
+const datatableActions = ['edit', 'delete', 'preview', 'viewFile'];
 const datatableOptions = {
   responsive: true,
   pageLength: pageLength.value,
@@ -68,6 +68,11 @@ const handleEdit = (approval) => {
 };
 const handlePreview = (approval) => {
   window.location.href = `/digital-docs-approvals/${approval.id}/show`;
+};
+
+const handleViewFile = (approval) => {
+  const viewUrl = `/digital-approval/${approval.id}/view`;
+  window.open(viewUrl, '_blank'); // open in a new tab
 };
 const handleDelete = async (approval) => {
   const confirmed = await confirmAction(
@@ -93,6 +98,7 @@ const datatableHandlers = {
   edit: handleEdit,
   delete: handleDelete,
   preview: handlePreview,
+  viewFile: handleViewFile,
 };
 
 // --- Datatable events ---

@@ -140,11 +140,11 @@ const renderColumnData = (key, val) => {
   }
 
   if (key === 'sharepoint_file_ui_url' && val) {
-      const viewUrl = `/digital-approval/${row.id}/view`;
-      return `<a href="${viewUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
-                  <i class="fal fa-folder"></i> View Document
-              </a>`;
+    return `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary">
+              <i class="fal fa-folder"></i> View Document
+            </a>`;
   }
+
 
   // Document Status
   if (key === 'status') {
