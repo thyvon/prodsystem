@@ -241,10 +241,23 @@ class SharePointService
     /**
  * Stream a file from SharePoint inline (view in browser)
  */
-    public function viewFile(string $fileId, ?string $driveId = null)
+    public function streamFile(string $fileId, ?string $driveId = null)
     {
         $driveId = $driveId ?? $this->getDefaultDriveId();
 
+        // Get file metadata first (to obtain name & content type)
+        $metaResponse = Http::withToken($this->accessToken)
+            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}");
+
+        if ($metaResponse->failed()) {
+            throw new \Exception('Failed to fetch file metadata from SharePoint.');
+        }
+
+        $meta = $metaResponse->json();
+        $fileName = $meta['name'] ?? 'file';
+        $contentType = $meta['file']["mimeType"] ?? 'application/octet-stream';
+
+        // Stream file content
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
 
         $response = Http::withToken($this->accessToken)
@@ -252,28 +265,19 @@ class SharePointService
             ->get($url);
 
         if ($response->failed()) {
-            throw new \Exception('Failed to fetch file from SharePoint');
+            throw new \Exception('Failed to fetch file content from SharePoint.');
         }
 
-        // Determine content type
-        $contentType = $response->header('Content-Type') ?? 'application/octet-stream';
-        $fileName = $fileId; // fallback filename
-
-        // Try to get real filename from Graph metadata
-        $meta = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}")
-            ->json();
-
-        if (!empty($meta['name'])) {
-            $fileName = $meta['name'];
-        }
-
-        // Stream file inline
+        // Stream file directly to browser
         return response()->stream(function () use ($response) {
-            echo $response->body();
+            while (!feof($response->toPsrResponse()->getBody())) {
+                echo $response->toPsrResponse()->getBody()->read(1024);
+                flush();
+            }
         }, 200, [
             'Content-Type' => $contentType,
-            'Content-Disposition' => "inline; filename=\"{$fileName}\"",
+            'Content-Disposition' => "inline; filename=\"{$fileName}\"", // inline = view in browser
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
