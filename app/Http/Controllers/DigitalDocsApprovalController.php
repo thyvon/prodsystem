@@ -133,6 +133,7 @@ class DigitalDocsApprovalController extends Controller
                     'sharepoint_file_name' => $fileData['name'],
                     'sharepoint_file_url' => $fileData['url'],
                     'sharepoint_file_ui_url' => $fileData['ui_url'],
+                    'sharepoint_drive_id' => $customDriveId,
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
                 ]);
@@ -192,6 +193,7 @@ class DigitalDocsApprovalController extends Controller
 
                     $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
+                    $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,

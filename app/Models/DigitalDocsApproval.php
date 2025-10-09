@@ -17,6 +17,7 @@ class DigitalDocsApproval extends Model
         'sharepoint_file_name',
         'sharepoint_file_url',
         'sharepoint_file_ui_url',
+        'sharepoint_drive_id',
         'document_type',
         'approval_status',
         'created_by',
