@@ -259,21 +259,16 @@ class DigitalDocsApprovalController extends Controller
      * NEW METHOD: View SharePoint File Securely
      * -------------------
      */
-    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
+    public function viewFile($id)
     {
-        $accessToken = auth()->user()->microsoft_token;
-        if (!$accessToken || !$digitalDocsApproval->sharepoint_file_id) {
-            abort(403, 'Unauthorized or file not found.');
+        $approval = DigitalDocsApproval::findOrFail($id);
+
+        if (!$approval->sharepoint_file_id) {
+            abort(404, 'No file linked to this record.');
         }
 
-        $sharePoint = new SharePointService($accessToken);
-
-        return new StreamedResponse(function () use ($sharePoint, $digitalDocsApproval) {
-            $sharePoint->streamFile($digitalDocsApproval->sharepoint_file_id);
-        }, 200, [
-            'Content-Type' => $digitalDocsApproval->file_mime ?? 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . $digitalDocsApproval->sharepoint_file_name . '"',
-        ]);
+        $service = new SharePointService(auth()->user()->microsoft_access_token);
+        return $service->streamFile($approval->sharepoint_file_id);
     }
 
     private function digitalDocsApprovalValidationRules(): array
