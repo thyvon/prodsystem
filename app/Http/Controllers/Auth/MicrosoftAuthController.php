@@ -19,7 +19,15 @@ class MicrosoftAuthController extends Controller
     {
         return Socialite::driver('microsoft')
             ->stateless()
-            ->scopes(['openid', 'profile', 'email', 'User.Read', 'offline_access']) // <-- add offline_access
+            ->scopes([
+                'openid',
+                'profile',
+                'email',
+                'User.Read',
+                'offline_access',
+                'Files.ReadWrite',        // <-- required for file operations
+                'Sites.ReadWrite.All',    // <-- required for SharePoint folders
+            ])
             ->redirect();
     }
 
@@ -56,7 +64,7 @@ class MicrosoftAuthController extends Controller
                 $user->save();
             }
         } catch (\Exception $e) {
-            // ignore photo errors
+            // Ignore photo errors
         }
 
         // Login user
