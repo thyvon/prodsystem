@@ -145,12 +145,20 @@ class SharePointService
     /** -----------------------------
      * DELETE FILE
      * ----------------------------- */
-    public function deleteFile(string $fileId, ?string $driveId = null): bool
+    public function deleteFile(string $fileId, ?string $driveId = null, bool $ignoreNotFound = true): bool
     {
-        $driveId = $this->resolveDriveId($driveId);
+        $driveId = $driveId ?? $this->getDefaultDriveId();
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
 
-        Http::withToken($this->accessToken)->delete($url)->throw();
+        try {
+            Http::withToken($this->accessToken)->delete($url)->throw();
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            // Ignore 404 errors if file does not exist
+            if (!$ignoreNotFound || ($e->response && $e->response->status() != 404)) {
+                throw $e;
+            }
+        }
+
         return true;
     }
 
