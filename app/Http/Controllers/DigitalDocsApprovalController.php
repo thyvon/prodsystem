@@ -228,31 +228,27 @@ class DigitalDocsApprovalController extends Controller
         $accessToken = auth()->user()->microsoft_token;
         if (empty($accessToken)) {
             return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
+                'message' => 'Microsoft access token not found. Please re-authenticate.',
             ], 401);
         }
 
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
         $sharePoint = new SharePointService($accessToken);
 
         try {
-            return DB::transaction(function () use ($digitalDocsApproval, $sharePoint, $customDriveId) {
-                if ($digitalDocsApproval->sharepoint_file_id) {
-                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, $customDriveId);
-                }
+            // Try deleting SharePoint file, ignore if not found
+            if ($digitalDocsApproval->sharepoint_file_id) {
+                $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, true);
+            }
 
-                $digitalDocsApproval->approvals()->delete();
-                $digitalDocsApproval->delete();
+            // Delete approvals and main record
+            $digitalDocsApproval->approvals()->delete();
+            $digitalDocsApproval->delete();
 
-                return response()->json([
-                    'message' => 'Digital document approval deleted successfully.',
-                ]);
-            });
+            return response()->json(['message' => 'Deleted successfully.']);
         } catch (\Exception $e) {
-            Log::error('Failed to delete digital document approval', ['error' => $e->getMessage()]);
-
+            Log::error('Delete failed', ['error' => $e->getMessage()]);
             return response()->json([
-                'message' => 'Failed to delete digital document approval.',
+                'message' => 'Failed to delete.',
                 'error' => $e->getMessage(),
             ], 500);
         }
