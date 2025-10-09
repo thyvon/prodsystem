@@ -296,11 +296,21 @@ class DigitalDocsApprovalController extends Controller
      */
     private function generateReferenceNo(): string
     {
-        $countToday = DigitalDocsApproval::withTrashed()
-            ->whereDate('created_at', now())
+        $prefix = 'DOC-' . now()->format('Ym') . '-';
+        $count = DigitalDocsApproval::withTrashed()
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
             ->count() + 1;
 
-        return 'DOC-' . now()->format('Ym') . '-' . str_pad($countToday, 4, '0', STR_PAD_LEFT);
+        do {
+            $referenceNo = $prefix . str_pad($count, 4, '0', STR_PAD_LEFT);
+            $exists = DigitalDocsApproval::withTrashed()
+                ->where('reference_no', $referenceNo)
+                ->exists();
+            $count++;
+        } while ($exists);
+
+        return $referenceNo;
     }
 
 
