@@ -259,7 +259,7 @@ class DigitalDocsApprovalController extends Controller
      * NEW METHOD: View SharePoint File Securely
      * -------------------
      */
-    public function viewFile($id)
+    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
     {
         $accessToken = auth()->user()->microsoft_token;
         if (!$accessToken) {
