@@ -26,7 +26,8 @@ class MicrosoftAuthController extends Controller
                 'User.Read',
                 'offline_access',
                 'Files.ReadWrite',        // <-- required for file operations
-                'Sites.ReadWrite.All',    // <-- required for SharePoint folders
+                'Sites.Selected',         // <-- required for SharePoint folders
+
             ])
             ->redirect();
     }
