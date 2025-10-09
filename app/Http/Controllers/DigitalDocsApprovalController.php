@@ -98,68 +98,76 @@ class DigitalDocsApprovalController extends Controller
     /**
      * Store a new digital document approval with SharePoint upload
      */
-    public function store(Request $request): JsonResponse
-    {
-        $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
+public function store(Request $request): JsonResponse
+{
+    $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
 
-        $accessToken = auth()->user()->microsoft_token; // AD token
-        if (empty($accessToken)) {
-            return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
-            ], 401);
-        }
-
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
-
-        try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint) {
-
-                // --- Step 1: Build dynamic folder path: document_type/year/month ---
-                $folderPath = $this->getSharePointFolderPath($validated['document_type']);
-
-                // --- Step 2: Generate reference number (used as file name) ---
-                $referenceNo = $this->generateReferenceNo();
-
-                // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
-                $file = $request->file('file');
-                $extension = $file->getClientOriginalExtension();
-                $fileData = $sharePoint->uploadFile(
-                    $file,
-                    $folderPath,
-                    ['Title' => $validated['description']],
-                    "{$referenceNo}.{$extension}" 
-                );
-
-                // --- Step 4: Create DigitalDocsApproval record ---
-                $digitalDocsApproval = DigitalDocsApproval::create([
-                    'reference_no' => $referenceNo,
-                    'description' => $validated['description'],
-                    'document_type' => $validated['document_type'],
-                    'sharepoint_file_id' => $fileData['id'],
-                    'sharepoint_file_name' => $fileData['name'],
-                    'sharepoint_file_url' => $fileData['url'],
-                    'approval_status' => 'Pending',
-                    'created_by' => auth()->id(),
-                ]);
-
-                // --- Step 5: Store approvals ---
-                $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
-
-                return response()->json([
-                    'message' => 'Digital document approval created successfully.',
-                    'data' => $digitalDocsApproval->load('approvals.responder'),
-                ], 201);
-            });
-        } catch (\Exception $e) {
-            Log::error('Failed to create digital document approval', ['error' => $e->getMessage()]);
-
-            return response()->json([
-                'message' => 'Failed to create digital document approval.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+    $accessToken = auth()->user()->microsoft_token; // AD token
+    if (empty($accessToken)) {
+        return response()->json([
+            'message' => 'Microsoft access token not found. Please re-authenticate your account.',
+        ], 401);
     }
+
+    $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ'; // Digital Docs Library
+    $sharePoint = new SharePointService($accessToken, $customDriveId);
+
+    try {
+        return DB::transaction(function () use ($validated, $request, $sharePoint) {
+
+            // --- Step 1: Build dynamic folder path: document_type/year/month ---
+            $folderPath = $this->getSharePointFolderPath($validated['document_type']);
+
+            // --- Step 2: Generate reference number (used as file name) ---
+            $referenceNo = $this->generateReferenceNo();
+
+            // --- Step 3: Upload file to SharePoint with referenceNo as filename ---
+            $file = $request->file('file');
+            $extension = $file->getClientOriginalExtension();
+            $fileData = $sharePoint->uploadFile(
+                $file,
+                $folderPath,
+                ['Title' => $validated['description']],
+                "{$referenceNo}.{$extension}"
+            );
+
+            // --- Step 4: Use webUrl from upload as the clickable link ---
+            $sharePointUrl = $fileData['webUrl'] ?? null;
+            if ($sharePointUrl) {
+                // Optional: force open in client app
+                $sharePointUrl .= '?web=0';
+            }
+
+            // --- Step 5: Create DigitalDocsApproval record ---
+            $digitalDocsApproval = DigitalDocsApproval::create([
+                'reference_no' => $referenceNo,
+                'description' => $validated['description'],
+                'document_type' => $validated['document_type'],
+                'sharepoint_file_id' => $fileData['id'],
+                'sharepoint_file_name' => $fileData['name'],
+                'sharepoint_file_url' => $sharePointUrl,
+                'approval_status' => 'Pending',
+                'created_by' => auth()->id(),
+            ]);
+
+            // --- Step 6: Store approvals ---
+            $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
+
+            return response()->json([
+                'message' => 'Digital document approval created successfully.',
+                'data' => $digitalDocsApproval->load('approvals.responder'),
+            ], 201);
+        });
+    } catch (\Exception $e) {
+        Log::error('Failed to create digital document approval', ['error' => $e->getMessage()]);
+
+        return response()->json([
+            'message' => 'Failed to create digital document approval.',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
 
     public function getEdit(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
