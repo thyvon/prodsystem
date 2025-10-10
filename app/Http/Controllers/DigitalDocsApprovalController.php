@@ -166,10 +166,10 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
-    $validated = Validator::make(
-        $request->all(),
-        $this->digitalDocsApprovalValidationRules(true) // true = update mode
-    )->validate();
+        $validated = Validator::make(
+            $request->all(),
+            $this->digitalDocsApprovalValidationRules(true) // true = update mode
+        )->validate();
 
         $user = Auth::user();
         $sharePoint = new SharePointService($user);
@@ -178,13 +178,13 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
+                // Update file if a new one uploaded
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
-                    $extension = $file->getClientOriginalExtension();
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
-                        ['Title' => $validated['description']],
+                        ['Title' => $request->input('description', $digitalDocsApproval->description)],
                         $customDriveId
                     );
 
@@ -192,19 +192,31 @@ class DigitalDocsApprovalController extends Controller
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
-                    $sharePoint->updateFileProperties(
-                        $digitalDocsApproval->sharepoint_file_id,
-                        ['Title' => $validated['description']],
-                        $digitalDocsApproval->sharepoint_drive_id
-                    );
+                    // Update metadata only if description provided
+                    if ($request->filled('description')) {
+                        $sharePoint->updateFileProperties(
+                            $digitalDocsApproval->sharepoint_file_id,
+                            ['Title' => $request->input('description')],
+                            $digitalDocsApproval->sharepoint_drive_id
+                        );
+                    }
                 }
 
-                $digitalDocsApproval->description = $validated['description'];
-                $digitalDocsApproval->document_type = $validated['document_type'];
+                // Update model fields (only if sent)
+                if ($request->filled('description')) {
+                    $digitalDocsApproval->description = $request->input('description');
+                }
+                if ($request->filled('document_type')) {
+                    $digitalDocsApproval->document_type = $request->input('document_type');
+                }
+
                 $digitalDocsApproval->save();
 
-                $digitalDocsApproval->approvals()->delete();
-                $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
+                // Handle approvals (if provided)
+                if ($request->has('approvals')) {
+                    $digitalDocsApproval->approvals()->delete();
+                    $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
+                }
 
                 return response()->json([
                     'message' => 'Digital document approval updated successfully.',
@@ -212,7 +224,10 @@ class DigitalDocsApprovalController extends Controller
                 ]);
             });
         } catch (\Exception $e) {
-            Log::error('Failed to update digital document approval', ['error' => $e->getMessage()]);
+            Log::error('Failed to update digital document approval', [
+                'id' => $digitalDocsApproval->id,
+                'error' => $e->getMessage()
+            ]);
 
             return response()->json([
                 'message' => 'Failed to update digital document approval.',
