@@ -29,8 +29,11 @@
             <div class="form-group">
               <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
               <div class="custom-file">
-                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload" required>
+                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
                 <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
+              </div>
+              <div v-if="existingFileUrl" class="mt-1">
+                <a :href="existingFileUrl" target="_blank">Current File</a>
               </div>
             </div>
           </div>
@@ -67,7 +70,7 @@
                         required
                       >
                         <option value="">Select User</option>
-                        <!-- Options will be populated by Select2 -->
+                        <!-- Options populated by Select2 -->
                       </select>
                     </td>
                     <td>
@@ -108,13 +111,13 @@ import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import { showAlert } from '@/Utils/bootbox'
 
 const props = defineProps({
-  initialData: { type: Object, default: () => ({}) }
+  documentId: { type: Number, default: null } // Pass ID for edit mode
 })
 
 const emit = defineEmits(['submitted'])
 
 const isSubmitting = ref(false)
-const isEditMode = ref(!!props.initialData?.id)
+const isEditMode = ref(!!props.documentId)
 
 const form = ref({
   document_type: '',
@@ -123,6 +126,7 @@ const form = ref({
   approvals: []
 })
 
+const existingFileUrl = ref('')
 const approvalUsers = ref([])
 const fileLabel = ref('Choose file')
 
@@ -141,6 +145,27 @@ const fetchApprovalUsers = async () => {
   approvalUsers.value = Array.isArray(data) ? data : data.data || []
 }
 
+// Fetch document for edit
+const fetchDocumentForEdit = async () => {
+  if (!isEditMode.value) return
+  try {
+    const { data } = await axios.get(`/api/digital-docs-approvals/${props.documentId}`)
+    form.value.document_type = data.document_type || ''
+    form.value.description = data.description || ''
+    existingFileUrl.value = data.file_url || ''
+    form.value.approvals = data.approvals?.map(a => ({
+      request_type: a.request_type,
+      user_id: a.user_id
+    })) || []
+
+    await nextTick()
+    form.value.approvals.forEach((_, i) => initUserSelect(i))
+  } catch (err) {
+    console.error(err)
+    await showAlert('Error', 'Failed to load document data.', 'danger')
+  }
+}
+
 // Init select2 for user select
 const initUserSelect = async (index) => {
   await nextTick()
@@ -149,7 +174,7 @@ const initUserSelect = async (index) => {
 
   destroySelect2(el)
   $(el).empty().append('<option value="">Select User</option>')
-  approvalUsers.value.forEach((u) => {
+  approvalUsers.value.forEach(u => {
     $(el).append(`<option value="${u.id}">${u.name}</option>`)
   })
 
@@ -171,7 +196,6 @@ const removeApproval = async (index) => {
   const el = document.querySelector(`.user-select[data-index="${index}"]`)
   if (el) destroySelect2(el)
   form.value.approvals.splice(index, 1)
-  // Re-init all Select2s after removal
   await nextTick()
   form.value.approvals.forEach((_, i) => initUserSelect(i))
 }
@@ -191,27 +215,22 @@ const submitForm = async () => {
     })
 
     const url = isEditMode.value
-      ? `/api/digital-docs-approvals/${props.initialData.id}`
-      : '/api/digital-docs-approvals' // <-- fixed typo here
+      ? `/api/digital-docs-approvals/${props.documentId}`
+      : '/api/digital-docs-approvals'
 
-    await axios.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    await axios({
+      method: isEditMode.value ? 'put' : 'post',
+      url,
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
 
-    await showAlert(
-      'Success',
-      isEditMode.value
-        ? 'Document updated successfully.'
-        : 'Document created successfully.',
-      'success'
-    );
+    await showAlert('Success', isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.', 'success')
     emit('submitted')
     goToIndex()
   } catch (err) {
-    console.error(err.response?.data || err);
-    await showAlert(
-      'Error',
-      err.response?.data?.message || err.message || 'Failed to save document.',
-      'danger'
-    );
+    console.error(err.response?.data || err)
+    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save document.', 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -230,17 +249,6 @@ watch(() => form.value.approvals.length, async () => {
 // Mounted
 onMounted(async () => {
   await fetchApprovalUsers()
-
-  if (isEditMode.value && props.initialData) {
-    form.value.document_type = props.initialData.document_type || ''
-    form.value.description = props.initialData.description || ''
-    form.value.approvals = props.initialData.approvals?.map((a) => ({
-      request_type: a.request_type,
-      user_id: a.user_id
-    })) || []
-
-    await nextTick()
-    form.value.approvals.forEach((_, i) => initUserSelect(i))
-  }
+  await fetchDocumentForEdit()
 })
 </script>
