@@ -277,13 +277,14 @@ class DigitalDocsApprovalController extends Controller
             abort(404, "File not found.");
         }
 
-        // Use authenticated user's Microsoft token
-        $accessToken = Auth::user()->microsoft_token;
-        if (!$accessToken) {
+        // Get the authenticated user
+        $user = Auth::user();
+        if (!$user || !$user->microsoft_token) {
             abort(403, "No Microsoft access token available.");
         }
 
-        $sharepointService = new SharePointService($accessToken);
+        // Pass the User object, not the token
+        $sharepointService = new SharePointService($user);
 
         try {
             // Stream file from SharePoint using stored IDs
@@ -295,6 +296,7 @@ class DigitalDocsApprovalController extends Controller
             abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
     }
+
 
     private function digitalDocsApprovalValidationRules(): array
     {
