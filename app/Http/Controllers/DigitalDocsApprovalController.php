@@ -97,7 +97,7 @@ class DigitalDocsApprovalController extends Controller
     public function getEditData(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
         try {
-            $digitalDocsApproval->load('approvals.responder');
+            $digitalDocsApproval->load('approvals.responder:id,name');
             return response()->json([
                 'message' => 'Digital approval retrieved successfully.',
                 'data' => $digitalDocsApproval,
