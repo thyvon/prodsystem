@@ -166,10 +166,10 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
-        $validated = Validator::make($request->all(), array_merge(
-            $this->digitalDocsApprovalValidationRules(),
-            ['file' => 'nullable|file|max:10240']
-        ))->validate();
+    $validated = Validator::make(
+        $request->all(),
+        $this->digitalDocsApprovalValidationRules(true) // true = update mode
+    )->validate();
 
         $user = Auth::user();
         $sharePoint = new SharePointService($user);
@@ -274,17 +274,28 @@ class DigitalDocsApprovalController extends Controller
         }
     }
 
-    private function digitalDocsApprovalValidationRules(): array
+    private function digitalDocsApprovalValidationRules(bool $isUpdate = false): array
     {
-        return [
+        $rules = [
             'description' => 'required|string|max:1000',
             'document_type' => 'required|string|max:255',
-            'file' => 'required|file|max:10240',
+            'file' => 'required|file|max:10240', // required for create
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',
         ];
+
+        if ($isUpdate) {
+            // Make fields optional during update
+            $rules['description'] = 'sometimes|required|string|max:1000';
+            $rules['document_type'] = 'sometimes|required|string|max:255';
+            $rules['file'] = 'nullable|file|max:10240';
+            $rules['approvals'] = 'sometimes|required|array|min:1';
+        }
+
+        return $rules;
     }
+
 
     private function generateReferenceNo(): string
     {
