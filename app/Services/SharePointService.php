@@ -4,19 +4,90 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\UploadedFile;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class SharePointService
 {
     protected string $accessToken;
     protected string $siteId;
     protected int $chunkSize;
+    protected ?User $user;
 
-    public function __construct(string $accessToken, int $chunkSize = 10 * 1024 * 1024)
+    public function __construct(User $user, int $chunkSize = 10 * 1024 * 1024)
     {
         $this->siteId = config('services.sharepoint.site_id')
             ?: throw new \InvalidArgumentException('SharePoint site_id not set');
-        $this->accessToken = $accessToken;
+
+        $this->user = $user;
         $this->chunkSize = $chunkSize;
+
+        // Ensure token is fresh
+        $this->accessToken = $this->getValidAccessToken($user);
+    }
+
+    /** -----------------------------
+     * TOKEN REFRESH
+     * ----------------------------- */
+    protected function getValidAccessToken(User $user): string
+    {
+        if (!$user->microsoft_token || !$user->microsoft_refresh_token) {
+            throw new \RuntimeException('User does not have Microsoft tokens.');
+        }
+
+        // Check expiry, refresh if less than 5 minutes left
+        $expiresAt = $user->microsoft_token_expires_at ? Carbon::parse($user->microsoft_token_expires_at) : null;
+        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
+            return $this->refreshAccessToken($user);
+        }
+
+        return $user->microsoft_token;
+    }
+
+    protected function refreshAccessToken(User $user): string
+    {
+        try {
+            $tenantId = config('services.microsoft.tenant_id');
+            $clientId = config('services.microsoft.client_id');
+            $clientSecret = config('services.microsoft.client_secret');
+
+            $response = Http::asForm()->post(
+                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+                [
+                    'client_id'     => $clientId,
+                    'client_secret' => $clientSecret,
+                    'grant_type'    => 'refresh_token',
+                    'refresh_token' => $user->microsoft_refresh_token,
+                    'scope'         => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                ]
+            );
+
+            if ($response->failed()) {
+                Log::error('Microsoft token refresh failed', [
+                    'user_id' => $user->id,
+                    'status'  => $response->status(),
+                    'body'    => $response->body(),
+                ]);
+                throw new \RuntimeException('Failed to refresh Microsoft access token.');
+            }
+
+            $data = $response->json();
+
+            $user->update([
+                'microsoft_token'     => $data['access_token'] ?? $user->microsoft_token,
+                'microsoft_refresh_token'    => $data['refresh_token'] ?? $user->microsoft_refresh_token,
+                'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
+            ]);
+
+            return $user->microsoft_token;
+        } catch (\Throwable $e) {
+            Log::error('Microsoft token refresh exception', [
+                'user_id' => $user->id ?? null,
+                'message' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Microsoft access token refresh failed.');
+        }
     }
 
     /** -----------------------------
@@ -44,7 +115,6 @@ class SharePointService
         $fileName = $fileName ?? time() . '_' . $file->getClientOriginalName();
         $driveId = $this->resolveDriveId($driveId);
 
-        // Small vs large file
         $fileInfo = $file->getSize() <= 4 * 1024 * 1024
             ? $this->uploadSmallFile($file, $folderPath, $fileName, $driveId)
             : $this->uploadLargeFile($file, $folderPath, $fileName, $driveId);
@@ -60,6 +130,7 @@ class SharePointService
     protected function uploadSmallFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
     {
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/content";
+
         $response = Http::withToken($this->accessToken)
             ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
             ->put($url)
@@ -101,17 +172,6 @@ class SharePointService
      * UPDATE FILES
      * ----------------------------- */
 
-    public function updateFiles(array $files, array $fileIds, array $properties = [], string $driveId = null): array
-    {
-        $results = [];
-        foreach ($files as $i => $file) {
-            if ($file instanceof UploadedFile && isset($fileIds[$i])) {
-                $results[] = $this->updateFile($fileIds[$i], $file, $properties, $driveId);
-            }
-        }
-        return $results;
-    }
-
     public function updateFile(string $fileId, UploadedFile $file, array $properties = [], ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -147,13 +207,12 @@ class SharePointService
      * ----------------------------- */
     public function deleteFile(string $fileId, ?string $driveId = null, bool $ignoreNotFound = true): bool
     {
-        $driveId = $driveId ?? $this->getDefaultDriveId();
+        $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
 
         try {
             Http::withToken($this->accessToken)->delete($url)->throw();
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            // Ignore 404 errors if file does not exist
             if (!$ignoreNotFound || ($e->response && $e->response->status() != 404)) {
                 throw $e;
             }
@@ -194,6 +253,7 @@ class SharePointService
         return response($this->getFileContent($fileId, $driveId)['body'], 200)
             ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
             ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
+
     }
 
     /** -----------------------------
@@ -203,9 +263,9 @@ class SharePointService
     protected function extractFileInfo($response): array
     {
         return [
-            'id' => $response->json('id'),
+            'id'   => $response->json('id'),
             'name' => $response->json('name'),
-            'url' => $response->json('webUrl'),
+            'url'  => $response->json('webUrl'),
         ];
     }
 
