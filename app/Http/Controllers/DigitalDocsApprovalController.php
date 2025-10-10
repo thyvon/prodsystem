@@ -8,15 +8,13 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\User;
-use Illuminate\View\View;   
+use Illuminate\View\View;
 use App\Models\DigitalDocsApproval;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DigitalDocsApprovalController extends Controller
 {
@@ -100,23 +98,17 @@ class DigitalDocsApprovalController extends Controller
     {
         $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
 
-        $accessToken = auth()->user()->microsoft_token;
-        if (empty($accessToken)) {
-            return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
-            ], 401);
-        }
-
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-        $sharePoint = new SharePointService($accessToken);
+        $user = Auth::user();
+        $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint, $customDriveId) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint) {
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
                 $referenceNo = $this->generateReferenceNo();
                 $file = $request->file('file');
                 $extension = $file->getClientOriginalExtension();
 
+                $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
                 $fileData = $sharePoint->uploadFile(
                     $file,
                     $folderPath,
@@ -135,7 +127,7 @@ class DigitalDocsApprovalController extends Controller
                     'sharepoint_file_ui_url' => $fileData['ui_url'],
                     'sharepoint_drive_id' => $customDriveId,
                     'approval_status' => 'Pending',
-                    'created_by' => auth()->id(),
+                    'created_by' => $user->id,
                 ]);
 
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
@@ -155,14 +147,6 @@ class DigitalDocsApprovalController extends Controller
         }
     }
 
-    public function getEdit(DigitalDocsApproval $digitalDocsApproval): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'data' => $digitalDocsApproval->load('approvals.responder', 'approvals.requester'),
-        ]);
-    }
-
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
         $validated = Validator::make($request->all(), array_merge(
@@ -170,25 +154,21 @@ class DigitalDocsApprovalController extends Controller
             ['file' => 'nullable|file|max:10240']
         ))->validate();
 
-        $accessToken = auth()->user()->microsoft_token;
-        if (empty($accessToken)) {
-            return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
-            ], 401);
-        }
-
-        $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-        $sharePoint = new SharePointService($accessToken, $customDriveId);
+        $user = Auth::user();
+        $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint) {
+                $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
                     $extension = $file->getClientOriginalExtension();
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
-                        ['Title' => $validated['description']]
+                        ['Title' => $validated['description']],
+                        $customDriveId
                     );
 
                     $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
@@ -197,7 +177,8 @@ class DigitalDocsApprovalController extends Controller
                 } else {
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,
-                        ['Title' => $validated['description']]
+                        ['Title' => $validated['description']],
+                        $digitalDocsApproval->sharepoint_drive_id
                     );
                 }
 
@@ -225,28 +206,22 @@ class DigitalDocsApprovalController extends Controller
 
     public function destroy(DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
-        $accessToken = auth()->user()->microsoft_token;
-
-        if (empty($accessToken)) {
-            return response()->json([
-                'message' => 'Microsoft access token not found. Please re-authenticate your account.',
-            ], 401);
-        }
-
-        $sharePoint = new SharePointService($accessToken);
+        $user = Auth::user();
+        $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($digitalDocsApproval, $sharePoint) {
-                // Delete SharePoint file if exists
+                $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+
                 if ($digitalDocsApproval->sharepoint_file_id) {
-                    $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
-                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, $customDriveId, true);
+                    $sharePoint->deleteFile(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        $customDriveId,
+                        true
+                    );
                 }
 
-                // Delete related approvals
                 $digitalDocsApproval->approvals()->delete();
-
-                // Delete the main record
                 $digitalDocsApproval->delete();
 
                 return response()->json([
@@ -254,41 +229,26 @@ class DigitalDocsApprovalController extends Controller
                 ]);
             });
         } catch (\Exception $e) {
-            Log::error('Failed to delete digital document approval', [
-                'error' => $e->getMessage()
-            ]);
+            Log::error('Failed to delete digital document approval', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'message' => 'Failed to delete.',
+                'message' => 'Failed to delete digital document approval.',
                 'error' => $e->getMessage(),
             ], 500);
         }
     }
-    
-    /**
-     * -------------------
-     * NEW METHOD: View SharePoint File Securely
-     * -------------------
-     */
+
     public function viewFile(DigitalDocsApproval $digitalDocsApproval)
     {
-        // Ensure file info exists
         if (!$digitalDocsApproval->sharepoint_file_id || !$digitalDocsApproval->sharepoint_drive_id) {
             abort(404, "File not found.");
         }
 
-        // Get the authenticated user
         $user = Auth::user();
-        if (!$user || !$user->microsoft_token) {
-            abort(403, "No Microsoft access token available.");
-        }
-
-        // Pass the User object, not the token
-        $sharepointService = new SharePointService($user);
+        $sharePoint = new SharePointService($user);
 
         try {
-            // Stream file from SharePoint using stored IDs
-            return $sharepointService->streamFile(
+            return $sharePoint->streamFile(
                 $digitalDocsApproval->sharepoint_file_id,
                 $digitalDocsApproval->sharepoint_drive_id
             );
@@ -296,7 +256,6 @@ class DigitalDocsApprovalController extends Controller
             abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
     }
-
 
     private function digitalDocsApprovalValidationRules(): array
     {
@@ -353,7 +312,7 @@ class DigitalDocsApprovalController extends Controller
         $year = now()->format('Y');
         $monthNumber = now()->format('m');
         $monthName = now()->format('M');
-        
+
         return "{$documentType}/{$year}/{$monthNumber} {$monthName}";
     }
 
@@ -370,11 +329,11 @@ class DigitalDocsApprovalController extends Controller
     protected function getOrdinalForRequestType($requestType)
     {
         $ordinals = [
-        'initial' => 1,
-        'check' => 2,
-        'review' => 3,
-        'approve' => 4,
-        'acknowledge' => 5,
+            'initial' => 1,
+            'check' => 2,
+            'review' => 3,
+            'approve' => 4,
+            'acknowledge' => 5,
         ];
         return $ordinals[$requestType] ?? 1;
     }
