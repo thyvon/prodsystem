@@ -166,51 +166,72 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
-        // Validation rules adjusted for update mode
+        $user = Auth::user();
+
+        // Validation rules for update (file nullable)
         $validated = Validator::make(
             $request->all(),
             $this->digitalDocsApprovalValidationRules(true)
         )->validate();
 
-        $user = Auth::user();
         $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
+
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                // ✅ Handle file update
-                if ($request->hasFile('file')) {
-                    $file = $request->file('file');
-                    $fileData = $sharePoint->updateFile(
-                        $digitalDocsApproval->sharepoint_file_id,
-                        $file,
-                        ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
-                        $customDriveId
-                    );
+                // Log payload for debugging
+                Log::info('Updating DigitalDocsApproval payload', [
+                    'validated' => $validated,
+                    'document_id' => $digitalDocsApproval->id
+                ]);
 
-                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
-                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
-                    $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
-                } else {
-                    // ✅ Only update SharePoint metadata if description changed
-                    if (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
-                        $sharePoint->updateFileProperties(
+                // -----------------------------
+                // Handle SharePoint file update
+                // -----------------------------
+                try {
+                    if ($request->hasFile('file')) {
+                        $file = $request->file('file');
+                        $fileData = $sharePoint->updateFile(
                             $digitalDocsApproval->sharepoint_file_id,
-                            ['Title' => $validated['description']],
-                            $digitalDocsApproval->sharepoint_drive_id
+                            $file,
+                            ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
+                            $customDriveId
                         );
+
+                        $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
+                        $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
+                        $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
+                    } else {
+                        // Only update SharePoint metadata if description changed
+                        if (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
+                            $sharePoint->updateFileProperties(
+                                $digitalDocsApproval->sharepoint_file_id,
+                                ['Title' => $validated['description']],
+                                $digitalDocsApproval->sharepoint_drive_id
+                            );
+                        }
                     }
+                } catch (\Exception $e) {
+                    Log::warning('SharePoint update failed, skipping', [
+                        'document_id' => $digitalDocsApproval->id,
+                        'error' => $e->getMessage()
+                    ]);
                 }
 
-                // ✅ Always update local DB values (even if SharePoint skipped)
+                // -----------------------------
+                // Update local DB fields
+                // -----------------------------
                 $digitalDocsApproval->description = $validated['description'] ?? $digitalDocsApproval->description;
                 $digitalDocsApproval->document_type = $validated['document_type'] ?? $digitalDocsApproval->document_type;
                 $digitalDocsApproval->updated_by = $user->id;
                 $digitalDocsApproval->save();
 
-                // ✅ Replace approvals if provided
-                if (!empty($validated['approvals'])) {
+                // -----------------------------
+                // Update approvals if provided
+                // -----------------------------
+                if (!empty($validated['approvals']) && is_array($validated['approvals'])) {
                     $digitalDocsApproval->approvals()->delete();
                     $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
                 }
@@ -289,10 +310,10 @@ class DigitalDocsApprovalController extends Controller
     private function digitalDocsApprovalValidationRules(bool $isUpdate = false): array
     {
         return [
-            'description' => ($isUpdate ? 'sometimes|required' : 'required') . '|string|max:1000',
-            'document_type' => ($isUpdate ? 'sometimes|required' : 'required') . '|string|max:255',
-            'file' => ($isUpdate ? 'nullable' : 'required') . '|file|max:10240',
-            'approvals' => ($isUpdate ? 'sometimes|array|min:1' : 'required|array|min:1'),
+            'description' => 'required|string|max:1000',
+            'document_type' => 'required|string|max:255',
+            'file' => $isUpdate ? 'nullable|file|max:10240' : 'required|file|max:10240',
+            'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',
         ];

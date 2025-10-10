@@ -152,7 +152,6 @@ const fetchApprovalUsers = async () => {
 // Fetch document for edit
 const fetchDocumentForEdit = async () => {
   if (!isEditMode.value) return
-
   try {
     const { data } = await axios.get(`/api/digital-docs-approvals/${props.documentId}/edit`)
     if (data.data) {
@@ -168,9 +167,7 @@ const fetchDocumentForEdit = async () => {
           isDefault: ['initial', 'approve'].includes(a.request_type)
         })) || []
       }
-
       existingFileUrl.value = doc.sharepoint_file_url || ''
-
       await nextTick()
       form.value.approvals.forEach((_, i) => initUserSelect(i))
     } else {
@@ -187,15 +184,12 @@ const initUserSelect = async (index) => {
   await nextTick()
   const el = document.querySelector(`.user-select[data-index="${index}"]`)
   if (!el) return
-
   destroySelect2(el)
   $(el).empty().append('<option value="">Select User</option>')
   approvalUsers.value.forEach(u => $(el).append(`<option value="${u.id}">${u.name}</option>`))
-
   initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
     form.value.approvals[index].responder_id = value ? Number(value) : null
   })
-
   $(el).val(form.value.approvals[index].responder_id || '').trigger('change.select2')
 }
 
@@ -222,18 +216,11 @@ const submitForm = async () => {
     formData.append('description', form.value.description)
     if (form.value.file) formData.append('file', form.value.file)
 
-    // Approvals payload
-    form.value.approvals.forEach((a, i) => {
-      formData.append(`approvals[${i}][request_type]`, a.request_type)
-      formData.append(`approvals[${i}][user_id]`, a.responder_id)
-      if (a.id) formData.append(`approvals[${i}][id]`, a.id) // send ID for edit
-    })
+    // ✅ Send approvals as JSON string
+    formData.append('approvals', JSON.stringify(form.value.approvals))
 
-    // ✅ Log payload for debug
     console.log('FormData entries:')
-    for (const pair of formData.entries()) {
-      console.log(pair[0], pair[1])
-    }
+    for (const pair of formData.entries()) console.log(pair[0], pair[1])
 
     const url = isEditMode.value
       ? `/api/digital-docs-approvals/${props.documentId}`
@@ -273,5 +260,3 @@ onMounted(async () => {
   await fetchDocumentForEdit()
 })
 </script>
-
-
