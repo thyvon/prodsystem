@@ -122,7 +122,7 @@ const form = ref({
   document_type: '',
   description: '',
   file: null,
-  approvals: [] // always an array
+  approvals: []
 })
 
 const existingFileUrl = ref('')
@@ -175,7 +175,7 @@ const fetchDocumentForEdit = async () => {
   }
 }
 
-// Init Select2 for each row
+// Init Select2
 const initUserSelect = async (index) => {
   await nextTick()
   const el = document.querySelector(`.user-select[data-index="${index}"]`)
@@ -184,14 +184,14 @@ const initUserSelect = async (index) => {
   $(el).empty().append('<option value="">Select User</option>')
   approvalUsers.value.forEach(u => $(el).append(`<option value="${u.id}">${u.name}</option>`))
   initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
-    form.value.approvals[index].responder_id = value ? Number(value) : null
+    form.value.approvals[index].responder_id = value ? Number(value) : ''
   })
   $(el).val(form.value.approvals[index].responder_id || '').trigger('change.select2')
 }
 
 // Add / Remove approvals
 const addApproval = async () => {
-  form.value.approvals.push({ request_type: '', responder_id: null })
+  form.value.approvals.push({ request_type: '', responder_id: '' })
   await initUserSelect(form.value.approvals.length - 1)
 }
 
@@ -208,38 +208,57 @@ const submitForm = async () => {
   isSubmitting.value = true
   try {
     const formData = new FormData()
-    formData.append('document_type', form.value.document_type)
-    formData.append('description', form.value.description)
 
+    // Main fields
+    formData.append('document_type', form.value.document_type || '')
+    formData.append('description', form.value.description || '')
+
+    // File (optional on update)
     if (form.value.file) formData.append('file', form.value.file)
 
-    // ✅ Append approvals as array
-    form.value.approvals.forEach((a, index) => {
-      formData.append(`approvals[${index}][user_id]`, a.responder_id)
-      formData.append(`approvals[${index}][request_type]`, a.request_type)
-      if (a.id) formData.append(`approvals[${index}][id]`, a.id)
+    // Approvals array
+    form.value.approvals.forEach((a, i) => {
+      formData.append(`approvals[${i}][user_id]`, a.responder_id || '')
+      formData.append(`approvals[${i}][request_type]`, a.request_type || '')
+      if (a.id) formData.append(`approvals[${i}][id]`, a.id)
     })
 
-    const url = isEditMode.value
-      ? `/api/digital-docs-approvals/${props.documentId}`
-      : '/api/digital-docs-approvals'
+    let url = '/api/digital-docs-approvals'
+    let method = 'post'
 
+    if (isEditMode.value) {
+      // For update, use POST with _method=PUT
+      url = `/api/digital-docs-approvals/${props.documentId}`
+      formData.append('_method', 'PUT')
+    }
+
+    // Send request
     await axios({
-      method: isEditMode.value ? 'put' : 'post',
+      method,
       url,
-      data: formData
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
 
-    await showAlert('Success', isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.', 'success')
+    await showAlert(
+      'Success',
+      isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.',
+      'success'
+    )
     emit('submitted')
     goToIndex()
   } catch (err) {
     console.error(err.response?.data || err)
-    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save document.', 'danger')
+    await showAlert(
+      'Error',
+      err.response?.data?.message || err.message || 'Failed to save document.',
+      'danger'
+    )
   } finally {
     isSubmitting.value = false
   }
 }
+
 
 // Mounted
 onMounted(async () => {
