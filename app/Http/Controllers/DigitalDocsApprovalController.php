@@ -113,6 +113,11 @@ class DigitalDocsApprovalController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // Decode approvals JSON if sent as string
+        if (is_string($request->approvals)) {
+            $request->merge(['approvals' => json_decode($request->approvals, true)]);
+        }
+
         $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
 
         $user = Auth::user();
@@ -168,7 +173,11 @@ class DigitalDocsApprovalController extends Controller
     {
         $user = Auth::user();
 
-        // Validation rules for update (file nullable)
+        // Decode approvals JSON if sent as string
+        if (is_string($request->approvals)) {
+            $request->merge(['approvals' => json_decode($request->approvals, true)]);
+        }
+
         $validated = Validator::make(
             $request->all(),
             $this->digitalDocsApprovalValidationRules(true)
@@ -181,56 +190,39 @@ class DigitalDocsApprovalController extends Controller
 
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                // Log payload for debugging
                 Log::info('Updating DigitalDocsApproval payload', [
                     'validated' => $validated,
                     'document_id' => $digitalDocsApproval->id
                 ]);
 
-                // -----------------------------
-                // Handle SharePoint file update
-                // -----------------------------
-                try {
-                    if ($request->hasFile('file')) {
-                        $file = $request->file('file');
-                        $fileData = $sharePoint->updateFile(
-                            $digitalDocsApproval->sharepoint_file_id,
-                            $file,
-                            ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
-                            $customDriveId
-                        );
+                // Update SharePoint file or metadata
+                if ($request->hasFile('file')) {
+                    $file = $request->file('file');
+                    $fileData = $sharePoint->updateFile(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        $file,
+                        ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
+                        $customDriveId
+                    );
 
-                        $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
-                        $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
-                        $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
-                    } else {
-                        // Only update SharePoint metadata if description changed
-                        if (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
-                            $sharePoint->updateFileProperties(
-                                $digitalDocsApproval->sharepoint_file_id,
-                                ['Title' => $validated['description']],
-                                $digitalDocsApproval->sharepoint_drive_id
-                            );
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('SharePoint update failed, skipping', [
-                        'document_id' => $digitalDocsApproval->id,
-                        'error' => $e->getMessage()
-                    ]);
+                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
+                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
+                    $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
+                } elseif (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
+                    $sharePoint->updateFileProperties(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        ['Title' => $validated['description']],
+                        $digitalDocsApproval->sharepoint_drive_id
+                    );
                 }
 
-                // -----------------------------
-                // Update local DB fields
-                // -----------------------------
+                // Update DB fields
                 $digitalDocsApproval->description = $validated['description'] ?? $digitalDocsApproval->description;
                 $digitalDocsApproval->document_type = $validated['document_type'] ?? $digitalDocsApproval->document_type;
                 $digitalDocsApproval->updated_by = $user->id;
                 $digitalDocsApproval->save();
 
-                // -----------------------------
-                // Update approvals if provided
-                // -----------------------------
+                // Update approvals
                 if (!empty($validated['approvals']) && is_array($validated['approvals'])) {
                     $digitalDocsApproval->approvals()->delete();
                     $this->storeApprovals($digitalDocsApproval, $validated['approvals']);

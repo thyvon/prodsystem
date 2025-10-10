@@ -104,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import axios from 'axios'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import { showAlert } from '@/Utils/bootbox'
@@ -122,7 +122,7 @@ const form = ref({
   document_type: '',
   description: '',
   file: null,
-  approvals: []
+  approvals: [] // always an array
 })
 
 const existingFileUrl = ref('')
@@ -131,14 +131,14 @@ const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// File upload
+// Handle file upload
 const handleFileUpload = (e) => {
   const file = e.target.files[0]
   form.value.file = file || null
   fileLabel.value = file ? file.name : 'Choose file'
 }
 
-// Fetch users
+// Fetch users for approval
 const fetchApprovalUsers = async () => {
   try {
     const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
@@ -156,22 +156,18 @@ const fetchDocumentForEdit = async () => {
     const { data } = await axios.get(`/api/digital-docs-approvals/${props.documentId}/edit`)
     if (data.data) {
       const doc = data.data
-      form.value = {
-        document_type: doc.document_type || '',
-        description: doc.description || '',
-        file: null,
-        approvals: doc.approvals?.map(a => ({
-          id: a.id || null,
-          responder_id: Number(a.responder?.id) || null,
-          request_type: a.request_type || '',
-          isDefault: ['initial', 'approve'].includes(a.request_type)
-        })) || []
-      }
+      form.value.document_type = doc.document_type || ''
+      form.value.description = doc.description || ''
+      form.value.file = null
+      form.value.approvals = (doc.approvals || []).map(a => ({
+        id: a.id || null,
+        responder_id: a.responder?.id || null,
+        request_type: a.request_type || '',
+        isDefault: ['initial', 'approve'].includes(a.request_type)
+      }))
       existingFileUrl.value = doc.sharepoint_file_url || ''
       await nextTick()
       form.value.approvals.forEach((_, i) => initUserSelect(i))
-    } else {
-      throw new Error('Invalid response data')
     }
   } catch (err) {
     console.error(err)
@@ -193,7 +189,7 @@ const initUserSelect = async (index) => {
   $(el).val(form.value.approvals[index].responder_id || '').trigger('change.select2')
 }
 
-// Add/Remove approvals
+// Add / Remove approvals
 const addApproval = async () => {
   form.value.approvals.push({ request_type: '', responder_id: null })
   await initUserSelect(form.value.approvals.length - 1)
@@ -209,6 +205,10 @@ const removeApproval = async (index) => {
 
 // Submit form
 const submitForm = async () => {
+  if (!form.value.approvals.length) {
+    return await showAlert('Error', 'Please add at least one approval.', 'danger')
+  }
+
   isSubmitting.value = true
   try {
     const formData = new FormData()
@@ -216,11 +216,11 @@ const submitForm = async () => {
     formData.append('description', form.value.description)
     if (form.value.file) formData.append('file', form.value.file)
 
-    // ✅ Send approvals as JSON string
-    formData.append('approvals', JSON.stringify(form.value.approvals))
-
-    console.log('FormData entries:')
-    for (const pair of formData.entries()) console.log(pair[0], pair[1])
+    // ✅ Append approvals as array fields
+    form.value.approvals.forEach((a, index) => {
+      formData.append(`approvals[${index}][user_id]`, a.responder_id)
+      formData.append(`approvals[${index}][request_type]`, a.request_type)
+    })
 
     const url = isEditMode.value
       ? `/api/digital-docs-approvals/${props.documentId}`
@@ -244,15 +244,6 @@ const submitForm = async () => {
   }
 }
 
-// Watchers
-watch(approvalUsers, async () => {
-  await nextTick()
-  form.value.approvals.forEach((_, i) => initUserSelect(i))
-})
-watch(() => form.value.approvals.length, async () => {
-  await nextTick()
-  form.value.approvals.forEach((_, i) => initUserSelect(i))
-})
 
 // Mounted
 onMounted(async () => {
