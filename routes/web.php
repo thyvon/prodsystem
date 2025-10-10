@@ -96,7 +96,7 @@ use App\Models\DocumentTransfer;
 // Home Route - Choose one (Dashboard or Welcome)
 Route::get('/', function () {
     return view('dashboard'); // Show the dashboard view
-})->middleware(['auth', 'verified', 'refresh.microsoft'])->name('dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
 
 // Profile Routes (Authenticated Users)
 Route::middleware('auth')->group(function () {

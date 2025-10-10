@@ -92,7 +92,7 @@ use App\Http\Controllers\TelegramController;
 
 // Route::post('/login', [AuthController::class, 'login']);
 
-Route::middleware(['auth:sanctum', 'refresh.microsoft'])->get('/user', function (Request $request) {
+Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
