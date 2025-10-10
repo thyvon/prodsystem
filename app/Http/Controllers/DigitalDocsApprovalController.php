@@ -113,11 +113,6 @@ class DigitalDocsApprovalController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        // Decode approvals JSON if sent as string
-        if (is_string($request->approvals)) {
-            $request->merge(['approvals' => json_decode($request->approvals, true)]);
-        }
-
         $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();
 
         $user = Auth::user();
@@ -171,44 +166,32 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
+        $validated = Validator::make($request->all(), array_merge(
+            $this->digitalDocsApprovalValidationRules(),
+            ['file' => 'nullable|file|max:10240']
+        ))->validate();
+
         $user = Auth::user();
-
-        // Decode approvals JSON if sent as string
-        if (is_string($request->approvals)) {
-            $request->merge(['approvals' => json_decode($request->approvals, true)]);
-        }
-
-        $validated = Validator::make(
-            $request->all(),
-            $this->digitalDocsApprovalValidationRules(true)
-        )->validate();
-
         $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
-
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                Log::info('Updating DigitalDocsApproval payload', [
-                    'validated' => $validated,
-                    'document_id' => $digitalDocsApproval->id
-                ]);
-
-                // Update SharePoint file or metadata
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
+                    $extension = $file->getClientOriginalExtension();
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
-                        ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
+                        ['Title' => $validated['description']],
                         $customDriveId
                     );
 
-                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
-                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
+                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
+                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
-                } elseif (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
+                } else {
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,
                         ['Title' => $validated['description']],
@@ -216,17 +199,12 @@ class DigitalDocsApprovalController extends Controller
                     );
                 }
 
-                // Update DB fields
-                $digitalDocsApproval->description = $validated['description'] ?? $digitalDocsApproval->description;
-                $digitalDocsApproval->document_type = $validated['document_type'] ?? $digitalDocsApproval->document_type;
-                $digitalDocsApproval->updated_by = $user->id;
+                $digitalDocsApproval->description = $validated['description'];
+                $digitalDocsApproval->document_type = $validated['document_type'];
                 $digitalDocsApproval->save();
 
-                // Update approvals
-                if (!empty($validated['approvals']) && is_array($validated['approvals'])) {
-                    $digitalDocsApproval->approvals()->delete();
-                    $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
-                }
+                $digitalDocsApproval->approvals()->delete();
+                $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
                 return response()->json([
                     'message' => 'Digital document approval updated successfully.',
@@ -234,10 +212,7 @@ class DigitalDocsApprovalController extends Controller
                 ]);
             });
         } catch (\Exception $e) {
-            Log::error('Failed to update digital document approval', [
-                'id' => $digitalDocsApproval->id,
-                'error' => $e->getMessage()
-            ]);
+            Log::error('Failed to update digital document approval', ['error' => $e->getMessage()]);
 
             return response()->json([
                 'message' => 'Failed to update digital document approval.',
@@ -299,12 +274,12 @@ class DigitalDocsApprovalController extends Controller
         }
     }
 
-    private function digitalDocsApprovalValidationRules(bool $isUpdate = false): array
+    private function digitalDocsApprovalValidationRules(): array
     {
         return [
             'description' => 'required|string|max:1000',
             'document_type' => 'required|string|max:255',
-            'file' => $isUpdate ? 'nullable|file|max:10240' : 'required|file|max:10240',
+            'file' => 'required|file|max:10240',
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',

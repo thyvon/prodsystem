@@ -244,7 +244,6 @@ const submitForm = async () => {
   }
 }
 
-
 // Mounted
 onMounted(async () => {
   await fetchApprovalUsers()
