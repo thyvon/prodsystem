@@ -110,7 +110,7 @@ import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import { showAlert } from '@/Utils/bootbox'
 
 const props = defineProps({
-  documentId: { type: Number, default: null } // Pass ID for edit mode
+  documentId: { type: Number, default: null }
 })
 
 const emit = defineEmits(['submitted'])
@@ -131,14 +131,14 @@ const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// 🧾 Handle file upload
+// File upload
 const handleFileUpload = (e) => {
   const file = e.target.files[0]
   form.value.file = file || null
   fileLabel.value = file ? file.name : 'Choose file'
 }
 
-// 👥 Fetch users for approvals
+// Fetch users
 const fetchApprovalUsers = async () => {
   try {
     const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
@@ -149,7 +149,7 @@ const fetchApprovalUsers = async () => {
   }
 }
 
-// ✏️ Fetch document for edit mode
+// Fetch document for edit
 const fetchDocumentForEdit = async () => {
   if (!isEditMode.value) return
 
@@ -160,17 +160,15 @@ const fetchDocumentForEdit = async () => {
       form.value = {
         document_type: doc.document_type || '',
         description: doc.description || '',
-        file: null, // will only replace if new upload
+        file: null,
         approvals: doc.approvals?.map(a => ({
           id: a.id || null,
-          user_id: Number(a.responder?.id) || Number(a.responder_id) || null, // ✅ fixed
+          responder_id: Number(a.responder?.id) || null,
           request_type: a.request_type || '',
-          isDefault: ['initial', 'approve'].includes(a.request_type),
-          availableUsers: [], // you may use this for per-row users
-        })) || [],
+          isDefault: ['initial', 'approve'].includes(a.request_type)
+        })) || []
       }
 
-      // ✅ Use your actual SharePoint URL
       existingFileUrl.value = doc.sharepoint_file_url || ''
 
       await nextTick()
@@ -184,7 +182,7 @@ const fetchDocumentForEdit = async () => {
   }
 }
 
-// 🔄 Init Select2 for each user select
+// Init Select2 for each row
 const initUserSelect = async (index) => {
   await nextTick()
   const el = document.querySelector(`.user-select[data-index="${index}"]`)
@@ -192,23 +190,19 @@ const initUserSelect = async (index) => {
 
   destroySelect2(el)
   $(el).empty().append('<option value="">Select User</option>')
-  approvalUsers.value.forEach(u => {
-    $(el).append(`<option value="${u.id}">${u.name}</option>`)
-  })
+  approvalUsers.value.forEach(u => $(el).append(`<option value="${u.id}">${u.name}</option>`))
 
   initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
-    form.value.approvals[index].user_id = value ? Number(value) : null
+    form.value.approvals[index].responder_id = value ? Number(value) : null
   })
 
-  // ✅ Set pre-selected user in edit mode
-  $(el).val(form.value.approvals[index].user_id || '').trigger('change.select2')
+  $(el).val(form.value.approvals[index].responder_id || '').trigger('change.select2')
 }
 
-// ➕➖ Manage approvals
+// Add/Remove approvals
 const addApproval = async () => {
-  form.value.approvals.push({ request_type: '', user_id: null })
-  const index = form.value.approvals.length - 1
-  await initUserSelect(index)
+  form.value.approvals.push({ request_type: '', responder_id: null })
+  await initUserSelect(form.value.approvals.length - 1)
 }
 
 const removeApproval = async (index) => {
@@ -219,7 +213,7 @@ const removeApproval = async (index) => {
   form.value.approvals.forEach((_, i) => initUserSelect(i))
 }
 
-// 💾 Submit form (create or update)
+// Submit form
 const submitForm = async () => {
   isSubmitting.value = true
   try {
@@ -228,10 +222,18 @@ const submitForm = async () => {
     formData.append('description', form.value.description)
     if (form.value.file) formData.append('file', form.value.file)
 
+    // Approvals payload
     form.value.approvals.forEach((a, i) => {
       formData.append(`approvals[${i}][request_type]`, a.request_type)
-      formData.append(`approvals[${i}][user_id]`, a.user_id)
+      formData.append(`approvals[${i}][user_id]`, a.responder_id)
+      if (a.id) formData.append(`approvals[${i}][id]`, a.id) // send ID for edit
     })
+
+    // ✅ Log payload for debug
+    console.log('FormData entries:')
+    for (const pair of formData.entries()) {
+      console.log(pair[0], pair[1])
+    }
 
     const url = isEditMode.value
       ? `/api/digital-docs-approvals/${props.documentId}`
@@ -255,7 +257,7 @@ const submitForm = async () => {
   }
 }
 
-// 🕵️ Watchers to re-init Select2
+// Watchers
 watch(approvalUsers, async () => {
   await nextTick()
   form.value.approvals.forEach((_, i) => initUserSelect(i))
@@ -265,10 +267,11 @@ watch(() => form.value.approvals.length, async () => {
   form.value.approvals.forEach((_, i) => initUserSelect(i))
 })
 
-// 🚀 Mounted
+// Mounted
 onMounted(async () => {
   await fetchApprovalUsers()
   await fetchDocumentForEdit()
 })
 </script>
+
 
