@@ -205,21 +205,19 @@ const removeApproval = async (index) => {
 
 // Submit form
 const submitForm = async () => {
-  if (!form.value.approvals.length) {
-    return await showAlert('Error', 'Please add at least one approval.', 'danger')
-  }
-
   isSubmitting.value = true
   try {
     const formData = new FormData()
     formData.append('document_type', form.value.document_type)
     formData.append('description', form.value.description)
+
     if (form.value.file) formData.append('file', form.value.file)
 
-    // ✅ Append approvals as array fields
+    // ✅ Append approvals as array
     form.value.approvals.forEach((a, index) => {
       formData.append(`approvals[${index}][user_id]`, a.responder_id)
       formData.append(`approvals[${index}][request_type]`, a.request_type)
+      if (a.id) formData.append(`approvals[${index}][id]`, a.id)
     })
 
     const url = isEditMode.value
@@ -229,8 +227,7 @@ const submitForm = async () => {
     await axios({
       method: isEditMode.value ? 'put' : 'post',
       url,
-      data: formData,
-      headers: { 'Content-Type': 'multipart/form-data' }
+      data: formData
     })
 
     await showAlert('Success', isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.', 'success')
