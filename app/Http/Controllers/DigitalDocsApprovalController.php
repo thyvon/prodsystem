@@ -166,9 +166,10 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
+        // Validation rules adjusted for update mode
         $validated = Validator::make(
             $request->all(),
-            $this->digitalDocsApprovalValidationRules(true) // true = update mode
+            $this->digitalDocsApprovalValidationRules(true)
         )->validate();
 
         $user = Auth::user();
@@ -178,42 +179,38 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                // Update file if a new one uploaded
+                // ✅ Handle file update
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
-                        ['Title' => $request->input('description', $digitalDocsApproval->description)],
+                        ['Title' => $validated['description'] ?? $digitalDocsApproval->description],
                         $customDriveId
                     );
 
-                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
-                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
+                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'] ?? $digitalDocsApproval->sharepoint_file_name;
+                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'] ?? $digitalDocsApproval->sharepoint_file_url;
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
-                    // Update metadata only if description provided
-                    if ($request->filled('description')) {
+                    // ✅ Only update SharePoint metadata if description changed
+                    if (!empty($validated['description']) && $validated['description'] !== $digitalDocsApproval->description) {
                         $sharePoint->updateFileProperties(
                             $digitalDocsApproval->sharepoint_file_id,
-                            ['Title' => $request->input('description')],
+                            ['Title' => $validated['description']],
                             $digitalDocsApproval->sharepoint_drive_id
                         );
                     }
                 }
 
-                // Update model fields (only if sent)
-                if ($request->filled('description')) {
-                    $digitalDocsApproval->description = $request->input('description');
-                }
-                if ($request->filled('document_type')) {
-                    $digitalDocsApproval->document_type = $request->input('document_type');
-                }
-
+                // ✅ Always update local DB values (even if SharePoint skipped)
+                $digitalDocsApproval->description = $validated['description'] ?? $digitalDocsApproval->description;
+                $digitalDocsApproval->document_type = $validated['document_type'] ?? $digitalDocsApproval->document_type;
+                $digitalDocsApproval->updated_by = $user->id;
                 $digitalDocsApproval->save();
 
-                // Handle approvals (if provided)
-                if ($request->has('approvals')) {
+                // ✅ Replace approvals if provided
+                if (!empty($validated['approvals'])) {
                     $digitalDocsApproval->approvals()->delete();
                     $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
                 }
@@ -291,26 +288,15 @@ class DigitalDocsApprovalController extends Controller
 
     private function digitalDocsApprovalValidationRules(bool $isUpdate = false): array
     {
-        $rules = [
-            'description' => 'required|string|max:1000',
-            'document_type' => 'required|string|max:255',
-            'file' => 'required|file|max:10240', // required for create
-            'approvals' => 'required|array|min:1',
+        return [
+            'description' => ($isUpdate ? 'sometimes|required' : 'required') . '|string|max:1000',
+            'document_type' => ($isUpdate ? 'sometimes|required' : 'required') . '|string|max:255',
+            'file' => ($isUpdate ? 'nullable' : 'required') . '|file|max:10240',
+            'approvals' => ($isUpdate ? 'sometimes|array|min:1' : 'required|array|min:1'),
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',
         ];
-
-        if ($isUpdate) {
-            // Make fields optional during update
-            $rules['description'] = 'sometimes|required|string|max:1000';
-            $rules['document_type'] = 'sometimes|required|string|max:255';
-            $rules['file'] = 'nullable|file|max:10240';
-            $rules['approvals'] = 'sometimes|required|array|min:1';
-        }
-
-        return $rules;
     }
-
 
     private function generateReferenceNo(): string
     {
