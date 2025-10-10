@@ -20,17 +20,17 @@ class MicrosoftAuthController extends Controller
     public function redirect()
     {
         return Socialite::driver('microsoft')
-            ->stateless() // Support for SPA / API or no-session setups
+            ->stateless()
             ->scopes([
                 'openid',
                 'profile',
                 'email',
                 'User.Read',
                 'Files.ReadWrite',
-                'Sites.Selected',
-                'offline_access', // Required for token refresh
+                'Sites.ReadWrite.All', // Add this scope
+                'offline_access', // Required for refresh token
             ])
-            ->with(['prompt' => 'select_account']) // Show account picker
+            ->with(['prompt' => 'select_account'])
             ->redirect();
     }
 
@@ -40,53 +40,48 @@ class MicrosoftAuthController extends Controller
     public function callback()
     {
         try {
-            // Get user info from Microsoft Graph via Socialite
             $microsoftUser = Socialite::driver('microsoft')->stateless()->user();
 
-            // Find or create a user in the database
             $user = User::updateOrCreate(
                 ['email' => $microsoftUser->getEmail()],
                 [
                     'name'                        => $microsoftUser->getName(),
                     'microsoft_id'                => $microsoftUser->getId(),
-                    'password'                    => bcrypt(Str::random(16)), // random password for login
-                    'microsoft_token'      => $microsoftUser->token,
+                    'password'                    => bcrypt(Str::random(16)),
+                    'microsoft_token'             => $microsoftUser->token,
                     'microsoft_refresh_token'     => $microsoftUser->refreshToken ?? null,
                     'microsoft_token_expires_at'  => now()->addSeconds($microsoftUser->expiresIn),
                 ]
             );
 
-            // Fetch and save Microsoft profile photo (optional)
-            $this->updateMicrosoftProfilePhoto($user);
+            // Fetch profile photo (optional, errors will not break login)
+            $this->fetchMicrosoftProfilePhoto($user);
 
-            // Log the user in
             Auth::login($user, true);
 
-            Log::info('Microsoft user logged in successfully', [
+            Log::info('Microsoft login successful', [
                 'user_id' => $user->id,
                 'email'   => $user->email,
                 'expires' => $user->microsoft_token_expires_at,
             ]);
 
-            return redirect('/'); // Redirect to dashboard/home
+            return redirect('/');
 
         } catch (\Throwable $e) {
             Log::error('Microsoft OAuth Callback Error', [
                 'message' => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
+                'request' => request()->all(),
             ]);
 
-            return redirect()->route('login')->with(
-                'error',
-                'Microsoft authentication failed. Please try again.'
-            );
+            return redirect()->route('login')->with('error', 'Microsoft authentication failed. Please try again.');
         }
     }
 
     /**
-     * Fetch and save user's Microsoft profile photo from Graph API.
+     * Fetch user's Microsoft profile photo and store locally.
      */
-    protected function updateMicrosoftProfilePhoto(User $user): void
+    protected function fetchMicrosoftProfilePhoto(User $user): void
     {
         try {
             $response = Http::withToken($user->microsoft_token)
