@@ -66,7 +66,7 @@
                       <select
                         class="form-control user-select"
                         :data-index="index"
-                        v-model="approval.user_id"
+                        v-model="approval.responder_id"
                         required
                       >
                         <option value="">Select User</option>
@@ -131,14 +131,14 @@ const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// File upload
+// 🧾 Handle file upload
 const handleFileUpload = (e) => {
   const file = e.target.files[0]
   form.value.file = file || null
   fileLabel.value = file ? file.name : 'Choose file'
 }
 
-// Fetch users for approvals
+// 👥 Fetch users for approvals
 const fetchApprovalUsers = async () => {
   try {
     const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
@@ -149,7 +149,7 @@ const fetchApprovalUsers = async () => {
   }
 }
 
-// Fetch document for edit
+// ✏️ Fetch document for edit mode
 const fetchDocumentForEdit = async () => {
   if (!isEditMode.value) return
 
@@ -160,19 +160,19 @@ const fetchDocumentForEdit = async () => {
       form.value = {
         document_type: doc.document_type || '',
         description: doc.description || '',
-        file: null, // keep empty; only updated if user uploads
+        file: null, // will only replace if new upload
         approvals: doc.approvals?.map(a => ({
           id: a.id || null,
-          user_id: Number(a.user_id) || null,
+          user_id: Number(a.responder?.id) || Number(a.responder_id) || null, // ✅ fixed
           request_type: a.request_type || '',
           isDefault: ['initial', 'approve'].includes(a.request_type),
-          availableUsers: [],
+          availableUsers: [], // you may use this for per-row users
         })) || [],
       }
 
-      existingFileUrl.value = doc.file_url || ''
+      // ✅ Use your actual SharePoint URL
+      existingFileUrl.value = doc.sharepoint_file_url || ''
 
-      // Initialize Select2 for approvals
       await nextTick()
       form.value.approvals.forEach((_, i) => initUserSelect(i))
     } else {
@@ -184,7 +184,7 @@ const fetchDocumentForEdit = async () => {
   }
 }
 
-// Init select2 for user select
+// 🔄 Init Select2 for each user select
 const initUserSelect = async (index) => {
   await nextTick()
   const el = document.querySelector(`.user-select[data-index="${index}"]`)
@@ -200,10 +200,11 @@ const initUserSelect = async (index) => {
     form.value.approvals[index].user_id = value ? Number(value) : null
   })
 
+  // ✅ Set pre-selected user in edit mode
   $(el).val(form.value.approvals[index].user_id || '').trigger('change.select2')
 }
 
-// Add / Remove approvals
+// ➕➖ Manage approvals
 const addApproval = async () => {
   form.value.approvals.push({ request_type: '', user_id: null })
   const index = form.value.approvals.length - 1
@@ -218,7 +219,7 @@ const removeApproval = async (index) => {
   form.value.approvals.forEach((_, i) => initUserSelect(i))
 }
 
-// Submit
+// 💾 Submit form (create or update)
 const submitForm = async () => {
   isSubmitting.value = true
   try {
@@ -254,7 +255,7 @@ const submitForm = async () => {
   }
 }
 
-// Watchers
+// 🕵️ Watchers to re-init Select2
 watch(approvalUsers, async () => {
   await nextTick()
   form.value.approvals.forEach((_, i) => initUserSelect(i))
@@ -264,9 +265,10 @@ watch(() => form.value.approvals.length, async () => {
   form.value.approvals.forEach((_, i) => initUserSelect(i))
 })
 
-// Mounted
+// 🚀 Mounted
 onMounted(async () => {
   await fetchApprovalUsers()
   await fetchDocumentForEdit()
 })
 </script>
+
