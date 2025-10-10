@@ -94,6 +94,23 @@ class DigitalDocsApprovalController extends Controller
         return view('approval.digital-approval-form', compact('digitalDocsApproval'));
     }
 
+    public function getEditData(DigitalDocsApproval $digitalDocsApproval): JsonResponse
+    {
+        try {
+            $digitalDocsApproval->load('approvals.responder');
+            return response()->json([
+                'message' => 'Digital approval retrieved successfully.',
+                'data' => $digitalDocsApproval,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve digital approval', ['id' => $digitalDocsApproval->id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'Failed to retrieve digital approval.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRules())->validate();

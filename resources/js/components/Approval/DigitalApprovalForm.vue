@@ -27,7 +27,7 @@
             </div>
 
             <div class="form-group">
-              <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Upload File</label>
               <div class="custom-file">
                 <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
                 <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
@@ -70,7 +70,6 @@
                         required
                       >
                         <option value="">Select User</option>
-                        <!-- Options populated by Select2 -->
                       </select>
                     </td>
                     <td>
@@ -141,28 +140,47 @@ const handleFileUpload = (e) => {
 
 // Fetch users for approvals
 const fetchApprovalUsers = async () => {
-  const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
-  approvalUsers.value = Array.isArray(data) ? data : data.data || []
+  try {
+    const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
+    approvalUsers.value = Array.isArray(data) ? data : data.data || []
+  } catch (err) {
+    console.error(err)
+    await showAlert('Error', 'Failed to fetch approval users.', 'danger')
+  }
 }
 
 // Fetch document for edit
 const fetchDocumentForEdit = async () => {
   if (!isEditMode.value) return
-  try {
-    const { data } = await axios.get(`/api/digital-docs-approvals/${props.documentId}`)
-    form.value.document_type = data.document_type || ''
-    form.value.description = data.description || ''
-    existingFileUrl.value = data.file_url || ''
-    form.value.approvals = data.approvals?.map(a => ({
-      request_type: a.request_type,
-      user_id: a.user_id
-    })) || []
 
-    await nextTick()
-    form.value.approvals.forEach((_, i) => initUserSelect(i))
+  try {
+    const { data } = await axios.get(`/api/digital-docs-approvals/${props.documentId}/edit`)
+    if (data.data) {
+      const doc = data.data
+      form.value = {
+        document_type: doc.document_type || '',
+        description: doc.description || '',
+        file: null, // keep empty; only updated if user uploads
+        approvals: doc.approvals?.map(a => ({
+          id: a.id || null,
+          user_id: Number(a.user_id) || null,
+          request_type: a.request_type || '',
+          isDefault: ['initial', 'approve'].includes(a.request_type),
+          availableUsers: [],
+        })) || [],
+      }
+
+      existingFileUrl.value = doc.file_url || ''
+
+      // Initialize Select2 for approvals
+      await nextTick()
+      form.value.approvals.forEach((_, i) => initUserSelect(i))
+    } else {
+      throw new Error('Invalid response data')
+    }
   } catch (err) {
     console.error(err)
-    await showAlert('Error', 'Failed to load document data.', 'danger')
+    await showAlert('Error', err.response?.data?.message || 'Failed to load document data.', 'danger')
   }
 }
 
@@ -236,7 +254,7 @@ const submitForm = async () => {
   }
 }
 
-// Watch for users loaded and approvals changed
+// Watchers
 watch(approvalUsers, async () => {
   await nextTick()
   form.value.approvals.forEach((_, i) => initUserSelect(i))

@@ -3,7 +3,7 @@
 
 @section('content')
 <digital-docs-approval-form
-    :initial-data='@json($digitalDocsApproval ?? [])'
+    :document-id="{{ $digitalDocsApproval->id ?? 'null' }}"
 />
 @endsection
 

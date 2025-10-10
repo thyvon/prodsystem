@@ -326,7 +326,7 @@ Route::middleware(['auth:sanctum', 'refresh.microsoft'])->group(function () {
     // Digital Document Approval
     Route::get('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'getDigitalDocuments'])->name('api.digital-docs-approvals.index');
     Route::post('/digital-docs-approvals', [DigitalDocsApprovalController::class, 'store'])->name('api.digital-docs-approvals.store');
-    Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'getEdit'])->name('api.digital-docs-approvals.edit');
+    Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'getEditData'])->name('api.digital-docs-approvals.edit');
     Route::put('/digital-docs-approvals/{digitalDocsApproval}', [DigitalDocsApprovalController::class, 'update'])->name('api.digital-docs-approvals.update');
     Route::delete('/digital-docs-approvals/{digitalDocsApproval}', [DigitalDocsApprovalController::class, 'destroy'])->name('api.digital-docs-approvals.destroy');
     Route::get('/digital-docs-approvals/get-users-for-approval', [DigitalDocsApprovalController::class, 'getApprovalUsers'])
