@@ -43,7 +43,7 @@ class RefreshMicrosoftToken
                     'client_secret' => $clientSecret,
                     'grant_type'    => 'refresh_token',
                     'refresh_token' => $user->microsoft_refresh_token,
-                    'scope'         => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    'scope'         => 'User.Read Files.ReadWrite.All offline_access',
                 ]
             );
 
