@@ -102,7 +102,7 @@ class DigitalDocsApprovalController extends Controller
         $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
                 $referenceNo = $this->generateReferenceNo();
                 $file = $request->file('file');
@@ -158,7 +158,7 @@ class DigitalDocsApprovalController extends Controller
         $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint) {
+            return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
                 if ($request->hasFile('file')) {
