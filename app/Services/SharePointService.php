@@ -10,80 +10,75 @@ use Illuminate\Support\Facades\Log;
 
 class SharePointService
 {
+    protected User $user;
     protected string $accessToken;
     protected string $siteId;
     protected int $chunkSize;
-    protected ?User $user;
 
     public function __construct(User $user, int $chunkSize = 10 * 1024 * 1024)
     {
+        $this->user = $user;
+        $this->chunkSize = $chunkSize;
         $this->siteId = config('services.sharepoint.site_id')
             ?: throw new \InvalidArgumentException('SharePoint site_id not set');
 
-        $this->user = $user;
-        $this->chunkSize = $chunkSize;
-
-        // Ensure token is fresh
-        $this->accessToken = $this->getValidAccessToken($user);
+        $this->accessToken = $this->getValidAccessToken();
     }
 
     /** -----------------------------
-     * TOKEN REFRESH
+     * TOKEN MANAGEMENT
      * ----------------------------- */
-    protected function getValidAccessToken(User $user): string
+    protected function getValidAccessToken(): string
     {
-        if (!$user->microsoft_token || !$user->microsoft_refresh_token) {
+        if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
             throw new \RuntimeException('User does not have Microsoft tokens.');
         }
 
-        // Check expiry, refresh if less than 5 minutes left
-        $expiresAt = $user->microsoft_token_expires_at ? Carbon::parse($user->microsoft_token_expires_at) : null;
+        $expiresAt = $this->user->microsoft_token_expires_at
+            ? Carbon::parse($this->user->microsoft_token_expires_at)
+            : null;
+
         if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
-            return $this->refreshAccessToken($user);
+            return $this->refreshAccessToken();
         }
 
-        return $user->microsoft_token;
+        return $this->user->microsoft_token;
     }
 
-    protected function refreshAccessToken(User $user): string
+    protected function refreshAccessToken(): string
     {
         try {
-            $tenantId = config('services.microsoft.tenant_id');
-            $clientId = config('services.microsoft.client_id');
-            $clientSecret = config('services.microsoft.client_secret');
-
             $response = Http::asForm()->post(
-                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+                "https://login.microsoftonline.com/" . config('services.microsoft.tenant_id') . "/oauth2/v2.0/token",
                 [
-                    'client_id'     => $clientId,
-                    'client_secret' => $clientSecret,
-                    'grant_type'    => 'refresh_token',
-                    'refresh_token' => $user->microsoft_refresh_token,
-                    'scope'         => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    'client_id' => config('services.microsoft.client_id'),
+                    'client_secret' => config('services.microsoft.client_secret'),
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => $this->user->microsoft_refresh_token,
+                    'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
                 ]
             );
 
             if ($response->failed()) {
                 Log::error('Microsoft token refresh failed', [
-                    'user_id' => $user->id,
-                    'status'  => $response->status(),
-                    'body'    => $response->body(),
+                    'user_id' => $this->user->id,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
                 ]);
                 throw new \RuntimeException('Failed to refresh Microsoft access token.');
             }
 
             $data = $response->json();
-
-            $user->update([
-                'microsoft_token'     => $data['access_token'] ?? $user->microsoft_token,
-                'microsoft_refresh_token'    => $data['refresh_token'] ?? $user->microsoft_refresh_token,
+            $this->user->update([
+                'microsoft_token' => $data['access_token'] ?? $this->user->microsoft_token,
+                'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
                 'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
             ]);
 
-            return $user->microsoft_token;
+            return $this->user->microsoft_token;
         } catch (\Throwable $e) {
             Log::error('Microsoft token refresh exception', [
-                'user_id' => $user->id ?? null,
+                'user_id' => $this->user->id,
                 'message' => $e->getMessage(),
             ]);
             throw new \RuntimeException('Microsoft access token refresh failed.');
@@ -91,27 +86,10 @@ class SharePointService
     }
 
     /** -----------------------------
-     * UPLOAD FILES
+     * FILE UPLOAD
      * ----------------------------- */
-
-    public function uploadFiles(array $files, string $folderPath, array $properties = [], string $driveId = null): array
+    public function uploadFile(UploadedFile $file, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
     {
-        $results = [];
-        foreach ($files as $file) {
-            if ($file instanceof UploadedFile) {
-                $results[] = $this->uploadFile($file, $folderPath, $properties, null, $driveId);
-            }
-        }
-        return $results;
-    }
-
-    public function uploadFile(
-        UploadedFile $file,
-        string $folderPath,
-        array $properties = [],
-        string $fileName = null,
-        string $driveId = null
-    ): array {
         $fileName = $fileName ?? time() . '_' . $file->getClientOriginalName();
         $driveId = $this->resolveDriveId($driveId);
 
@@ -130,7 +108,6 @@ class SharePointService
     protected function uploadSmallFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
     {
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/content";
-
         $response = Http::withToken($this->accessToken)
             ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
             ->put($url)
@@ -151,13 +128,12 @@ class SharePointService
         $stream = fopen($file->getRealPath(), 'rb');
         $size = $file->getSize();
         $offset = 0;
-        $response = null;
 
         while ($offset < $size) {
             $chunk = fread($stream, $this->chunkSize);
             $end = $offset + strlen($chunk) - 1;
 
-            $response = Http::withHeaders(['Content-Range' => "bytes {$offset}-{$end}/{$size}"])
+            Http::withHeaders(['Content-Range' => "bytes {$offset}-{$end}/{$size}"])
                 ->put($session, $chunk)
                 ->throw();
 
@@ -165,13 +141,12 @@ class SharePointService
         }
 
         fclose($stream);
-        return $this->extractFileInfo($response);
+        return ['id' => basename($fileName), 'name' => $fileName, 'url' => $session]; // Graph response simplified
     }
 
     /** -----------------------------
-     * UPDATE FILES
+     * FILE UPDATE / DELETE / STREAM
      * ----------------------------- */
-
     public function updateFile(string $fileId, UploadedFile $file, array $properties = [], ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -186,25 +161,17 @@ class SharePointService
             $this->updateFileProperties($fileId, $properties, $driveId);
         }
 
-        return array_merge($this->extractFileInfo($response), [
-            'ui_url' => $this->generateUiLink($response->json('webUrl'))
-        ]);
+        return array_merge($this->extractFileInfo($response), ['ui_url' => $this->generateUiLink($response->json('webUrl'))]);
     }
 
-    public function updateFileProperties(string $fileId, array $properties, ?string $driveId): array
+    public function updateFileProperties(string $fileId, array $properties, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
 
-        return Http::withToken($this->accessToken)
-            ->patch($url, $properties)
-            ->throw()
-            ->json();
+        return Http::withToken($this->accessToken)->patch($url, $properties)->throw()->json();
     }
 
-    /** -----------------------------
-     * DELETE FILE
-     * ----------------------------- */
     public function deleteFile(string $fileId, ?string $driveId = null, bool $ignoreNotFound = true): bool
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -217,13 +184,24 @@ class SharePointService
                 throw $e;
             }
         }
-
         return true;
     }
 
-    /** -----------------------------
-     * FILE CONTENT
-     * ----------------------------- */
+    public function streamFile(string $fileId, ?string $driveId = null)
+    {
+        $driveId = $this->resolveDriveId($driveId);
+        $meta = Http::withToken($this->accessToken)
+            ->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")
+            ->throw()
+            ->json();
+
+        $content = $this->getFileContent($fileId, $driveId)['body'];
+
+        return response($content, 200)
+            ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
+            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
+    }
+
     public function getFileContent(string $fileId, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -236,36 +214,18 @@ class SharePointService
             ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content")
             ->throw();
 
-        return [
-            'body' => $response->body(),
-            'mime' => $meta['file']['mimeType'] ?? 'application/octet-stream',
-        ];
-    }
-
-    public function streamFile(string $fileId, ?string $driveId = null)
-    {
-        $driveId = $this->resolveDriveId($driveId);
-        $meta = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")
-            ->throw()
-            ->json();
-
-        return response($this->getFileContent($fileId, $driveId)['body'], 200)
-            ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
-            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
-
+        return ['body' => $response->body(), 'mime' => $meta['file']['mimeType'] ?? 'application/octet-stream'];
     }
 
     /** -----------------------------
      * HELPERS
      * ----------------------------- */
-
     protected function extractFileInfo($response): array
     {
         return [
-            'id'   => $response->json('id'),
+            'id' => $response->json('id'),
             'name' => $response->json('name'),
-            'url'  => $response->json('webUrl'),
+            'url' => $response->json('webUrl'),
         ];
     }
 
