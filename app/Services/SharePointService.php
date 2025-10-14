@@ -31,6 +31,7 @@ class SharePointService
 
     protected function getValidAccessToken(): string
     {
+        // If tokens are missing, force login
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
             return $this->forceMicrosoftLogin();
         }
@@ -39,6 +40,7 @@ class SharePointService
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
+        // Refresh if token expired or less than 5 minutes left
         if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
             return $this->refreshAccessToken();
         }
@@ -62,20 +64,22 @@ class SharePointService
                         'grant_type' => 'refresh_token',
                         'refresh_token' => $this->user->microsoft_refresh_token,
                         'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
-                    ]
+                    ],
                 ]
             );
 
             $data = json_decode($response->getBody()->getContents(), true);
 
+            // If refresh fails, force login
             if (!isset($data['access_token']) || isset($data['error'])) {
                 Log::warning('Microsoft token refresh failed', [
                     'user_id' => $this->user->id,
-                    'body' => $data
+                    'body' => $data,
                 ]);
                 return $this->forceMicrosoftLogin();
             }
 
+            // Save new tokens
             $this->user->update([
                 'microsoft_token' => $data['access_token'],
                 'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
@@ -90,18 +94,22 @@ class SharePointService
                 'user_id' => $this->user->id ?? null,
                 'message' => $e->getMessage(),
             ]);
+
+            // Force login if refresh fails
             return $this->forceMicrosoftLogin();
         }
     }
 
     protected function forceMicrosoftLogin(): never
     {
+        // Clear tokens
         $this->user->update([
             'microsoft_token' => null,
             'microsoft_refresh_token' => null,
             'microsoft_token_expires_at' => null,
         ]);
 
+        // Redirect user to Microsoft login route
         redirect()->route('microsoft.login')->send();
         exit;
     }
