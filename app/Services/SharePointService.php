@@ -318,24 +318,11 @@ class SharePointService
 
     protected function generateUiLink(string $webUrl): string
     {
-        if (empty($webUrl)) return '';
-
         $siteRelativePath = rawurldecode(str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl));
-        $segments = explode('/', trim($siteRelativePath, '/'));
-        $fileName = end($segments);
-
-        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-
-        $officeExtensions = ['xlsx','xls','docx','doc','pptx','ppt'];
-        
-        if (in_array($extension, $officeExtensions) || $extension === 'pdf') {
-            // Use Doc.aspx for Office and PDF files
-            return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/_layouts/15/Doc.aspx?sourcedoc={$siteRelativePath}&file={$fileName}&action=default";
-        }
-
-        // For all other files, fall back to library view
         $encodedFile = rawurlencode($siteRelativePath);
         $encodedParent = rawurlencode(dirname($siteRelativePath));
+
+        $segments = explode('/', trim($siteRelativePath, '/'));
         $libraryName = $segments[2] ?? $segments[1] ?? $segments[0];
 
         return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$libraryName}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
