@@ -167,7 +167,6 @@ class DigitalDocsApprovalController extends Controller
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
         try {
-            // Validate request
             $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRulesForUpdate())->validate();
 
             $user = Auth::user();
@@ -176,15 +175,12 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                // If user uploads a new file
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
                     $extension = $file->getClientOriginalExtension();
-
-                    // Use the same reference number for naming
                     $newFileName = "{$digitalDocsApproval->reference_no}.{$extension}";
 
-                    // Re-upload file content
+                    // Update content
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
@@ -192,20 +188,19 @@ class DigitalDocsApprovalController extends Controller
                         $customDriveId
                     );
 
-                    // Update SharePoint file name to match naming convention
-                    $sharePoint->updateFileProperties(
-                        $digitalDocsApproval->sharepoint_file_id,
-                        ['name' => $newFileName],
-                        $customDriveId
-                    );
+                    // ✅ Rename file in SharePoint directly (not via fields)
+                    $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$sharePoint->siteId}/drives/{$customDriveId}/items/{$digitalDocsApproval->sharepoint_file_id}";
+                    Http::withToken($sharePoint->accessToken)
+                        ->patch($renameUrl, ['name' => $newFileName])
+                        ->throw();
 
-                    // Update local database record
+                    // Update local record
                     $digitalDocsApproval->sharepoint_file_name = $newFileName;
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                     $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
-                    // Only update SharePoint file properties (description/Title)
+                    // Only update metadata
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,
                         ['Title' => $validated['description']],
@@ -213,12 +208,10 @@ class DigitalDocsApprovalController extends Controller
                     );
                 }
 
-                // Update main fields
                 $digitalDocsApproval->description = $validated['description'];
                 $digitalDocsApproval->document_type = $validated['document_type'];
                 $digitalDocsApproval->save();
 
-                // Replace existing approvals
                 $digitalDocsApproval->approvals()->delete();
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
