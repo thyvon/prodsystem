@@ -16,7 +16,7 @@ class SharePointService
     protected int $chunkSize;
     protected Client $guzzle;
 
-    public function __construct(User $user, int $chunkSize = 50 * 1024 * 1024) // 50MB chunk
+    public function __construct(User $user, int $chunkSize = 50 * 1024 * 1024) // 50MB
     {
         $this->user = $user;
         $this->chunkSize = $chunkSize;
@@ -40,6 +40,7 @@ class SharePointService
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
+        // Refresh if expired or less than 5 minutes left
         if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
             return $this->refreshAccessToken();
         }
@@ -50,12 +51,16 @@ class SharePointService
     protected function refreshAccessToken(): string
     {
         try {
+            $tenantId = config('services.microsoft.tenant_id');
+            $clientId = config('services.microsoft.client_id');
+            $clientSecret = config('services.microsoft.client_secret');
+
             $response = $this->guzzle->post(
-                "https://login.microsoftonline.com/" . config('services.microsoft.tenant_id') . "/oauth2/v2.0/token",
+                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
                 [
                     'form_params' => [
-                        'client_id' => config('services.microsoft.client_id'),
-                        'client_secret' => config('services.microsoft.client_secret'),
+                        'client_id' => $clientId,
+                        'client_secret' => $clientSecret,
                         'grant_type' => 'refresh_token',
                         'refresh_token' => $this->user->microsoft_refresh_token,
                         'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
@@ -65,7 +70,7 @@ class SharePointService
 
             $data = json_decode($response->getBody()->getContents(), true);
 
-            if (!isset($data['access_token'])) {
+            if (!isset($data['access_token']) || isset($data['error'])) {
                 Log::error('Microsoft token refresh failed', [
                     'user_id' => $this->user->id,
                     'body' => $data
@@ -74,15 +79,17 @@ class SharePointService
             }
 
             $this->user->update([
-                'microsoft_token' => $data['access_token'] ?? $this->user->microsoft_token,
+                'microsoft_token' => $data['access_token'],
                 'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
                 'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
             ]);
 
-            return $this->user->microsoft_token;
+            Log::info("✅ Microsoft token refreshed for user {$this->user->id}");
+
+            return $data['access_token'];
         } catch (\Throwable $e) {
             Log::error('Microsoft token refresh exception', [
-                'user_id' => $this->user->id,
+                'user_id' => $this->user->id ?? null,
                 'message' => $e->getMessage(),
             ]);
             throw new \RuntimeException('Microsoft access token refresh failed.');
@@ -95,6 +102,7 @@ class SharePointService
 
     public function uploadFile(mixed $fileOrFiles, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
         $results = [];
@@ -185,6 +193,7 @@ class SharePointService
 
     public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null, ?string $targetFileName = null): array
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $fileIds = is_array($fileIdOrData) ? $fileIdOrData : [$fileIdOrData];
         $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
@@ -242,6 +251,7 @@ class SharePointService
 
     public function updateFileProperties(string $fileId, array $properties, ?string $driveId = null): array
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
 
@@ -255,6 +265,7 @@ class SharePointService
 
     public function deleteFile(mixed $fileIdOrIds, ?string $driveId = null, bool $ignoreNotFound = true): bool|array
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $fileIds = is_array($fileIdOrIds) ? $fileIdOrIds : [$fileIdOrIds];
         $results = [];
@@ -277,6 +288,7 @@ class SharePointService
 
     public function streamFile(string $fileId, ?string $driveId = null)
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $meta = $this->getFileMetadata($fileId, $driveId);
         $content = $this->getFileContent($fileId, $driveId)['body'];
@@ -288,6 +300,7 @@ class SharePointService
 
     public function getFileContent(string $fileId, ?string $driveId = null): array
     {
+        $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
         $response = $this->guzzle->get(
             "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content",
