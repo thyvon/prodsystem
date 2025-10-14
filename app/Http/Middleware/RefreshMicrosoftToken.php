@@ -11,9 +11,14 @@ use Carbon\Carbon;
 
 class RefreshMicrosoftToken
 {
+    /**
+     * Handle an incoming request.
+     */
     public function handle(Request $request, Closure $next)
     {
-        // ✅ Skip refresh for logout, login, and Microsoft OAuth routes
+        $user = Auth::user();
+
+        // ✅ Skip refresh for specific routes
         $excludedRoutes = [
             'logout',
             'login',
@@ -21,11 +26,11 @@ class RefreshMicrosoftToken
             'auth/microsoft/callback',
         ];
 
-        if ($request->is($excludedRoutes)) {
-            return $next($request);
+        foreach ($excludedRoutes as $route) {
+            if ($request->is($route)) {
+                return $next($request);
+            }
         }
-
-        $user = Auth::user();
 
         if ($user?->microsoft_refresh_token) {
             $expiresAt = $user->microsoft_token_expires_at
@@ -41,6 +46,9 @@ class RefreshMicrosoftToken
         return $next($request);
     }
 
+    /**
+     * Refresh Microsoft access token.
+     */
     protected function refreshAccessToken($user): void
     {
         try {
@@ -55,22 +63,35 @@ class RefreshMicrosoftToken
                     'client_secret' => $clientSecret,
                     'grant_type'    => 'refresh_token',
                     'refresh_token' => $user->microsoft_refresh_token,
-                    'scope'         => 'User.Read Files.ReadWrite Sites.Selected offline_access',
+                    'scope'         => 'User.Read Files.ReadWrite Sites.Selected Sites.ReadWrite.All offline_access',
                 ]
             );
 
-            if ($response->failed()) {
-                Log::error('Microsoft token refresh failed', [
+            $data = $response->json();
+
+            // ✅ Refresh failed or token invalid
+            if ($response->failed() || isset($data['error'])) {
+                Log::warning('Microsoft token refresh failed', [
                     'user_id' => $user->id,
                     'status'  => $response->status(),
-                    'body'    => $response->body(),
+                    'body'    => $data,
                 ]);
-                // ⚠️ Do not abort — let the user continue (can still log out)
+
+                // ⚠️ Force Microsoft login if refresh token expired
+                if (isset($data['error']) && $data['error'] === 'invalid_grant') {
+                    $user->update([
+                        'microsoft_token' => null,
+                        'microsoft_refresh_token' => null,
+                        'microsoft_token_expires_at' => null,
+                    ]);
+
+                    redirect()->route('microsoft.login')->send();
+                }
+
                 return;
             }
 
-            $data = $response->json();
-
+            // ✅ Update user tokens
             $user->update([
                 'microsoft_token'             => $data['access_token'] ?? $user->microsoft_token,
                 'microsoft_refresh_token'     => $data['refresh_token'] ?? $user->microsoft_refresh_token,
@@ -84,7 +105,8 @@ class RefreshMicrosoftToken
                 'user_id' => $user->id ?? null,
                 'message' => $e->getMessage(),
             ]);
-            // ⚠️ Also no abort — just log the issue
+            // ⚠️ Optional: You can also redirect to login here if needed
+            redirect()->route('microsoft.login')->send();
         }
     }
 }
