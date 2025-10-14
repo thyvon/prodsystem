@@ -12,7 +12,6 @@
 
     <!-- Body -->
     <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
-      <!-- Document Info -->
       <div class="row mb-2">
         <div class="col-3">
           <p class="text-muted mb-1">
@@ -27,7 +26,7 @@
 
         <div class="col-6 text-center">
           <h4 class="font-weight-bold text-dark">ឯកសារ</h4>
-          <h4 class="font-weight-bold text-dark">DIGITAL DOCUMENT APPROVAL</h4>
+          <h4 class="font-weight-bold text-dark">DIGITAL DOCUMENT</h4>
         </div>
 
         <div class="col-3 text-right">
@@ -40,7 +39,7 @@
         </div>
       </div>
 
-      <!-- Description & File Preview -->
+      <!-- Description and File Preview -->
       <div class="mb-3">
         <p class="text-muted mb-1">DESCRIPTION / ពិពណ៌នា:</p>
         <p class="font-weight-bold">{{ digitalDoc.description ?? 'N/A' }}</p>
@@ -55,13 +54,13 @@
           </a>
         </p>
 
-        <!-- Full Mozilla PDF.js Viewer -->
-        <div v-if="isPdf" class="mt-3 border rounded" style="height: 800px;">
-          <iframe
-            :src="pdfViewerUrl"
-            frameborder="0"
-            style="width: 100%; height: 100%;"
-          ></iframe>
+        <!-- PDF Preview -->
+        <div v-if="isPdf" class="mt-3 border rounded bg-light overflow-auto" style="height: 800px;">
+          <div id="pdf-viewer-container" class="p-2" style="min-height: 700px;">
+            <div class="text-center p-4" v-if="pdfLoading">
+              <i class="fal fa-spinner fa-spin"></i> Loading PDF...
+            </div>
+          </div>
         </div>
 
         <!-- Image Preview -->
@@ -75,7 +74,6 @@
       <!-- Approvals -->
       <div class="mt-4">
         <div class="row justify-content-center">
-          <!-- Creator Card -->
           <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
@@ -88,13 +86,12 @@
                   <img :src="digitalDoc.creator.signature_url" height="50">
                 </div>
                 <p class="mb-1">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
-                <p class="mb-1">Position: {{ digitalDoc.creator_position ?? 'N/A' }}</p>
+                <p class="mb-1">Position: {{ digitalDoc.creator_position?.title ?? 'N/A' }}</p>
                 <p class="mb-0">Date: {{ formatDateTime(digitalDoc.created_at) || 'N/A' }}</p>
               </div>
             </div>
           </div>
 
-          <!-- Approval Cards -->
           <div v-for="(approval, i) in approvals" :key="i" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
@@ -115,9 +112,7 @@
                           'badge-warning': approval.approval_status === 'Pending',
                           'badge-info': approval.approval_status === 'Returned'
                         }">
-                    <strong>
-                      {{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}
-                    </strong>
+                    <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
                   </span>
                 </p>
                 <p class="mb-1">Position: {{ approval.position_name }}</p>
@@ -127,25 +122,23 @@
             </div>
           </div>
 
-          <div v-if="approvals.length === 0" class="col-12 text-center">
-            No approvals available.
-          </div>
+          <div v-if="approvals.length === 0" class="col-12 text-center">No approvals available.</div>
         </div>
       </div>
     </div>
 
-    <!-- Footer: Approval Action -->
+    <!-- Footer: Approval Actions -->
     <div class="card-footer">
       <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
       <div v-if="showApprovalButton">
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success mr-1" :disabled="loading">
+          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
             <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
           </button>
-          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger mr-1" :disabled="loading">
+          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
             <i class="fal fa-times"></i> Reject
           </button>
-          <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning mr-1" :disabled="loading">
+          <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
             <i class="fal fa-undo"></i> Return
           </button>
           <button @click="openReassignModal" class="btn btn-sm btn-primary" :disabled="loading">
@@ -220,12 +213,11 @@
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateWithTime, formatDateShort } from '@/Utils/dateFormat'
@@ -244,21 +236,88 @@ const usersList = ref([])
 const currentAction = ref('approve')
 const commentInput = ref('')
 
-// File handling
-const isPdf = computed(() => props.digitalDoc?.sharepoint_file_name?.toLowerCase().endsWith('.pdf'))
-const isImage = computed(() => /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(props.digitalDoc?.sharepoint_file_name ?? ''))
-const streamUrl = computed(() => `/digital-docs-approvals/${props.digitalDoc.id}/view`)
-const pdfViewerUrl = computed(() => `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/web/viewer.html?file=${encodeURIComponent(streamUrl.value)}`)
-
-// Utilities
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 
-// Approval Actions
+// File preview
+const isPdf = computed(() => props.digitalDoc?.sharepoint_file_name?.toLowerCase().endsWith('.pdf'))
+const isImage = computed(() => /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(props.digitalDoc?.sharepoint_file_name ?? ''))
+const streamUrl = computed(() => `/digital-docs-approvals/${props.digitalDoc.id}/view`)
+
+const pdfLoading = ref(false)
+let pdfjsLib = null
+
+onMounted(async () => {
+  if (isPdf.value) {
+    await loadPdfJsFromCdn()
+    await renderPdf()
+  }
+})
+
+const loadPdfJsFromCdn = async () => {
+  if (pdfjsLib) return
+  pdfLoading.value = true
+  try {
+    pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.min.mjs')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs'
+  } catch (err) {
+    console.error('PDF.js load error:', err)
+    showAlert('Error', 'Failed to load PDF viewer.', 'danger')
+  } finally { pdfLoading.value = false }
+}
+
+const renderPdf = async () => {
+  if (!pdfjsLib || !streamUrl.value) return
+  const container = document.getElementById('pdf-viewer-container')
+  if (!container) return
+  container.innerHTML = '<div class="text-center p-4"><i class="fal fa-spinner fa-spin"></i> Loading PDF...</div>'
+
+  try {
+    const loadingTask = pdfjsLib.getDocument({
+      url: streamUrl.value,
+      withCredentials: true,
+      httpHeaders: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+    })
+    const pdf = await loadingTask.promise
+    container.innerHTML = ''
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum)
+      const scale = 1.5
+      const viewport = page.getViewport({ scale })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+
+      const pageDiv = document.createElement('div')
+      pageDiv.style.marginBottom = '20px'
+      pageDiv.style.textAlign = 'center'
+      pageDiv.appendChild(canvas)
+
+      const label = document.createElement('small')
+      label.textContent = `Page ${pageNum} of ${pdf.numPages}`
+      label.style.display = 'block'
+      label.style.color = '#6c757d'
+      pageDiv.appendChild(label)
+
+      container.appendChild(pageDiv)
+    }
+  } catch (err) {
+    console.error('PDF.js render error:', err)
+    container.innerHTML = `<div class="text-center p-4">
+      <i class="fal fa-exclamation-triangle text-warning fa-2x"></i>
+      <p class="mt-2">Failed to load PDF preview.</p>
+      <a href="${streamUrl.value}" class="btn btn-sm btn-primary" target="_blank">Open PDF in New Tab</a>
+    </div>`
+  }
+}
+
+// Approval actions
 const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
 const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
+
 const submitApproval = async (action) => {
   loading.value = true
   try {
@@ -266,11 +325,11 @@ const submitApproval = async (action) => {
     showAlert('success', res.data.message || 'Action submitted successfully.')
     $('#confirmModal').modal('hide')
     setTimeout(() => window.location.href = res.data.redirect_url || window.location.href, 1500)
-  } catch (err) { showAlert('Error', err.response?.data?.message || 'Action failed.','danger') }
-  finally { loading.value = false }
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
+  } finally { loading.value = false }
 }
 
-// Reassign Actions
 const openReassignModal = async () => {
   loading.value = true
   try {
@@ -307,4 +366,5 @@ const cleanupReassignModal = () => {
 <style scoped>
 .modal { overflow: visible !important; }
 .select2-container--default .select2-dropdown { z-index: 1060 !important; }
+.pdf-page-canvas { image-rendering: -webkit-optimize-contrast; }
 </style>
