@@ -172,25 +172,36 @@ class SharePointService
 
         foreach ($fileIds as $index => $fileId) {
             $file = $files[$index] ?? null;
-            if (!$file instanceof UploadedFile) continue;
+            if (!$file instanceof UploadedFile) {
+                continue;
+            }
 
-            // Upload new file content (replaces existing content)
-            $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+            // Step 1️⃣: Upload new file content (replaces existing content)
+            $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
 
             $response = Http::withToken($this->accessToken)
                 ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
-                ->put($url)
+                ->put($uploadUrl)
                 ->throw();
 
-            // Automatically include the new file name (with correct extension)
-            $properties['name'] = $properties['name'] ?? $file->getClientOriginalName();
+            // Step 2️⃣: Rename the file (if needed)
+            $newName = $file->getClientOriginalName();
+            $currentName = $response->json('name');
 
-            // Update file metadata (including name or other properties)
+            if ($newName !== $currentName) {
+                Http::withToken($this->accessToken)
+                    ->patch("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}", [
+                        'name' => $newName,
+                    ])
+                    ->throw();
+            }
+
+            // Step 3️⃣: Update SharePoint list metadata (if provided)
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
-            // Merge file info and UI link
+            // Step 4️⃣: Return file info with UI link
             $results[] = array_merge(
                 $this->extractFileInfo($response),
                 ['ui_url' => $this->generateUiLink($response->json('webUrl'))]
