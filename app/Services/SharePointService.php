@@ -176,7 +176,7 @@ class SharePointService
                 continue;
             }
 
-            // Step 1️⃣: Upload new file content (replaces existing content)
+            // 1️⃣ Upload new file content (replace existing)
             $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
 
             $response = Http::withToken($this->accessToken)
@@ -184,28 +184,29 @@ class SharePointService
                 ->put($uploadUrl)
                 ->throw();
 
-            // Step 2️⃣: Rename the file (if needed)
+            // 2️⃣ Rename the file if name differs
             $newName = $file->getClientOriginalName();
             $currentName = $response->json('name');
 
             if ($newName !== $currentName) {
+                $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
                 Http::withToken($this->accessToken)
-                    ->patch("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}", [
-                        'name' => $newName,
-                    ])
+                    ->patch($renameUrl, ['name' => $newName])
                     ->throw();
             }
 
-            // Step 3️⃣: Update SharePoint list metadata (if provided)
+            // 3️⃣ Update metadata (e.g., Title)
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
-            // Step 4️⃣: Return file info with UI link
-            $results[] = array_merge(
-                $this->extractFileInfo($response),
-                ['ui_url' => $this->generateUiLink($response->json('webUrl'))]
-            );
+            // 4️⃣ Return combined info with UI link
+            $results[] = [
+                'id' => $fileId,
+                'name' => $newName,
+                'url' => $response->json('webUrl'),
+                'ui_url' => $this->generateUiLink($response->json('webUrl')),
+            ];
         }
 
         return is_array($fileOrFiles) ? $results : $results[0];
