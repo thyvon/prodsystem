@@ -178,25 +178,26 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                if ($request->hasFile('file')) {
-                    $file = $request->file('file');
-                    $extension = $file->getClientOriginalExtension();
-                    $newFileName = "{$digitalDocsApproval->reference_no}.{$extension}";
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $extension = $file->getClientOriginalExtension();
+                $newFileName = "{$digitalDocsApproval->reference_no}.{$extension}";
 
-                    // Update file content AND rename automatically via service
-                    $fileData = $sharePoint->updateFile(
-                        $digitalDocsApproval->sharepoint_file_id,
-                        $file,
-                        ['Title' => $validated['description']],
-                        $customDriveId
-                    );
+                // Update content AND rename automatically
+                $fileData = $sharePoint->updateFile(
+                    $digitalDocsApproval->sharepoint_file_id,
+                    $file,
+                    ['Title' => $validated['description']],
+                    $customDriveId,
+                    $newFileName
+                );
 
-                    // Update local DB record
-                    $digitalDocsApproval->sharepoint_file_name = $newFileName; // match reference_no
-                    $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
-                    $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
-                    $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
-                } else {
+                // Update DB
+                $digitalDocsApproval->sharepoint_file_name = $newFileName;
+                $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
+                $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
+                $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
+            } else {
                     // Only update metadata (Title) via service
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,

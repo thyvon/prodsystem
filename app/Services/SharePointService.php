@@ -163,7 +163,7 @@ class SharePointService
      * FILE UPDATE (single or multiple)
      * ----------------------------- */
 
-    public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null): array
+    public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null, ?string $targetFileName = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
         $fileIds = is_array($fileIdOrData) ? $fileIdOrData : [$fileIdOrData];
@@ -172,11 +172,9 @@ class SharePointService
 
         foreach ($fileIds as $index => $fileId) {
             $file = $files[$index] ?? null;
-            if (!$file instanceof UploadedFile) {
-                continue;
-            }
+            if (!$file instanceof UploadedFile) continue;
 
-            // 1️⃣ Upload new file content (replace existing)
+            // 1️⃣ Upload new content (replaces old file)
             $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
 
             $response = Http::withToken($this->accessToken)
@@ -184,8 +182,8 @@ class SharePointService
                 ->put($uploadUrl)
                 ->throw();
 
-            // 2️⃣ Rename the file if name differs
-            $newName = $file->getClientOriginalName();
+            // 2️⃣ Rename file if a target name is provided
+            $newName = $targetFileName ?? $file->getClientOriginalName();
             $currentName = $response->json('name');
 
             if ($newName !== $currentName) {
@@ -195,12 +193,12 @@ class SharePointService
                     ->throw();
             }
 
-            // 3️⃣ Update metadata (e.g., Title)
+            // 3️⃣ Update metadata
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
-            // 4️⃣ Return combined info with UI link
+            // 4️⃣ Return info with UI link
             $results[] = [
                 'id' => $fileId,
                 'name' => $newName,
