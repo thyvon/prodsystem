@@ -261,6 +261,8 @@ class DigitalDocsApprovalController extends Controller
                 }
 
                 $digitalDocsApproval->approvals()->delete();
+                $digitalDocsApproval->deleted_by = $user->id;
+                $digitalDocsApproval->save();
                 $digitalDocsApproval->delete();
 
                 return response()->json([
