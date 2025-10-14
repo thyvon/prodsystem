@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\DigitalDocsApproval;
+use App\Models\Approval;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
 use Illuminate\Http\Request;
@@ -251,6 +252,94 @@ class DigitalDocsApprovalController extends Controller
     }
 
     // =======================
+    // Show Details
+    // =======================
+    public function show(DigitalDocsApproval $digitalDocsApproval)
+    {
+        try {
+            Log::info('DigitalDocsApproval show started', ['id' => $digitalDocsApproval->id]);
+
+            // Load related data: approvals + responder + position + creator
+            $digitalDocsApproval->load([
+                'approvals.responder',
+                'approvals.responderPosition',
+                'creator',
+            ]);
+            Log::info('Loaded approvals and responder positions', [
+                'approvals_count' => $digitalDocsApproval->approvals->count()
+            ]);
+
+            // Determine if approval button should be shown
+            $approvalButtonData = $this->canShowApprovalButton($digitalDocsApproval->id);
+            Log::info('Approval button data', $approvalButtonData);
+
+            // Track duplicate request_type counts for "Co-" labeling
+            $typeOccurrenceCounts = [];
+
+            // Map approvals for Vue component
+            $approvals = $digitalDocsApproval->approvals
+                ->sortBy('ordinal')
+                ->values()
+                ->map(function ($approval) use (&$typeOccurrenceCounts) {
+                    $typeMap = [
+                        'approve' => 'Approved',
+                        'check' => 'Checked',
+                        'review' => 'Reviewed',
+                        'initial' => 'Initialed',
+                        'acknowledge' => 'Acknowledged',
+                    ];
+
+                    $label = $typeMap[$approval->request_type] ?? ucfirst($approval->request_type);
+
+                    $typeOccurrenceCounts[$approval->request_type] = ($typeOccurrenceCounts[$approval->request_type] ?? 0) + 1;
+                    if ($typeOccurrenceCounts[$approval->request_type] > 1) {
+                        $label = 'Co-' . $label;
+                    }
+
+                    return [
+                        'id' => $approval->id,
+                        'request_type' => $approval->request_type,
+                        'approval_status' => $approval->approval_status,
+                        'request_type_label' => $label,
+                        'ordinal' => $approval->ordinal,
+                        'comment' => $approval->comment,
+                        'created_at' => $approval->created_at?->toDateTimeString(),
+                        'updated_at' => $approval->updated_at?->toDateTimeString(),
+                        'responded_date' => $approval->responded_date,
+                        'responder' => $approval->responder ? [
+                            'id' => $approval->responder->id,
+                            'name' => $approval->responder->name,
+                            'profile_url' => $approval->responder->profile_url,
+                            'signature_url' => $approval->responder->signature_url,
+                            'position_name' => $approval->responderPosition->title ?? null,
+                        ] : null,
+                    ];
+                });
+
+            Log::info('Mapped approvals for view', ['approvals' => $approvals]);
+
+            return view('approval.digital-approval-show', [
+                'digitalDocsApproval' => $digitalDocsApproval,
+                'approvals' => $approvals->toArray(),
+                'showApprovalButton' => $approvalButtonData['showButton'] ?? false,
+                'approvalRequestType' => $approvalButtonData['requestType'] ?? 'approve',
+                'approvalButtonData' => $approvalButtonData,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching digital approval for display', [
+                'error_message' => $e->getMessage(),
+                'digital_docs_approval_id' => $digitalDocsApproval->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->view('errors.500', [
+                'message' => 'Failed to fetch digital approval for display.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // =======================
     // Helpers
     // =======================
     private function validationRules(bool $isUpdate = false): array
@@ -348,6 +437,80 @@ class DigitalDocsApprovalController extends Controller
             'acknowledge' => 5,
             default => 1,
         };
+    }
+
+    private function canShowApprovalButton(int $documentId): array
+    {
+        try {
+            $userId = auth()->id();
+            if (!$userId) {
+                return $this->approvalButtonResponse('User not authenticated.');
+            }
+
+            // Load approvals for Digital Document
+            $approvals = Approval::where([
+                'approvable_type' => DigitalDocsApproval::class,
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
+
+            if ($approvals->isEmpty()) {
+                return $this->approvalButtonResponse('No approvals configured.');
+            }
+
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function ($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
+            if (!$currentApproval) {
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
+            }
+
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function ($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) ||
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
+            }
+
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
+            }
+
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => $userId ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
+        }
+    }
+
+    private function approvalButtonResponse(string $reason): array
+    {
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 
     // =======================

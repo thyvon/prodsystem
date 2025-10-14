@@ -1,15 +1,13 @@
-@php($header = 'Stock Transfer')
+@php($header = 'Digital Document Approval')
 @extends('layouts.main')
 
 @section('content')
-    <stock-transfer-show
-        :stock='@json($stockTransfer)'
+    <digital-docs-approval-show
+        :digital-doc='@json($digitalDocsApproval)'
         :approvals='@json($approvals)'
         :show-approval-button='@json($showApprovalButton)'
-        :total-quantity='@json($totalQuantity)'
-        :total-value='@json($totalValue)'
         approval-request-type="{{ $approvalRequestType }}"
-        submit-url="{{ route('api.stock-transfers.submit-approval', $stockTransfer->id) }}"
+        submit-url="{{ route('api.digital-approvals.submit', $digitalDocsApproval->id) }}"
     />
 @endsection
 
@@ -18,9 +16,9 @@
 @endpush
 
 @push('styles')
-  <link rel="stylesheet" media="screen, print" href="{{ asset('template/css/formplugins/select2/select2.bundle.css') }}">
+<link rel="stylesheet" media="screen, print" href="{{ asset('template/css/formplugins/select2/select2.bundle.css') }}">
 @endpush
 
 @push('scripts')
-  <script src="{{ asset('template/js/formplugins/select2/select2.bundle.js') }}"></script>
+<script src="{{ asset('template/js/formplugins/select2/select2.bundle.js') }}"></script>
 @endpush

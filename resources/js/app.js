@@ -80,7 +80,7 @@ import DocumentTransferList from './components/DocumentTransfer/DocsList.vue'
 // Digital Document Approval
 import DigitalDocsApprovalForm from './components/Approval/DigitalApprovalForm.vue'
 import DigitalDocsApprovalList from './components/Approval/DigitalApprovalList.vue'
-// import DigitalDocsApprovalShow from './components/Approval/DigitalApprovalShow.vue'
+import DigitalDocsApprovalShow from './components/Approval/DigitalApprovalShow.vue'
 
 // Create Vue app instance
  const app = createApp({})
@@ -146,7 +146,7 @@ import DigitalDocsApprovalList from './components/Approval/DigitalApprovalList.v
  // Digital Document Approval
 app.component('digital-docs-approval-form', DigitalDocsApprovalForm)
 app.component('digital-docs-approval-list', DigitalDocsApprovalList)
-// app.component('digital-docs-approval-show', DigitalDocsApprovalShow)
+app.component('digital-docs-approval-show', DigitalDocsApprovalShow)
 
 // Mount the Vue app
 app.mount('#app')

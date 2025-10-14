@@ -258,7 +258,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'form'])
         ->name('digital-docs-approvals.edit');
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
-    ->name('api.digital-approval.view-file');
+    ->name('digital-approval.view-file');
+    Route::get('/digital-docs-approvals/{digitalDocsApproval}/show', [DigitalDocsApprovalController::class, 'show'])
+        ->name('digital-docs-approvals.show');
 
 });
 
