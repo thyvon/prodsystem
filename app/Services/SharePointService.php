@@ -2,44 +2,34 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Client;
 use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use GuzzleHttp\Client;
-use GuzzleHttp\Promise\Utils;
 
 class SharePointService
 {
     protected User $user;
     protected string $accessToken;
     protected string $siteId;
-    protected int $defaultChunkSize;
-    protected int $maxConcurrency;
+    protected int $chunkSize;
     protected Client $guzzle;
 
-    public function __construct(User $user, int $defaultChunkSize = 50 * 1024 * 1024, int $maxConcurrency = 10)
+    public function __construct(User $user, int $chunkSize = 10 * 1024 * 1024) // 10MB chunk
     {
         $this->user = $user;
-        $this->defaultChunkSize = $defaultChunkSize;
-        $this->maxConcurrency = $maxConcurrency;
+        $this->chunkSize = $chunkSize;
         $this->siteId = config('services.sharepoint.site_id')
             ?: throw new \InvalidArgumentException('SharePoint site_id not set');
+        $this->guzzle = new Client(['timeout' => 0, 'connect_timeout' => 0]);
         $this->accessToken = $this->getValidAccessToken();
-
-        $this->guzzle = new Client([
-            'headers' => [
-                'Authorization' => "Bearer {$this->accessToken}",
-                'Accept' => 'application/json',
-            ],
-            'timeout' => 7200, // Allow large files to upload
-        ]);
     }
 
     /** -----------------------------
      * TOKEN MANAGEMENT
      * ----------------------------- */
+
     protected function getValidAccessToken(): string
     {
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
@@ -60,27 +50,29 @@ class SharePointService
     protected function refreshAccessToken(): string
     {
         try {
-            $response = Http::asForm()->post(
+            $response = $this->guzzle->post(
                 "https://login.microsoftonline.com/" . config('services.microsoft.tenant_id') . "/oauth2/v2.0/token",
                 [
-                    'client_id' => config('services.microsoft.client_id'),
-                    'client_secret' => config('services.microsoft.client_secret'),
-                    'grant_type' => 'refresh_token',
-                    'refresh_token' => $this->user->microsoft_refresh_token,
-                    'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    'form_params' => [
+                        'client_id' => config('services.microsoft.client_id'),
+                        'client_secret' => config('services.microsoft.client_secret'),
+                        'grant_type' => 'refresh_token',
+                        'refresh_token' => $this->user->microsoft_refresh_token,
+                        'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    ]
                 ]
             );
 
-            if ($response->failed()) {
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            if (!isset($data['access_token'])) {
                 Log::error('Microsoft token refresh failed', [
                     'user_id' => $this->user->id,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
+                    'body' => $data
                 ]);
                 throw new \RuntimeException('Failed to refresh Microsoft access token.');
             }
 
-            $data = $response->json();
             $this->user->update([
                 'microsoft_token' => $data['access_token'] ?? $this->user->microsoft_token,
                 'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
@@ -100,6 +92,7 @@ class SharePointService
     /** -----------------------------
      * FILE UPLOAD (single or multiple)
      * ----------------------------- */
+
     public function uploadFile(mixed $fileOrFiles, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -110,7 +103,7 @@ class SharePointService
             if (!$file instanceof UploadedFile) continue;
 
             $name = $fileName ?? time() . '_' . $file->getClientOriginalName();
-            $fileInfo = $file->getSize() <= 50 * 1024 * 1024
+            $fileInfo = $file->getSize() <= 4 * 1024 * 1024
                 ? $this->uploadSmallFile($file, $folderPath, $name, $driveId)
                 : $this->uploadLargeFile($file, $folderPath, $name, $driveId);
 
@@ -130,50 +123,51 @@ class SharePointService
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/content";
 
         $response = $this->guzzle->put($url, [
+            'headers' => [
+                'Authorization' => "Bearer {$this->accessToken}",
+                'Content-Type' => $file->getMimeType(),
+            ],
             'body' => fopen($file->getRealPath(), 'rb'),
-            'headers' => ['Content-Type' => $file->getMimeType()]
         ]);
 
-        return $this->extractFileInfo($response);
+        $data = json_decode($response->getBody()->getContents(), true);
+
+        return [
+            'id' => $data['id'] ?? null,
+            'name' => $data['name'] ?? null,
+            'url' => $data['webUrl'] ?? null,
+        ];
     }
 
-    /** -----------------------------
-     * LARGE FILE UPLOAD (DYNAMIC CHUNK + HIGH CONCURRENCY)
-     * ----------------------------- */
     protected function uploadLargeFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
     {
-        $session = $this->guzzle->post(
+        $sessionResponse = $this->guzzle->post(
             "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/createUploadSession",
-            ['json' => ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]]
-        )->json('uploadUrl');
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]
+            ]
+        );
 
-        $size = $file->getSize();
-        $chunkSize = $this->calculateChunkSize($size);
-        $promises = [];
+        $uploadUrl = json_decode($sessionResponse->getBody()->getContents(), true)['uploadUrl'];
+
         $stream = fopen($file->getRealPath(), 'rb');
+        $size = $file->getSize();
         $offset = 0;
 
         while ($offset < $size) {
-            $readSize = min($chunkSize, $size - $offset);
-            $chunk = fread($stream, $readSize);
-            $start = $offset;
+            $chunk = fread($stream, $this->chunkSize);
             $end = $offset + strlen($chunk) - 1;
 
-            $promises[] = $this->guzzle->putAsync($session, [
-                'headers' => ['Content-Range' => "bytes {$start}-{$end}/{$size}"],
-                'body' => $chunk
+            $this->guzzle->put($uploadUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Range' => "bytes {$offset}-{$end}/{$size}",
+                ],
+                'body' => $chunk,
             ]);
 
-            if (count($promises) >= $this->maxConcurrency) {
-                Utils::settle($promises)->wait();
-                $promises = [];
-            }
-
             $offset += strlen($chunk);
-        }
-
-        if (!empty($promises)) {
-            Utils::settle($promises)->wait();
         }
 
         fclose($stream);
@@ -181,21 +175,14 @@ class SharePointService
         return [
             'id' => basename($fileName),
             'name' => $fileName,
-            'url' => $session,
+            'url' => $uploadUrl
         ];
     }
 
-    protected function calculateChunkSize(int $fileSize): int
-    {
-        // Dynamic chunk sizing for large files
-        if ($fileSize > 1024 * 1024 * 1024) return 100 * 1024 * 1024; // >1GB → 100MB
-        if ($fileSize > 500 * 1024 * 1024) return 75 * 1024 * 1024;   // 500MB–1GB → 75MB
-        return $this->defaultChunkSize;                                // Default 50MB
-    }
-
     /** -----------------------------
-     * UPDATE FILE
+     * FILE UPDATE
      * ----------------------------- */
+
     public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null, ?string $targetFileName = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -208,17 +195,25 @@ class SharePointService
             if (!$file instanceof UploadedFile) continue;
 
             $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+
             $response = $this->guzzle->put($uploadUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Type' => $file->getMimeType(),
+                ],
                 'body' => fopen($file->getRealPath(), 'rb'),
-                'headers' => ['Content-Type' => $file->getMimeType()]
             ]);
 
+            $data = json_decode($response->getBody()->getContents(), true);
             $newName = $targetFileName ?? $file->getClientOriginalName();
-            $currentName = $response->json('name');
+            $currentName = $data['name'] ?? null;
 
             if ($newName !== $currentName) {
                 $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
-                $this->guzzle->patch($renameUrl, ['json' => ['name' => $newName]]);
+                $this->guzzle->patch($renameUrl, [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                    'json' => ['name' => $newName],
+                ]);
             }
 
             if (!empty($properties)) {
@@ -228,8 +223,8 @@ class SharePointService
             $results[] = [
                 'id' => $fileId,
                 'name' => $newName,
-                'url' => $response->json('webUrl'),
-                'ui_url' => $this->generateUiLink($response->json('webUrl')),
+                'url' => $data['webUrl'] ?? null,
+                'ui_url' => $this->generateUiLink($data['webUrl'] ?? ''),
             ];
         }
 
@@ -239,11 +234,18 @@ class SharePointService
     /** -----------------------------
      * FILE PROPERTIES / DELETE / STREAM
      * ----------------------------- */
+
     public function updateFileProperties(string $fileId, array $properties, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
         $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
-        return $this->guzzle->patch($url, ['json' => $properties])->json();
+
+        $response = $this->guzzle->patch($url, [
+            'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+            'json' => $properties
+        ]);
+
+        return json_decode($response->getBody()->getContents(), true);
     }
 
     public function deleteFile(mixed $fileIdOrIds, ?string $driveId = null, bool $ignoreNotFound = true): bool|array
@@ -255,12 +257,12 @@ class SharePointService
         foreach ($fileIds as $fileId) {
             $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
             try {
-                $this->guzzle->delete($url);
+                $this->guzzle->delete($url, [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+                ]);
                 $results[] = true;
             } catch (\Throwable $e) {
-                if (!$ignoreNotFound || $e->getCode() != 404) {
-                    throw $e;
-                }
+                if (!$ignoreNotFound) throw $e;
                 $results[] = false;
             }
         }
@@ -271,7 +273,7 @@ class SharePointService
     public function streamFile(string $fileId, ?string $driveId = null)
     {
         $driveId = $this->resolveDriveId($driveId);
-        $meta = $this->guzzle->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")->json();
+        $meta = $this->getFileMetadata($fileId, $driveId);
         $content = $this->getFileContent($fileId, $driveId)['body'];
 
         return response($content, 200)
@@ -282,8 +284,12 @@ class SharePointService
     public function getFileContent(string $fileId, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
-        $meta = $this->guzzle->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")->json();
-        $response = $this->guzzle->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}/content");
+        $response = $this->guzzle->get(
+            "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content",
+            ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]
+        );
+
+        $meta = $this->getFileMetadata($fileId, $driveId);
 
         return [
             'body' => $response->getBody()->getContents(),
@@ -291,24 +297,26 @@ class SharePointService
         ];
     }
 
+    protected function getFileMetadata(string $fileId, string $driveId): array
+    {
+        $response = $this->guzzle->get(
+            "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}",
+            ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]
+        );
+
+        return json_decode($response->getBody()->getContents(), true);
+    }
+
     /** -----------------------------
      * HELPERS
      * ----------------------------- */
-    protected function extractFileInfo($response): array
-    {
-        $data = is_array($response) ? $response : $response->json();
-        return [
-            'id' => $data['id'] ?? null,
-            'name' => $data['name'] ?? null,
-            'url' => $data['webUrl'] ?? null,
-        ];
-    }
 
     protected function generateUiLink(string $webUrl): string
     {
         $siteRelativePath = rawurldecode(str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl));
         $encodedFile = rawurlencode($siteRelativePath);
         $encodedParent = rawurlencode(dirname($siteRelativePath));
+
         $segments = explode('/', trim($siteRelativePath, '/'));
         $libraryName = $segments[2] ?? $segments[1] ?? $segments[0];
 
