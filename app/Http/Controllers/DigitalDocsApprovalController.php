@@ -302,6 +302,13 @@ class DigitalDocsApprovalController extends Controller
 
     private function formatDigitalDoc(DigitalDocsApproval $doc): array
     {
+        $extension = strtolower(pathinfo($doc->sharepoint_file_name ?? '', PATHINFO_EXTENSION));
+        $uiExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'svg']; // supported UI types
+
+        $fileUiUrl = in_array($extension, $uiExtensions) 
+            ? $doc->sharepoint_file_ui_url 
+            : $doc->sharepoint_file_url;
+
         return [
             'id' => $doc->id,
             'reference_no' => $doc->reference_no,
@@ -312,7 +319,7 @@ class DigitalDocsApprovalController extends Controller
             'created_by' => $doc->creator->name ?? 'Unknown',
             'updated_at' => $doc->updated_at,
             'sharepoint_file_url' => $doc->sharepoint_file_url,
-            'sharepoint_file_ui_url' => $doc->sharepoint_file_ui_url,
+            'sharepoint_file_ui_url' => $fileUiUrl, // conditional UI link
             'approvals' => $doc->approvals->map(fn($a) => [
                 'id' => $a->id,
                 'request_type' => $a->request_type,
