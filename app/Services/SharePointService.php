@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use Carbon\Carbon;
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class SharePointService
@@ -15,7 +17,7 @@ class SharePointService
     protected string $siteId;
     protected int $chunkSize;
 
-    public function __construct(User $user, int $chunkSize = 10 * 1024 * 1024)
+    public function __construct(User $user, int $chunkSize = 20 * 1024 * 1024) // 20MB default
     {
         $this->user = $user;
         $this->chunkSize = $chunkSize;
@@ -27,7 +29,6 @@ class SharePointService
     /** -----------------------------
      * TOKEN MANAGEMENT
      * ----------------------------- */
-
     protected function getValidAccessToken(): string
     {
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
@@ -86,9 +87,8 @@ class SharePointService
     }
 
     /** -----------------------------
-     * FILE UPLOAD (single or multiple)
+     * FILE UPLOAD
      * ----------------------------- */
-
     public function uploadFile(mixed $fileOrFiles, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -101,7 +101,7 @@ class SharePointService
             $name = $fileName ?? time() . '_' . $file->getClientOriginalName();
             $fileInfo = $file->getSize() <= 4 * 1024 * 1024
                 ? $this->uploadSmallFile($file, $folderPath, $name, $driveId)
-                : $this->uploadLargeFile($file, $folderPath, $name, $driveId);
+                : $this->uploadLargeFileAsync($file, $folderPath, $name, $driveId);
 
             if (!empty($properties)) {
                 $this->updateFileProperties($fileInfo['id'], $properties, $driveId);
@@ -126,43 +126,55 @@ class SharePointService
         return $this->extractFileInfo($response);
     }
 
-    protected function uploadLargeFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
+    protected function uploadLargeFileAsync(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
     {
-        $session = Http::withToken($this->accessToken)
+        $client = new Client();
+        $sessionUrl = Http::withToken($this->accessToken)
             ->post("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/createUploadSession", [
                 'item' => ['@microsoft.graph.conflictBehavior' => 'replace']
             ])
             ->throw()
             ->json('uploadUrl');
 
-        $stream = fopen($file->getRealPath(), 'rb');
         $size = $file->getSize();
+        $stream = fopen($file->getRealPath(), 'rb');
+
+        $chunks = [];
         $offset = 0;
-
         while ($offset < $size) {
-            $chunk = fread($stream, $this->chunkSize);
-            $end = $offset + strlen($chunk) - 1;
-
-            Http::withHeaders(['Content-Range' => "bytes {$offset}-{$end}/{$size}"])
-                ->put($session, $chunk)
-                ->throw();
-
-            $offset += strlen($chunk);
+            $length = min($this->chunkSize, $size - $offset);
+            $chunks[] = ['offset' => $offset, 'length' => $length];
+            $offset += $length;
         }
 
+        $promises = [];
+        foreach ($chunks as $chunk) {
+            fseek($stream, $chunk['offset']);
+            $data = fread($stream, $chunk['length']);
+            $end = $chunk['offset'] + strlen($data) - 1;
+
+            $promises[] = $client->putAsync($sessionUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Range' => "bytes {$chunk['offset']}-{$end}/{$size}",
+                ],
+                'body' => $data,
+            ]);
+        }
+
+        Promise\Utils::settle($promises)->wait();
         fclose($stream);
 
         return [
             'id' => basename($fileName),
             'name' => $fileName,
-            'url' => $session
+            'url' => $sessionUrl
         ];
     }
 
     /** -----------------------------
-     * FILE UPDATE (single or multiple)
+     * FILE UPDATE
      * ----------------------------- */
-
     public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null, ?string $targetFileName = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -174,46 +186,98 @@ class SharePointService
             $file = $files[$index] ?? null;
             if (!$file instanceof UploadedFile) continue;
 
-            // 1️⃣ Upload new content (replaces old file)
-            $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+            $fileInfo = $file->getSize() <= 4 * 1024 * 1024
+                ? $this->updateSmallFile($fileId, $file, $driveId, $targetFileName)
+                : $this->updateLargeFileAsync($fileId, $file, $driveId, $targetFileName);
 
-            $response = Http::withToken($this->accessToken)
-                ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
-                ->put($uploadUrl)
-                ->throw();
-
-            // 2️⃣ Rename file if a target name is provided
-            $newName = $targetFileName ?? $file->getClientOriginalName();
-            $currentName = $response->json('name');
-
-            if ($newName !== $currentName) {
-                $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
-                Http::withToken($this->accessToken)
-                    ->patch($renameUrl, ['name' => $newName])
-                    ->throw();
-            }
-
-            // 3️⃣ Update metadata
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
-            // 4️⃣ Return info with UI link
-            $results[] = [
-                'id' => $fileId,
-                'name' => $newName,
-                'url' => $response->json('webUrl'),
-                'ui_url' => $this->generateUiLink($response->json('webUrl')),
-            ];
+            $results[] = $fileInfo;
         }
 
         return is_array($fileOrFiles) ? $results : $results[0];
     }
 
+    protected function updateSmallFile(string $fileId, UploadedFile $file, string $driveId, ?string $targetFileName = null): array
+    {
+        $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+
+        $response = Http::withToken($this->accessToken)
+            ->withBody(fopen($file->getRealPath(), 'rb'), $file->getMimeType())
+            ->put($uploadUrl)
+            ->throw();
+
+        $newName = $targetFileName ?? $file->getClientOriginalName();
+        $currentName = $response->json('name');
+
+        if ($newName !== $currentName) {
+            $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            Http::withToken($this->accessToken)
+                ->patch($renameUrl, ['name' => $newName])
+                ->throw();
+        }
+
+        return [
+            'id' => $fileId,
+            'name' => $newName,
+            'url' => $response->json('webUrl'),
+            'ui_url' => $this->generateUiLink($response->json('webUrl')),
+        ];
+    }
+
+    protected function updateLargeFileAsync(string $fileId, UploadedFile $file, string $driveId, ?string $targetFileName = null): array
+    {
+        $client = new Client();
+        $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+        $size = $file->getSize();
+        $stream = fopen($file->getRealPath(), 'rb');
+
+        $chunks = [];
+        $offset = 0;
+        while ($offset < $size) {
+            $length = min($this->chunkSize, $size - $offset);
+            $chunks[] = ['offset' => $offset, 'length' => $length];
+            $offset += $length;
+        }
+
+        $promises = [];
+        foreach ($chunks as $chunk) {
+            fseek($stream, $chunk['offset']);
+            $data = fread($stream, $chunk['length']);
+            $end = $chunk['offset'] + strlen($data) - 1;
+
+            $promises[] = $client->putAsync($uploadUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Range' => "bytes {$chunk['offset']}-{$end}/{$size}",
+                ],
+                'body' => $data,
+            ]);
+        }
+
+        Promise\Utils::settle($promises)->wait();
+        fclose($stream);
+
+        if ($targetFileName) {
+            $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            Http::withToken($this->accessToken)
+                ->patch($renameUrl, ['name' => $targetFileName])
+                ->throw();
+        }
+
+        return [
+            'id' => $fileId,
+            'name' => $targetFileName ?? $file->getClientOriginalName(),
+            'url' => $uploadUrl,
+            'ui_url' => $this->generateUiLink($uploadUrl),
+        ];
+    }
+
     /** -----------------------------
      * FILE PROPERTIES / DELETE / STREAM
      * ----------------------------- */
-
     public function updateFileProperties(string $fileId, array $properties, ?string $driveId = null): array
     {
         $driveId = $this->resolveDriveId($driveId);
@@ -244,45 +308,9 @@ class SharePointService
         return is_array($fileIdOrIds) ? $results : $results[0];
     }
 
-    public function streamFile(string $fileId, ?string $driveId = null)
-    {
-        $driveId = $this->resolveDriveId($driveId);
-
-        $meta = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}")
-            ->throw()
-            ->json();
-
-        $content = $this->getFileContent($fileId, $driveId)['body'];
-
-        return response($content, 200)
-            ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
-            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
-    }
-
-    public function getFileContent(string $fileId, ?string $driveId = null): array
-    {
-        $driveId = $this->resolveDriveId($driveId);
-
-        $meta = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}")
-            ->throw()
-            ->json();
-
-        $response = Http::withToken($this->accessToken)
-            ->get("https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content")
-            ->throw();
-
-        return [
-            'body' => $response->body(),
-            'mime' => $meta['file']['mimeType'] ?? 'application/octet-stream'
-        ];
-    }
-
     /** -----------------------------
      * HELPERS
      * ----------------------------- */
-
     protected function extractFileInfo($response): array
     {
         return [
