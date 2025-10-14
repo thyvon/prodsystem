@@ -258,7 +258,7 @@ class DigitalDocsApprovalController extends Controller
         return [
             'description' => 'required|string|max:1000',
             'document_type' => 'required|string|max:255',
-            'file' => $isUpdate ? 'nullable|file|max:10240' : 'required|file|max:10240',
+            'file' => $isUpdate ? 'nullable|file|max:1048576' : 'required|file|max:1048576',
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,review,acknowledge',
