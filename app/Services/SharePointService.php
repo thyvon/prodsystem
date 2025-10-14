@@ -16,7 +16,7 @@ class SharePointService
     protected int $chunkSize;
     protected Client $guzzle;
 
-    public function __construct(User $user, int $chunkSize = 10 * 1024 * 1024) // 10MB chunk
+    public function __construct(User $user, int $chunkSize = 50 * 1024 * 1024) // 50MB chunk
     {
         $this->user = $user;
         $this->chunkSize = $chunkSize;
@@ -194,9 +194,11 @@ class SharePointService
             $file = $files[$index] ?? null;
             if (!$file instanceof UploadedFile) continue;
 
-            $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+            $newName = $targetFileName ?? $file->getClientOriginalName();
 
-            $response = $this->guzzle->put($uploadUrl, [
+            // 1️⃣ Upload and replace content
+            $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+            $this->guzzle->put($uploadUrl, [
                 'headers' => [
                     'Authorization' => "Bearer {$this->accessToken}",
                     'Content-Type' => $file->getMimeType(),
@@ -204,21 +206,24 @@ class SharePointService
                 'body' => fopen($file->getRealPath(), 'rb'),
             ]);
 
-            $data = json_decode($response->getBody()->getContents(), true);
-            $newName = $targetFileName ?? $file->getClientOriginalName();
-            $currentName = $data['name'] ?? null;
+            // 2️⃣ Rename file (force extension update)
+            $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            $this->guzzle->patch($renameUrl, [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => ['name' => $newName],
+            ]);
 
-            if ($newName !== $currentName) {
-                $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
-                $this->guzzle->patch($renameUrl, [
-                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
-                    'json' => ['name' => $newName],
-                ]);
-            }
-
+            // 3️⃣ Update metadata
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
+
+            // 4️⃣ Get file info after rename
+            $infoUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            $response = $this->guzzle->get($infoUrl, [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]);
+            $data = json_decode($response->getBody()->getContents(), true);
 
             $results[] = [
                 'id' => $fileId,
