@@ -257,21 +257,15 @@ class DigitalDocsApprovalController extends Controller
     public function show(DigitalDocsApproval $digitalDocsApproval)
     {
         try {
-            Log::info('DigitalDocsApproval show started', ['id' => $digitalDocsApproval->id]);
-
             // Load related data: approvals + responder + position + creator
             $digitalDocsApproval->load([
                 'approvals.responder',
                 'approvals.responderPosition',
                 'creator',
             ]);
-            Log::info('Loaded approvals and responder positions', [
-                'approvals_count' => $digitalDocsApproval->approvals->count()
-            ]);
 
             // Determine if approval button should be shown
             $approvalButtonData = $this->canShowApprovalButton($digitalDocsApproval->id);
-            Log::info('Approval button data', $approvalButtonData);
 
             // Track duplicate request_type counts for "Co-" labeling
             $typeOccurrenceCounts = [];
@@ -315,8 +309,7 @@ class DigitalDocsApprovalController extends Controller
                         ] : null,
                     ];
                 });
-
-            Log::info('Mapped approvals for view', ['approvals' => $approvals]);
+            $streamUrl = route('digital-approval.view-file', $digitalDocsApproval);
 
             return view('approval.digital-approval-show', [
                 'digitalDocsApproval' => $digitalDocsApproval,
@@ -324,6 +317,7 @@ class DigitalDocsApprovalController extends Controller
                 'showApprovalButton' => $approvalButtonData['showButton'] ?? false,
                 'approvalRequestType' => $approvalButtonData['requestType'] ?? 'approve',
                 'approvalButtonData' => $approvalButtonData,
+                'streamUrl' => $streamUrl,
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching digital approval for display', [

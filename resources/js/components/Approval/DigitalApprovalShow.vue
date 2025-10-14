@@ -13,7 +13,7 @@
     <!-- Body -->
     <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
       <div class="row mb-2">
-        <div class="col-6">
+        <div class="col-3">
           <p class="text-muted mb-1">
             CREATED BY / អ្នករៀបចំ:
             <span class="font-weight-bold">{{ digitalDoc.creator?.name ?? 'N/A' }}</span>
@@ -24,7 +24,12 @@
           </p>
         </div>
 
-        <div class="col-6 text-right">
+        <div class="col-6 text-center">
+          <h4 class="font-weight-bold text-dark">ឯកសារ</h4>
+          <h4 class="font-weight-bold text-dark">DIGITAL DOCUMENT APPROVAL</h4>
+        </div>
+
+        <div class="col-3 text-right">
           <p class="text-muted mb-1">
             REF / លេខយោង: <span class="font-weight-bold">{{ digitalDoc.reference_no ?? 'N/A' }}</span>
           </p>
@@ -34,14 +39,40 @@
         </div>
       </div>
 
-      <!-- Description and File Link -->
+      <!-- Description and File Preview -->
       <div class="mb-3">
         <p class="text-muted mb-1">DESCRIPTION / ពិពណ៌នា:</p>
         <p class="font-weight-bold">{{ digitalDoc.description ?? 'N/A' }}</p>
+
         <p class="text-muted mb-1">FILE / ឯកសារ:</p>
         <p>
-          <a :href="digitalDoc.sharepoint_file_url" target="_blank">{{ digitalDoc.sharepoint_file_name }}</a>
+          <a :href="digitalDoc.sharepoint_file_ui_url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+            <i class="fal fa-external-link"></i> Open in SharePoint
+          </a>
+          <a :href="streamUrl" target="_blank" download class="btn btn-sm btn-outline-secondary">
+            <i class="fal fa-download"></i> Download
+          </a>
         </p>
+
+        <!-- PDF.js Preview -->
+        <div v-if="isPdf" class="mt-3 border rounded bg-light overflow-hidden" style="height: 800px;">
+          <div class="p-3 bg-white">
+            <h6 class="mb-2"><i class="fal fa-file-pdf text-danger"></i> PDF Preview</h6>
+            <div id="pdf-viewer-container" class="border" style="height: 700px; overflow: auto; background: #f8f9fa;">
+              <!-- PDF pages render here -->
+            </div>
+          </div>
+          <div class="p-2 text-center bg-light">
+            <small class="text-muted">Use mouse wheel to zoom. Scroll to navigate pages.</small>
+          </div>
+        </div>
+
+        <!-- Image Preview -->
+        <div v-else-if="isImage" class="mt-3 text-center border rounded bg-light p-3">
+          <img :src="streamUrl" class="img-fluid rounded" style="max-height: 700px;" :alt="digitalDoc.sharepoint_file_name">
+        </div>
+
+        <p v-else class="text-muted mt-3">Preview not available for this file type. Use the links above.</p>
       </div>
 
       <!-- Approvals -->
@@ -108,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateWithTime, formatDateShort } from '@/Utils/dateFormat'
@@ -132,9 +163,87 @@ const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 
-const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
-const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
+// File Preview
+const isPdf = computed(() => props.digitalDoc?.sharepoint_file_name?.toLowerCase().endsWith('.pdf'))
+const isImage = computed(() => /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(props.digitalDoc?.sharepoint_file_name ?? ''))
+const streamUrl = computed(() => `/digital-docs-approvals/${props.digitalDoc.id}/view`)
 
+// PDF.js setup
+let pdfjsLib = null
+const pdfLoading = ref(false)
+
+onMounted(async () => {
+  if (isPdf.value) {
+    await loadPdfJsFromCdn()
+    await renderPdf()
+  }
+})
+
+const loadPdfJsFromCdn = async () => {
+  if (pdfjsLib) return
+  pdfLoading.value = true
+  try {
+    const pdfModule = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.min.mjs')
+    pdfjsLib = pdfModule
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs'
+  } catch (err) {
+    console.error('PDF.js load error:', err)
+    showAlert('Error', 'Failed to load PDF viewer.', 'danger')
+  } finally { pdfLoading.value = false }
+}
+
+const renderPdf = async () => {
+  if (!pdfjsLib || !streamUrl.value) return
+  const container = document.getElementById('pdf-viewer-container')
+  if (!container) return
+  container.innerHTML = '<div class="text-center p-4"><i class="fal fa-spinner fa-spin"></i> Loading PDF...</div>'
+
+  try {
+    const loadingTask = pdfjsLib.getDocument({
+      url: streamUrl.value,
+      withCredentials: true,
+      httpHeaders: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+    })
+    const pdf = await loadingTask.promise
+    container.innerHTML = ''
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum)
+      const scale = 1.5
+      const viewport = page.getViewport({ scale })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const ctx = canvas.getContext('2d')
+      await page.render({ canvasContext: ctx, viewport }).promise
+
+      const pageDiv = document.createElement('div')
+      pageDiv.style.marginBottom = '20px'
+      pageDiv.style.textAlign = 'center'
+      pageDiv.appendChild(canvas)
+
+      const label = document.createElement('small')
+      label.textContent = `Page ${pageNum} of ${pdf.numPages}`
+      label.style.display = 'block'
+      label.style.color = '#6c757d'
+      pageDiv.appendChild(label)
+
+      container.appendChild(pageDiv)
+    }
+  } catch (err) {
+    console.error('PDF.js render error:', err)
+    container.innerHTML = `
+      <div class="text-center p-4">
+        <i class="fal fa-exclamation-triangle text-warning fa-2x"></i>
+        <p class="mt-2">Failed to load PDF preview.</p>
+        <a href="${streamUrl.value}" class="btn btn-sm btn-primary" target="_blank">Open PDF in New Tab</a>
+      </div>
+    `
+  }
+}
+
+// Approval Actions
+const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
 const submitApproval = async (action) => {
   loading.value = true
   try {
@@ -142,9 +251,8 @@ const submitApproval = async (action) => {
     showAlert('success', res.data.message || 'Action submitted successfully.')
     $('#confirmModal').modal('hide')
     setTimeout(() => window.location.href = res.data.redirect_url || window.location.href, 1500)
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
-  } finally { loading.value = false }
+  } catch (err) { showAlert('Error', err.response?.data?.message || 'Action failed.','danger') }
+  finally { loading.value = false }
 }
 
 const openReassignModal = async () => {
@@ -183,4 +291,5 @@ const cleanupReassignModal = () => {
 <style scoped>
 .modal { overflow: visible !important; }
 .select2-container--default .select2-dropdown { z-index: 1060 !important; }
+.pdf-page-canvas { image-rendering: -webkit-optimize-contrast; }
 </style>
