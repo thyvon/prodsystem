@@ -23,7 +23,6 @@ class SharePointService
         $this->siteId = config('services.sharepoint.site_id')
             ?: throw new \InvalidArgumentException('SharePoint site_id not set');
         $this->guzzle = new Client(['timeout' => 0, 'connect_timeout' => 0]);
-        $this->accessToken = $this->getValidAccessToken();
     }
 
     /** -----------------------------

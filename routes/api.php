@@ -96,7 +96,7 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware(['auth:sanctum', 'role:admin', 'refresh.microsoft'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     // Users Management
     Route::get('/users', [UserController::class, 'getUsers']);
     Route::post('/users', [UserController::class, 'store']);
@@ -177,7 +177,7 @@ Route::middleware(['auth:sanctum', 'role:admin', 'refresh.microsoft'])->group(fu
     Route::delete('/toca-amounts/{tocaAmount}', [TocaAmountController::class, 'destroy'])->middleware('can:delete,tocaAmount');
 });
 
-Route::middleware(['auth:sanctum', 'refresh.microsoft'])->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
     // Product Management - Main Categories
     Route::get('/main-categories', [MainCategoryController::class, 'getMainCategories'])->middleware('can:viewAny,' . MainCategory::class)->name('api.main-categories.index');
     Route::get('/main-categories/{mainCategory}/edit', [MainCategoryController::class, 'edit'])->middleware('can:update,mainCategory')->name('api.main-categories.edit');

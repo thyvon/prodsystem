@@ -96,7 +96,7 @@ use App\Models\DocumentTransfer;
 // Home Route - Choose one (Dashboard or Welcome)
 Route::get('/', function () {
     return view('dashboard'); // Show the dashboard view
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth'])->name('dashboard');
 
 // Profile Routes (Authenticated Users)
 Route::middleware('auth')->group(function () {
@@ -106,7 +106,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Admin Routes - Only accessible to users with 'admin' role
-Route::middleware(['auth', 'role:admin', 'refresh.microsoft'])->group(function () {
+Route::middleware(['auth', 'role:admin'])->group(function () {
     // Route::resource('roles', RoleController::class);
     Route::resource('permissions', PermissionController::class);
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
@@ -116,7 +116,7 @@ Route::middleware(['auth', 'role:admin', 'refresh.microsoft'])->group(function (
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
 });
 
-Route::middleware(['auth', 'verified', 'refresh.microsoft'])->group(function () {
+Route::middleware(['auth'])->group(function () {
     // Campuses
     Route::get('/campuses', [CampusController::class, 'index'])
         ->name('campuses.index')->middleware('can:viewAny,' . Campus::class);
