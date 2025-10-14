@@ -174,6 +174,7 @@ class SharePointService
             $file = $files[$index] ?? null;
             if (!$file instanceof UploadedFile) continue;
 
+            // Upload new file content (replaces existing content)
             $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
 
             $response = Http::withToken($this->accessToken)
@@ -181,10 +182,15 @@ class SharePointService
                 ->put($url)
                 ->throw();
 
+            // Automatically include the new file name (with correct extension)
+            $properties['name'] = $properties['name'] ?? $file->getClientOriginalName();
+
+            // Update file metadata (including name or other properties)
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
+            // Merge file info and UI link
             $results[] = array_merge(
                 $this->extractFileInfo($response),
                 ['ui_url' => $this->generateUiLink($response->json('webUrl'))]

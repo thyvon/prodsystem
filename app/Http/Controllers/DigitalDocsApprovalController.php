@@ -166,9 +166,6 @@ class DigitalDocsApprovalController extends Controller
 
     public function update(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
     {
-        // Log the incoming request data for debugging
-        Log::info('Update request data:', $request->all());
-
         try {
             // Validate request
             $validated = Validator::make($request->all(), $this->digitalDocsApprovalValidationRulesForUpdate())->validate();
