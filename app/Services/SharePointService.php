@@ -32,14 +32,13 @@ class SharePointService
     protected function getValidAccessToken(): string
     {
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
-            throw new \RuntimeException('User does not have Microsoft tokens.');
+            return $this->forceMicrosoftLogin();
         }
 
         $expiresAt = $this->user->microsoft_token_expires_at
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
-        // Refresh if expired or less than 5 minutes left
         if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
             return $this->refreshAccessToken();
         }
@@ -70,11 +69,11 @@ class SharePointService
             $data = json_decode($response->getBody()->getContents(), true);
 
             if (!isset($data['access_token']) || isset($data['error'])) {
-                Log::error('Microsoft token refresh failed', [
+                Log::warning('Microsoft token refresh failed', [
                     'user_id' => $this->user->id,
                     'body' => $data
                 ]);
-                throw new \RuntimeException('Failed to refresh Microsoft access token.');
+                return $this->forceMicrosoftLogin();
             }
 
             $this->user->update([
@@ -91,18 +90,31 @@ class SharePointService
                 'user_id' => $this->user->id ?? null,
                 'message' => $e->getMessage(),
             ]);
-            throw new \RuntimeException('Microsoft access token refresh failed.');
+            return $this->forceMicrosoftLogin();
         }
     }
 
+    protected function forceMicrosoftLogin(): never
+    {
+        $this->user->update([
+            'microsoft_token' => null,
+            'microsoft_refresh_token' => null,
+            'microsoft_token_expires_at' => null,
+        ]);
+
+        redirect()->route('microsoft.login')->send();
+        exit;
+    }
+
     /** -----------------------------
-     * FILE UPLOAD (single or multiple)
+     * FILE UPLOAD
      * ----------------------------- */
 
     public function uploadFile(mixed $fileOrFiles, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
     {
         $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
+
         $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
         $results = [];
 
@@ -110,6 +122,7 @@ class SharePointService
             if (!$file instanceof UploadedFile) continue;
 
             $name = $fileName ?? time() . '_' . $file->getClientOriginalName();
+
             $fileInfo = $file->getSize() <= 4 * 1024 * 1024
                 ? $this->uploadSmallFile($file, $folderPath, $name, $driveId)
                 : $this->uploadLargeFile($file, $folderPath, $name, $driveId);
@@ -194,6 +207,7 @@ class SharePointService
     {
         $this->accessToken = $this->getValidAccessToken();
         $driveId = $this->resolveDriveId($driveId);
+
         $fileIds = is_array($fileIdOrData) ? $fileIdOrData : [$fileIdOrData];
         $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
         $results = [];
@@ -204,7 +218,7 @@ class SharePointService
 
             $newName = $targetFileName ?? $file->getClientOriginalName();
 
-            // 1️⃣ Upload and replace content
+            // Replace content
             $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
             $this->guzzle->put($uploadUrl, [
                 'headers' => [
@@ -214,23 +228,21 @@ class SharePointService
                 'body' => fopen($file->getRealPath(), 'rb'),
             ]);
 
-            // 2️⃣ Rename file (force extension update)
+            // Rename file
             $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
             $this->guzzle->patch($renameUrl, [
                 'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
                 'json' => ['name' => $newName],
             ]);
 
-            // 3️⃣ Update metadata
+            // Update metadata
             if (!empty($properties)) {
                 $this->updateFileProperties($fileId, $properties, $driveId);
             }
 
-            // 4️⃣ Get file info after rename
+            // Get file info
             $infoUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
-            $response = $this->guzzle->get($infoUrl, [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
-            ]);
+            $response = $this->guzzle->get($infoUrl, ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]);
             $data = json_decode($response->getBody()->getContents(), true);
 
             $results[] = [
@@ -272,9 +284,7 @@ class SharePointService
         foreach ($fileIds as $fileId) {
             $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
             try {
-                $this->guzzle->delete($url, [
-                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
-                ]);
+                $this->guzzle->delete($url, ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]);
                 $results[] = true;
             } catch (\Throwable $e) {
                 if (!$ignoreNotFound) throw $e;
