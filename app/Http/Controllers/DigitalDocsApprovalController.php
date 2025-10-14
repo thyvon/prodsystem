@@ -190,6 +190,7 @@ class DigitalDocsApprovalController extends Controller
 
                     $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
+                    $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
                     // Only update SharePoint file properties
