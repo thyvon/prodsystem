@@ -176,11 +176,15 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $digitalDocsApproval, $sharePoint, $user) {
                 $customDriveId = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-                // Handle file upload if a new file is provided
+                // If user uploads a new file
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
                     $extension = $file->getClientOriginalExtension();
 
+                    // Use the same reference number for naming
+                    $newFileName = "{$digitalDocsApproval->reference_no}.{$extension}";
+
+                    // Re-upload file content
                     $fileData = $sharePoint->updateFile(
                         $digitalDocsApproval->sharepoint_file_id,
                         $file,
@@ -188,12 +192,20 @@ class DigitalDocsApprovalController extends Controller
                         $customDriveId
                     );
 
-                    $digitalDocsApproval->sharepoint_file_name = $fileData['name'];
+                    // Update SharePoint file name to match naming convention
+                    $sharePoint->updateFileProperties(
+                        $digitalDocsApproval->sharepoint_file_id,
+                        ['name' => $newFileName],
+                        $customDriveId
+                    );
+
+                    // Update local database record
+                    $digitalDocsApproval->sharepoint_file_name = $newFileName;
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                     $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
                     $digitalDocsApproval->sharepoint_drive_id = $customDriveId;
                 } else {
-                    // Only update SharePoint file properties
+                    // Only update SharePoint file properties (description/Title)
                     $sharePoint->updateFileProperties(
                         $digitalDocsApproval->sharepoint_file_id,
                         ['Title' => $validated['description']],
@@ -206,7 +218,7 @@ class DigitalDocsApprovalController extends Controller
                 $digitalDocsApproval->document_type = $validated['document_type'];
                 $digitalDocsApproval->save();
 
-                // Delete old approvals and store new ones
+                // Replace existing approvals
                 $digitalDocsApproval->approvals()->delete();
                 $this->storeApprovals($digitalDocsApproval, $validated['approvals']);
 
@@ -216,7 +228,6 @@ class DigitalDocsApprovalController extends Controller
                 ]);
             });
         } catch (\Illuminate\Validation\ValidationException $ve) {
-            // Log validation errors
             Log::error('Validation failed for updating digital document approval', [
                 'errors' => $ve->errors(),
                 'request' => $request->all()
@@ -227,7 +238,10 @@ class DigitalDocsApprovalController extends Controller
                 'errors' => $ve->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Failed to update digital document approval', ['error' => $e->getMessage(), 'request' => $request->all()]);
+            Log::error('Failed to update digital document approval', [
+                'error' => $e->getMessage(),
+                'request' => $request->all()
+            ]);
 
             return response()->json([
                 'message' => 'Failed to update digital document approval.',
