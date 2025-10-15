@@ -211,11 +211,13 @@ const streamUrl = computed(() => {
 })
 
 const pdfViewerUrl = computed(() => {
-  const fileUrl = props.digitalDoc?.id
-    ? encodeURIComponent(`/digital-docs-approvals/${props.digitalDoc.id}/view`)
-    : encodeURIComponent('/pdfjs/sample.pdf') // fallback sample
-  return `/pdfjs/web/viewer.html?file=${fileUrl}`
-})
+  let fileUrl = props.digitalDoc?.id
+      ? `/digital-docs-approvals/${props.digitalDoc.id}/view`
+      : '/pdfjs/sample.pdf'; // fallback
+
+  fileUrl = encodeURIComponent(fileUrl); // important
+  return `/pdfjs/web/viewer.html?file=${fileUrl}`;
+});
 
 // Approval actions
 const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }

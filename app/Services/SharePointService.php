@@ -310,9 +310,16 @@ class SharePointService
         $meta = $this->getFileMetadata($fileId, $driveId);
         $content = $this->getFileContent($fileId, $driveId)['body'];
 
+        // Determine MIME type
+        $mimeType = $meta['file']['mimeType'] ?? 'application/octet-stream';
+        if (str_ends_with(strtolower($meta['name']), '.pdf')) {
+            $mimeType = 'application/pdf'; // Force PDF.js compatible type
+        }
+
         return response($content, 200)
-            ->header('Content-Type', $meta['file']['mimeType'] ?? 'application/octet-stream')
-            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"");
+            ->header('Content-Type', $mimeType)
+            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"")
+            ->header('Accept-Ranges', 'bytes'); // optional, helps PDF.js with large PDFs
     }
 
     public function getFileContent(string $fileId, ?string $driveId = null): array
