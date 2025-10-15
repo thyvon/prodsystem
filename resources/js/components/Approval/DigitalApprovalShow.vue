@@ -55,13 +55,13 @@
           </a>
         </p>
 
-        <!-- ✅ PDF.js Web Viewer (Local Option 1) -->
-        <div v-if="isPdf" class="mt-3 border rounded" style="height:800px;">
+        <!-- PDF Viewer -->
+        <div v-if="isPdf" class="mt-3 border rounded" style="height:1000px;">
           <iframe
             :src="pdfViewerUrl"
             style="width:100%; height:100%; border:none;"
-            allowfullscreen>
-          </iframe>
+            allowfullscreen
+          ></iframe>
         </div>
 
         <!-- Image Preview -->
@@ -69,7 +69,14 @@
           <img :src="streamUrl" class="img-fluid rounded" style="max-height:700px;" :alt="digitalDoc.sharepoint_file_name">
         </div>
 
-        <p v-else class="text-muted mt-3">Preview not available for this file type. Use the links above.</p>
+        <!-- Fallback -->
+        <div v-else class="mt-3 border rounded" style="height:1000px;">
+          <iframe
+            src="/pdfjs/sample.pdf"
+            style="width:100%; height:100%; border:none;"
+            allowfullscreen
+          ></iframe>
+        </div>
       </div>
 
       <!-- Approvals -->
@@ -106,8 +113,9 @@
           </div>
           <div v-if="approvals.length === 0" class="col-12 text-center">No approvals available.</div>
         </div>
+      </div>
 
-        <!-- Reassign Modal -->
+      <!-- Reassign Modal -->
       <div class="modal fade" id="reassignModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
@@ -138,7 +146,6 @@
         </div>
       </div>
 
-      </div>
     </div>
 
     <!-- Footer -->
@@ -187,23 +194,30 @@ const usersList = ref([])
 const currentAction = ref('approve')
 const commentInput = ref('')
 
+// Helpers
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 
+// File type detection
 const isPdf = computed(() => props.digitalDoc?.sharepoint_file_name?.toLowerCase().endsWith('.pdf'))
 const isImage = computed(() => /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(props.digitalDoc?.sharepoint_file_name ?? ''))
-const streamUrl = computed(() => `/digital-docs-approvals/${props.digitalDoc.id}/view`)
 
-// ✅ PDF.js Web Viewer URL (Local Option 1)
-const pdfViewerUrl = computed(() => {
-  if (!props.digitalDoc?.id) return ''
-  const url = encodeURIComponent(streamUrl.value)
-  return `/pdfjs/web/viewer.html?file=${url}`
+// File URLs
+const streamUrl = computed(() => {
+  if (!props.digitalDoc?.id) return '/pdfjs/sample.pdf'
+  return `/digital-docs-approvals/${props.digitalDoc.id}/view`
 })
 
-// Approval actions (unchanged)
+const pdfViewerUrl = computed(() => {
+  const fileUrl = props.digitalDoc?.id
+    ? encodeURIComponent(`/digital-docs-approvals/${props.digitalDoc.id}/view`)
+    : encodeURIComponent('/pdfjs/sample.pdf') // fallback sample
+  return `/pdfjs/web/viewer.html?file=${fileUrl}`
+})
+
+// Approval actions
 const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
 const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
 
@@ -218,6 +232,7 @@ const submitApproval = async (action) => {
   finally { loading.value = false }
 }
 
+// Reassign approval
 const openReassignModal = async () => {
   loading.value = true
   try {
