@@ -26,11 +26,11 @@ class MicrosoftAuthController extends Controller
                 'profile',
                 'email',
                 'User.Read',
-                'Files.ReadWrite',
-                'Sites.ReadWrite.All', // Add this scope
+                'Files.ReadWrite.All', // Updated to .All
+                'Sites.ReadWrite.All',
                 'offline_access', // Required for refresh token
             ])
-            ->with(['prompt' => 'select_account'])
+            ->with(['prompt' => 'select_account']) // Consider 'consent' conditionally for testing
             ->redirect();
     }
 
@@ -42,6 +42,18 @@ class MicrosoftAuthController extends Controller
         try {
             $microsoftUser = Socialite::driver('microsoft')->stateless()->user();
 
+            // Extract refresh token from raw response if not on the object
+            $tokenResponse = $microsoftUser->tokenResponse ?? [];
+            $refreshToken = $microsoftUser->refreshToken ?? $tokenResponse['refresh_token'] ?? null;
+
+            if (!$refreshToken) {
+                Log::warning('No refresh token received from Microsoft', [
+                    'user_id' => $microsoftUser->getId(),
+                    'raw_response' => $tokenResponse,
+                ]);
+                // Optionally, force re-auth with prompt=consent here
+            }
+
             $user = User::updateOrCreate(
                 ['email' => $microsoftUser->getEmail()],
                 [
@@ -49,8 +61,8 @@ class MicrosoftAuthController extends Controller
                     'microsoft_id'                => $microsoftUser->getId(),
                     'password'                    => bcrypt(Str::random(16)),
                     'microsoft_token'             => $microsoftUser->token,
-                    'microsoft_refresh_token'     => $microsoftUser->refreshToken ?? null,
-                    'microsoft_token_expires_at'  => now()->addSeconds($microsoftUser->expiresIn),
+                    'microsoft_refresh_token'     => $refreshToken,
+                    'microsoft_token_expires_at'  => $microsoftUser->expiresIn ? now()->addSeconds($microsoftUser->expiresIn) : null,
                 ]
             );
 
@@ -63,6 +75,7 @@ class MicrosoftAuthController extends Controller
                 'user_id' => $user->id,
                 'email'   => $user->email,
                 'expires' => $user->microsoft_token_expires_at,
+                'refresh_token' => $user->microsoft_refresh_token, // Added for debugging
             ]);
 
             return redirect('/');

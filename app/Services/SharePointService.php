@@ -33,6 +33,7 @@ class SharePointService
     {
         // If tokens are missing, force login
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
+            Log::warning('Missing tokens, forcing re-auth', ['user_id' => $this->user->id]);
             return $this->forceMicrosoftLogin();
         }
 
@@ -40,8 +41,8 @@ class SharePointService
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
-        // Refresh if token expired or less than 5 minutes left
-        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(5))) {
+        // Refresh if token expired or less than 15 minutes left (extended buffer)
+        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(15))) {
             return $this->refreshAccessToken();
         }
 
