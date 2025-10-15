@@ -103,12 +103,19 @@ class SharePointService
 
     protected function forceMicrosoftLogin(): never
     {
-        // Clear tokens
+        // Clear stored Microsoft tokens
         $this->user->update([
             'microsoft_token' => null,
             'microsoft_refresh_token' => null,
             'microsoft_token_expires_at' => null,
         ]);
+
+        // Log out the user from Laravel authentication
+        Auth::logout();
+
+        // Invalidate the session and regenerate CSRF token
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
 
         // Redirect user to Microsoft login route
         redirect()->route('microsoft.login')->send();
