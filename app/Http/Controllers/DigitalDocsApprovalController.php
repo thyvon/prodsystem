@@ -111,37 +111,27 @@ class DigitalDocsApprovalController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
-
                 $referenceNo = $this->generateReferenceNo();
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
+                $file = $request->file('file');
+                $extension = $file->getClientOriginalExtension();
 
-                $files = $request->file('file'); 
-                $files = is_array($files) ? $files : [$files];
-                $uploadedFilesData = [];
-
-                foreach ($files as $file) {
-                    $extension = $file->getClientOriginalExtension();
-                    $fileName = "{$referenceNo}.{$extension}";
-                    $fileData = $sharePoint->uploadFile(
-                        $file,
-                        $folderPath,
-                        $fileName,
-                        ['Title' => $validated['description']],
-                        fn($uploaded, $total) => Log::info("Uploading {$fileName}: {$uploaded}/{$total}")
-                    );
-                    $uploadedFilesData[] = $fileData;
-                }
-
-                $firstFileData = $uploadedFilesData[0];
+                $fileData = $sharePoint->uploadFile(
+                    $file,
+                    $folderPath,
+                    ['Title' => $validated['description']],
+                    "{$referenceNo}.{$extension}",
+                    self::CUSTOM_DRIVE_ID
+                );
 
                 $digitalDocsApproval = DigitalDocsApproval::create([
                     'reference_no' => $referenceNo,
                     'description' => $validated['description'],
                     'document_type' => $validated['document_type'],
-                    'sharepoint_file_id' => $firstFileData['id'],
-                    'sharepoint_file_name' => $firstFileData['name'],
-                    'sharepoint_file_url' => $firstFileData['url'],
-                    'sharepoint_file_ui_url' => $firstFileData['ui_url'],
+                    'sharepoint_file_id' => $fileData['id'],
+                    'sharepoint_file_name' => $fileData['name'],
+                    'sharepoint_file_url' => $fileData['url'],
+                    'sharepoint_file_ui_url' => $fileData['ui_url'],
                     'sharepoint_drive_id' => self::CUSTOM_DRIVE_ID,
                     'approval_status' => 'Pending',
                     'created_by' => $user->id,
@@ -175,23 +165,25 @@ class DigitalDocsApprovalController extends Controller
                 if ($request->hasFile('file')) {
                     $file = $request->file('file');
                     $extension = $file->getClientOriginalExtension();
-                    $fileName = "{$digitalDocsApproval->reference_no}.{$extension}";
+                    $newFileName = "{$digitalDocsApproval->reference_no}.{$extension}";
 
                     $fileData = $sharePoint->updateFile(
-                        $digitalDocsApproval->sharepoint_file_url,
+                        $digitalDocsApproval->sharepoint_file_id,
                         $file,
                         ['Title' => $validated['description']],
-                        fn($uploaded, $total) => Log::info("Updating {$fileName}: {$uploaded}/{$total}")
+                        self::CUSTOM_DRIVE_ID,
+                        $newFileName
                     );
 
-                    $digitalDocsApproval->sharepoint_file_name = $fileName;
+                    $digitalDocsApproval->sharepoint_file_name = $newFileName;
                     $digitalDocsApproval->sharepoint_file_url = $fileData['url'];
                     $digitalDocsApproval->sharepoint_file_ui_url = $fileData['ui_url'];
                     $digitalDocsApproval->sharepoint_drive_id = self::CUSTOM_DRIVE_ID;
                 } else {
                     $sharePoint->updateFileProperties(
-                        $digitalDocsApproval->sharepoint_file_url,
-                        ['Title' => $validated['description']]
+                        $digitalDocsApproval->sharepoint_file_id,
+                        ['Title' => $validated['description']],
+                        $digitalDocsApproval->sharepoint_drive_id
                     );
                 }
 
@@ -207,6 +199,9 @@ class DigitalDocsApprovalController extends Controller
                     'data' => $digitalDocsApproval->load('approvals.responder'),
                 ]);
             });
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            Log::error('Validation failed', ['errors' => $ve->errors(), 'request' => $request->all()]);
+            return response()->json(['message' => 'Validation failed.', 'errors' => $ve->errors()], 422);
         } catch (\Exception $e) {
             Log::error('Update failed', ['error' => $e->getMessage(), 'request' => $request->all()]);
             return response()->json(['message' => 'Failed to update digital document approval.', 'error' => $e->getMessage()], 500);
@@ -221,8 +216,8 @@ class DigitalDocsApprovalController extends Controller
         try {
             return DB::transaction(function () use ($digitalDocsApproval, $sharePoint, $user) {
 
-                if ($digitalDocsApproval->sharepoint_file_url) {
-                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_url);
+                if ($digitalDocsApproval->sharepoint_file_id) {
+                    $sharePoint->deleteFile($digitalDocsApproval->sharepoint_file_id, self::CUSTOM_DRIVE_ID, true);
                 }
 
                 $digitalDocsApproval->approvals()->delete();
@@ -235,6 +230,24 @@ class DigitalDocsApprovalController extends Controller
         } catch (\Exception $e) {
             Log::error('Delete failed', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Failed to delete digital document approval.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    // =======================
+    // File Viewing
+    // =======================
+    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
+    {
+        if (!$digitalDocsApproval->sharepoint_file_id || !$digitalDocsApproval->sharepoint_drive_id) {
+            abort(404, "File not found.");
+        }
+
+        $sharePoint = new SharePointService(Auth::user());
+
+        try {
+            return $sharePoint->streamFile($digitalDocsApproval->sharepoint_file_id, $digitalDocsApproval->sharepoint_drive_id);
+        } catch (\Exception $e) {
+            abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
     }
 
@@ -321,31 +334,7 @@ class DigitalDocsApprovalController extends Controller
     }
 
     // =======================
-    // File Viewing
-    // =======================
-    public function viewFile(DigitalDocsApproval $digitalDocsApproval)
-    {
-        if (!$digitalDocsApproval->sharepoint_file_url) {
-            abort(404, "File not found.");
-        }
-
-        $sharePoint = new SharePointService(Auth::user());
-
-        try {
-            // Split the full URL into path and file name
-            $fileUrl = $digitalDocsApproval->sharepoint_file_url;
-            $fileName = basename($fileUrl); // Extract filename
-            $filePath = dirname($fileUrl); // Extract path without filename
-
-            return $sharePoint->streamFile($filePath, $fileName);
-        } catch (\Exception $e) {
-            abort(404, "File not found or access denied. Error: " . $e->getMessage());
-        }
-    }
-
-
-    // =======================
-    // Helper & Approvals
+    // Helpers
     // =======================
     private function validationRules(bool $isUpdate = false): array
     {
@@ -397,7 +386,7 @@ class DigitalDocsApprovalController extends Controller
     private function formatDigitalDoc(DigitalDocsApproval $doc): array
     {
         $extension = strtolower(pathinfo($doc->sharepoint_file_name ?? '', PATHINFO_EXTENSION));
-        $uiExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'svg'];
+        $uiExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'svg']; // supported UI types
 
         $fileUiUrl = in_array($extension, $uiExtensions) 
             ? $doc->sharepoint_file_ui_url 
@@ -413,7 +402,7 @@ class DigitalDocsApprovalController extends Controller
             'created_by' => $doc->creator->name ?? 'Unknown',
             'updated_at' => $doc->updated_at,
             'sharepoint_file_url' => $doc->sharepoint_file_url,
-            'sharepoint_file_ui_url' => $fileUiUrl,
+            'sharepoint_file_ui_url' => $fileUiUrl, // conditional UI link
             'approvals' => $doc->approvals->map(fn($a) => [
                 'id' => $a->id,
                 'request_type' => $a->request_type,
@@ -443,7 +432,7 @@ class DigitalDocsApprovalController extends Controller
             default => 1,
         };
     }
-    
+
     private function canShowApprovalButton(int $documentId): array
     {
         try {

@@ -257,10 +257,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('digital-docs-approvals.create');
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/edit', [DigitalDocsApprovalController::class, 'form'])
         ->name('digital-docs-approvals.edit');
-    Route::get('/digital-docs-approvals/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
-    ->name('digital-approval.view-file');
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/show', [DigitalDocsApprovalController::class, 'show'])
         ->name('digital-docs-approvals.show');
+    Route::get('/digital-docs-approvals/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
+    ->name('digital-approval.view-file');
 
 });
 

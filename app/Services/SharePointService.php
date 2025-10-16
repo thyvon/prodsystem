@@ -7,34 +7,33 @@ use Illuminate\Http\UploadedFile;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class SharePointService
 {
     protected User $user;
     protected string $accessToken;
-    protected string $siteUrl;
+    protected string $siteId;
     protected int $chunkSize;
     protected Client $guzzle;
-    protected int $maxRetries = 3;
 
-    public function __construct(User $user, int $chunkSize = 50 * 1024 * 1024)
+    public function __construct(User $user, int $chunkSize = 50 * 1024 * 1024) // 50MB
     {
         $this->user = $user;
         $this->chunkSize = $chunkSize;
-        $this->siteUrl = config('services.sharepoint.site_url') 
-            ?: throw new \InvalidArgumentException('SharePoint site_url not set');
+        $this->siteId = config('services.sharepoint.site_id')
+            ?: throw new \InvalidArgumentException('SharePoint site_id not set');
         $this->guzzle = new Client(['timeout' => 0, 'connect_timeout' => 0]);
     }
 
     /** -----------------------------
      * TOKEN MANAGEMENT
      * ----------------------------- */
-    protected function getAccessToken(): string
+
+    protected function getValidAccessToken(): string
     {
+        // If tokens are missing, force login
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
-            Log::warning('Missing Microsoft tokens', ['user_id' => $this->user->id]);
+            Log::warning('Missing tokens, forcing re-auth', ['user_id' => $this->user->id]);
             return $this->forceMicrosoftLogin();
         }
 
@@ -42,7 +41,8 @@ class SharePointService
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
-        if (!$expiresAt || Carbon::now()->addMinutes(5)->gte($expiresAt)) {
+        // Refresh if token expired or less than 15 minutes left (extended buffer)
+        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(15))) {
             return $this->refreshAccessToken();
         }
 
@@ -56,64 +56,81 @@ class SharePointService
             $clientId = config('services.microsoft.client_id');
             $clientSecret = config('services.microsoft.client_secret');
 
-            $response = $this->guzzle->post("https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token", [
-                'form_params' => [
-                    'client_id' => $clientId,
-                    'client_secret' => $clientSecret,
-                    'grant_type' => 'refresh_token',
-                    'refresh_token' => $this->user->microsoft_refresh_token,
-                    'scope' => 'User.Read Sites.ReadWrite.All offline_access',
-                ],
-                'timeout' => 15,
-            ]);
+            $response = $this->guzzle->post(
+                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+                [
+                    'form_params' => [
+                        'client_id' => $clientId,
+                        'client_secret' => $clientSecret,
+                        'grant_type' => 'refresh_token',
+                        'refresh_token' => $this->user->microsoft_refresh_token,
+                        'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    ],
+                ]
+            );
 
             $data = json_decode($response->getBody()->getContents(), true);
 
-            if (!isset($data['access_token'])) {
-                Log::warning('Microsoft token refresh failed', ['user_id' => $this->user->id, 'body' => $data]);
+            // If refresh fails, force login
+            if (!isset($data['access_token']) || isset($data['error'])) {
+                Log::warning('Microsoft token refresh failed', [
+                    'user_id' => $this->user->id,
+                    'body' => $data,
+                ]);
                 return $this->forceMicrosoftLogin();
             }
 
+            // Save new tokens
             $this->user->update([
                 'microsoft_token' => $data['access_token'],
                 'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
                 'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
             ]);
 
-            Log::info("Microsoft token refreshed successfully", ['user_id' => $this->user->id]);
+            Log::info("✅ Microsoft token refreshed for user {$this->user->id}");
+
             return $data['access_token'];
         } catch (\Throwable $e) {
-            Log::error('Microsoft token refresh exception', ['user_id' => $this->user->id, 'message' => $e->getMessage()]);
+            Log::error('Microsoft token refresh exception', [
+                'user_id' => $this->user->id ?? null,
+                'message' => $e->getMessage(),
+            ]);
+
+            // Force login if refresh fails
             return $this->forceMicrosoftLogin();
         }
     }
 
     protected function forceMicrosoftLogin(): never
     {
+        // Clear stored Microsoft tokens
         $this->user->update([
             'microsoft_token' => null,
             'microsoft_refresh_token' => null,
             'microsoft_token_expires_at' => null,
         ]);
 
+        // Log out the user from Laravel authentication
         Auth::logout();
+
+        // Invalidate the session and regenerate CSRF token
         request()->session()->invalidate();
         request()->session()->regenerateToken();
+
+        // Redirect user to Microsoft login route
         redirect()->route('microsoft.login')->send();
         exit;
     }
 
     /** -----------------------------
-     * FILE UPLOAD (Single or Multiple) with progress callback
+     * FILE UPLOAD
      * ----------------------------- */
-    public function uploadFile(
-        mixed $fileOrFiles, 
-        string $libraryServerRelativePath, 
-        ?string $fileName = null, 
-        array $metadata = [],
-        ?callable $progressCallback = null
-    ): array {
-        $this->accessToken = $this->getAccessToken();
+
+    public function uploadFile(mixed $fileOrFiles, string $folderPath, array $properties = [], ?string $fileName = null, ?string $driveId = null): array
+    {
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
+
         $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
         $results = [];
 
@@ -123,200 +140,242 @@ class SharePointService
             $name = $fileName ?? time() . '_' . $file->getClientOriginalName();
 
             $fileInfo = $file->getSize() <= 4 * 1024 * 1024
-                ? $this->uploadSmallFile($file, $libraryServerRelativePath, $name, $progressCallback)
-                : $this->uploadLargeFile($file, $libraryServerRelativePath, $name, $progressCallback);
+                ? $this->uploadSmallFile($file, $folderPath, $name, $driveId)
+                : $this->uploadLargeFile($file, $folderPath, $name, $driveId);
 
-            if (!empty($metadata)) {
-                $this->updateFileProperties($libraryServerRelativePath, $name, $metadata);
+            if (!empty($properties)) {
+                $this->updateFileProperties($fileInfo['id'], $properties, $driveId);
             }
 
+            $fileInfo['ui_url'] = $this->generateUiLink($fileInfo['url']);
             $results[] = $fileInfo;
         }
 
         return is_array($fileOrFiles) ? $results : $results[0];
     }
 
-    protected function uploadSmallFile(
-        UploadedFile $file, 
-        string $libraryServerRelativePath, 
-        string $fileName, 
-        ?callable $progressCallback = null
-    ): array {
-        $url = $this->siteUrl . "/_api/web/GetFolderByServerRelativeUrl('{$libraryServerRelativePath}')/Files/add(url='{$fileName}',overwrite=true)";
+    protected function uploadSmallFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
+    {
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/content";
 
-        $response = $this->guzzle->post($url, [
+        $response = $this->guzzle->put($url, [
             'headers' => [
                 'Authorization' => "Bearer {$this->accessToken}",
-                'Accept' => 'application/json;odata=verbose',
+                'Content-Type' => $file->getMimeType(),
             ],
             'body' => fopen($file->getRealPath(), 'rb'),
         ]);
 
-        if ($progressCallback) $progressCallback($file->getSize(), $file->getSize());
-
-        $data = json_decode($response->getBody()->getContents(), true)['d'] ?? [];
+        $data = json_decode($response->getBody()->getContents(), true);
 
         return [
-            'id' => $data['UniqueId'] ?? null,
-            'name' => $data['Name'] ?? $fileName,
-            'url' => $data['ServerRelativeUrl'] ?? null,
+            'id' => $data['id'] ?? null,
+            'name' => $data['name'] ?? null,
+            'url' => $data['webUrl'] ?? null,
         ];
     }
 
-    /** -----------------------------
-     * LARGE FILE UPLOAD WITH CHUNKING AND PROGRESS
-     * ----------------------------- */
-    protected function uploadLargeFile(
-        UploadedFile $file, 
-        string $libraryServerRelativePath, 
-        string $fileName, 
-        ?callable $progressCallback = null
-    ): array {
-        $this->accessToken = $this->getAccessToken();
-        $uploadId = Str::uuid()->toString();
+    protected function uploadLargeFile(UploadedFile $file, string $folderPath, string $fileName, string $driveId): array
+    {
+        $sessionResponse = $this->guzzle->post(
+            "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/root:/{$folderPath}/{$fileName}:/createUploadSession",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => ['item' => ['@microsoft.graph.conflictBehavior' => 'replace']]
+            ]
+        );
+
+        $uploadUrl = json_decode($sessionResponse->getBody()->getContents(), true)['uploadUrl'];
+
         $stream = fopen($file->getRealPath(), 'rb');
         $size = $file->getSize();
         $offset = 0;
 
-        try {
-            // Start upload
-            $chunk = fread($stream, min($this->chunkSize, $size));
-            $startUrl = $this->siteUrl . "/_api/web/getfolderbyserverrelativeurl('{$libraryServerRelativePath}')/Files/add(url='{$fileName}',overwrite=true)/StartUpload(uploadId=guid'{$uploadId}')";
-            $this->retryRequest(fn() => $this->guzzle->post($startUrl, [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}", 'Accept' => 'application/json;odata=verbose'],
+        while ($offset < $size) {
+            $chunk = fread($stream, $this->chunkSize);
+            $end = $offset + strlen($chunk) - 1;
+
+            $this->guzzle->put($uploadUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Range' => "bytes {$offset}-{$end}/{$size}",
+                ],
                 'body' => $chunk,
-            ]), $size);
-
-            $offset = strlen($chunk);
-            if ($progressCallback) $progressCallback($offset, $size);
-
-            // Continue chunks
-            while ($offset < $size) {
-                $chunk = fread($stream, $this->chunkSize);
-                $chunkLength = strlen($chunk);
-                $continueUrl = $this->siteUrl . "/_api/web/getfilebyserverrelativeurl('{$libraryServerRelativePath}/{$fileName}')/ContinueUpload(uploadId=guid'{$uploadId}',fileOffset={$offset})";
-
-                $this->retryRequest(fn() => $this->guzzle->post($continueUrl, [
-                    'headers' => ['Authorization' => "Bearer {$this->accessToken}", 'Accept' => 'application/json;odata=verbose'],
-                    'body' => $chunk,
-                ]), $size);
-
-                $offset += $chunkLength;
-                if ($progressCallback) $progressCallback($offset, $size);
-            }
-
-            fclose($stream);
-
-            // Finish upload
-            $finishUrl = $this->siteUrl . "/_api/web/getfilebyserverrelativeurl('{$libraryServerRelativePath}/{$fileName}')/FinishUpload(uploadId=guid'{$uploadId}',fileOffset={$offset})";
-            $this->guzzle->post($finishUrl, [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}", 'Accept' => 'application/json;odata=verbose'],
             ]);
 
-            if ($progressCallback) $progressCallback($size, $size);
-
-            return ['id' => null, 'name' => $fileName, 'url' => "{$libraryServerRelativePath}/{$fileName}"];
-        } catch (\Throwable $e) {
-            fclose($stream);
-            Log::error('Large file upload failed', ['user_id' => $this->user->id, 'file' => $fileName, 'message' => $e->getMessage()]);
-            throw $e;
+            $offset += strlen($chunk);
         }
-    }
 
-    /** -----------------------------
-     * RETRY HELPER
-     * ----------------------------- */
-    protected function retryRequest(callable $callback, int $size): int
-    {
-        $attempts = 0;
-        do {
-            try {
-                return $callback();
-            } catch (\Throwable $e) {
-                $attempts++;
-                Log::warning("Chunk upload failed, retrying ($attempts/{$this->maxRetries})", ['message' => $e->getMessage()]);
-                if ($attempts >= $this->maxRetries) throw $e;
-                sleep(1);
-            }
-        } while ($attempts < $this->maxRetries);
+        fclose($stream);
 
-        return 0;
+        return [
+            'id' => basename($fileName),
+            'name' => $fileName,
+            'url' => $uploadUrl
+        ];
     }
 
     /** -----------------------------
      * FILE UPDATE
      * ----------------------------- */
-    public function updateFile(string $libraryServerRelativePath, string $fileName, UploadedFile $file, array $metadata = []): array
+
+    public function updateFile(string|array $fileIdOrData, mixed $fileOrFiles, array $properties = [], ?string $driveId = null, ?string $targetFileName = null): array
     {
-        $this->accessToken = $this->getAccessToken();
-        $url = $this->siteUrl . "/_api/web/GetFileByServerRelativeUrl('{$libraryServerRelativePath}/{$fileName}')/\$value";
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
 
-        $this->guzzle->put($url, [
-            'headers' => ['Authorization' => "Bearer {$this->accessToken}", 'Content-Type' => $file->getMimeType()],
-            'body' => fopen($file->getRealPath(), 'rb'),
-        ]);
+        $fileIds = is_array($fileIdOrData) ? $fileIdOrData : [$fileIdOrData];
+        $files = is_array($fileOrFiles) ? $fileOrFiles : [$fileOrFiles];
+        $results = [];
 
-        if (!empty($metadata)) {
-            $this->updateFileProperties($libraryServerRelativePath, $fileName, $metadata);
+        foreach ($fileIds as $index => $fileId) {
+            $file = $files[$index] ?? null;
+            if (!$file instanceof UploadedFile) continue;
+
+            $newName = $targetFileName ?? $file->getClientOriginalName();
+
+            // Replace content
+            $uploadUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content";
+            $this->guzzle->put($uploadUrl, [
+                'headers' => [
+                    'Authorization' => "Bearer {$this->accessToken}",
+                    'Content-Type' => $file->getMimeType(),
+                ],
+                'body' => fopen($file->getRealPath(), 'rb'),
+            ]);
+
+            // Rename file
+            $renameUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            $this->guzzle->patch($renameUrl, [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => ['name' => $newName],
+            ]);
+
+            // Update metadata
+            if (!empty($properties)) {
+                $this->updateFileProperties($fileId, $properties, $driveId);
+            }
+
+            // Get file info
+            $infoUrl = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            $response = $this->guzzle->get($infoUrl, ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]);
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            $results[] = [
+                'id' => $fileId,
+                'name' => $newName,
+                'url' => $data['webUrl'] ?? null,
+                'ui_url' => $this->generateUiLink($data['webUrl'] ?? ''),
+            ];
         }
 
-        return ['name' => $fileName, 'url' => "{$libraryServerRelativePath}/{$fileName}"];
+        return is_array($fileOrFiles) ? $results : $results[0];
     }
 
     /** -----------------------------
-     * FILE METADATA / PROPERTIES
+     * FILE PROPERTIES / DELETE / STREAM
      * ----------------------------- */
-    public function updateFileProperties(string $libraryServerRelativePath, string $fileName, array $metadata): array
-    {
-        $this->accessToken = $this->getAccessToken();
-        $url = $this->siteUrl . "/_api/web/GetFileByServerRelativeUrl('{$libraryServerRelativePath}/{$fileName}')/ListItemAllFields";
 
-        $response = $this->guzzle->post($url, [
-            'headers' => [
-                'Authorization' => "Bearer {$this->accessToken}",
-                'Accept' => 'application/json;odata=verbose',
-                'Content-Type' => 'application/json;odata=verbose',
-                'X-HTTP-Method' => 'MERGE',
-                'IF-MATCH' => '*',
-            ],
-            'json' => $metadata,
+    public function updateFileProperties(string $fileId, array $properties, ?string $driveId = null): array
+    {
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
+        $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/listItem/fields";
+
+        $response = $this->guzzle->patch($url, [
+            'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+            'json' => $properties
         ]);
 
-        return json_decode($response->getBody()->getContents(), true)['d'] ?? [];
+        return json_decode($response->getBody()->getContents(), true);
     }
 
-    /** -----------------------------
-     * FILE DELETE
-     * ----------------------------- */
-    public function deleteFile(string $libraryServerRelativePath, string $fileName): bool
+    public function deleteFile(mixed $fileIdOrIds, ?string $driveId = null, bool $ignoreNotFound = true): bool|array
     {
-        $this->accessToken = $this->getAccessToken();
-        $url = $this->siteUrl . "/_api/web/GetFileByServerRelativeUrl('{$libraryServerRelativePath}/{$fileName}')";
-        $this->guzzle->request('POST', $url, [
-            'headers' => [
-                'Authorization' => "Bearer {$this->accessToken}",
-                'X-HTTP-Method' => 'DELETE',
-                'IF-MATCH' => '*',
-            ],
-        ]);
-        return true;
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
+        $fileIds = is_array($fileIdOrIds) ? $fileIdOrIds : [$fileIdOrIds];
+        $results = [];
+
+        foreach ($fileIds as $fileId) {
+            $url = "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}";
+            try {
+                $this->guzzle->delete($url, ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]);
+                $results[] = true;
+            } catch (\Throwable $e) {
+                if (!$ignoreNotFound) throw $e;
+                $results[] = false;
+            }
+        }
+
+        return is_array($fileIdOrIds) ? $results : $results[0];
     }
 
-    /** -----------------------------
-     * FILE STREAM
-     * ----------------------------- */
-    public function streamFile(string $libraryServerRelativePath, string $fileName)
+    public function streamFile(string $fileId, ?string $driveId = null)
     {
-        $this->accessToken = $this->getAccessToken();
-        $url = $this->siteUrl . "/_api/web/GetFileByServerRelativeUrl('{$libraryServerRelativePath}/{$fileName}')/\$value";
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
+        $meta = $this->getFileMetadata($fileId, $driveId);
+        $content = $this->getFileContent($fileId, $driveId)['body'];
 
-        $response = $this->guzzle->get($url, ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]);
+        // Determine MIME type
+        $mimeType = $meta['file']['mimeType'] ?? 'application/octet-stream';
+        if (str_ends_with(strtolower($meta['name']), '.pdf')) {
+            $mimeType = 'application/pdf'; // Force PDF.js compatible type
+        }
 
-        $mimeType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-
-        return response($response->getBody()->getContents(), 200)
+        return response($content, 200)
             ->header('Content-Type', $mimeType)
-            ->header('Content-Disposition', "inline; filename=\"{$fileName}\"")
-            ->header('Accept-Ranges', 'bytes');
+            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"")
+            ->header('Accept-Ranges', 'bytes'); // optional, helps PDF.js with large PDFs
+    }
+
+    public function getFileContent(string $fileId, ?string $driveId = null): array
+    {
+        $this->accessToken = $this->getValidAccessToken();
+        $driveId = $this->resolveDriveId($driveId);
+        $response = $this->guzzle->get(
+            "https://graph.microsoft.com/v1.0/sites/{$this->siteId}/drives/{$driveId}/items/{$fileId}/content",
+            ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]
+        );
+
+        $meta = $this->getFileMetadata($fileId, $driveId);
+
+        return [
+            'body' => $response->getBody()->getContents(),
+            'mime' => $meta['file']['mimeType'] ?? 'application/octet-stream'
+        ];
+    }
+
+    protected function getFileMetadata(string $fileId, string $driveId): array
+    {
+        $response = $this->guzzle->get(
+            "https://graph.microsoft.com/v1.0/drives/{$driveId}/items/{$fileId}",
+            ['headers' => ['Authorization' => "Bearer {$this->accessToken}"]]
+        );
+
+        return json_decode($response->getBody()->getContents(), true);
+    }
+
+    /** -----------------------------
+     * HELPERS
+     * ----------------------------- */
+
+    protected function generateUiLink(string $webUrl): string
+    {
+        $siteRelativePath = rawurldecode(str_replace('https://mjqeducationplc.sharepoint.com', '', $webUrl));
+        $encodedFile = rawurlencode($siteRelativePath);
+        $encodedParent = rawurlencode(dirname($siteRelativePath));
+
+        $segments = explode('/', trim($siteRelativePath, '/'));
+        $libraryName = $segments[2] ?? $segments[1] ?? $segments[0];
+
+        return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/{$libraryName}/Forms/AllItems.aspx?id={$encodedFile}&parent={$encodedParent}&p=true&ga=1";
+    }
+
+    protected function resolveDriveId(?string $driveId): string
+    {
+        return $driveId ?? config('services.sharepoint.drive_id')
+            ?: throw new \InvalidArgumentException('SharePoint default drive_id not set');
     }
 }
