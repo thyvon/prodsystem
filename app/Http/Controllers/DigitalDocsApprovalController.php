@@ -262,6 +262,7 @@ class DigitalDocsApprovalController extends Controller
                 'approvals.responder',
                 'approvals.responderPosition',
                 'creator',
+                'creatorPosition',
             ]);
 
             // Determine if approval button should be shown
@@ -407,7 +408,7 @@ class DigitalDocsApprovalController extends Controller
                 'id' => $a->id,
                 'request_type' => $a->request_type,
                 'approval_status' => $a->approval_status,
-                'response_date' => $a->responded_date?->format('Y-m-d H:i'),
+                'response_date' => $a->responded_date,
                 'approver_name' => $a->responder?->name ?? 'Unknown',
             ]),
         ];
@@ -640,5 +641,56 @@ class DigitalDocsApprovalController extends Controller
                 ->select('id', 'name', 'telegram_id')
                 ->get()
         );
+    }
+
+    public function getReassignUsers(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', DigitalDocsApproval::class);
+
+        // Validate request type
+        $validated = $request->validate([
+            'request_type' => ['required', 'string', 'in:approve,initial,check,review,acknowledge'],
+        ]);
+
+        $permission = "digitalDocsApproval.{$validated['request_type']}";
+        $authUser = $request->user();
+        $isAdmin = $authUser->hasRole('admin');
+
+        try {
+            // Get department IDs of the authenticated user (only if not admin)
+            $authDepartmentIds = !$isAdmin
+                ? $authUser->departments()->pluck('departments.id')->toArray()
+                : [];
+
+            // Fetch users with direct or role-based permission
+            $usersQuery = User::query()
+                ->where(function ($query) use ($permission) {
+                    $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
+                        ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
+                });
+
+            // Apply department filter only for non-admin users
+            if (!$isAdmin) {
+                $usersQuery->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $authDepartmentIds));
+            }
+
+            $users = $usersQuery->select('id', 'name', 'telegram_id')->get();
+
+            return response()->json([
+                'message' => 'Users fetched successfully.',
+                'data' => $users,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch users for approval', [
+                'request_type' => $validated['request_type'],
+                'auth_user_id' => $authUser->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch users for approval.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

@@ -84,14 +84,14 @@
             <div class="card-body">
               <label class="font-weight-bold d-block w-100 text-center">Prepared By</label>
               <div class="d-flex align-items-center mb-2 justify-content-center">
-                <img :src="digitalDoc.creator?.profile_url" class="rounded-circle" width="50" height="50">
+                <img :src="`/storage/${digitalDoc.creator?.profile_url}`" class="rounded-circle" width="50" height="50">
               </div>
-              <div class="font-weight-bold mb-2">{{ digitalDoc.creator?.name ?? 'N/A' }}</div>
               <div v-if="digitalDoc.creator?.signature_url" class="d-flex justify-content-center mb-2">
                 <img :src="digitalDoc.creator.signature_url" height="50">
               </div>
+              <div class="font-weight-bold mb-2">{{ digitalDoc.creator?.name ?? 'N/A' }}</div>
               <p class="mb-1 text-start">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
-              <p class="mb-1">Position: {{ digitalDoc.creator?.position_name ?? 'N/A' }}</p>
+              <p class="mb-1">Position: {{ digitalDoc.creator_position?.title ?? 'N/A' }}</p>
               <p class="mb-0">Date: {{ formatDateTime(digitalDoc.created_at) || 'N/A' }}</p>
             </div>
           </div>
@@ -101,12 +101,12 @@
               <div class="card-body">
                 <label class="font-weight-bold d-block w-100 text-center">{{ approval.request_type_label }} By</label>
                 <div class="d-flex align-items-center mb-2 justify-content-center">
-                  <img :src="approval.responder?.profile_url" class="rounded-circle" width="50" height="50">
+                  <img :src="`/storage/${approval.responder?.profile_url}`" class="rounded-circle" width="50" height="50">
                 </div>
-                <div class="font-weight-bold mb-2">{{ approval.responder?.name ?? 'N/A' }}</div>
                 <div v-if="approval.approval_status === 'Approved'" class="d-flex justify-content-center mb-2">
                   <img :src="approval.responder?.signature_url" height="50">
                 </div>
+                <div class="font-weight-bold mb-2">{{ approval.position_name }}</div>
                 <p class="mb-1">
                   Status:
                   <span class="badge"
@@ -282,7 +282,7 @@ const submitApproval = async (action) => {
 const openReassignModal = async () => {
   loading.value = true
   try {
-    const res = await axios.get('/api/digital-approvals/get-users-for-approval', { params: { request_type: props.approvalRequestType } })
+    const res = await axios.get('/api/digital-docs-approvals/get-users-for-reassign', { params: { request_type: props.approvalRequestType } })
     usersList.value = res.data.data || []
     await nextTick()
     initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
@@ -297,7 +297,7 @@ const confirmReassign = async () => {
   if (!newUserId) { showAlert('Error', 'Please select a user.', 'danger'); return }
   loading.value = true
   try {
-    await axios.post(`/api/digital-approvals/${props.digitalDoc.id}/reassign-approval`, { request_type: props.approvalRequestType, new_user_id: newUserId, comment })
+    await axios.post(`/api/digital-docs-approvals/${props.digitalDoc.id}/reassign-approval`, { request_type: props.approvalRequestType, new_user_id: newUserId, comment })
     showAlert('success', 'Responder reassigned successfully.')
     $('#reassignModal').modal('hide')
     destroySelect2(document.getElementById('userSelect'))

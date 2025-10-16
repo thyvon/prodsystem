@@ -7,7 +7,7 @@ use App\Models\DigitalDocsApproval;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Support\Facades\Log;
 
-class DigitalDocsAprovalPolicy
+class DigitalDocsApprovalPolicy
 {
     use HandlesAuthorization;
 
@@ -26,7 +26,7 @@ class DigitalDocsAprovalPolicy
         return $user->can('digitalDocsApproval.view');
     }
 
-    public function view(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function view(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.view');
     }
@@ -36,44 +36,54 @@ class DigitalDocsAprovalPolicy
         return $user->can('digitalDocsApproval.create');
     }
 
-    public function update(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function update(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.update') &&
             $digitalDocsApproval->created_by === $user->id;
     }
 
-    public function delete(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function delete(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.delete') &&
             $digitalDocsApproval->created_by === $user->id;
     }
 
-    public function restore(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function restore(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.restore');
     }
 
-    public function forceDelete(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function forceDelete(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.forceDelete');
     }
 
-    public function review(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function review(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.review');
     }
 
-    public function check(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function check(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.check');
     }
 
-    public function approve(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function approve(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.approve');
     }
 
-    public function reassign(User $user, DigitalDocsApproval$digitalDocsApproval): bool
+    public function initial(User $user, DigitalDocsApproval $digitalDocsApproval): bool
+    {
+        return $user->can('digitalDocsApproval.initial');
+    }
+
+    public function acknowledge(User $user, DigitalDocsApproval $digitalDocsApproval): bool
+    {
+        return $user->can('digitalDocsApproval.acknowledge');
+    }
+
+    public function reassign(User $user, DigitalDocsApproval $digitalDocsApproval): bool
     {
         return $user->can('digitalDocsApproval.reassign');
     }

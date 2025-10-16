@@ -80,6 +80,7 @@ class AuthServiceProvider extends ServiceProvider
         StockRequest::class => StockRequestPolicy::class,
         StockIssue::class => StockIssuePolicy::class,
         StockTransfer::class => StockTransferPolicy::class,
+        DigitalDocsApproval::class => DigitalDocsApprovalPolicy::class
     ];
 
     /**

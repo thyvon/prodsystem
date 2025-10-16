@@ -10,6 +10,7 @@ class DigitalDocsApproval extends Model
 {
     use HasFactory;
     use SoftDeletes;
+    protected $table = 'digital_docs_approvals';
     protected $fillable = [
         'reference_no',
         'description',
@@ -21,6 +22,7 @@ class DigitalDocsApproval extends Model
         'document_type',
         'approval_status',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
@@ -28,6 +30,10 @@ class DigitalDocsApproval extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
     public function updater()
     {
