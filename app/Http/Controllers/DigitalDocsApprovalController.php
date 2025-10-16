@@ -507,6 +507,128 @@ class DigitalDocsApprovalController extends Controller
         ];
     }
 
+    // Approval Submission
+
+    public function submitApproval(Request $request, DigitalDocsApproval $digitalDocsApproval, ApprovalService $approvalService): JsonResponse 
+    {
+        // Validate request
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:initial,approve',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
+        ]);
+
+        // Check user permission
+        $permission = "digitalDocsApproval.{$validated['request_type']}";
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this document.",
+            ], 403);
+        }
+
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $digitalDocsApproval,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
+        );
+
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
+
+        // Update DigitalDocsApproval approval_status if successful
+        if ($success) {
+            $statusMap = [
+                'initial' => 'Initialed',
+                'approve' => 'Approved',
+                'reject'  => 'Rejected',
+                'return'  => 'Returned',
+                'acknowledge' => 'Acknowledged',
+            ];
+
+            $digitalDocsApproval->approval_status =
+                $statusMap[$validated['action']] ??
+                ($statusMap[$validated['request_type']] ?? 'Pending');
+
+            $digitalDocsApproval->save();
+        }
+
+        return response()->json([
+            'message'      => $result['message'] ?? 'Action failed',
+            'redirect_url' => route('approvals-digital-docs-approvals.show', $digitalDocsApproval->id),
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
+    }
+
+    public function reassignResponder(Request $request, DigitalDocsApproval $digitalDocsApproval): JsonResponse
+    {
+        $this->authorize('reassign', $digitalDocsApproval);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:approve',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("digitalDocsApproval.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => DigitalDocsApproval::class,
+            'approvable_id'   => $digitalDocsApproval->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $digitalDocsApproval->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // =======================
     // Additional Endpoints
     // =======================

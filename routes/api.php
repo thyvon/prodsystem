@@ -331,7 +331,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/digital-docs-approvals/{digitalDocsApproval}', [DigitalDocsApprovalController::class, 'destroy'])->name('api.digital-docs-approvals.destroy');
     Route::get('/digital-docs-approvals/get-users-for-approval', [DigitalDocsApprovalController::class, 'getApprovalUsers'])
     ->name('api.digital-docs-approvals.get-users-for-approval');
-    Route::post('/digital-docs-approvals/{digitalDocsApproval}/submit-approval', [DigitalDocsApprovalController::class, 'submitApproval'])
+    Route::post('/digital-docs-approvals/{digitalDocsApproval}/submit-approval', [DigitalDocsApprovalController::class, 'submitApproval'])->middleware('can:submit,digitalDocsApproval')
     ->name('api.digital-docs-approvals.submit-approval');
 
 });

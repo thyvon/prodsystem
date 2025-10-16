@@ -118,6 +118,10 @@ class RolePermissionSeeder extends Seeder
                     // 'viewAllRecord'
                 ],
             ],
+            'digitalDocsApproval' => [
+                'name' => 'Digital Docs Approval',
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+            ],
             'warehouse' => [
                 'name' => 'Warehouse',
                 'actions' => ['create', 'view', 'update', 'delete'],

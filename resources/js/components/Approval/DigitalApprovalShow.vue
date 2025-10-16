@@ -81,8 +81,8 @@
         <!-- Requested By / Creator Card -->
         <div class="col-md-3 mb-4">
           <div class="card border shadow-sm h-100">
-            <div class="card-body text-center">
-              <label class="font-weight-bold d-block w-100">Prepared By</label>
+            <div class="card-body">
+              <label class="font-weight-bold d-block w-100 text-center">Prepared By</label>
               <div class="d-flex align-items-center mb-2 justify-content-center">
                 <img :src="digitalDoc.creator?.profile_url" class="rounded-circle" width="50" height="50">
               </div>
@@ -90,7 +90,7 @@
               <div v-if="digitalDoc.creator?.signature_url" class="d-flex justify-content-center mb-2">
                 <img :src="digitalDoc.creator.signature_url" height="50">
               </div>
-              <p class="mb-1">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
+              <p class="mb-1 text-start">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
               <p class="mb-1">Position: {{ digitalDoc.creator?.position_name ?? 'N/A' }}</p>
               <p class="mb-0">Date: {{ formatDateTime(digitalDoc.created_at) || 'N/A' }}</p>
             </div>
@@ -98,8 +98,8 @@
         </div>
           <div v-for="(approval, i) in approvals" :key="i" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
-              <div class="card-body text-center">
-                <label class="font-weight-bold d-block w-100">{{ approval.request_type_label }} By</label>
+              <div class="card-body">
+                <label class="font-weight-bold d-block w-100 text-center">{{ approval.request_type_label }} By</label>
                 <div class="d-flex align-items-center mb-2 justify-content-center">
                   <img :src="approval.responder?.profile_url" class="rounded-circle" width="50" height="50">
                 </div>

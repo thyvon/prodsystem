@@ -234,6 +234,9 @@ Route::middleware(['auth'])->group(function () {
         //Stock Transfer View
         Route::get('/approvals/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
         ->name('approvals-stock-transfers.show');
+        //Digital Document View
+        Route::get('/approvals/digital-docs-approvals/{digitalDocsApproval}/show', [DigitalDocsApprovalController::class, 'show'])
+        ->name('approvals-digital-docs-approvals.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])
