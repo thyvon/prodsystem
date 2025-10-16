@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class SharePointService
 {
     protected User $user;
-    protected string $accessToken;
+    protected ?string $accessToken = null;
     protected string $siteId;
     protected int $chunkSize;
     protected Client $guzzle;
@@ -29,35 +29,29 @@ class SharePointService
      * TOKEN MANAGEMENT
      * ----------------------------- */
 
-    protected function getValidAccessToken(): ?string
+    protected function getValidAccessToken(): string
     {
-        // Reload fresh user data from DB
         $this->user->refresh();
 
-        // If tokens are missing, cannot refresh automatically
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
-            Log::warning('Missing Microsoft tokens', ['user_id' => $this->user->id]);
-            return null; // user needs to login manually
+            $this->forceMicrosoftLogin();
         }
 
         $expiresAt = $this->user->microsoft_token_expires_at
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
-        // Refresh token if expired or less than 15 minutes left
+        // Refresh token if expired or within 15 minutes
         if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->copy()->subMinutes(15))) {
             try {
                 return $this->refreshAccessToken();
             } catch (\Throwable $e) {
-                Log::warning('Automatic token refresh failed', [
-                    'user_id' => $this->user->id,
-                    'message' => $e->getMessage(),
-                ]);
-                return null; // fallback: user may need to login manually
+                // If refresh fails, force login immediately
+                Log::error("Microsoft token refresh failed: {$e->getMessage()}", ['user_id' => $this->user->id]);
+                $this->forceMicrosoftLogin();
             }
         }
 
-        // Token still valid
         return $this->user->microsoft_token;
     }
 
@@ -75,7 +69,7 @@ class SharePointService
                     'client_secret' => $clientSecret,
                     'grant_type' => 'refresh_token',
                     'refresh_token' => $this->user->microsoft_refresh_token,
-                    'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                    'scope' => 'User.Read Files.ReadWrite Sites.Selected offline_access',
                 ],
             ]
         );
