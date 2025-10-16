@@ -29,98 +29,98 @@ class SharePointService
      * TOKEN MANAGEMENT
      * ----------------------------- */
 
-    protected function getValidAccessToken(): string
+    protected function getValidAccessToken(): ?string
     {
-        // If tokens are missing, force login
+        // Reload fresh user data from DB
+        $this->user->refresh();
+
+        // If tokens are missing, cannot refresh automatically
         if (!$this->user->microsoft_token || !$this->user->microsoft_refresh_token) {
-            Log::warning('Missing tokens, forcing re-auth', ['user_id' => $this->user->id]);
-            return $this->forceMicrosoftLogin();
+            Log::warning('Missing Microsoft tokens', ['user_id' => $this->user->id]);
+            return null; // user needs to login manually
         }
 
         $expiresAt = $this->user->microsoft_token_expires_at
             ? Carbon::parse($this->user->microsoft_token_expires_at)
             : null;
 
-        // Refresh if token expired or less than 15 minutes left (extended buffer)
-        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->subMinutes(15))) {
-            return $this->refreshAccessToken();
+        // Refresh token if expired or less than 15 minutes left
+        if (!$expiresAt || Carbon::now()->greaterThanOrEqualTo($expiresAt->copy()->subMinutes(15))) {
+            try {
+                return $this->refreshAccessToken();
+            } catch (\Throwable $e) {
+                Log::warning('Automatic token refresh failed', [
+                    'user_id' => $this->user->id,
+                    'message' => $e->getMessage(),
+                ]);
+                return null; // fallback: user may need to login manually
+            }
         }
 
+        // Token still valid
         return $this->user->microsoft_token;
     }
 
     protected function refreshAccessToken(): string
     {
-        try {
-            $tenantId = config('services.microsoft.tenant_id');
-            $clientId = config('services.microsoft.client_id');
-            $clientSecret = config('services.microsoft.client_secret');
+        $tenantId = config('services.microsoft.tenant_id');
+        $clientId = config('services.microsoft.client_id');
+        $clientSecret = config('services.microsoft.client_secret');
 
-            $response = $this->guzzle->post(
-                "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
-                [
-                    'form_params' => [
-                        'client_id' => $clientId,
-                        'client_secret' => $clientSecret,
-                        'grant_type' => 'refresh_token',
-                        'refresh_token' => $this->user->microsoft_refresh_token,
-                        'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
-                    ],
-                ]
-            );
+        $response = $this->guzzle->post(
+            "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+            [
+                'form_params' => [
+                    'client_id' => $clientId,
+                    'client_secret' => $clientSecret,
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => $this->user->microsoft_refresh_token,
+                    'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All offline_access',
+                ],
+            ]
+        );
 
-            $data = json_decode($response->getBody()->getContents(), true);
+        $data = json_decode($response->getBody()->getContents(), true);
 
-            // If refresh fails, force login
-            if (!isset($data['access_token']) || isset($data['error'])) {
-                Log::warning('Microsoft token refresh failed', [
-                    'user_id' => $this->user->id,
-                    'body' => $data,
-                ]);
-                return $this->forceMicrosoftLogin();
-            }
-
-            // Save new tokens
-            $this->user->update([
-                'microsoft_token' => $data['access_token'],
-                'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
-                'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
+        if (!isset($data['access_token']) || isset($data['error'])) {
+            Log::warning('Microsoft token refresh failed', [
+                'user_id' => $this->user->id,
+                'body' => $data,
             ]);
-
-            Log::info("✅ Microsoft token refreshed for user {$this->user->id}");
-
-            return $data['access_token'];
-        } catch (\Throwable $e) {
-            Log::error('Microsoft token refresh exception', [
-                'user_id' => $this->user->id ?? null,
-                'message' => $e->getMessage(),
-            ]);
-
-            // Force login if refresh fails
-            return $this->forceMicrosoftLogin();
+            throw new \RuntimeException('Cannot refresh Microsoft token automatically.');
         }
+
+        // Save new tokens
+        $this->user->update([
+            'microsoft_token' => $data['access_token'],
+            'microsoft_refresh_token' => $data['refresh_token'] ?? $this->user->microsoft_refresh_token,
+            'microsoft_token_expires_at' => now()->addSeconds($data['expires_in'] ?? 3600),
+        ]);
+
+        Log::info("✅ Microsoft token refreshed for user {$this->user->id}");
+
+        return $data['access_token'];
     }
 
+    /**
+     * Force login only when manual intervention is required
+     */
     protected function forceMicrosoftLogin(): never
     {
-        // Clear stored Microsoft tokens
         $this->user->update([
             'microsoft_token' => null,
             'microsoft_refresh_token' => null,
             'microsoft_token_expires_at' => null,
         ]);
 
-        // Log out the user from Laravel authentication
         Auth::logout();
-
-        // Invalidate the session and regenerate CSRF token
         request()->session()->invalidate();
         request()->session()->regenerateToken();
 
-        // Redirect user to Microsoft login route
         redirect()->route('microsoft.login')->send();
         exit;
     }
+
 
     /** -----------------------------
      * FILE UPLOAD
