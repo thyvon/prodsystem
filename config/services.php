@@ -41,6 +41,7 @@ return [
     'sharepoint' => [
         'site_id' => env('SHAREPOINT_SITE_ID'),
         'drive_id' => env('SHAREPOINT_DRIVE_ID'),
+        'site_url' => env('SHAREPOINT_SITE_URL'),
     ],
 
 ];
