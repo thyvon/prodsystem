@@ -112,7 +112,7 @@ class SharePointService
         request()->session()->invalidate();
         request()->session()->regenerateToken();
 
-        redirect()->route('microsoft.login')->send();
+        redirect()->route('login')->send();
         exit;
     }
 
