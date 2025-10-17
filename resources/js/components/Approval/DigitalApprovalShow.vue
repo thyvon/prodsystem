@@ -103,10 +103,10 @@
                 <div class="d-flex align-items-center mb-2 justify-content-center">
                   <img :src="`/storage/${approval.responder?.profile_url}`" class="rounded-circle" width="50" height="50">
                 </div>
-                <p v-if="approval.approval_status === 'Pending'" class="text-center text-muted mb-2">
-                  <a :href="digitalDoc.sharepoint_file_ui_url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+                <p v-if="showApprovalButton && approval.approval_status === 'Pending'" class="text-center mb-2">
+                  <button class="btn btn-sm btn-outline-primary" :disabled="loading" @click="openConfirmModal('approve')">
                     <i class="fal fa-external-link"></i> Sign Document
-                  </a>
+                  </button>
                 </p>
                 <div v-if="approval.approval_status === 'Approved'" class="d-flex justify-content-center mb-2">
                   <img :src="approval.responder?.signature_url" height="50">
