@@ -89,8 +89,8 @@
               <div v-if="digitalDoc.creator?.signature_url" class="d-flex justify-content-center mb-2">
                 <img :src="digitalDoc.creator.signature_url" height="50">
               </div>
-              <div class="font-weight-bold mb-2">{{ digitalDoc.creator?.name ?? 'N/A' }}</div>
               <p class="mb-1 text-start">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
+              <div class="mb-1 text-start">Name: {{ digitalDoc.creator?.name ?? 'N/A' }}</div>
               <p class="mb-1">Position: {{ digitalDoc.creator_position?.title ?? 'N/A' }}</p>
               <p class="mb-0">Date: {{ formatDateTime(digitalDoc.created_at) || 'N/A' }}</p>
             </div>
@@ -103,10 +103,14 @@
                 <div class="d-flex align-items-center mb-2 justify-content-center">
                   <img :src="`/storage/${approval.responder?.profile_url}`" class="rounded-circle" width="50" height="50">
                 </div>
+                <p v-if="approval.approval_status === 'Pending'" class="text-center text-muted mb-2">
+                  <a :href="digitalDoc.sharepoint_file_ui_url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+                    <i class="fal fa-external-link"></i> Sign Document
+                  </a>
+                </p>
                 <div v-if="approval.approval_status === 'Approved'" class="d-flex justify-content-center mb-2">
                   <img :src="approval.responder?.signature_url" height="50">
                 </div>
-                <div class="font-weight-bold mb-2">{{ approval.position_name }}</div>
                 <p class="mb-1">
                   Status:
                   <span class="badge"
@@ -119,7 +123,8 @@
                     <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
                   </span>
                 </p>
-                <p class="mb-1">Position: {{ approval.responder?.position_name ?? 'N/A' }}</p>
+                <div class="mb-1 text-start">Name: {{ approval.responder.name }}</div>
+                <p class="mb-1">Position: {{ approval.responder.position_name }}</p>
                 <p class="mb-0">Date: {{ formatDateTime(approval.responded_date) || 'N/A' }}</p>
                 <p class="mb-0">Comment: {{ approval.comment ?? '-' }}</p>
               </div>
