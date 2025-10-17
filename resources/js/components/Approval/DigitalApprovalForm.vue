@@ -17,9 +17,7 @@
             <h5 class="font-weight-bold mb-3 text-primary">📄 Document Details</h5>
 
             <div class="form-group">
-              <label class="font-weight-bold">
-                Document Type <span class="text-danger">*</span>
-              </label>
+              <label class="font-weight-bold">Document Type <span class="text-danger">*</span></label>
               <select class="form-control select2-doc-type" required>
                 <option value="">Select Type</option>
               </select>
@@ -31,7 +29,7 @@
             </div>
 
             <div class="form-group">
-              <label class="font-weight-bold">Upload File</label>
+              <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
               <div class="custom-file">
                 <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
                 <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
@@ -49,20 +47,25 @@
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th>Approval Type</th>
-                    <th>Assigned User</th>
-                    <th>Actions</th>
+                    <th style="min-width: 200px;">Approval Type</th>
+                    <th style="min-width: 200px;">Assigned User</th>
+                    <th style="min-width: 100px;">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(approval, index) in form.approvals" :key="index">
                     <td>
-                      <select v-model="approval.request_type" class="form-control" required>
+                      <select
+                        v-model="approval.request_type"
+                        class="form-control approval-type-select"
+                        :data-index="index"
+                        required
+                      >
                         <option value="">Select Type</option>
                         <option value="initial">Initial</option>
+                        <option value="verify">Verify</option>
                         <option value="approve">Approve</option>
                         <option value="check">Check</option>
-                        <option value="review">Review</option>
                         <option value="acknowledge">Acknowledge</option>
                       </select>
                     </td>
@@ -77,7 +80,12 @@
                       </select>
                     </td>
                     <td>
-                      <button type="button" class="btn btn-danger btn-sm" @click="removeApproval(index)">
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        @click="removeApproval(index)"
+                        :disabled="approval.isDefault"
+                      >
                         <i class="fal fa-trash-alt"></i> Remove
                       </button>
                     </td>
@@ -116,12 +124,25 @@ import { showAlert } from '@/Utils/bootbox'
 const props = defineProps({
   documentId: { type: Number, default: null }
 })
-
 const emit = defineEmits(['submitted'])
 
 const isSubmitting = ref(false)
 const isEditMode = ref(!!props.documentId)
-const documentTypes = ref(['Stock Report', 'Monthly Stock Report', 'Asset Disposal', 'Monthly Procurement Report', 'Monthly Stock Summary Report'])
+const documentTypes = ref([
+  'Stock Report',
+  'Monthly Stock Report',
+  'Asset Disposal',
+  'Monthly Procurement Report',
+  'Monthly Stock Summary Report'
+])
+
+const defaultApprovalMap = {
+  'Stock Report': ['initial', 'check', 'approve'],
+  'Monthly Stock Report': ['initial', 'verify', 'check', 'approve'],
+  'Asset Disposal': ['approve'],
+  'Monthly Procurement Report': ['check', 'approve'],
+  'Monthly Stock Summary Report': ['check', 'approve']
+}
 
 const form = ref({
   document_type: '',
@@ -131,30 +152,120 @@ const form = ref({
 })
 
 const existingFileUrl = ref('')
-const approvalUsers = ref([])
 const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// Handle file upload
+// --- Set default approvals by document type ---
+const setDefaultApprovalsByDocType = async (docType) => {
+  if (!docType) return
+
+  form.value.approvals = []
+  const defaults = defaultApprovalMap[docType] || []
+
+  for (let type of defaults) {
+    form.value.approvals.push({
+      request_type: type,
+      responder_id: '',
+      isDefault: true
+    })
+  }
+
+  await nextTick()
+
+  for (let i = 0; i < form.value.approvals.length; i++) {
+    await initApprovalTypeSelect(i)
+    await initUserSelect(i)
+  }
+}
+
+// --- Handle file upload ---
 const handleFileUpload = (e) => {
   const file = e.target.files[0]
   form.value.file = file || null
   fileLabel.value = file ? file.name : 'Choose file'
 }
 
-// Fetch users for approval
-const fetchApprovalUsers = async () => {
+// --- Init User Select2 ---
+const initUserSelect = async (index) => {
+  await nextTick()
+  const approval = form.value.approvals[index]
+  const el = document.querySelector(`.user-select[data-index="${index}"]`)
+  if (!el) return
+  destroySelect2(el)
+
+  $(el).empty().append('<option value="">Select User</option>')
+
+  // ONLY fetch users if approval type exists
+  if (!approval.request_type) {
+    initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
+      form.value.approvals[index].responder_id = value ? Number(value) : ''
+    })
+    return
+  }
+
   try {
-    const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval')
-    approvalUsers.value = Array.isArray(data) ? data : data.data || []
+    const { data } = await axios.get('/api/digital-docs-approvals/get-users-for-approval', {
+      params: { request_type: approval.request_type }
+    })
+    const users = Array.isArray(data.data) ? data.data : []
+    $(el).empty().append('<option value="">Select User</option>')
+    users.forEach(u => $(el).append(`<option value="${u.id}">${u.name}</option>`))
+
+    initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
+      form.value.approvals[index].responder_id = value ? Number(value) : ''
+    })
+
+    $(el).val(approval.responder_id || '').trigger('change.select2')
   } catch (err) {
     console.error(err)
-    await showAlert('Error', 'Failed to fetch approval users.', 'danger')
+    $(el).empty().append('<option value="">Failed to load users</option>')
   }
 }
 
-// Fetch document for edit
+// --- Init Approval Type Select2 ---
+const initApprovalTypeSelect = async (index) => {
+  await nextTick()
+  const el = document.querySelector(`.approval-type-select[data-index="${index}"]`)
+  if (!el) return
+  destroySelect2(el)
+
+  initSelect2(el, {
+    placeholder: 'Select Approval Type',
+    width: '100%',
+    allowClear: true
+  }, (value) => {
+    form.value.approvals[index].request_type = value || ''
+    if (value) initUserSelect(index)
+  })
+
+  $(el).val(form.value.approvals[index].request_type || '').trigger('change.select2')
+}
+
+// --- Add / Remove approvals ---
+const addApproval = async () => {
+  form.value.approvals.push({ request_type: '', responder_id: '' })
+  const index = form.value.approvals.length - 1
+  await initApprovalTypeSelect(index)
+  await initUserSelect(index)
+}
+
+const removeApproval = async (index) => {
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`)
+  if (typeEl) destroySelect2(typeEl)
+
+  const userEl = document.querySelector(`.user-select[data-index="${index}"]`)
+  if (userEl) destroySelect2(userEl)
+
+  form.value.approvals.splice(index, 1)
+  await nextTick()
+  form.value.approvals.forEach((_, i) => {
+    initApprovalTypeSelect(i)
+    initUserSelect(i)
+  })
+}
+
+// --- Fetch document for edit ---
 const fetchDocumentForEdit = async () => {
   if (!isEditMode.value) return
   try {
@@ -172,7 +283,10 @@ const fetchDocumentForEdit = async () => {
       }))
       existingFileUrl.value = doc.sharepoint_file_url || ''
       await nextTick()
-      form.value.approvals.forEach((_, i) => initUserSelect(i))
+      form.value.approvals.forEach((_, i) => {
+        initApprovalTypeSelect(i)
+        initUserSelect(i)
+      })
     }
   } catch (err) {
     console.error(err)
@@ -180,48 +294,14 @@ const fetchDocumentForEdit = async () => {
   }
 }
 
-// Init Select2
-const initUserSelect = async (index) => {
-  await nextTick()
-  const el = document.querySelector(`.user-select[data-index="${index}"]`)
-  if (!el) return
-  destroySelect2(el)
-  $(el).empty().append('<option value="">Select User</option>')
-  approvalUsers.value.forEach(u => $(el).append(`<option value="${u.id}">${u.name}</option>`))
-  initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
-    form.value.approvals[index].responder_id = value ? Number(value) : ''
-  })
-  $(el).val(form.value.approvals[index].responder_id || '').trigger('change.select2')
-}
-
-// Add / Remove approvals
-const addApproval = async () => {
-  form.value.approvals.push({ request_type: '', responder_id: '' })
-  await initUserSelect(form.value.approvals.length - 1)
-}
-
-const removeApproval = async (index) => {
-  const el = document.querySelector(`.user-select[data-index="${index}"]`)
-  if (el) destroySelect2(el)
-  form.value.approvals.splice(index, 1)
-  await nextTick()
-  form.value.approvals.forEach((_, i) => initUserSelect(i))
-}
-
-// Submit form
+// --- Submit form ---
 const submitForm = async () => {
   isSubmitting.value = true
   try {
     const formData = new FormData()
-
-    // Main fields
     formData.append('document_type', form.value.document_type || '')
     formData.append('description', form.value.description || '')
-
-    // File (optional on update)
     if (form.value.file) formData.append('file', form.value.file)
-
-    // Approvals array
     form.value.approvals.forEach((a, i) => {
       formData.append(`approvals[${i}][user_id]`, a.responder_id || '')
       formData.append(`approvals[${i}][request_type]`, a.request_type || '')
@@ -230,57 +310,42 @@ const submitForm = async () => {
 
     let url = '/api/digital-docs-approvals'
     let method = 'post'
-
     if (isEditMode.value) {
-      // For update, use POST with _method=PUT
       url = `/api/digital-docs-approvals/${props.documentId}`
       formData.append('_method', 'PUT')
     }
 
-    // Send request
-    await axios({
-      method,
-      url,
-      data: formData,
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-
-    await showAlert(
-      'Success',
-      isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.',
-      'success'
-    )
+    await axios({ method, url, data: formData, headers: { 'Content-Type': 'multipart/form-data' } })
+    await showAlert('Success', isEditMode.value ? 'Document updated successfully.' : 'Document created successfully.', 'success')
     emit('submitted')
     goToIndex()
   } catch (err) {
-    console.error(err.response?.data || err)
-    await showAlert(
-      'Error',
-      err.response?.data?.message || err.message || 'Failed to save document.',
-      'danger'
-    )
+    console.error(err)
+    await showAlert('Error', err.response?.data?.message || 'Failed to save document.', 'danger')
   } finally {
     isSubmitting.value = false
   }
 }
 
-
-// Mounted
+// --- Mounted ---
 onMounted(async () => {
-  await fetchApprovalUsers()
   await fetchDocumentForEdit()
   initSelect2(
-  document.querySelector('.select2-doc-type'),
-  {
-    placeholder: 'Select Document Type',
-    allowClear: true,
-    width: '100%',
-    data: documentTypes.value.map(dt => ({ id: dt, text: dt })),
-  },
-  (val) => (form.value.document_type = val || '')
-);
-if (form.value.document_type) {
-  $('.select2-doc-type').val(form.value.document_type).trigger('change.select2')
-}
+    document.querySelector('.select2-doc-type'),
+    {
+      placeholder: 'Select Document Type',
+      allowClear: true,
+      width: '100%',
+      data: documentTypes.value.map(dt => ({ id: dt, text: dt })),
+    },
+    async (val) => {
+      form.value.document_type = val || ''
+      if (val) {
+        await setDefaultApprovalsByDocType(val)
+      } else {
+        form.value.approvals = []
+      }
+    }
+  )
 })
 </script>

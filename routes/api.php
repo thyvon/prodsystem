@@ -331,7 +331,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/digital-docs-approvals/{digitalDocsApproval}', [DigitalDocsApprovalController::class, 'destroy'])->name('api.digital-docs-approvals.destroy');
     Route::get('/digital-docs-approvals/get-users-for-approval', [DigitalDocsApprovalController::class, 'getApprovalUsers'])
     ->name('api.digital-docs-approvals.get-users-for-approval');
-    Route::get('/digital-docs-approvals/get-users-for-reassign', [DigitalDocsApprovalController::class, 'getReassignUsers'])->name('api.digital-docs-approvals.reassign-users');
+    Route::get('/digital-docs-approvals/get-users-for-reassign', [DigitalDocsApprovalController::class, 'getApprovalUsers'])->name('api.digital-docs-approvals.reassign-users');
     Route::post('/digital-docs-approvals/{digitalDocsApproval}/submit-approval', [DigitalDocsApprovalController::class, 'submitApproval'])
     ->name('api.digital-docs-approvals.submit-approval');
     Route::post('/digital-docs-approvals/{digitalDocsApproval}/reassign-approval', [DigitalDocsApprovalController::class, 'reassignResponder'])->middleware('can:reassign,digitalDocsApproval')->name('api.digital-docs-approvals.reassign-approval');

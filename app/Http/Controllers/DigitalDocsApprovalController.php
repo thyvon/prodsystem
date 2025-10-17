@@ -633,23 +633,23 @@ class DigitalDocsApprovalController extends Controller
     // =======================
     // Additional Endpoints
     // =======================
-    public function getApprovalUsers(): JsonResponse
-    {
-        return response()->json(
-            User::whereNotNull('telegram_id')
-                ->where('id', '!=', auth()->id())
-                ->select('id', 'name', 'telegram_id')
-                ->get()
-        );
-    }
+    // public function getApprovalUsers(): JsonResponse
+    // {
+    //     return response()->json(
+    //         User::whereNotNull('telegram_id')
+    //             ->where('id', '!=', auth()->id())
+    //             ->select('id', 'name', 'telegram_id')
+    //             ->get()
+    //     );
+    // }
 
-    public function getReassignUsers(Request $request): JsonResponse
+    public function getApprovalUsers(Request $request): JsonResponse
     {
         $this->authorize('viewAny', DigitalDocsApproval::class);
 
         // Validate request type
         $validated = $request->validate([
-            'request_type' => ['required', 'string', 'in:approve,initial,check,review,acknowledge'],
+            'request_type' => ['required', 'string', 'in:approve,initial,check,verify'],
         ]);
 
         $permission = "digitalDocsApproval.{$validated['request_type']}";
@@ -665,16 +665,18 @@ class DigitalDocsApprovalController extends Controller
             // Fetch users with direct or role-based permission
             $usersQuery = User::query()
                 ->where(function ($query) use ($permission) {
-                    $query->whereHas('permissions', fn ($q) => $q->where('name', $permission))
-                        ->orWhereHas('roles.permissions', fn ($q) => $q->where('name', $permission));
-                });
+                    $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
+                        ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
+                })
+                ->whereNotNull('telegram_id')           // Exclude users without telegram_id
+                ->where('id', '!=', $authUser->id);    // Exclude current authenticated user
 
             // Apply department filter only for non-admin users
             if (!$isAdmin) {
-                $usersQuery->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $authDepartmentIds));
+                $usersQuery->whereHas('departments', fn($q) => $q->whereIn('departments.id', $authDepartmentIds));
             }
 
-            $users = $usersQuery->select('id', 'name', 'telegram_id')->get();
+            $users = $usersQuery->select('id', 'name', 'telegram_id', 'card_number')->get();
 
             return response()->json([
                 'message' => 'Users fetched successfully.',
@@ -693,4 +695,5 @@ class DigitalDocsApprovalController extends Controller
             ], 500);
         }
     }
+
 }
