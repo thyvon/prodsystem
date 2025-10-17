@@ -157,29 +157,26 @@ const fileLabel = ref('Choose file')
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
 // --- Set default approvals by document type (create & edit mode) ---
-const setDefaultApprovalsByDocType = async (docType, existingApprovals = []) => {
+const setDefaultApprovalsByDocType = async (docType) => {
   if (!docType) return
 
   const defaults = defaultApprovalMap[docType] || []
 
-  // Map existing approvals by request_type
-  const approvalMap = {}
-  existingApprovals.forEach(a => {
-    approvalMap[a.request_type] = {
-      ...a,
-      isDefault: defaults.includes(a.request_type)
-    }
+  // Keep existing approvals that are NOT defaults
+  const extraApprovals = form.value.approvals.filter(
+    a => !defaults.includes(a.request_type)
+  )
+
+  // Create default approvals only if they don't exist yet
+  const defaultApprovals = defaults.map(type => {
+    const existing = form.value.approvals.find(a => a.request_type === type)
+    return existing
+      ? { ...existing, isDefault: true }
+      : { request_type: type, responder_id: '', isDefault: true }
   })
 
-  // Ensure all default types exist
-  defaults.forEach(type => {
-    if (!approvalMap[type]) {
-      approvalMap[type] = { request_type: type, responder_id: '', isDefault: true }
-    }
-  })
-
-  // Convert map back to array
-  form.value.approvals = Object.values(approvalMap)
+  // Merge default + extra
+  form.value.approvals = [...defaultApprovals, ...extraApprovals]
 
   await nextTick()
   form.value.approvals.forEach((_, i) => {
@@ -187,7 +184,6 @@ const setDefaultApprovalsByDocType = async (docType, existingApprovals = []) => 
     initUserSelect(i)
   })
 }
-
 
 // --- Handle file upload ---
 const handleFileUpload = (e) => {
