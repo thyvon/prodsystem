@@ -17,8 +17,12 @@
             <h5 class="font-weight-bold mb-3 text-primary">📄 Document Details</h5>
 
             <div class="form-group">
-              <label class="font-weight-bold">Document Type <span class="text-danger">*</span></label>
-              <input v-model="form.document_type" type="text" class="form-control" required />
+              <label class="font-weight-bold">
+                Document Type <span class="text-danger">*</span>
+              </label>
+              <select class="form-control select2-doc-type" required>
+                <option value="">Select Type</option>
+              </select>
             </div>
 
             <div class="form-group">
@@ -117,6 +121,7 @@ const emit = defineEmits(['submitted'])
 
 const isSubmitting = ref(false)
 const isEditMode = ref(!!props.documentId)
+const documentTypes = ref(['Stock Report', 'Monthly Stock Report', 'Asset Disposal', 'Monthly Procurement Report', 'Monthly Stock Summary Report'])
 
 const form = ref({
   document_type: '',
@@ -264,5 +269,18 @@ const submitForm = async () => {
 onMounted(async () => {
   await fetchApprovalUsers()
   await fetchDocumentForEdit()
+  initSelect2(
+  document.querySelector('.select2-doc-type'),
+  {
+    placeholder: 'Select Document Type',
+    allowClear: true,
+    width: '100%',
+    data: documentTypes.value.map(dt => ({ id: dt, text: dt })),
+  },
+  (val) => (form.value.document_type = val || '')
+);
+if (form.value.document_type) {
+  $('.select2-doc-type').val(form.value.document_type).trigger('change.select2')
+}
 })
 </script>
