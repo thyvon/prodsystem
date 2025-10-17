@@ -245,12 +245,20 @@ class SharePointService
         $driveId = $this->resolveDriveId($driveId);
 
         $meta = $this->getFileMetadata($fileId, $driveId);
-        $content = $this->getFileContent($fileId, $driveId)['body'];
-        $mimeType = strtolower($meta['name'] ?? '') . str_ends_with(strtolower($meta['name']), '.pdf') ? 'application/pdf' : ($meta['file']['mimeType'] ?? 'application/octet-stream');
+        $file = $this->getFileContent($fileId, $driveId);
 
-        return response($content, 200)
+        $fileName = $meta['name'] ?? 'file';
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        // File types to open inline in browser
+        $inlineTypes = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'txt', 'html', 'htm'];
+
+        $disposition = in_array($extension, $inlineTypes) ? 'inline' : 'attachment';
+        $mimeType = $file['mime'] ?? 'application/octet-stream';
+
+        return response($file['body'], 200)
             ->header('Content-Type', $mimeType)
-            ->header('Content-Disposition', "inline; filename=\"{$meta['name']}\"")
+            ->header('Content-Disposition', "{$disposition}; filename=\"{$fileName}\"")
             ->header('Accept-Ranges', 'bytes');
     }
 
