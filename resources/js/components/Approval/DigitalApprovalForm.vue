@@ -159,17 +159,29 @@ const setDefaultApprovalsByDocType = async (docType) => {
 
   const defaults = defaultApprovalMap[docType] || []
 
-  // Keep approvals that are extra or already exist
-  const extraApprovals = form.value.approvals.filter(a => !defaults.includes(a.request_type))
-  const defaultApprovals = defaults.map(type => {
-    const existing = form.value.approvals.find(a => a.request_type === type)
-    return existing
-      ? { ...existing, isDefault: true }
-      : { request_type: type, responder_id: '', isDefault: true }
+  // Keep existing approvals
+  const existingApprovals = [...form.value.approvals]
+
+  // Mark existing approvals as default if they match default types
+  existingApprovals.forEach(a => {
+    a.isDefault = defaults.includes(a.request_type)
   })
 
-  form.value.approvals = [...defaultApprovals, ...extraApprovals]
+  // Add missing default approvals that do not exist yet
+  defaults.forEach(type => {
+    const exists = existingApprovals.some(a => a.request_type === type)
+    if (!exists) {
+      existingApprovals.push({
+        request_type: type,
+        responder_id: '',
+        isDefault: true
+      })
+    }
+  })
 
+  form.value.approvals = existingApprovals
+
+  // Reinitialize Select2 for all approvals
   await nextTick()
   form.value.approvals.forEach((_, i) => {
     initApprovalTypeSelect(i)
