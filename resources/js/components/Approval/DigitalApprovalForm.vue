@@ -156,28 +156,38 @@ const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// --- Set default approvals by document type ---
-const setDefaultApprovalsByDocType = async (docType) => {
+// --- Set default approvals by document type (create & edit mode) ---
+const setDefaultApprovalsByDocType = async (docType, existingApprovals = []) => {
   if (!docType) return
 
-  form.value.approvals = []
   const defaults = defaultApprovalMap[docType] || []
 
-  for (let type of defaults) {
-    form.value.approvals.push({
-      request_type: type,
-      responder_id: '',
-      isDefault: true
-    })
-  }
+  // Map existing approvals by request_type
+  const approvalMap = {}
+  existingApprovals.forEach(a => {
+    approvalMap[a.request_type] = {
+      ...a,
+      isDefault: defaults.includes(a.request_type)
+    }
+  })
+
+  // Ensure all default types exist
+  defaults.forEach(type => {
+    if (!approvalMap[type]) {
+      approvalMap[type] = { request_type: type, responder_id: '', isDefault: true }
+    }
+  })
+
+  // Convert map back to array
+  form.value.approvals = Object.values(approvalMap)
 
   await nextTick()
-
-  for (let i = 0; i < form.value.approvals.length; i++) {
-    await initApprovalTypeSelect(i)
-    await initUserSelect(i)
-  }
+  form.value.approvals.forEach((_, i) => {
+    initApprovalTypeSelect(i)
+    initUserSelect(i)
+  })
 }
+
 
 // --- Handle file upload ---
 const handleFileUpload = (e) => {
@@ -196,7 +206,6 @@ const initUserSelect = async (index) => {
 
   $(el).empty().append('<option value="">Select User</option>')
 
-  // ONLY fetch users if approval type exists
   if (!approval.request_type) {
     initSelect2(el, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
       form.value.approvals[index].responder_id = value ? Number(value) : ''
@@ -244,7 +253,7 @@ const initApprovalTypeSelect = async (index) => {
 
 // --- Add / Remove approvals ---
 const addApproval = async () => {
-  form.value.approvals.push({ request_type: '', responder_id: '' })
+  form.value.approvals.push({ request_type: '', responder_id: '', isDefault: false })
   const index = form.value.approvals.length - 1
   await initApprovalTypeSelect(index)
   await initUserSelect(index)
@@ -275,18 +284,15 @@ const fetchDocumentForEdit = async () => {
       form.value.document_type = doc.document_type || ''
       form.value.description = doc.description || ''
       form.value.file = null
-      form.value.approvals = (doc.approvals || []).map(a => ({
+      existingFileUrl.value = doc.sharepoint_file_url || ''
+
+      const existingApprovals = (doc.approvals || []).map(a => ({
         id: a.id || null,
         responder_id: a.responder?.id || null,
-        request_type: a.request_type || '',
-        isDefault: ['initial', 'approve'].includes(a.request_type)
+        request_type: a.request_type || ''
       }))
-      existingFileUrl.value = doc.sharepoint_file_url || ''
-      await nextTick()
-      form.value.approvals.forEach((_, i) => {
-        initApprovalTypeSelect(i)
-        initUserSelect(i)
-      })
+
+      await setDefaultApprovalsByDocType(form.value.document_type, existingApprovals)
     }
   } catch (err) {
     console.error(err)
@@ -330,13 +336,16 @@ const submitForm = async () => {
 // --- Mounted ---
 onMounted(async () => {
   await fetchDocumentForEdit()
+
+  const docTypeEl = document.querySelector('.select2-doc-type')
+
   initSelect2(
-    document.querySelector('.select2-doc-type'),
+    docTypeEl,
     {
       placeholder: 'Select Document Type',
       allowClear: true,
       width: '100%',
-      data: documentTypes.value.map(dt => ({ id: dt, text: dt })),
+      data: documentTypes.value.map(dt => ({ id: dt, text: dt }))
     },
     async (val) => {
       form.value.document_type = val || ''
@@ -347,5 +356,9 @@ onMounted(async () => {
       }
     }
   )
+
+  if (isEditMode.value && form.value.document_type) {
+    $(docTypeEl).val(form.value.document_type).trigger('change.select2')
+  }
 })
 </script>
