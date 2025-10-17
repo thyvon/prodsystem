@@ -15,19 +15,16 @@
           <!-- Document Details -->
           <div class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">📄 Document Details</h5>
-
             <div class="form-group">
               <label class="font-weight-bold">Document Type <span class="text-danger">*</span></label>
               <select class="form-control select2-doc-type" required>
                 <option value="">Select Type</option>
               </select>
             </div>
-
             <div class="form-group">
               <label class="font-weight-bold">Description <span class="text-danger">*</span></label>
               <textarea v-model="form.description" class="form-control" rows="2" required></textarea>
             </div>
-
             <div class="form-group">
               <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
               <div class="custom-file">
@@ -156,18 +153,14 @@ const fileLabel = ref('Choose file')
 
 const goToIndex = () => (window.location.href = '/digital-docs-approvals')
 
-// --- Set default approvals by document type (create & edit mode) ---
+// --- Merge defaults with existing approvals (create/edit) ---
 const setDefaultApprovalsByDocType = async (docType) => {
   if (!docType) return
 
   const defaults = defaultApprovalMap[docType] || []
 
-  // Keep existing approvals that are NOT defaults
-  const extraApprovals = form.value.approvals.filter(
-    a => !defaults.includes(a.request_type)
-  )
-
-  // Create default approvals only if they don't exist yet
+  // Keep approvals that are extra or already exist
+  const extraApprovals = form.value.approvals.filter(a => !defaults.includes(a.request_type))
   const defaultApprovals = defaults.map(type => {
     const existing = form.value.approvals.find(a => a.request_type === type)
     return existing
@@ -175,7 +168,6 @@ const setDefaultApprovalsByDocType = async (docType) => {
       : { request_type: type, responder_id: '', isDefault: true }
   })
 
-  // Merge default + extra
   form.value.approvals = [...defaultApprovals, ...extraApprovals]
 
   await nextTick()
@@ -192,7 +184,7 @@ const handleFileUpload = (e) => {
   fileLabel.value = file ? file.name : 'Choose file'
 }
 
-// --- Init User Select2 ---
+// --- Initialize user select2 ---
 const initUserSelect = async (index) => {
   await nextTick()
   const approval = form.value.approvals[index]
@@ -221,6 +213,7 @@ const initUserSelect = async (index) => {
       form.value.approvals[index].responder_id = value ? Number(value) : ''
     })
 
+    // Preserve selected user in edit mode
     $(el).val(approval.responder_id || '').trigger('change.select2')
   } catch (err) {
     console.error(err)
@@ -228,7 +221,7 @@ const initUserSelect = async (index) => {
   }
 }
 
-// --- Init Approval Type Select2 ---
+// --- Initialize approval type select2 ---
 const initApprovalTypeSelect = async (index) => {
   await nextTick()
   const el = document.querySelector(`.approval-type-select[data-index="${index}"]`)
@@ -282,13 +275,15 @@ const fetchDocumentForEdit = async () => {
       form.value.file = null
       existingFileUrl.value = doc.sharepoint_file_url || ''
 
-      const existingApprovals = (doc.approvals || []).map(a => ({
+      // Map existing approvals
+      form.value.approvals = (doc.approvals || []).map(a => ({
         id: a.id || null,
         responder_id: a.responder?.id || null,
-        request_type: a.request_type || ''
+        request_type: a.request_type || '',
+        isDefault: false // will set later
       }))
 
-      await setDefaultApprovalsByDocType(form.value.document_type, existingApprovals)
+      await setDefaultApprovalsByDocType(form.value.document_type)
     }
   } catch (err) {
     console.error(err)
