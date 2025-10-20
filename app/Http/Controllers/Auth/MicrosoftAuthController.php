@@ -28,10 +28,10 @@ class MicrosoftAuthController extends Controller
                 'User.Read',
                 'Files.ReadWrite',
                 'Sites.ReadWrite.All',
-                'offline_access', // Required for refresh token
+                'offline_access',
             ])
             ->with([
-                'prompt' => 'consent' // Combine prompts
+                'prompt' => 'login'
             ])
             ->redirect();
     }
