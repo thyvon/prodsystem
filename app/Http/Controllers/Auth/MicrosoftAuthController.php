@@ -31,7 +31,7 @@ class MicrosoftAuthController extends Controller
                 'offline_access', // Required for refresh token
             ])
             ->with([
-                'prompt' => 'consent select_account' // Combine prompts
+                'prompt' => 'consent' // Combine prompts
             ])
             ->redirect();
     }
