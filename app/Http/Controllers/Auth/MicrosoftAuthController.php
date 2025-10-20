@@ -31,7 +31,7 @@ class MicrosoftAuthController extends Controller
                 'offline_access',
             ])
             ->with([
-                'prompt' => 'login'
+                'prompt' => 'select_account login',
             ])
             ->redirect();
     }
