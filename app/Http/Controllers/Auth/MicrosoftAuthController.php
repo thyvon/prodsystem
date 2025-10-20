@@ -27,9 +27,12 @@ class MicrosoftAuthController extends Controller
                 'email',
                 'User.Read',
                 'Files.ReadWrite',
+                'Sites.ReadWrite.All',
                 'offline_access', // Required for refresh token
             ])
-            ->with(['prompt' => 'select_account']) // Consider 'consent' conditionally for testing
+            ->with([
+                'prompt' => 'consent select_account' // Combine prompts
+            ])
             ->redirect();
     }
 
