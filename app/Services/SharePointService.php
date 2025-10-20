@@ -65,7 +65,7 @@ class SharePointService
                 'client_secret' => $clientSecret,
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $this->user->microsoft_refresh_token,
-                'scope' => 'User.Read Files.ReadWrite.All Sites.ReadWrite.All Sites.Selected offline_access',
+                'scope' => 'User.Read Files.ReadWrite offline_access',
             ],
         ]);
 

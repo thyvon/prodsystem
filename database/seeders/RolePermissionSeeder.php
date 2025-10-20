@@ -120,7 +120,7 @@ class RolePermissionSeeder extends Seeder
             ],
             'digitalDocsApproval' => [
                 'name' => 'Digital Docs Approval',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete','verify', 'check', 'approve','reassign','initial'],
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete','reassign','verify', 'check', 'approve','initial'],
             ],
             'warehouse' => [
                 'name' => 'Warehouse',
