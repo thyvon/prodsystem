@@ -27,7 +27,7 @@ class MicrosoftAuthController extends Controller
                 'email',
                 'User.Read',
                 'Files.ReadWrite',
-                'Sites.ReadWrite',
+                'Sites.Read.All',
                 'offline_access',
             ])
             ->with([
