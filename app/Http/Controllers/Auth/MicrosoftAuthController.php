@@ -27,11 +27,11 @@ class MicrosoftAuthController extends Controller
                 'email',
                 'User.Read',
                 'Files.ReadWrite',
-                'Sites.Read.All',
+                // 'Sites.Read.All',
                 'offline_access',
             ])
             ->with([
-                'prompt' => 'login'
+                'prompt' => 'select_account'
             ])
             ->redirect();
     }
