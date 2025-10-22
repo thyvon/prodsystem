@@ -13,59 +13,88 @@
 
         <div class="card-body">
           <!-- Document Details -->
-<div class="row">
-  <div class="col-6">
-    <div class="border rounded p-3 mb-4">
-      <h5 class="font-weight-bold mb-3 text-primary">🏷️ Requester Info</h5>
+        <div class="row">
+        <div class="col-6">
+            <div class="border rounded p-3 mb-4">
+            <h5 class="font-weight-bold mb-3 text-primary">🏷️ Requester Info</h5>
 
-      <!-- Requester Name -->
-      <div class="row align-items-center mb-2">
-        <div class="col-4 font-weight-bold">Requester:</div>
-        <div class="col-8 border-bottom py-1">Vun Thy</div>
-      </div>
+            <!-- Requester Name -->
+            <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Requester:</div>
+                <div class="col-8 border-bottom py-1">Vun Thy</div>
+            </div>
 
-      <!-- Position -->
-      <div class="row align-items-center mb-2">
-        <div class="col-4 font-weight-bold">Position:</div>
-        <div class="col-8 border-bottom py-1">Manager</div>
-      </div>
+            <!-- Position -->
+            <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Position:</div>
+                <div class="col-8 border-bottom py-1">Manager</div>
+            </div>
 
-      <!-- Card ID -->
-      <div class="row align-items-center mb-2">
-        <div class="col-4 font-weight-bold">Card ID:</div>
-        <div class="col-8 border-bottom py-1">123456</div>
-      </div>
+            <!-- Card ID -->
+            <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Card ID:</div>
+                <div class="col-8 border-bottom py-1">123456</div>
+            </div>
 
-      <!-- Department -->
-      <div class="row align-items-center mb-2">
-        <div class="col-4 font-weight-bold">Department:</div>
-        <div class="col-8 border-bottom py-1">Finance</div>
-      </div>
+            <!-- Department -->
+            <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Department:</div>
+                <div class="col-8 border-bottom py-1">Finance</div>
+            </div>
 
-      <!-- Purpose -->
-      <div class="form-group mt-3">
-        <label class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
-        <textarea v-model="form.purpose" class="form-control" rows="2" required></textarea>
-      </div>
+            <!-- Purpose -->
+            <div class="form-group mt-3">
+                <label class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
+                <textarea v-model="form.purpose" class="form-control" rows="2" required></textarea>
+            </div>
 
-      <!-- Upload File -->
-      <div class="form-group mt-2">
-        <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
-        <div class="custom-file">
-          <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
-          <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
+            <!-- Upload File -->
+            <div class="form-group mt-2">
+                <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
+                <div class="custom-file">
+                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
+                <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
+                </div>
+                <div v-if="existingFileUrl" class="mt-1">
+                <a :href="existingFileUrl" target="_blank">Current File</a>
+                </div>
+            </div>
+
+            </div>
         </div>
-        <div v-if="existingFileUrl" class="mt-1">
-          <a :href="existingFileUrl" target="_blank">Current File</a>
+            <div class="col-6">
+            <div class="border rounded p-3 mb-4">
+            <h5 class="font-weight-bold mb-3 text-primary">🏷️ Contact Info</h5>
+
+            <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Cellphone:</div>
+                <div class="col-8 border-bottom py-1">123456</div>
+            </div>
+                <div class="row align-items-center mb-2">
+                <div class="col-4 font-weight-bold">Ext:</div>
+                <div class="col-8 border-bottom py-1">123456</div>
+            </div>
+            <!-- Purpose -->
+            <div class="form-group mt-3">
+                <label class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
+                <textarea v-model="form.purpose" class="form-control" rows="2" required></textarea>
+            </div>
+
+            <!-- Upload File -->
+            <div class="form-group mt-2">
+                <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
+                <div class="custom-file">
+                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
+                <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
+                </div>
+                <div v-if="existingFileUrl" class="mt-1">
+                <a :href="existingFileUrl" target="_blank">Current File</a>
+                </div>
+            </div>
+
+            </div>
         </div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-
-
+        </div>
 
           <!-- Approvals Table -->
           <div class="border rounded p-3 mb-4">
