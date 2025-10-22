@@ -76,6 +76,10 @@ use App\Models\DocumentTransfer;
 use App\Http\Controllers\DigitalDocsApprovalController;
 use App\Models\DigitalDocsApproval;
 
+// Purchase Request Management
+use App\Http\Controllers\PurchaseRequestController;
+use App\Models\PurchaseRequest;
+
 // Telegram Bot
 use App\Http\Controllers\TelegramController;
 
@@ -335,6 +339,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/digital-docs-approvals/{digitalDocsApproval}/submit-approval', [DigitalDocsApprovalController::class, 'submitApproval'])
     ->name('api.digital-docs-approvals.submit-approval');
     Route::post('/digital-docs-approvals/{digitalDocsApproval}/reassign-approval', [DigitalDocsApprovalController::class, 'reassignResponder'])->middleware('can:reassign,digitalDocsApproval')->name('api.digital-docs-approvals.reassign-approval');
+
+
+    // Purchase Request Management
+    // Route::get('/purchase-requests', [PurchaseRequestController::class, 'getPurchaseRequests'])->name('api.purchase-requests.index');
+    Route::post('/purchase-requests', [PurchaseRequestController::class, 'store'])->name('api.purchase-requests.store')->middleware('can:create,' . PurchaseRequest::class);
+    // Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->name('api.purchase-requests.edit');
+    // Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('api.purchase-requests.update');
+    // Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('api.purchase-requests.destroy');
+    // Route::get('/purchase-requests/get-users-for-approval', [PurchaseRequestController::class, 'getApprovalUsers'])
+    // ->name('api.purchase-requests.get-users-for-approval');
+    // Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
+    // ->name('api.purchase-requests.submit-approval');
+    Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
 
 });
 

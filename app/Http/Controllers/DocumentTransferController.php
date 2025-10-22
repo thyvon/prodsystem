@@ -778,11 +778,11 @@ class DocumentTransferController extends Controller
             };
         }
 
-        // Handle normal messages (like /start)
+        // Handle normal messages (like /Register)
         $messageText = $request->input('message.text') ?? '';
         $chatId = $request->input('message.chat.id') ?? null;
 
-        if ($chatId && $messageText === '/start') {
+        if ($chatId && $messageText === '/Register') {
             $this->sendRegisterButton($chatId);
         }
 

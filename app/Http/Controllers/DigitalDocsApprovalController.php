@@ -113,7 +113,7 @@ class DigitalDocsApprovalController extends Controller
             return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
                 $referenceNo = $this->generateReferenceNo();
                 $folderPath = $this->getSharePointFolderPath($validated['document_type']);
-                $file = $request->file('file');
+                $files = $request->file('files');
                 $extension = $file->getClientOriginalExtension();
 
                 $fileData = $sharePoint->uploadFile(

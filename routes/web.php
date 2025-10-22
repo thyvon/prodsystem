@@ -80,6 +80,10 @@ use App\Models\DigitalDocsApproval;
 use App\Http\Controllers\DocumentTransferController;
 use App\Models\DocumentTransfer;
 
+// Purchase Request Management
+use App\Http\Controllers\PurchaseRequestController;
+use App\Models\PurchaseRequest;
+
 // use App\Http\Controllers\StockRequestController;
 // use App\Models\StockRequest;
 
@@ -264,6 +268,18 @@ Route::middleware(['auth'])->group(function () {
         ->name('digital-docs-approvals.show');
     Route::get('/digital-docs-approvals/{digitalDocsApproval}/view', [DigitalDocsApprovalController::class, 'viewFile'])
     ->name('digital-approval.view-file');
+
+
+    // Purchase Requests
+    // Route::get('/purchase-requests', [PurchaseRequestController::class, 'index'])
+    //     ->name('purchase-requests.index');
+    Route::get('/purchase-requests/create', [PurchaseRequestController::class, 'form'])
+        ->middleware('can:create,' . PurchaseRequest::class)
+        ->name('purchase-requests.create');
+    // Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'form'])
+    //     ->name('purchase-requests.edit');
+    // Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
+    //     ->name('purchase-requests.show');
 
 });
 

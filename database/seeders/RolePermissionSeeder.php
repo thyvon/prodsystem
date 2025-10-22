@@ -13,17 +13,9 @@ class RolePermissionSeeder extends Seeder
     {
         // Define features with human-readable names
         $features = [
-            'purchase_request' => [
+            'purchaseRequest' => [
                 'name' => 'Purchase Request',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            ],
-            'purchase_order' => [
-                'name' => 'Purchase Order',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
-            ],
-            'invoice_entry' => [
-                'name' => 'Invoice Entry',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'initial', 'approve', 'reassign','verify', 'check'],
             ],
             'evaluation' => [
                 'name' => 'Evaluation',
