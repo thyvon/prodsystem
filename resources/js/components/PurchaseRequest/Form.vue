@@ -15,7 +15,7 @@
           <!-- Document Details -->
         <div class="row">
         <div class="col-6">
-            <div class="border rounded p-3 mb-4">
+            <div class="border rounded p-3 mb-4" style="height: 300px; overflow-y: auto;">
             <h5 class="font-weight-bold mb-3 text-primary">🏷️ Requester Info</h5>
 
             <!-- Requester Name -->
@@ -41,56 +41,61 @@
                 <div class="col-4 font-weight-bold">Department:</div>
                 <div class="col-8 border-bottom py-1">Finance</div>
             </div>
-
-            <!-- Purpose -->
-            <div class="form-group mt-3">
-                <label class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
-                <textarea v-model="form.purpose" class="form-control" rows="2" required></textarea>
-            </div>
-
-            <!-- Upload File -->
-            <div class="form-group mt-2">
-                <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
-                <div class="custom-file">
-                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
-                <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
-                </div>
-                <div v-if="existingFileUrl" class="mt-1">
-                <a :href="existingFileUrl" target="_blank">Current File</a>
-                </div>
-            </div>
-
-            </div>
-        </div>
-            <div class="col-6">
-            <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">🏷️ Contact Info</h5>
-
+            
             <div class="row align-items-center mb-2">
                 <div class="col-4 font-weight-bold">Cellphone:</div>
                 <div class="col-8 border-bottom py-1">123456</div>
             </div>
-                <div class="row align-items-center mb-2">
+
+            <div class="row align-items-center mb-2">
                 <div class="col-4 font-weight-bold">Ext:</div>
                 <div class="col-8 border-bottom py-1">123456</div>
             </div>
-            <!-- Purpose -->
+          </div>
+        </div>
+        <div class="col-6">
+            <div class="border rounded p-3 mb-4" style="height: 300px; overflow-y: auto;">
+            <h5 class="font-weight-bold mb-3 text-primary">🏷️ PR Info</h5>
+
             <div class="form-group mt-3">
                 <label class="font-weight-bold">Purpose <span class="text-danger">*</span></label>
                 <textarea v-model="form.purpose" class="form-control" rows="2" required></textarea>
             </div>
 
+            <div class="form-group col-md-3">
+              <div class="custom-control custom-checkbox mt-4">
+                <input
+                  type="checkbox"
+                  class="custom-control-input"
+                  id="isUrgent"
+                  v-model="form.is_urgent"
+                />
+                <label class="custom-control-label" for="isUrgent">Urgent</label>
+              </div>
+            </div>
+
             <!-- Upload File -->
             <div class="form-group mt-2">
-                <label class="font-weight-bold">Upload File <span class="text-danger">*</span></label>
+                <label class="font-weight-bold">Attachment <span class="text-danger">*</span></label>
                 <div class="custom-file">
-                <input type="file" class="custom-file-input" id="customFile" @change="handleFileUpload">
-                <label class="custom-file-label" for="customFile">{{ fileLabel }}</label>
+                    <input 
+                        type="file" 
+                        class="custom-file-input" 
+                        id="customFile" 
+                        @change="handleFileUpload" 
+                        multiple
+                    >
+                    <label class="custom-file-label" for="customFile">
+                        {{ fileLabel }}
+                    </label>
                 </div>
-                <div v-if="existingFileUrl" class="mt-1">
-                <a :href="existingFileUrl" target="_blank">Current File</a>
+                <div v-if="existingFileUrls && existingFileUrls.length" class="mt-1">
+                    <div v-for="(file, index) in existingFileUrls" :key="index">
+                        <a :href="file" target="_blank">Current File {{ index + 1 }}</a>
+                    </div>
                 </div>
             </div>
+
 
             </div>
         </div>
