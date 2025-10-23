@@ -14,15 +14,21 @@ use App\Models\PurchaseRequestItem;
 use App\Models\User;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
+use App\Services\ProductService;
 
 class PurchaseRequestController extends Controller
 {
     protected ApprovalService $approvalService;
+    protected ProductService $productService;
     private const CUSTOM_DRIVE_ID = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
-    public function __construct(ApprovalService $approvalService)
+    public function __construct(
+        ApprovalService $approvalService,
+        ProductService $productService
+        )
     {
         $this->approvalService = $approvalService;
+        $this->productService = $productService;
     }
     // ====================
     // Index & Form Views
@@ -36,8 +42,22 @@ class PurchaseRequestController extends Controller
     public function form(?PurchaseRequest $purchaseRequest = null): View
     {
         $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
-        return view('purchase-requests.form', compact('purchaseRequest'));
+
+        $user = Auth::user();
+
+        // Map user data to labeled fields
+        $requester = [
+            'Requester'  => $user->name,
+            'Position'   => $user->defaultPosition()->title,
+            'Card ID'    => $user->card_number,
+            'Department' => $user->defaultDepartment()->name,
+            'Cellphone'  => $user->phone,
+            'Ext'        => $user->ext,
+        ];
+
+        return view('purchase-requests.form', compact('purchaseRequest', 'requester'));
     }
+
 
     // ====================
     // Store Purchase Request
@@ -283,5 +303,26 @@ class PurchaseRequestController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    // ====================
+    // Get Products
+    // ====================
+    public function getProducts(Request $request)
+    {
+        $this->authorize('viewAny', PurchaseRequest::class);
+        $response = $this->productService->getStockManagedVariants($request);
+        
+        // Filter response to include only items where is_active = 1
+        $filteredResponse = [
+            'data' => collect($response['data'])->filter(function ($item) {
+                return $item['is_active'] == 1;
+            })->values()->all(),
+            'recordsTotal' => $response['recordsTotal'],
+            'recordsFiltered' => count($response['data']),
+            'draw' => $response['draw'],
+        ];
+        
+        return response()->json($filteredResponse);
     }
 }

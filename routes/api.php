@@ -347,10 +347,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->name('api.purchase-requests.edit');
     // Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('api.purchase-requests.update');
     // Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('api.purchase-requests.destroy');
-    // Route::get('/purchase-requests/get-users-for-approval', [PurchaseRequestController::class, 'getApprovalUsers'])
-    // ->name('api.purchase-requests.get-users-for-approval');
+    Route::get('/purchase-requests/get-users-for-approval', [PurchaseRequestController::class, 'getApprovalUsers'])
+    ->name('api.purchase-requests.get-users-for-approval');
     // Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
     // ->name('api.purchase-requests.submit-approval');
+
+    Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
     Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
 
 });

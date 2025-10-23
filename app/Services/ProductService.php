@@ -76,7 +76,7 @@ class ProductService
                 'estimated_price' => $variant->estimated_price,
                 'average_price' => $avgPrice,
                 'stock_on_hand' => $runningQty,
-                'description' => $variant->description,
+                'description' => $variant->product->name . ' - ' . $variant->description,
                 'image' => $variant->image ?: $variant->product->image ?? null,
                 'is_active' => (int) $variant->is_active,
                 'image_url' => $variant->image ? asset('storage/' . $variant->image) : ($variant->product->image ? asset('storage/' . $variant->product->image) : null),
