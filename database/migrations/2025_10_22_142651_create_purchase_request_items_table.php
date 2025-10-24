@@ -17,19 +17,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->foreignId('product_id')
-                ->constrained('products')
-                ->restrictOnDelete();
-
-            $table->foreignId('campus_id')
-                ->constrained('campus')
-                ->restrictOnDelete();
-
-            $table->foreignId('department_id')
-                ->constrained('departments')
-                ->restrictOnDelete();
-
-            $table->foreignId('division_id')
-                ->constrained('divisions')
+                ->constrained('product_variants')
                 ->restrictOnDelete();
             
             $table->foreignId('budget_code_id')

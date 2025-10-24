@@ -41,85 +41,44 @@ class StockController extends Controller
     {
         $this->authorize('viewAny', Product::class);
 
+        // Validate request
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string',
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:100',
             'draw' => 'nullable|integer',
-            'date' => 'nullable|date',
             'page' => 'nullable|integer|min:1',
         ]);
 
-        $search = $validated['search'] ?? null;
         $limit = $validated['limit'] ?? 10;
         $draw = $validated['draw'] ?? 1;
         $page = $validated['page'] ?? 1;
-        $date = $validated['date'] ?? now()->toDateString();
-
-        // Fetch variants with product relations
-        $variants = ProductVariant::with(['product.category','product.subCategory','product.unit','values.attribute'])
-            ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
-            ->get();
-
-        $data = collect();
-
-        foreach ($variants as $variant) {
-            $detail = $this->productService->getStockDetailByCampus($variant->id, $date);
-
-            $data->push([
-                'id' => $variant->id,
-                'item_code' => $variant->item_code,
-                'estimated_price' => $variant->estimated_price,
-                'average_price' => $detail['global_average_price'],
-                'stock_by_campus' => $detail['stock_by_campus'],
-                'total_stock' => $detail['total_stock'],
-                'description' => $variant->description,
-                'image' => $variant->image ?: $variant->product->image ?? null,
-                'is_active' => (int) $variant->is_active,
-                'image_url' => $variant->image 
-                    ? asset('storage/' . $variant->image) 
-                    : ($variant->product->image ? asset('storage/' . $variant->product->image) : null),
-                'product_id' => $variant->product->id ?? null,
-                'product_name' => $variant->product->name 
-                ? $variant->product->name . ($variant->description ? ' - ' . $variant->description : '')
-                : null,
-                'product_khmer_name' => $variant->product->khmer_name ?? null,
-                'category_name' => $variant->product->category->name ?? null,
-                'sub_category_name' => $variant->product->subCategory->name ?? null,
-                'unit_name' => $variant->product->unit->name ?? null,
-                'created_by' => $variant->product->createdBy ? $variant->product->createdBy->name : null,
-                'created_at' => $variant->created_at?->toDateTimeString(),
-                'updated_at' => $variant->updated_at?->toDateTimeString(),
-            ]);
-        }
-
-        // 🔍 Apply search filtering
-        if ($search) {
-            $searchLower = strtolower($search);
-            $data = $data->filter(function ($row) use ($searchLower) {
-                return str_contains(strtolower($row['item_code']), $searchLower)
-                    || str_contains(strtolower($row['description'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['product_name'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['product_khmer_name'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['category_name'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['sub_category_name'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['unit_name'] ?? ''), $searchLower)
-                    || str_contains(strtolower($row['created_by'] ?? ''), $searchLower);
-            })->values();
-        }
-
-        // 🔃 Sorting
+        $search = $validated['search'] ?? null;
         $sortColumn = $validated['sortColumn'] ?? 'created_at';
         $sortDirection = strtolower($validated['sortDirection'] ?? 'desc');
 
+        // Add DataTables-like search structure for the service
+        $serviceRequest = new \Illuminate\Http\Request([
+            'limit' => $limit,
+            'search' => ['value' => $search],
+            'draw' => $draw,
+            'page' => $page,
+        ]);
+
+        // Use the new ProductService
+        $serviceData = app(\App\Services\ProductService::class)->getStockManagedVariants($serviceRequest);
+
+        $data = collect($serviceData['data']);
+
+        // Apply manual sorting if sortColumn exists
         if ($data->isNotEmpty() && array_key_exists($sortColumn, $data->first())) {
             $data = $sortDirection === 'asc'
                 ? $data->sortBy($sortColumn)->values()
                 : $data->sortByDesc($sortColumn)->values();
         }
 
-        // 📄 Manual pagination
+        // Manual pagination in case you want custom page handling
         $total = $data->count();
         $paginated = $data->slice(($page - 1) * $limit, $limit)->values();
 
@@ -130,6 +89,7 @@ class StockController extends Controller
             'draw' => $draw,
         ]);
     }
+
 
     public function getStockMovements(Request $request)
     {

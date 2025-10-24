@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\ProductVariant;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductService
 {
@@ -15,80 +15,95 @@ class ProductService
         $this->ledgerService = $ledgerService;
     }
 
+    /**
+     * Get stock managed product variants with mapped data including product name and unit name.
+     */
     public function getStockManagedVariants(Request $request): array
     {
         $validated = $request->validate([
-            'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:item_code,description,product_name,product_khmer_name,created_at,updated_at,is_active,created_by',
-            'sortDirection' => 'nullable|string|in:asc,desc',
             'limit' => 'nullable|integer|min:1|max:100',
-            'draw' => 'nullable|integer',
-            'warehouse_id' => 'nullable|integer', // Optional warehouse filter
-            'date' => 'nullable|date',           // Optional cut-off date
+            'search.value' => 'nullable|string|max:255',
         ]);
 
-        $query = ProductVariant::with(['product.category', 'product.subCategory', 'product.unit', 'values.attribute'])
-            ->whereHas('product', function ($q) use ($validated, $request) {
-                $q->where('manage_stock', 1);
+        $search = $validated['search']['value'] ?? null;
+        $limit = max(1, min(100, (int) ($validated['limit'] ?? 10)));
 
-                if ($search = $validated['search'] ?? $request->input('search')) {
-                    $q->where(function ($q2) use ($search) {
-                        $q2->where('name', 'like', "%{$search}%")
-                        ->orWhere('khmer_name', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhere('item_code', 'like', "%{$search}%");
-                    });
-                }
-            })
-            ->orderBy('item_code', 'asc'); // <- sort by item_code here
+        // Join product_variants → products → unit_or_measures
+        $query = DB::table('product_variants as pv')
+            ->join('products as p', 'pv.product_id', '=', 'p.id')
+            ->leftJoin('unit_of_measures as uom', 'p.unit_id', '=', 'uom.id')
+            ->leftJoin('main_categories as pc', 'p.category_id', '=', 'pc.id')
+            ->leftJoin('sub_categories as sc', 'p.sub_category_id', '=', 'sc.id')
+            ->select([
+                'pv.id',
+                'pv.item_code',
+                'pv.description',
+                'pv.image',
+                'pv.estimated_price',
+                'pv.is_active',
+                'pv.created_at',
+                'pv.updated_at',
+                'p.name as product_name',   // ✅ product name
+                'uom.name as unit_name',    // ✅ unit name
+                'pc.name as category_name',
+                'sc.name as sub_category_name',
+            ])
+            ->where('pv.is_active', 1)
+            ->orderBy('pv.item_code', 'asc');
 
+        // Apply search on item_code, description, or product name
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pv.item_code', 'like', "%{$search}%")
+                  ->orWhere('pv.description', 'like', "%{$search}%")
+                  ->orWhere('p.name', 'like', "%{$search}%");
+            });
+        }
 
-        // Sorting
-        $allowedSortColumns = ['item_code', 'created_at', 'updated_at', 'is_active'];
-        $sortColumn = $validated['sortColumn'] ?? $request->input('sortColumn', 'created_at');
-        $sortDirection = $validated['sortDirection'] ?? $request->input('sortDirection', 'desc');
-
-        $sortColumn = in_array($sortColumn, $allowedSortColumns) ? $sortColumn : 'created_at';
-        $sortDirection = in_array(strtolower($sortDirection), ['asc','desc']) ? $sortDirection : 'desc';
-
-        $query->orderBy($sortColumn, $sortDirection);
-
-        // Pagination
-        $limit = max(1, min(100, (int) ($validated['limit'] ?? $request->input('limit', 10))));
+        // Get paginated results
         $variants = $query->paginate($limit);
 
-        $warehouseId = $validated['warehouse_id'] ?? null;
-        $date = $validated['date'] ?? now()->toDateString();
+        // Load warehouses for stock calculation
+        $warehouses = Warehouse::select('id', 'name')->get();
 
-        // Transform data and calculate stock & average price
-        $data = $variants->getCollection()->map(function ($variant) use ($warehouseId, $date) {
+        // Map data with stock by warehouse and global average price
+        $data = collect($variants->items())->map(function ($variant) use ($warehouses) {
+            $globalAvgPrice = $this->ledgerService->getGlobalAvgPrice($variant->id);
 
-        $runningQty = $warehouseId 
-            ? optional($this->ledgerService->recalcProduct($variant->id, $warehouseId, $date)->last())->running_qty ?? 0
-            : null;
+            $stockByCampus = [];
+            $totalStock = 0;
 
-        // Global average price across all warehouses up to request date
-        $avgPrice = $this->ledgerService->getGlobalAvgPrice($variant->id, $date);
+            foreach ($warehouses as $warehouse) {
+                $movements = $this->ledgerService->recalcProduct($variant->id, $warehouse->id);
+                $last = $movements->last();
+                $stockOnHand = $last->running_qty ?? 0;
+
+                $stockByCampus[] = [
+                    'warehouse_id' => $warehouse->id,
+                    'warehouse_name' => $warehouse->name,
+                    'stock_on_hand' => $stockOnHand,
+                    'average_price' => $globalAvgPrice,
+                    'total_cost' => round($stockOnHand * $globalAvgPrice, 2),
+                ];
+
+                $totalStock += $stockOnHand;
+            }
 
             return [
                 'id' => $variant->id,
                 'item_code' => $variant->item_code,
+                'description' => $variant->product_name . ' - ' . $variant-> description,
                 'estimated_price' => $variant->estimated_price,
-                'average_price' => $avgPrice,
-                'stock_on_hand' => $runningQty,
-                'description' => $variant->product->name . ' - ' . $variant->description,
-                'image' => $variant->image ?: $variant->product->image ?? null,
+                'unit_name' => $variant->unit_name,
+                'category_name' => $variant->category_name,
+                'sub_category_name' => $variant->sub_category_name,
+                'image' => $variant->image,       // ✅ included
                 'is_active' => (int) $variant->is_active,
-                'image_url' => $variant->image ? asset('storage/' . $variant->image) : ($variant->product->image ? asset('storage/' . $variant->product->image) : null),
-                'product_id' => $variant->product->id ?? null,
-                'product_name' => $variant->product->name ?? null,
-                'product_khmer_name' => $variant->product->khmer_name ?? null,
-                'category_name' => $variant->product->category->name ?? null,
-                'sub_category_name' => $variant->product->subCategory->name ?? null,
-                'unit_name' => $variant->product->unit->name ?? null,
-                'created_by' => $variant->product->createdBy ? $variant->product->createdBy->name : null,
-                'created_at' => $variant->created_at?->toDateTimeString(),
-                'updated_at' => $variant->updated_at?->toDateTimeString(),
+                'created_at' => $variant->created_at,
+                'updated_at' => $variant->updated_at,
+                'stock_on_hand' => $totalStock,
+                'average_price' => $globalAvgPrice,
+                'stock_by_campus' => $stockByCampus,
             ];
         });
 
@@ -96,46 +111,7 @@ class ProductService
             'data' => $data->all(),
             'recordsTotal' => $variants->total(),
             'recordsFiltered' => $variants->total(),
-            'draw' => (int) ($validated['draw'] ?? $request->input('draw', 1)),
+            'draw' => (int) ($request->input('draw', 1)),
         ];
     }
-
-        /**
-     * Get stock on hand by campus (warehouse) and global average price for a product variant.
-     */
-    public function getStockDetailByCampus(int $variantId, ?string $date = null): array
-    {
-        $date = $date ?? now()->toDateString();
-        $warehouses = Warehouse::select('id', 'name')->get();
-        $stockDetails = [];
-        $totalStock = 0;
-
-        // Get global average price once
-        $globalAvgPrice = $this->ledgerService->getGlobalAvgPrice($variantId, $date);
-
-        foreach ($warehouses as $warehouse) {
-            $movements = $this->ledgerService->recalcProduct($variantId, $warehouse->id, $date);
-            $last = $movements->last();
-
-            // Safe access
-            $stockOnHand = $last->running_qty ?? 0;
-
-            $stockDetails[] = [
-                'warehouse_id' => $warehouse->id,
-                'warehouse_name' => $warehouse->name,
-                'stock_on_hand' => $stockOnHand,
-                'average_price' => $globalAvgPrice,
-                'total_cost' => round($stockOnHand * $globalAvgPrice, 2),
-            ];
-
-            $totalStock += $stockOnHand;
-        }
-
-        return [
-            'stock_by_campus' => $stockDetails,
-            'total_stock' => $totalStock,
-            'global_average_price' => $globalAvgPrice,
-        ];
-    }
-
 }

@@ -15,20 +15,28 @@ use App\Models\User;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
 use App\Services\ProductService;
+use App\Services\CampusService;
+use App\Services\DepartmentService;
 
 class PurchaseRequestController extends Controller
 {
     protected ApprovalService $approvalService;
     protected ProductService $productService;
+    protected CampusService $campusService;
+    protected DepartmentService $departmentService;
     private const CUSTOM_DRIVE_ID = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
 
     public function __construct(
         ApprovalService $approvalService,
-        ProductService $productService
-        )
+        ProductService $productService,
+        CampusService $campusService,
+        DepartmentService $departmentService
+    )
     {
         $this->approvalService = $approvalService;
         $this->productService = $productService;
+        $this->campusService = $campusService;
+        $this->departmentService = $departmentService;
     }
     // ====================
     // Index & Form Views
@@ -55,7 +63,11 @@ class PurchaseRequestController extends Controller
             'Ext'        => $user->ext,
         ];
 
-        return view('purchase-requests.form', compact('purchaseRequest', 'requester'));
+        // Get default department and campus
+        $userDefaultDepartment = $user->defaultDepartment()->select('id', 'short_name')->first();
+        $userDefaultCampus = $user->defaultCampus()->select('id', 'short_name')->first();
+
+        return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
     }
 
 
@@ -71,8 +83,6 @@ class PurchaseRequestController extends Controller
         // Validate Request
         // --------------------
         $validated = $request->validate([
-            'reference_no' => 'required|string|unique:purchase_requests,reference_no',
-            'request_date' => 'required|date',
             'deadline_date' => 'nullable|date|after_or_equal:request_date',
             'purpose' => 'required|string',
             'is_urgent' => 'required|boolean',
@@ -84,15 +94,11 @@ class PurchaseRequestController extends Controller
             'items.*.description' => 'nullable|string|max:500',
             'items.*.currency' => 'nullable|string|max:10',
             'items.*.exchange_rate' => 'nullable|numeric|min:0',
-            'items.*.campus_id' => 'nullable|exists:campus,id',
-            'items.*.department_id' => 'nullable|exists:departments,id',
-            'items.*.division_id' => 'nullable|exists:divisions,id',
+            'items.*.campus_ids' => 'required|array|min:1',
+            'items.*.campus_ids.*' => 'required|exists:campus,id',
+            'items.*.department_ids' => 'required|array|min:1',
+            'items.*.department_ids.*' => 'required|exists:departments,id',
             'items.*.budget_code_id' => 'nullable|exists:budget_items,id',
-
-            'created_by' => 'required|exists:users,id',
-            'position_id' => 'required|exists:positions,id',
-            'updated_by' => 'nullable|exists:users,id',
-            'deleted_by' => 'nullable|exists:users,id',
 
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
@@ -129,7 +135,7 @@ class PurchaseRequestController extends Controller
                         $folderPath,
                         ['Title' => uniqid()],
                         $fileName,
-                        SharePointService::CUSTOM_DRIVE_ID
+                        self::CUSTOM_DRIVE_ID
                     );
 
                     $counter++;
@@ -140,24 +146,25 @@ class PurchaseRequestController extends Controller
                 // --------------------
                 $purchaseRequest = PurchaseRequest::create([
                     'reference_no' => $referenceNo,
-                    'request_date' => $validated['request_date'],
+                    'request_date' => now()->format('Y-m-d'),
                     'deadline_date' => $validated['deadline_date'] ?? null,
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
                     'created_by' => $user->id,
-                    'position_id' => $user->current_position_id,
+                    'position_id' => $user->defaultPosition()->id,
                 ]);
 
                 // --------------------
                 // Prepare items
                 // --------------------
-                $itemsData = array_map(function ($item) use ($purchaseRequest) {
+                foreach ($validated['items'] as $item) {
                     $totalPrice = $item['quantity'] * $item['unit_price'];
                     $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
                         ? $totalPrice / $item['exchange_rate']
                         : $totalPrice;
 
-                    return [
+                    // Create the item
+                    $purchaseRequestItem = PurchaseRequestItem::create([
                         'purchase_request_id' => $purchaseRequest->id,
                         'product_id' => $item['product_id'],
                         'quantity' => $item['quantity'],
@@ -167,14 +174,23 @@ class PurchaseRequestController extends Controller
                         'exchange_rate' => $item['exchange_rate'] ?? null,
                         'total_price_usd' => $totalPriceUsd,
                         'description' => $item['description'] ?? null,
-                        'campus_id' => $item['campus_id'] ?? null,
-                        'department_id' => $item['department_id'] ?? null,
-                        'division_id' => $item['division_id'] ?? null,
                         'budget_code_id' => $item['budget_code_id'] ?? null,
-                    ];
-                }, $validated['items']);
+                    ]);
 
-                PurchaseRequestItem::insert($itemsData);
+                    // Calculate distributed amounts
+                    $campusCount = count($item['campus_ids']);
+                    $departmentCount = count($item['department_ids']);
+                    $perCampusUsd = $totalPriceUsd / $campusCount;
+                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+
+                    // Sync campuses with pivot data
+                    $campusPivotData = array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]);
+                    $purchaseRequestItem->campuses()->sync($campusPivotData);
+
+                    // Sync departments with pivot data
+                    $departmentPivotData = array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]);
+                    $purchaseRequestItem->departments()->sync($departmentPivotData);
+                }
 
                 // --------------------
                 // Store approvals
@@ -265,36 +281,25 @@ class PurchaseRequestController extends Controller
         ]);
 
         $permission = "purchaseRequest.{$validated['request_type']}";
-        $authUser = $request->user();
-        $isAdmin = $authUser->hasRole('admin');
+        $authUserId = $request->user()->id;
 
         try {
-            $authDepartmentIds = !$isAdmin
-                ? $authUser->departments()->pluck('departments.id')->toArray()
-                : [];
-
-            $usersQuery = User::query()
-                ->where(function ($query) use ($permission) {
-                    $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
-                        ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
-                })
+            $users = User::query()
+                ->whereHas('permissions', fn($q) => $q->where('name', $permission))
+                ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
                 ->whereNotNull('telegram_id')
-                ->where('id', '!=', $authUser->id);
-
-            if (!$isAdmin) {
-                $usersQuery->whereHas('departments', fn($q) => $q->whereIn('departments.id', $authDepartmentIds));
-            }
-
-            $users = $usersQuery->select('id', 'name', 'telegram_id', 'card_number')->get();
+                ->where('id', '!=', $authUserId)
+                ->select('id', 'name', 'telegram_id', 'card_number')
+                ->orderBy('name')
+                ->distinct()
+                ->get();
 
             return response()->json([
                 'message' => 'Users fetched successfully.',
                 'data' => $users,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Failed to fetch users for approval', [
-                'request_type' => $validated['request_type'],
-                'auth_user_id' => $authUser->id,
                 'error' => $e->getMessage(),
             ]);
 
@@ -312,17 +317,54 @@ class PurchaseRequestController extends Controller
     {
         $this->authorize('viewAny', PurchaseRequest::class);
         $response = $this->productService->getStockManagedVariants($request);
-        
-        // Filter response to include only items where is_active = 1
+        return response()->json($response);
+    }
+
+
+    public function getCampuses(Request $request)
+    {
+        $this->authorize('viewAny', PurchaseRequest::class);
+
+        // The service already returns an array
+        $response = $this->campusService->getCampuses($request);
+
+        $items = $response['data'] ?? [];
+        $filtered = collect($items)
+            ->filter(fn($item) => data_get($item, 'is_active') == 1)
+            ->values()
+            ->all();
+
         $filteredResponse = [
-            'data' => collect($response['data'])->filter(function ($item) {
-                return $item['is_active'] == 1;
-            })->values()->all(),
-            'recordsTotal' => $response['recordsTotal'],
-            'recordsFiltered' => count($response['data']),
-            'draw' => $response['draw'],
+            'data'             => $filtered,
+            'recordsTotal'     => $response['recordsTotal'] ?? count($items),
+            'recordsFiltered'  => count($filtered),
+            'draw'             => $response['draw'] ?? null,
         ];
-        
+
         return response()->json($filteredResponse);
     }
+
+    public function getDepartments(Request $request)
+    {
+        $this->authorize('viewAny', PurchaseRequest::class);
+
+        // The service already returns an array
+        $response = $this->departmentService->getDepartments($request);
+
+        $items = $response['data'] ?? [];
+        $filtered = collect($items)
+            ->filter(fn($item) => data_get($item, 'is_active') == 1)
+            ->values()
+            ->all();
+
+        $filteredResponse = [
+            'data'             => $filtered,
+            'recordsTotal'     => $response['recordsTotal'] ?? count($items),
+            'recordsFiltered'  => count($filtered),
+            'draw'             => $response['draw'] ?? null,
+        ];
+
+        return response()->json($filteredResponse);
+    }
+
 }

@@ -10,10 +10,10 @@
             <i class="fal fa-backward"></i> Back
           </button>
         </div>
-
         <div class="card-body">
           <!-- ROW 1: Requester + PR Info -->
           <div class="row">
+            <!-- Requester Info -->
             <div class="col-md-6">
               <div class="border rounded p-3 mb-4" style="max-height: 300px; overflow-y: auto;">
                 <h5 class="font-weight-bold mb-3 text-primary">👤 Requester Info</h5>
@@ -24,13 +24,14 @@
               </div>
             </div>
 
+            <!-- PR Info -->
             <div class="col-md-6">
               <div class="border rounded p-3 mb-4">
                 <h5 class="font-weight-bold mb-3 text-primary">📋 PR Information</h5>
                 <div class="form-row">
                   <div class="form-group col-md-6">
                     <label class="font-weight-bold">📅 Deadline</label>
-                    <input v-model="form.deadline_date" class="form-control datepicker" data-field="deadline_date" />
+                    <input v-model="form.deadline_date" class="form-control datepicker" />
                   </div>
                   <div class="form-group col-md-6">
                     <label class="font-weight-bold">🚨 Urgent</label>
@@ -44,10 +45,12 @@
                     </div>
                   </div>
                 </div>
+
                 <div class="form-group">
                   <label class="font-weight-bold">🎯 Purpose <span class="text-danger">*</span></label>
-                  <textarea v-model="form.purpose" class="form-control" rows="2" placeholder="Enter purpose..." required />
+                  <textarea v-model="form.purpose" class="form-control" rows="2" placeholder="Enter purpose..." required></textarea>
                 </div>
+
                 <div class="form-group">
                   <label class="font-weight-bold">📎 Attachment</label>
                   <div class="input-group">
@@ -75,9 +78,9 @@
                 <div class="input-group">
                   <input type="file" class="d-none" ref="fileInput" @change="onImportFile" accept=".xlsx,.xls,.csv" />
                   <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.fileInput.click()">
-                    <i class="fal fa-file-upload"></i> {{ selectedFileName || 'Choose Excel/CSV...' }}
+                    <i class="fal fa-file-upload"></i> {{ fileLabel }}
                   </button>
-                  <button type="button" class="btn btn-primary ml-2" @click="importFile" :disabled="isImporting || !selectedFileName">
+                  <button type="button" class="btn btn-primary ml-2" @click="importFile" :disabled="isImporting || !fileLabel">
                     <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span> Import
                   </button>
                   <a class="btn btn-success ml-2" href="/sampleExcel/purchase_request_items_sample.xlsx" download>
@@ -87,37 +90,42 @@
               </div>
               <div class="form-group col-md-8">
                 <label class="font-weight-bold">➕ Add Product</label>
-                <button type="button" class="btn btn-primary btn-block" data-toggle="modal" data-target="#productModal" :disabled="isLoadingProducts">
+                <button type="button" class="btn btn-primary btn-block" @click="showProductModal" :disabled="isLoadingProducts">
                   <span v-if="isLoadingProducts" class="spinner-border spinner-border-sm mr-2"></span>
-                  <i class="fal fa-plus"></i> Select Product ({{ products.length }})
+                  <i class="fal fa-plus"></i> Select Product
                 </button>
               </div>
             </div>
+
+            <!-- Items Table -->
             <h5 class="font-weight-bold mb-3 text-primary">
-              📦 Items ({{ form.items.length }}) <span v-if="totalAmount" class="badge badge-primary ml-2">${{ totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) }}</span>
+              📦 Items ({{ form.items.length }}) 
+              <span v-if="totalAmount" class="badge badge-primary ml-2">${{ totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) }}</span>
             </h5>
             <div class="table-responsive" style="max-height: 400px;">
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 80px;">Code</th>
-                    <th style="min-width: 200px;">Description</th>
-                    <th style="min-width: 70px;">Qty</th>
-                    <th style="min-width: 90px;">Price</th>
-                    <th style="min-width: 80px;">Currency</th>
-                    <th style="min-width: 80px;">Ex. Rate</th>
-                    <th style="min-width: 120px;">Remarks</th>
-                    <th style="min-width: 100px;">Campus</th>
-                    <th style="min-width: 90px;">Dept</th>
-                    <th style="min-width: 90px;">Division</th>
-                    <th style="min-width: 80px;">Budget</th>
-                    <th style="min-width: 60px;">Action</th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Remarks</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Currency</th>
+                    <th>Ex. Rate</th>
+                    <th>Campus</th>
+                    <th>Dept</th>
+                    <th>Budget</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
                     <td>{{ item.product_code }}</td>
                     <td>{{ item.product_description }}</td>
+                    <td>{{ item.unit_name || 'N/A' }}</td>
+                    <td><textarea v-model="item.description" class="form-control form-control-sm" rows="1"></textarea></td>
                     <td><input v-model.number="item.quantity" type="number" min="0.01" step="0.01" class="form-control form-control-sm" required /></td>
                     <td><input v-model.number="item.unit_price" type="number" min="0" step="0.01" class="form-control form-control-sm" required /></td>
                     <td>
@@ -128,29 +136,15 @@
                       </select>
                     </td>
                     <td><input v-model.number="item.exchange_rate" type="number" min="0" step="0.01" class="form-control form-control-sm" /></td>
-                    <td><textarea v-model="item.description" class="form-control form-control-sm" rows="1" /></td>
-                    <td>
-                      <select v-model="item.campus_id" class="form-control form-control-sm">
-                        <option v-for="campus in campuses" :key="campus.id" :value="campus.id">{{ campus.name }}</option>
-                      </select>
-                    </td>
-                    <td>
-                      <select v-model="item.department_id" class="form-control form-control-sm">
-                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
-                      </select>
-                    </td>
-                    <td>
-                      <select v-model="item.division_id" class="form-control form-control-sm">
-                        <option v-for="division in divisions" :key="division.id" :value="division.id">{{ division.name }}</option>
-                      </select>
-                    </td>
+                    <td><select multiple class="form-control campus-select" :data-index="index"></select></td>
+                    <td><select multiple class="form-control department-select" :data-index="index"></select></td>
                     <td>
                       <select v-model="item.budget_code_id" class="form-control form-control-sm">
                         <option v-for="budget in budgetCodes" :key="budget.id" :value="budget.id">{{ budget.code }}</option>
                       </select>
                     </td>
                     <td class="text-center">
-                      <button @click="removeItem(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
+                      <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
                     </td>
                   </tr>
                   <tr v-if="!form.items.length"><td colspan="12" class="text-center text-muted py-4">No items added</td></tr>
@@ -166,33 +160,27 @@
               <table class="table table-bordered table-sm">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 100px;">Type</th>
-                    <th style="min-width: 200px;">User</th>
-                    <th style="min-width: 80px;">Action</th>
+                    <th>Type</th>
+                    <th>User</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(approval, index) in form.approvals" :key="index">
                     <td>
-                      <select class="form-control approval-type-select" :data-index="index" v-model="approval.request_type" @change="initUserSelect(index)">
-                        <option value="">Select</option>
-                        <option value="initial">Initial</option>
-                        <option value="approve">Approve</option>
-                        <option value="check">Check</option>
-                        <option value="verify">Verify</option>
-                      </select>
+                      <select class="form-control approval-type-select" :data-index="index" v-model="approval.request_type"></select>
                     </td>
                     <td>
-                      <select class="form-control user-select" :data-index="index" v-model="approval.user_id" :disabled="!approval.request_type || isLoadingUsers[index]"></select>
+                      <select class="form-control user-select" :data-index="index" v-model="approval.user_id" :disabled="!approval.request_type"></select>
                     </td>
                     <td class="text-center">
-                      <button @click="removeApproval(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
+                      <button @click.prevent="removeApproval(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <button @click="addApproval" class="btn btn-outline-primary btn-sm mt-2"><i class="fal fa-plus"></i> Add Approval</button>
+            <button @click.prevent="addApproval" class="btn btn-outline-primary btn-sm mt-2"><i class="fal fa-plus"></i> Add Approval</button>
           </div>
 
           <!-- SUBMIT BUTTONS -->
@@ -212,7 +200,7 @@
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title"><i class="fal fa-box"></i> Select Product ({{ products.length }} found)</h5>
+            <h5 class="modal-title"><i class="fal fa-box"></i> Products List</h5>
             <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
           </div>
           <div class="modal-body">
@@ -227,10 +215,11 @@
             <table v-else id="productTable" class="table table-bordered table-sm table-hover w-100">
               <thead class="thead-light">
                 <tr>
-                  <th style="width: 15%;">Code</th>
-                  <th style="width: 40%;">Description</th>
-                  <th style="width: 25%;">UoM</th>
-                  <th style="width: 10%;">Action</th>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>UoM</th>
+                  <th>Est. Price</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -246,19 +235,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import axios from 'axios';
 import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
 
-// Props & Emits
 const props = defineProps({
   purchaseRequestId: Number,
-  requester: Object
+  requester: Object,
+  userDefaultDepartment: Object,
+  userDefaultCampus: Object
 });
 const emit = defineEmits(['submitted']);
 
-// State
 const isSubmitting = ref(false);
 const isImporting = ref(false);
 const isLoadingProducts = ref(true);
@@ -266,362 +255,275 @@ const isEditMode = ref(!!props.purchaseRequestId);
 const products = ref([]);
 const campuses = ref([]);
 const departments = ref([]);
-const divisions = ref([]);
-const budgetCodes = ref([]);
-const fileInput = ref(null);
-const attachmentInput = ref(null);
-const selectedFileName = ref('');
-const productTable = ref(null);
-const existingFileUrls = ref([]);
 const fileLabel = ref('Choose file(s)...');
-const isLoadingUsers = ref({});
+const existingFileUrls = ref([]);
+
 const form = ref({
   deadline_date: '',
   purpose: '',
   is_urgent: false,
   file: null,
   items: [],
-  created_by: '',
-  position_id: '',
+  created_by: props.requester?.id || '',
+  position_id: props.requester?.current_position_id || '',
   approvals: []
 });
 
-// Set created_by and position_id from requester prop
-form.value.created_by = props.requester?.id || '';
-form.value.position_id = props.requester?.current_position_id || '';
+// --- Temporary Budget Codes ---
+const budgetCodes = ref([
+  { id: 1, code: 'BUD-001', name: 'Office Supplies' },
+  { id: 2, code: 'BUD-002', name: 'IT Equipment' },
+  { id: 3, code: 'BUD-003', name: 'Maintenance' }
+]);
 
-// Computed
+const approvalTypes = [
+  { id: 'initial', text: 'Initial' },
+  { id: 'approve', text: 'Approve' },
+  { id: 'check', text: 'Check' },
+  { id: 'verify', text: 'Verify' }
+];
+
+const usersForApproval = ref({ initial: [], approve: [], check: [], verify: [] });
+
 const totalAmount = computed(() =>
-  form.value.items.reduce((sum, item) => sum + (item.quantity * item.unit_price * (item.exchange_rate || 1)), 0)
+  form.value.items.reduce((sum, i) => sum + i.quantity * i.unit_price * (i.exchange_rate || 1), 0)
 );
-const isFormValid = computed(() => form.value.purpose && form.value.items.length && !form.value.items.some(item => !item.product_id));
 
-// Navigation
-const navigateToList = () => {
-  window.location.href = '/purchase-requests';
-};
+const isFormValid = computed(() =>
+  form.value.purpose &&
+  form.value.items.length &&
+  !form.value.items.some(i => !i.product_id)
+);
 
-// Data Loading
-const fetchData = async () => {
-  try {
-    isLoadingProducts.value = true;
-    const [productRes, campusRes, deptRes, divRes, budgetRes] = await Promise.all([
-      axios.get('/api/purchase-requests/get-products'),
-      axios.get('/api/campuses'),
-      axios.get('/api/departments'),
-      axios.get('/api/divisions'),
-      // axios.get('/api/budget-codes')
-    ]);
-
-    products.value = productRes.data.data || [];
-    campuses.value = campusRes.data.data || [];
-    departments.value = deptRes.data.data || [];
-    divisions.value = divRes.data.data || [];
-    budgetCodes.value = budgetRes.data.data || [];
-
-    if (isEditMode.value) await loadEditData();
-  } catch (error) {
-    showAlert('Error', `Failed to load data: ${error.message}`, 'danger');
-  } finally {
-    isLoadingProducts.value = false;
-  }
-};
-
-const loadEditData = async () => {
-  try {
-    const { data } = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/edit`);
-    const { deadline_date, purpose, is_urgent, items, approvals, file_urls } = data.data;
-    form.value.deadline_date = deadline_date;
-    form.value.purpose = purpose;
-    form.value.is_urgent = is_urgent;
-    form.value.items = items?.map(item => ({
-      ...createItem(item),
-      product_code: products.value.find(p => p.id === item.product_id)?.item_code || '',
-      product_description: products.value.find(p => p.id === item.product_id)?.description || ''
-    })) || [];
-    form.value.approvals = approvals?.map(approval => ({
-      id: approval.id || null,
-      user_id: approval.responder?.id || null,
-      request_type: approval.request_type || ''
-    })) || [];
-    existingFileUrls.value = file_urls || [];
-  } catch (error) {
-    showAlert('Error', `Failed to load edit data: ${error.message}`, 'danger');
-  }
-};
-
-// Item Helpers
-const createItem = (data) => ({
-  id: data.id || null,
+// --- Helper Functions ---
+const createItem = (data = {}) => ({
   product_id: data.product_id || '',
   product_code: data.product_code || '',
   product_description: data.product_description || '',
+  unit_name: data.unit_name || '',
   quantity: data.quantity || 0,
   unit_price: data.unit_price || 0,
   currency: data.currency || '',
   exchange_rate: data.exchange_rate || null,
   description: data.description || '',
-  campus_id: data.campus_id || '',
-  department_id: data.department_id || '',
-  division_id: data.division_id || '',
-  budget_code_id: data.budget_code_id || ''
+  campus_ids: data.campus_ids || [props.userDefaultCampus?.id],
+  department_ids: data.department_ids || [props.userDefaultDepartment?.id],
+  budget_code_id: data.budget_code_id || budgetCodes.value[0]?.id || ''
 });
 
-// File Handling
-const onFileChange = (event) => {
-  const files = event.target.files;
+const navigateToList = () => window.location.href = '/purchase-requests';
+
+const onFileChange = (e) => {
+  const files = e.target.files;
   form.value.file = files;
-  if (files.length > 0) {
-    const fileNames = Array.from(files).map(file => file.name).join(', ');
-    fileLabel.value = files.length > 1 ? `${files.length} files selected` : fileNames;
-  } else {
-    fileLabel.value = 'Choose file(s)...';
-  }
+  fileLabel.value = files?.length > 1 ? `${files.length} files selected` : files[0]?.name || 'Choose file(s)...';
 };
 
-const onImportFile = (event) => {
-  const file = event.target.files[0];
-  const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'];
-  if (file && !validTypes.includes(file.type)) {
-    showAlert('Error', 'Please upload Excel or CSV file.', 'danger');
-    return;
-  }
-  selectedFileName.value = file?.name || '';
-};
-
-const importFile = async () => {
-  if (!fileInput.value?.files[0]) return showAlert('Error', 'Please select a file.', 'danger');
-  isImporting.value = true;
-  const formData = new FormData();
-  formData.append('file', fileInput.value.files[0]);
-  try {
-    const { data } = await axios.post('/api/purchase-requests/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-    form.value.items = data.data.items.map(item => createItem(item));
-    showAlert('Success', `${form.value.items.length} items imported!`, 'success');
-  } catch (error) {
-    showAlert('Error', error.response?.data?.message || 'Import failed', 'danger');
-  } finally {
-    isImporting.value = false;
-    fileInput.value.value = '';
-    selectedFileName.value = '';
-  }
-};
-
-// Items
+// --- Items Functions ---
 const addItem = (productId) => {
   const product = products.value.find(p => p.id === Number(productId));
-  if (!product) return showAlert('Error', 'Product not found.', 'danger');
-  const existingIndex = form.value.items.findIndex(item => item.product_id === Number(productId));
-  if (existingIndex > -1) {
-    form.value.items[existingIndex].quantity += 1;
-    showAlert('Info', `Quantity increased for ${product.item_code}`, 'info');
-  } else {
-    form.value.items.push(createItem({
-      product_id: Number(productId),
-      product_code: product.item_code,
-      product_description: product.description,
-      quantity: 1,
-      unit_price: 0
-    }));
-  }
+  if (!product) return showAlert('Error', 'Product not found', 'danger');
+
+  const exist = form.value.items.find(i => i.product_id === Number(productId));
+  if (exist) exist.quantity += 1;
+  else form.value.items.push(createItem({
+    product_id: product.id,
+    product_code: product.item_code,
+    product_description: product.description,
+    unit_name: product.unit_name,
+    quantity: 1,
+    unit_price: 0
+  }));
+
   $('#productModal').modal('hide');
+  nextTick(initItemSelects);
 };
 
 const removeItem = (index) => {
+  ['campus', 'department'].forEach(t => {
+    const el = document.querySelector(`.${t}-select[data-index="${index}"]`);
+    if (el) destroySelect2(el);
+  });
   form.value.items.splice(index, 1);
+  nextTick(initItemSelects);
 };
 
-// Approvals
-const initApprovalSelects = async () => {
-  await nextTick();
-  form.value.approvals.forEach((_, index) => {
-    initApprovalTypeSelect(index);
-    initUserSelect(index);
+// --- Select2 Initialization ---
+const initSelect = (index, type) => {
+  const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
+  if (!el) return;
+  destroySelect2(el);
+  $(el).empty();
+  const dataList = type === 'campus' ? campuses.value : departments.value;
+  dataList.forEach(d => $(el).append(`<option value="${d.id}">${d.short_name || d.name}</option>`));
+
+  initSelect2(el, { multiple: true, allowClear: true, width: '100%', placeholder: `Select ${type}` }, val => {
+    form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
   });
+
+  const current = form.value.items[index][`${type}_ids`] || [];
+  $(el).val(current.map(String)).trigger('change.select2');
 };
 
-const initApprovalTypeSelect = (index) => {
-  const element = document.querySelector(`.approval-type-select[data-index="${index}"]`);
-  if (!element) return;
-  destroySelect2(element);
-  initSelect2(element, { placeholder: 'Select Type', width: '100%', allowClear: true }, (value) => {
-    form.value.approvals[index].request_type = value || '';
-    initUserSelect(index); // Reinitialize user select when type changes
-  });
-  $(element).val(form.value.approvals[index].request_type || '').trigger('change.select2');
-};
+const initItemSelects = () =>
+  form.value.items.forEach((_, i) => ['campus', 'department'].forEach(t => initSelect(i, t)));
 
-const initUserSelect = async (index) => {
-  const element = document.querySelector(`.user-select[data-index="${index}"]`);
-  if (!element) return;
-
-  // Clean up existing Select2 instance
-  destroySelect2(element);
-  $(element).empty().append('<option value="">Select User</option>');
-
-  const requestType = form.value.approvals[index].request_type;
-  if (!['initial', 'approve', 'check', 'verify'].includes(requestType)) {
-    initSelect2(element, { placeholder: 'Select User', width: '100%', allowClear: true }, (value) => {
-      form.value.approvals[index].user_id = value ? Number(value) : '';
-    });
-    return;
-  }
-
+// --- Approval Functions ---
+const fetchUsersForApproval = async (type) => {
+  if (!type || usersForApproval.value[type]?.length) return;
   try {
-    // Set loading state for this specific index
-    isLoadingUsers.value[index] = true;
+    const { data } = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: type } });
+    usersForApproval.value[type] = data.data || [];
+  } catch { usersForApproval.value[type] = []; }
+};
 
-    // Fetch users from the API, aligned with the controller
-    const { data } = await axios.get('/api/purchase-requests/get-users-for-approval', {
-      params: { request_type: requestType }
+const initApprovalSelect = async (index) => {
+  const approval = form.value.approvals[index];
+  if (!approval) return;
+
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`);
+  const userEl = document.querySelector(`.user-select[data-index="${index}"]`);
+
+  if (typeEl) {
+    destroySelect2(typeEl);
+    typeEl.innerHTML = '<option value="">Select Type</option>';
+    approvalTypes.forEach(t => $(typeEl).append(`<option value="${t.id}">${t.text}</option>`));
+
+    initSelect2(typeEl, { width: '100%', allowClear: true }, async val => {
+      approval.request_type = val || '';
+      approval.availableUsers = [];
+
+      if (approval.request_type) {
+        await fetchUsersForApproval(approval.request_type);
+        approval.availableUsers = usersForApproval.value[approval.request_type] || [];
+      }
+
+      // populate user select after users are available
+      if (userEl) {
+        destroySelect2(userEl);
+        userEl.innerHTML = '<option value="">Select User</option>';
+        (approval.availableUsers || []).forEach(u => $(userEl).append(`<option value="${u.id}">${u.name}</option>`));
+        initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
+        $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
+      }
     });
 
-    // Map users and ensure no duplicates
-    const users = data.data || [];
-    users.forEach(user => {
-      $(element).append(`<option value="${user.id}">${user.name} (${user.card_number || 'N/A'})</option>`);
-    });
+    $(typeEl).val(approval.request_type || '').trigger('change.select2');
+  }
 
-    // Initialize Select2
-    initSelect2(element, {
-      placeholder: 'Select User',
-      width: '100%',
-      allowClear: true
-    }, (value) => {
-      form.value.approvals[index].user_id = value ? Number(value) : '';
-    });
-
-    // Set the current value
-    $(element).val(form.value.approvals[index].user_id || '').trigger('change.select2');
-  } catch (error) {
-    let errorMessage = 'Failed to load users for approval.';
-    if (error.response?.status === 403) {
-      errorMessage = 'You are not authorized to view users for this approval type.';
-    } else if (error.response?.status === 422) {
-      errorMessage = 'Invalid approval type provided.';
-    } else {
-      errorMessage = error.response?.data?.message || errorMessage;
-    }
-    showAlert('Error', errorMessage, 'danger');
-  } finally {
-    isLoadingUsers.value[index] = false;
+  // if type already set and users preloaded, ensure user select initialized
+  if (userEl && (!approval.availableUsers || !approval.availableUsers.length)) {
+    destroySelect2(userEl);
+    userEl.innerHTML = '<option value="">Select User</option>';
+    (approval.availableUsers || []).forEach(u => $(userEl).append(`<option value="${u.id}">${u.name}</option>`));
+    initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
+    $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
   }
 };
+
+const initApprovalSelects = async () =>
+  form.value.approvals.forEach((_, i) => initApprovalSelect(i));
 
 const addApproval = async () => {
-  form.value.approvals.push({ request_type: '', user_id: '', isDefault: false });
-  await nextTick();
-  initApprovalSelects();
+  form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
+  await nextTick(initApprovalSelects);
 };
 
-const removeApproval = async (index) => {
-  const typeElement = document.querySelector(`.approval-type-select[data-index="${index}"]`);
-  const userElement = document.querySelector(`.user-select[data-index="${index}"]`);
-  if (typeElement) destroySelect2(typeElement);
-  if (userElement) destroySelect2(userElement);
-  form.value.approvals.splice(index, 1);
-  await nextTick();
-  initApprovalSelects();
+const removeApproval = async (i) => {
+  form.value.approvals.splice(i, 1);
+  await nextTick(initApprovalSelects);
 };
 
-// Form Submission
-const submitForm = async () => {
-  if (!isFormValid.value) return showAlert('Error', 'Please complete all required fields', 'danger');
-  isSubmitting.value = true;
-  const formData = new FormData();
-  formData.append('deadline_date', form.value.deadline_date || '');
-  formData.append('purpose', form.value.purpose || '');
-  formData.append('is_urgent', form.value.is_urgent ? '1' : '0');
-  formData.append('created_by', form.value.created_by || '');
-  formData.append('position_id', form.value.position_id || '');
-  if (form.value.file) Array.from(form.value.file).forEach(file => formData.append('file[]', file));
-  form.value.items.forEach((item, index) => {
-    Object.entries(item).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) formData.append(`items[${index}][${key}]`, value);
-    });
-  });
-  form.value.approvals.forEach((approval, index) => {
-    formData.append(`approvals[${index}][user_id]`, approval.user_id || '');
-    formData.append(`approvals[${index}][request_type]`, approval.request_type || '');
-    if (approval.id) formData.append(`approvals[${index}][id]`, approval.id);
-  });
-  try {
-    const method = isEditMode.value ? 'put' : 'post';
-    const url = isEditMode.value ? `/api/purchase-requests/${props.purchaseRequestId}` : '/api/purchase-requests';
-    await axios[method](url, formData);
-    showAlert('Success', `Purchase request ${isEditMode.value ? 'updated' : 'created'} successfully!`, 'success');
-    emit('submitted');
-    navigateToList();
-  } catch (error) {
-    showAlert('Error', error.response?.data?.message || 'Save failed', 'danger');
-  } finally {
-    isSubmitting.value = false;
-  }
-};
-
-// UI Initialization
-const initDatepicker = () => {
-  $('.datepicker').datepicker({
-    format: 'yyyy-mm-dd',
-    autoclose: true,
-    todayHighlight: true
-  }).on('changeDate', (event) => {
-    const date = event.date;
-    if (date) {
-      form.value[event.target.dataset.field] = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    }
-  });
-};
-
+// --- Product DataTable ---
 const initProductTable = () => {
-  if (!products.value.length || !document.getElementById('productTable')) return;
-  if (productTable.value) productTable.value.destroy();
-  $('#productTable tbody').empty();
-  productTable.value = $('#productTable').DataTable({
-    data: products.value,
-    responsive: true,
-    pageLength: 25,
-    searching: true,
-    ordering: true,
-    lengthChange: false,
+  const tableEl = $('#productTable');
+  if (!tableEl.length) return;
+
+  tableEl.DataTable({
+    processing: true,
+    serverSide: true,
+    ajax: '/api/purchase-requests/get-products',
+    paging: false,          // Disable pagination
+    lengthChange: false,    // Hide page length selector
     columns: [
-      { data: 'item_code', width: '15%' },
-      { data: 'description', width: '40%' },
-      { data: 'unit_name', width: '25%' },
-      {
-        data: null,
-        orderable: false,
-        searchable: false,
-        width: '10%',
-        render: (data, type, row) => `<button class="btn btn-primary btn-sm select-product-btn" data-id="${row.id}" title="Select ${row.description}"><i class="fal fa-check"></i> Select</button>`
-      }
+      { data: 'item_code' },
+      { data: 'description' },
+      { data: 'unit_name' },
+      { data: 'estimated_price', render: d => d ? parseFloat(d).toLocaleString() : '-' },
+      { data: null, orderable: false, render: (_, __, row) => `<button class="btn btn-primary btn-sm select-product-btn" data-id="${row.id}">Select</button>` }
     ]
   });
-  $('#productTable').off('click.select-product').on('click.select-product', '.select-product-btn', (event) => addItem($(event.currentTarget).data('id')));
+
+  tableEl.off('click.select-product').on('click.select-product', '.select-product-btn', e =>
+    addItem($(e.currentTarget).data('id'))
+  );
 };
 
-// Lifecycle Hooks
+// Add this function to open/reload the modal
+const showProductModal = () => {
+  // ensure DataTable exists and is reloaded, or initialize it
+  const tableEl = $('#productTable');
+  if (tableEl.length && $.fn.DataTable.isDataTable(tableEl)) {
+    tableEl.DataTable().ajax.reload(null, false);
+  } else {
+    nextTick(initProductTable);
+  }
+  $('#productModal').modal('show');
+};
+
+// --- Datepicker ---
+const initDatepicker = () => {
+  $('.datepicker').datepicker({ format: 'yyyy-mm-dd', autoclose: true });
+};
+
+// --- Lifecycle ---
 onMounted(async () => {
   try {
-    await fetchData();
-    initDatepicker();
-    initProductTable();
-    await initApprovalSelects();
-    $('#productModal').on('shown.bs.modal', initProductTable);
-  } catch (error) {
-    showAlert('Error', 'Failed to initialize form.', 'danger');
+    const [productRes, campusRes, deptRes] = await Promise.all([
+      // axios.get('/api/purchase-requests/get-products'),
+      axios.get('/api/purchase-requests/get-campuses'),
+      axios.get('/api/purchase-requests/get-departments'),
+    ]);
+    products.value = productRes.data.data || [];
+    campuses.value = campusRes.data.data || [];
+    departments.value = deptRes.data.data || [];
+
+    await nextTick(initProductTable);
+    await nextTick(initDatepicker);
+    await nextTick(initItemSelects);
+    await nextTick(initApprovalSelects);
+
+    // mark products loaded so button is enabled
+    isLoadingProducts.value = false;
+  } catch (err) {
+    showAlert('Error', `Failed to load initial data: ${err.message}`, 'danger');
+    isLoadingProducts.value = false;
   }
 });
 
-onUnmounted(() => {
-  if (productTable.value) productTable.value.destroy();
-  $('#productModal').off('shown.bs.modal');
-  $('.approval-type-select, .user-select').each(function () { destroySelect2(this); });
-  $('.datepicker').datepicker('destroy');
-});
+// --- Submit Form ---
+const submitForm = async () => {
+  if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
+  isSubmitting.value = true;
+  try {
+    const fd = new FormData();
+    Object.keys(form.value).forEach(key => {
+      if (key === 'file' && form.value.file) Array.from(form.value.file).forEach(f => fd.append('file[]', f));
+      else fd.append(key, JSON.stringify(form.value[key]));
+    });
+
+    const url = isEditMode.value ? `/api/purchase-requests/${props.purchaseRequestId}` : '/api/purchase-requests';
+    const method = isEditMode.value ? 'put' : 'post';
+    const res = await axios({ url, method, data: fd });
+    showAlert('Success', res.data.message, 'success');
+    emit('submitted', res.data.data);
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || err.message, 'danger');
+  } finally { isSubmitting.value = false; }
+};
 </script>
 
+
 <style scoped>
-.table-sm th, .table-sm td { padding: 0.25rem; }
-.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+.table td, .table th { vertical-align: middle; }
 </style>

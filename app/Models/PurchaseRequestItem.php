@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PurchaseRequestItem extends Model
@@ -15,9 +16,6 @@ class PurchaseRequestItem extends Model
     protected $fillable = [
         'purchase_request_id',
         'product_id',
-        'campus_id',
-        'department_id',
-        'division_id',
         'budget_code_id',
         'description',
         'currency',
@@ -39,19 +37,18 @@ class PurchaseRequestItem extends Model
         return $this->belongsTo(ProductVariant::class);
     }
 
-    public function campus()
+    public function campuses(): BelongsToMany
     {
-        return $this->belongsTo(Campus::class);
+        return $this->belongsToMany(Campus::class, 'purchase_item_campuses')
+            ->withPivot('total_usd')
+            ->withTimestamps();
     }
 
-    public function department()
+    public function departments(): BelongsToMany
     {
-        return $this->belongsTo(Department::class);
-    }
-
-    public function division()
-    {
-        return $this->belongsTo(Division::class);
+        return $this->belongsToMany(Department::class, 'purchase_item_departments')
+            ->withPivot('total_usd')
+            ->withTimestamps();
     }
 
     // public function budgetCode()

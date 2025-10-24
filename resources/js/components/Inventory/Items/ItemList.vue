@@ -85,16 +85,13 @@ const datatableParams = reactive({
 const datatableHeaders = [
   { text: 'Image', value: 'image', width: '8%', sortable: false },
   { text: 'Item Code', value: 'item_code', width: '8%', sortable: true },
-  { text: 'EN Name', value: 'product_name', width: '20%', sortable: true },
-  { text: 'KH Name', value: 'product_khmer_name', width: '20%', sortable: true },
-  { text: 'Spec', value: 'description', width: '10%', sortable: true },
+  { text: 'Description', value: 'description', width: '10%', sortable: true },
   { text: 'Category', value: 'category_name', width: '10%', sortable: false },
   { text: 'Sub-Category', value: 'sub_category_name', width: '10%', sortable: false },
   { text: 'UoM', value: 'unit_name', width: '10%', sortable: false },
-  { text: 'Stock', value: 'total_stock', width: '5%', sortable: true },
+  { text: 'Stock', value: 'stock_on_hand', width: '5%', sortable: true },
   { text: 'Price', value: 'average_price', width: '5%', sortable: true },
   { text: 'Active', value: 'is_active', width: '5%', sortable: true },
-  { text: 'Created By', value: 'created_by', width: '10%', sortable: true },
   { text: 'Created', value: 'created_at', width: '10%', sortable: true }
 ]
 
