@@ -271,6 +271,7 @@ class PurchaseRequestController extends Controller
                     $uploadedFiles[] = $result;
                     $counter++;
                 }
+                $this->storeDocuments($purchaseRequest, $uploadedFiles);
 
                 // --------------------
                 // Prepare and store items
@@ -383,6 +384,19 @@ class PurchaseRequestController extends Controller
             'acknowledge' => 5,
             default => 1,
         };
+    }
+
+    protected function storeDocuments(PurchaseRequest $purchaseRequest, array $uploadedFiles)
+    {
+        foreach ($uploadedFiles as $file) {
+            $purchaseRequest->files()->create([
+                'document_name' => 'Purchase Request Document',
+                'document_reference' => $purchaseRequest->reference_no,
+                'sharepoint_file_id' => $file['id'],
+                'sharepoint_file_name' => $file['name'],
+                'sharepoint_drive_id' => self::CUSTOM_DRIVE_ID,
+            ]);
+        }
     }
 
     // ====================
