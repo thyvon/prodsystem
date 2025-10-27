@@ -199,14 +199,10 @@ class PurchaseRequestController extends Controller
         $this->authorize('create', [PurchaseRequest::class]);
         $user = Auth::user();
 
-        // --------------------
-        // Validate Request
-        // --------------------
         $validated = $request->validate([
             'deadline_date' => 'nullable|date|after_or_equal:request_date',
             'purpose' => 'required|string',
             'is_urgent' => 'required|boolean',
-
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:product_variants,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
@@ -219,7 +215,6 @@ class PurchaseRequestController extends Controller
             'items.*.department_ids' => 'required|array|min:1',
             'items.*.department_ids.*' => 'required|exists:departments,id',
             'items.*.budget_code_id' => 'nullable',
-
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial',
@@ -230,39 +225,11 @@ class PurchaseRequestController extends Controller
         try {
             return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
 
-                // --------------------
-                // Generate reference & folder path
-                // --------------------
                 $referenceNo = $this->generateReferenceNo();
                 $folderPath = $this->getSharePointFolderPath($referenceNo);
 
                 // --------------------
-                // Handle uploaded files (single or multiple)
-                // --------------------
-                $files = $request->file('file');
-                $files = is_array($files) ? $files : [$files];
-                $uploadedFiles = [];
-                $counter = 1;
-
-                foreach ($files as $file) {
-                    if (!$file) continue;
-
-                    $extension = $file->getClientOriginalExtension();
-                    $fileName = "{$referenceNo}-{$counter}.{$extension}";
-
-                    $uploadedFiles[] = $sharePoint->uploadFile(
-                        $file,
-                        $folderPath,
-                        ['Title' => uniqid()],
-                        $fileName,
-                        self::CUSTOM_DRIVE_ID
-                    );
-
-                    $counter++;
-                }
-
-                // --------------------
-                // Create Purchase Request
+                // Create Purchase Request first
                 // --------------------
                 $purchaseRequest = PurchaseRequest::create([
                     'reference_no' => $referenceNo,
@@ -275,7 +242,38 @@ class PurchaseRequestController extends Controller
                 ]);
 
                 // --------------------
-                // Prepare items
+                // Handle uploaded files
+                // --------------------
+                $files = $request->file('file');
+                $files = is_array($files) ? $files : [$files];
+                $uploadedFiles = [];
+                $counter = 1;
+
+                foreach ($files as $file) {
+                    if (!$file) continue;
+
+                    $extension = $file->getClientOriginalExtension();
+                    $fileName = "{$referenceNo}-{$counter}.{$extension}";
+
+                    // if upload fails, throw exception so DB rolls back
+                    $result = $sharePoint->uploadFile(
+                        $file,
+                        $folderPath,
+                        ['Title' => uniqid()],
+                        $fileName,
+                        self::CUSTOM_DRIVE_ID
+                    );
+
+                    if (!$result) {
+                        throw new \Exception("Failed to upload file: {$fileName}");
+                    }
+
+                    $uploadedFiles[] = $result;
+                    $counter++;
+                }
+
+                // --------------------
+                // Prepare and store items
                 // --------------------
                 foreach ($validated['items'] as $item) {
                     $totalPrice = $item['quantity'] * $item['unit_price'];
@@ -283,7 +281,6 @@ class PurchaseRequestController extends Controller
                         ? $totalPrice / $item['exchange_rate']
                         : $totalPrice;
 
-                    // Create the item
                     $purchaseRequestItem = PurchaseRequestItem::create([
                         'purchase_request_id' => $purchaseRequest->id,
                         'product_id' => $item['product_id'],
@@ -297,17 +294,14 @@ class PurchaseRequestController extends Controller
                         'budget_code_id' => $item['budget_code_id'] ?? null,
                     ]);
 
-                    // Calculate distributed amounts
                     $campusCount = count($item['campus_ids']);
                     $departmentCount = count($item['department_ids']);
                     $perCampusUsd = $totalPriceUsd / $campusCount;
                     $perDepartmentUsd = $totalPriceUsd / $departmentCount;
 
-                    // Sync campuses with pivot data
                     $campusPivotData = array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]);
                     $purchaseRequestItem->campuses()->sync($campusPivotData);
 
-                    // Sync departments with pivot data
                     $departmentPivotData = array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]);
                     $purchaseRequestItem->departments()->sync($departmentPivotData);
                 }
@@ -317,6 +311,7 @@ class PurchaseRequestController extends Controller
                 // --------------------
                 $this->storeApprovals($purchaseRequest, $validated['approvals']);
 
+                // All succeeded, return
                 return response()->json([
                     'message' => 'Purchase request created successfully.',
                     'data' => $purchaseRequest->load('items', 'approvals.responder'),
@@ -330,6 +325,7 @@ class PurchaseRequestController extends Controller
             ], 500);
         }
     }
+
 
     // ====================
     // Helpers
