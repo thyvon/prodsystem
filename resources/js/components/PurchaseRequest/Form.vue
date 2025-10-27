@@ -104,9 +104,9 @@
               {{ totalAmount }}
             </span>
             </h5>
-            <div class="table-responsive" style="max-height: 400px;">
-              <table class="table table-bordered table-sm table-hover">
-                <thead class="thead-light">
+            <div class="table-responsive" style="max-height: 700px;overflow-y: auto;">
+              <table class="table table-bordered table-striped table-sm table-hover" style="width: 100%;">
+                <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10;">
                   <tr>
                     <th style="min-width: 100px;">Code</th>
                     <th style="min-width: 300px;">Description</th>
@@ -248,6 +248,7 @@ import axios from 'axios';
 import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
 
+// -------------------- Props & Emits --------------------
 const props = defineProps({
   purchaseRequestId: Number,
   requester: Object,
@@ -256,7 +257,18 @@ const props = defineProps({
 });
 const emit = defineEmits(['submitted']);
 
+// -------------------- Reactive State --------------------
+const isSubmitting = ref(false);
+const isImporting = ref(false);
+const isLoadingProducts = ref(false);
 const isEditMode = ref(!!props.purchaseRequestId);
+
+const products = ref([]);
+const campuses = ref([]);
+const departments = ref([]);
+const fileLabel = ref('Choose file(s)...');
+const existingFileUrls = ref([]);
+const fileInput = ref(null);
 
 const form = ref({
   deadline_date: '',
@@ -269,9 +281,6 @@ const form = ref({
   approvals: []
 });
 
-const products = ref([]);
-const campuses = ref([]);
-const departments = ref([]);
 const budgetCodes = ref([
   { id: 1, code: 'BUD-001', name: 'Office Supplies' },
   { id: 2, code: 'BUD-002', name: 'IT Equipment' },
@@ -287,25 +296,24 @@ const approvalTypes = [
 
 const usersForApproval = ref({ initial: [], approve: [], check: [], verify: [] });
 
-const fileLabel = ref('Choose file(s)...');
-const existingFileUrls = ref([]);
-
+// -------------------- Computed Properties --------------------
 const totalAmount = computed(() => {
   let totalKHR = 0, totalUSD = 0, totalKHRinUSD = 0;
+
   form.value.items.forEach(i => {
-    const amount = Number(i.quantity) * Number(i.unit_price);
+    const amount = i.quantity * i.unit_price;
     if (i.currency === 'KHR') {
       totalKHR += amount;
       totalKHRinUSD += amount / (i.exchange_rate || 1);
-    } else if (i.currency === 'USD') {
-      totalUSD += amount;
-    }
+    } else if (i.currency === 'USD') totalUSD += amount;
   });
+
   const parts = [];
   if (totalKHR) parts.push(`KHR = ${totalKHR.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
   if (totalUSD) parts.push(`USD = ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
   if (totalKHRinUSD || totalUSD) parts.push(`Total as USD = ${(totalUSD + totalKHRinUSD).toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
-  return parts.join(' | ');
+
+  return parts.length ? parts.join(' | ') : null;
 });
 
 const isFormValid = computed(() =>
@@ -314,7 +322,7 @@ const isFormValid = computed(() =>
   !form.value.items.some(i => !i.product_id)
 );
 
-// --- Create Item Helper ---
+// -------------------- Helper Functions --------------------
 const createItem = (data = {}) => ({
   product_id: data.product_id || '',
   product_code: data.product_code || '',
@@ -323,14 +331,22 @@ const createItem = (data = {}) => ({
   quantity: data.quantity || 0,
   unit_price: data.unit_price || 0,
   currency: data.currency || '',
-  exchange_rate: data.exchange_rate ? data.exchange_rate : null,
+  exchange_rate: data.exchange_rate || null,
   description: data.description || '',
   campus_ids: data.campus_ids?.length ? data.campus_ids : [props.userDefaultCampus?.id],
   department_ids: data.department_ids?.length ? data.department_ids : [props.userDefaultDepartment?.id],
   budget_code_id: data.budget_code_id || budgetCodes.value[0]?.id || ''
 });
 
-// --- Load Purchase Request for Edit ---
+const navigateToList = () => window.location.href = '/purchase-requests';
+
+const onFileChange = (e) => {
+  const files = e.target.files;
+  form.value.file = files;
+  fileLabel.value = files?.length > 1 ? `${files.length} files selected` : files[0]?.name || 'Choose file(s)...';
+};
+
+// -------------------- Load Purchase Request --------------------
 const loadPurchaseRequest = async () => {
   if (!isEditMode.value) return;
 
@@ -338,19 +354,34 @@ const loadPurchaseRequest = async () => {
     const { data } = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/edit`);
     const pr = data.data;
 
+    // Basic fields
     form.value.deadline_date = pr.deadline_date || '';
     form.value.purpose = pr.purpose || '';
     form.value.is_urgent = pr.is_urgent === 1;
+
+    // Files
     existingFileUrls.value = pr.files || [];
 
-    // Map items
-    form.value.items = (pr.items || []).map(i => createItem(i));
+    // Items
+    form.value.items = (pr.items || []).map(item => createItem({
+      product_id: item.product_id,
+      product_code: item.product_code,
+      product_description: item.product_description,
+      unit_name: item.unit_name || 'N/A',
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      currency: item.currency,
+      exchange_rate: item.exchange_rate,
+      description: item.description,
+      campus_ids: item.campus_ids || [props.userDefaultCampus?.id],
+      department_ids: item.department_ids || [props.userDefaultDepartment?.id],
+      budget_code_id: item.budget_code_id
+    }));
 
-    // Map approvals
-    form.value.approvals = (pr.approvals || []).map(a => ({
-      user_id: a.user_id || '',
-      name: a.name || '',
-      request_type: a.request_type || '',
+    // Approvals
+    form.value.approvals = (pr.approvals || []).map(app => ({
+      user_id: app.user_id || '',
+      request_type: app.request_type || '',
       availableUsers: []
     }));
 
@@ -361,104 +392,287 @@ const loadPurchaseRequest = async () => {
     });
 
   } catch (err) {
-    showAlert('Error', 'Failed to load purchase request.', 'danger');
+    showAlert('Error', 'Failed to load purchase request for edit mode.', 'danger');
   }
 };
 
-// --- File Input ---
-const onFileChange = e => {
-  const files = e.target.files;
-  form.value.file = files;
-  fileLabel.value = files?.length > 1 ? `${files.length} files selected` : files[0]?.name || 'Choose file(s)...';
+// -------------------- Import Items --------------------
+const importItems = async () => {
+  if (isImporting.value) return;
+
+  if (!fileInput.value?.files?.length) {
+    return showAlert('Error', 'Please select a file to import.', 'danger');
+  }
+
+  isImporting.value = true;
+  const formData = new FormData();
+  formData.append('file', fileInput.value.files[0]);
+
+  try {
+    const { data, status } = await axios.post('/api/purchase-requests/import-items', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    if (status === 200 && data.data?.items?.length) {
+      form.value.items = data.data.items.map(item => createItem({
+        ...item,
+        unit_name: item.unit_name || 'N/A',
+        quantity: item.quantity || 0,
+        unit_price: item.unit_price || 0,
+        exchange_rate: item.exchange_rate || 1,
+        campus_ids: item.campus_ids?.length ? item.campus_ids : [props.userDefaultCampus?.id],
+        department_ids: item.department_ids?.length ? item.department_ids : [props.userDefaultDepartment?.id],
+        budget_code_id: item.budget_code_id || budgetCodes.value[0]?.id
+      }));
+
+      await nextTick(initItemSelects);
+      showAlert('Success', 'Purchase request items imported successfully.', 'success');
+      fileInput.value.value = '';
+      fileLabel.value = 'Choose file(s)...';
+    } else {
+      const errors = data.errors || [data.message || 'Unknown error occurred'];
+      showAlert('Import Errors', `Errors in Excel file:<br>${errors.join('<br>')}`, 'danger');
+    }
+  } catch (err) {
+    const errors = err.response?.data?.errors || [err.response?.data?.message || 'Failed to import items.'];
+    showAlert('Error', `Import failed:<br>${errors.join('<br>')}`, 'danger');
+  } finally {
+    isImporting.value = false;
+  }
 };
 
-// --- Select2 Init ---
-const initSelectWithData = (el, dataList, multiple = false, valKey = 'id', labelKey = 'name', onChange) => {
+// -------------------- Items Management --------------------
+const addItem = (productId) => {
+  const product = products.value.find(p => p.id === Number(productId));
+  if (!product) return showAlert('Error', 'Product not found', 'danger');
+
+  form.value.items.push(createItem({
+    product_id: product.id,
+    product_code: product.item_code,
+    product_description: product.description,
+    unit_name: product.unit_name,
+    quantity: 1,
+    unit_price: 0
+  }));
+
+  $('#productModal').modal('hide');
+  nextTick(initItemSelects);
+};
+
+const removeItem = (index) => {
+  ['campus', 'department', 'budget'].forEach(t => {
+    const el = document.querySelector(`.${t}-select[data-index="${index}"]`);
+    if (el) destroySelect2(el);
+  });
+  form.value.items.splice(index, 1);
+  nextTick(initItemSelects);
+};
+
+// -------------------- Select2 Initialization --------------------
+const initSelect = (index, type) => {
+  const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
   if (!el) return;
   destroySelect2(el);
   $(el).empty();
-  dataList.forEach(d => $(el).append(`<option value="${d[valKey]}">${d[labelKey]}</option>`));
-  initSelect2(el, { multiple, allowClear: true, width: '100%', placeholder: 'Select' }, val => onChange(val ? (multiple ? val.map(Number) : Number(val)) : multiple ? [] : null));
-  if (!multiple) $(el).val('').trigger('change.select2');
-};
 
-// --- Items ---
-const initItemSelects = () => {
-  form.value.items.forEach((item, i) => {
-    initSelectWithData(document.querySelector(`.campus-select[data-index="${i}"]`), campuses.value, true, 'id', 'short_name', val => item.campus_ids = val);
-    initSelectWithData(document.querySelector(`.department-select[data-index="${i}"]`), departments.value, true, 'id', 'short_name', val => item.department_ids = val);
-    initSelectWithData(document.querySelector(`.budget-select[data-index="${i}"]`), budgetCodes.value, false, 'id', 'code', val => item.budget_code_id = val);
-    // Set current values
-    $('.campus-select[data-index="'+i+'"]').val(item.campus_ids.map(String)).trigger('change.select2');
-    $('.department-select[data-index="'+i+'"]').val(item.department_ids.map(String)).trigger('change.select2');
-    $('.budget-select[data-index="'+i+'"]').val(item.budget_code_id ? String(item.budget_code_id) : '').trigger('change.select2');
+  const dataList = type === 'campus' ? campuses.value : departments.value;
+  dataList.forEach(d => $(el).append(`<option value="${d.id}">${d.short_name || d.name}</option>`));
+
+  initSelect2(el, { multiple: true, allowClear: true, width: '100%', placeholder: `Select ${type}` }, val => {
+    form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
   });
+
+  const current = form.value.items[index][`${type}_ids`] || [];
+  $(el).val(current.map(String)).trigger('change.select2');
 };
 
-// --- Approvals ---
+const initBudgetSelect = (index) => {
+  const el = document.querySelector(`.budget-select[data-index="${index}"]`);
+  if (!el) return;
+  destroySelect2(el);
+  $(el).empty();
+
+  budgetCodes.value.forEach(b => $(el).append(`<option value="${b.id}">${b.code}</option>`));
+
+  initSelect2(el, { width: '100%', allowClear: true, placeholder: 'Select Budget' }, val => {
+    form.value.items[index].budget_code_id = val ? Number(val) : null;
+  });
+
+  const current = form.value.items[index].budget_code_id || '';
+  $(el).val(current ? String(current) : '').trigger('change.select2');
+};
+
+const initItemSelects = async () =>
+  form.value.items.forEach((_, i) => {
+    ['campus', 'department'].forEach(t => initSelect(i, t));
+    initBudgetSelect(i);
+  });
+
+// -------------------- Approvals Management --------------------
 const fetchUsersForApproval = async (type) => {
   if (!type || usersForApproval.value[type]?.length) return;
   try {
     const { data } = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: type } });
     usersForApproval.value[type] = data.data || [];
-  } catch {
-    usersForApproval.value[type] = [];
-  }
+  } catch { usersForApproval.value[type] = []; }
 };
 
-const initApprovalSelect = async (i) => {
-  const approval = form.value.approvals[i];
+const initApprovalSelect = async (index) => {
+  const approval = form.value.approvals[index];
   if (!approval) return;
 
-  const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`);
-  const userEl = document.querySelector(`.user-select[data-index="${i}"]`);
-  if (!typeEl || !userEl) return;
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`);
+  const userEl = document.querySelector(`.user-select[data-index="${index}"]`);
 
-  // --- Type select ---
-  destroySelect2(typeEl);
-  typeEl.innerHTML = '<option value="">Select Type</option>';
-  approvalTypes.forEach(t => $(typeEl).append(`<option value="${t.id}">${t.text}</option>`));
-  $(typeEl).val(approval.request_type || '').trigger('change.select2');
+  if (typeEl) {
+    destroySelect2(typeEl);
+    typeEl.innerHTML = '<option value="">Select Type</option>';
+    approvalTypes.forEach(t => $(typeEl).append(`<option value="${t.id}">${t.text}</option>`));
 
-  initSelect2(typeEl, { width: '100%', allowClear: true }, async val => {
-    approval.request_type = val || '';
-    await populateUserSelect(approval, userEl);
+    initSelect2(typeEl, { width: '100%', allowClear: true }, async val => {
+      approval.request_type = val || '';
+      approval.availableUsers = [];
+
+      if (approval.request_type) {
+        await fetchUsersForApproval(approval.request_type);
+        approval.availableUsers = usersForApproval.value[approval.request_type] || [];
+      }
+
+      if (userEl) {
+        destroySelect2(userEl);
+        userEl.innerHTML = '<option value="">Select User</option>';
+        (approval.availableUsers || []).forEach(u => $(userEl).append(`<option value="${u.id}">${u.name}</option>`));
+        initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
+        $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
+      }
+    });
+
+    $(typeEl).val(approval.request_type || '').trigger('change.select2');
+  }
+};
+
+const initApprovalSelects = async () =>
+  form.value.approvals.forEach((_, i) => initApprovalSelect(i));
+
+const addApproval = async () => {
+  form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
+  await nextTick(initApprovalSelects);
+};
+
+const removeApproval = async (i) => {
+  form.value.approvals.splice(i, 1);
+  await nextTick(initApprovalSelects);
+};
+
+// -------------------- Product Table Modal --------------------
+const initProductTable = () => {
+  const tableEl = $('#productTable');
+  if (!tableEl.length) return;
+
+  const dt = tableEl.DataTable({
+    processing: true,
+    serverSide: true,
+    responsive: true,
+    destroy: true,
+    ajax: {
+      url: '/api/purchase-requests/get-products',
+      type: 'GET',
+      dataSrc: (json) => { products.value = json.data || []; return json.data; },
+      error: () => showAlert('Error', 'Failed to load products', 'danger')
+    },
+    paging: false,
+    lengthChange: false,
+    ordering: false,
+    columns: [
+      { data: 'item_code' },
+      { data: 'description' },
+      { data: 'unit_name' },
+      { data: 'estimated_price', render: d => d ? parseFloat(d).toLocaleString() : '-' },
+      { data: null, orderable: false, render: (_, __, row) => `<button class="btn btn-primary btn-sm select-product-btn" data-id="${row.id}">Select</button>` }
+    ]
   });
 
-  // Init user select if already has type
-  if (approval.request_type) await populateUserSelect(approval, userEl);
+  tableEl.off('click.select-product').on('click.select-product', '.select-product-btn', e =>
+    addItem($(e.currentTarget).data('id'))
+  );
+
+  return dt;
 };
 
-const populateUserSelect = async (approval, userEl) => {
-  await fetchUsersForApproval(approval.request_type);
-  let users = usersForApproval.value[approval.request_type] || [];
+const showProductModal = async () => {
+  isLoadingProducts.value = true;
+  $('#productModal').modal('show');
 
-  // Add old user if missing
-  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
-    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
-  }
-  approval.availableUsers = users;
-
-  destroySelect2(userEl);
-  userEl.innerHTML = '<option value="">Select User</option>';
-  users.forEach(u => $(userEl).append(`<option value="${u.id}">${u.name}</option>`));
-
-  $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
-  initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
+  await nextTick(() => {
+    const tableEl = $('#productTable');
+    if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().ajax.reload(null, false);
+    else initProductTable();
+    isLoadingProducts.value = false;
+  });
 };
 
-
-const initApprovalSelects = () => form.value.approvals.forEach((_, i) => initApprovalSelect(i));
-const addApproval = async () => { form.value.approvals.push({ user_id: '', name: '', request_type: '', availableUsers: [] }); await nextTick(initApprovalSelects); };
-const removeApproval = async i => { form.value.approvals.splice(i, 1); await nextTick(initApprovalSelects); };
-
-// --- Datepicker ---
+// -------------------- Datepicker --------------------
 const initDatepicker = () => {
-  $('.datepicker').datepicker({ format: 'yyyy-mm-dd', autoclose: true }).on('changeDate', e => form.value.deadline_date = e.format('yyyy-mm-dd'));
+  $('.datepicker').datepicker({
+    format: 'yyyy-mm-dd',
+    autoclose: true
+  }).on('changeDate', function(e) {
+    form.value.deadline_date = e.format('yyyy-mm-dd');
+  });
+
   if (form.value.deadline_date) $('.datepicker').datepicker('update', form.value.deadline_date);
 };
 
-// --- Mounted ---
+// -------------------- Form Submission --------------------
+const submitForm = async () => {
+  if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
+
+  isSubmitting.value = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('deadline_date', form.value.deadline_date);
+    fd.append('purpose', form.value.purpose);
+    fd.append('is_urgent', form.value.is_urgent ? 1 : 0);
+
+    if (form.value.file) Array.from(form.value.file).forEach(file => fd.append('file[]', file));
+
+    form.value.items.forEach((item, i) => {
+      Object.entries(item).forEach(([key, value]) => {
+        if (Array.isArray(value)) value.forEach((v, j) => fd.append(`items[${i}][${key}][${j}]`, v));
+        else fd.append(`items[${i}][${key}]`, value);
+      });
+    });
+
+    form.value.approvals.forEach((app, i) => {
+      Object.entries(app).forEach(([key, value]) => fd.append(`approvals[${i}][${key}]`, value));
+    });
+
+    const url = isEditMode.value
+      ? `/api/purchase-requests/${props.purchaseRequestId}`
+      : '/api/purchase-requests';
+    const method = isEditMode.value ? 'put' : 'post';
+
+    const response = await axios({ url, method, data: fd, headers: { 'Content-Type': 'multipart/form-data' } });
+
+    await showAlert(
+      'Success',
+      isEditMode.value
+        ? 'Purchase Request updated successfully.'
+        : 'Purchase Request created successfully.',
+      'success'
+    );
+
+    emit('submitted', response.data.data);
+    navigateToList();
+  } catch (error) {
+    showAlert('Error', error.response?.data?.message || error.message, 'danger');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+// -------------------- Lifecycle --------------------
 onMounted(async () => {
   try {
     const [campusRes, deptRes] = await Promise.all([axios.get('/api/campuses'), axios.get('/api/departments')]);
@@ -473,7 +687,6 @@ onMounted(async () => {
   await loadPurchaseRequest();
 });
 </script>
-
 
 <style scoped>
 .table td, .table th { vertical-align: middle; }
