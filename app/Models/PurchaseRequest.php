@@ -55,4 +55,10 @@ class PurchaseRequest extends Model
     {
         return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
     }
+
+    public function files()
+    {
+        return $this->morphMany(DocumentRelation::class, 'documentable');
+    }
+
 }

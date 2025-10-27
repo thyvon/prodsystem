@@ -8,6 +8,8 @@ use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Imports\PurchaseItemImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
@@ -70,6 +72,124 @@ class PurchaseRequestController extends Controller
         return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
     }
 
+    public function getEditData(PurchaseRequest $purchaseRequest): JsonResponse
+    {
+        try {
+            $this->authorize('update', $purchaseRequest);
+
+            $purchaseRequest->load([
+                'items.campuses',
+                'items.departments',
+                'approvals.responder', // include responder user
+                'files'
+            ]);
+
+            return response()->json([
+                'message' => 'Purchase request retrieved successfully.',
+                'data' => [
+                    'id' => $purchaseRequest->id,
+                    'deadline_date' => $purchaseRequest->deadline_date,
+                    'purpose' => $purchaseRequest->purpose,
+                    'is_urgent' => $purchaseRequest->is_urgent,
+                    'created_by' => $purchaseRequest->created_by,
+                    'position_id' => $purchaseRequest->position_id,
+                    'items' => $purchaseRequest->items->map(fn($i) => [
+                        'product_id' => $i->product_id,
+                        'product_code' => $i->product->item_code,
+                        'product_description' => $i->product->product->name . ' - ' . $i->product->description,
+                        'unit_name' => $i->product->product->unit->name,
+                        'quantity' => $i->quantity,
+                        'unit_price' => $i->unit_price,
+                        'currency' => $i->currency,
+                        'exchange_rate' => $i->exchange_rate,
+                        'description' => $i->description,
+                        'campus_ids' => $i->campuses->pluck('id')->toArray(),
+                        'department_ids' => $i->departments->pluck('id')->toArray(),
+                        'budget_code_id' => $i->budget_code_id,
+                    ]),
+                    'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
+                        'user_id' => $a->responder->id,
+                        'name' => $a->responder->name,
+                        'email' => $a->responder->email,
+                        'request_type' => $a->request_type,
+                    ] : null),
+                    'files' => $purchaseRequest->files->map(fn($f) => [
+                        'id' => $f->id,
+                        'name' => $f->document_name,
+                        'reference' => $f->document_reference,
+                        'sharepoint_file_id' => $f->sharepoint_file_id,
+                        'sharepoint_file_name' => $f->sharepoint_file_name,
+                        'sharepoint_drive_id' => $f->sharepoint_drive_id,
+                        'url' => $f->url, // make sure your DocumentRelation model has getUrlAttribute
+                    ]),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve purchase request', [
+                'id' => $purchaseRequest->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to retrieve purchase request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function importItems(Request $request): JsonResponse
+    {
+        $this->authorize('create', PurchaseRequest::class);
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            $import = new PurchaseItemImport();
+            Excel::import($import, $request->file('file'));
+
+            $data = $import->getData();
+
+            if (!empty($data['errors'])) {
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
+            }
+
+            if (empty($data['items'])) {
+                return response()->json([
+                    'message' => 'No valid data found in the Excel file.',
+                    'errors' => ['No valid rows processed.'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Purchase items data parsed successfully.',
+                'data' => [
+                    'items' => $data['items'],
+                ],
+            ], 200);
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $errors = $e->failures()->map(function ($failure) {
+                $row = $failure->row();
+                $errorMessages = $failure->errors();
+                return "Row {$row}: " . implode('; ', $errorMessages);
+            })->toArray();
+
+            return response()->json([
+                'message' => 'Validation failed during import',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to parse purchase items',
+                'errors' => [$e->getMessage()],
+            ], 500);
+        }
+    }
 
     // ====================
     // Store Purchase Request
@@ -98,7 +218,7 @@ class PurchaseRequestController extends Controller
             'items.*.campus_ids.*' => 'required|exists:campus,id',
             'items.*.department_ids' => 'required|array|min:1',
             'items.*.department_ids.*' => 'required|exists:departments,id',
-            'items.*.budget_code_id' => 'nullable|exists:budget_items,id',
+            'items.*.budget_code_id' => 'nullable',
 
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',

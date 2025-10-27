@@ -276,8 +276,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-requests/create', [PurchaseRequestController::class, 'form'])
         ->middleware('can:create,' . PurchaseRequest::class)
         ->name('purchase-requests.create');
-    // Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'form'])
-    //     ->name('purchase-requests.edit');
+    Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'form'])
+         ->name('purchase-requests.edit');
     // Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
     //     ->name('purchase-requests.show');
 

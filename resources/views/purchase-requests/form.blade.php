@@ -3,7 +3,7 @@
 
 @section('content')
   <purchase-request-form
-      :document-id="{{ $purchaseRequest->id ?? 'null' }}"
+      :purchase-request-id="{{ $purchaseRequest->id ?? 'null' }}"
       :requester='@json($requester)'
       :user-default-department='@json($userDefaultDepartment)'
       :user-default-campus='@json($userDefaultCampus)'
