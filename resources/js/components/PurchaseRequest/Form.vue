@@ -517,42 +517,52 @@ const fetchUsersForApproval = async (type) => {
   } catch { usersForApproval.value[type] = []; }
 };
 
-const initApprovalSelect = async (index) => {
-  const approval = form.value.approvals[index];
+const initApprovalSelect = async (i) => {
+  const approval = form.value.approvals[i];
   if (!approval) return;
 
-  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`);
-  const userEl = document.querySelector(`.user-select[data-index="${index}"]`);
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`);
+  const userEl = document.querySelector(`.user-select[data-index="${i}"]`);
+  if (!typeEl || !userEl) return;
 
-  if (typeEl) {
-    destroySelect2(typeEl);
-    typeEl.innerHTML = '<option value="">Select Type</option>';
-    approvalTypes.forEach(t => $(typeEl).append(`<option value="${t.id}">${t.text}</option>`));
+  // --- Initialize type select ---
+  const initSelect = (el, options, selected, onChange) => {
+    destroySelect2(el);
+    el.innerHTML = options.map(o => `<option value="${o.id}">${o.text || o.name}</option>`).join('');
+    $(el).val(selected || '').trigger('change.select2');
+    initSelect2(el, { width: '100%', allowClear: true }, onChange);
+  };
 
-    initSelect2(typeEl, { width: '100%', allowClear: true }, async val => {
-      approval.request_type = val || '';
-      approval.availableUsers = [];
+  initSelect(typeEl, approvalTypes, approval.request_type, async val => {
+    approval.request_type = val || '';
+    await populateUserSelect(approval, userEl);
+  });
 
-      if (approval.request_type) {
-        await fetchUsersForApproval(approval.request_type);
-        approval.availableUsers = usersForApproval.value[approval.request_type] || [];
-      }
+  // --- Initialize user select if type exists ---
+  if (approval.request_type) await populateUserSelect(approval, userEl);
+};
 
-      if (userEl) {
-        destroySelect2(userEl);
-        userEl.innerHTML = '<option value="">Select User</option>';
-        (approval.availableUsers || []).forEach(u => $(userEl).append(`<option value="${u.id}">${u.name}</option>`));
-        initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
-        $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
-      }
-    });
+const populateUserSelect = async (approval, userEl) => {
+  await fetchUsersForApproval(approval.request_type);
+  let users = usersForApproval.value[approval.request_type] || [];
 
-    $(typeEl).val(approval.request_type || '').trigger('change.select2');
+  // Include old user if missing
+  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
+    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
   }
+  approval.availableUsers = users;
+
+  destroySelect2(userEl);
+  userEl.innerHTML = '<option value="">Select User</option>' +
+    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+
+  $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
+  initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
 };
 
 const initApprovalSelects = async () =>
-  form.value.approvals.forEach((_, i) => initApprovalSelect(i));
+form.value.approvals.forEach((_, i) => initApprovalSelect(i));
+
 
 const addApproval = async () => {
   form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
