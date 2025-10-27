@@ -2,6 +2,7 @@
   <div class="container-fluid">
     <form @submit.prevent="submitForm" enctype="multipart/form-data">
       <div class="card mb-0">
+        <!-- Header -->
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
           <h4 class="mb-0 font-weight-bold">
             {{ isEditMode ? '✏️ Edit' : '➕ Create' }} Purchase Request
@@ -10,12 +11,14 @@
             <i class="fal fa-backward"></i> Back
           </button>
         </div>
+
+        <!-- Body -->
         <div class="card-body">
           <!-- ROW 1: Requester + PR Info -->
-          <div class="row">
+          <div class="row d-flex">
             <!-- Requester Info -->
-            <div class="col-md-6">
-              <div class="border rounded p-3 mb-4" style="height: 300px;">
+            <div class="col-md-6 d-flex">
+              <div class="border rounded p-3 mb-4 flex-fill" style="height: 300px;">
                 <h5 class="font-weight-bold mb-3 text-primary">👤 Requester Info</h5>
                 <div v-for="(value, label) in requester" :key="label" class="row mb-2">
                   <div class="col-4 font-weight-bold text-muted">{{ label }}:</div>
@@ -25,18 +28,34 @@
             </div>
 
             <!-- PR Info -->
-            <div class="col-md-6">
-              <div class="border rounded p-3 mb-4" style ="height: 300px;">
+            <div class="col-md-6 d-flex">
+              <div class="border rounded p-3 mb-4 flex-fill" style="height: 300px;">
                 <h5 class="font-weight-bold mb-3 text-primary">📋 PR Information</h5>
                 <div class="form-row">
+                  <!-- Deadline -->
                   <div class="form-group col-md-6">
-                    <label class="font-weight-bold">📅 Deadline</label>
-                    <input v-model="form.deadline_date" class="form-control datepicker" />
+                    <label for="deadline_date" class="font-weight-bold">📅 Deadline</label>
+                    <input 
+                      id="deadline_date"
+                      name="deadline_date"
+                      v-model="form.deadline_date"
+                      class="form-control datepicker" 
+                      type="date"
+                      autocomplete="bday"
+                    />
                   </div>
+
+                  <!-- Urgent -->
                   <div class="form-group col-md-6">
                     <label class="font-weight-bold">🚨 Urgent</label>
                     <div class="custom-control custom-switch">
-                      <input type="checkbox" class="custom-control-input" id="isUrgent" v-model="form.is_urgent" />
+                      <input 
+                        type="checkbox" 
+                        class="custom-control-input" 
+                        id="isUrgent" 
+                        name="is_urgent"
+                        v-model="form.is_urgent"
+                      />
                       <label class="custom-control-label" for="isUrgent">
                         <span :class="form.is_urgent ? 'text-danger' : 'text-muted'">
                           {{ form.is_urgent ? 'YES' : 'NO' }}
@@ -46,17 +65,37 @@
                   </div>
                 </div>
 
+                <!-- Attachment -->
                 <div class="form-group">
-                  <label class="font-weight-bold">📎 Attachment</label>
+                  <label for="attachment" class="font-weight-bold">📎 Attachment</label>
                   <div class="input-group">
-                    <input type="file" class="d-none" ref="attachmentInput" @change="onFileChange" multiple accept=".pdf,.doc,.docx,.jpg,.png" />
-                    <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.attachmentInput.click()">
+                    <input 
+                      type="file" 
+                      class="d-none" 
+                      ref="attachmentInput" 
+                      id="attachment"
+                      name="attachment[]"
+                      @change="onFileChange" 
+                      multiple 
+                      accept=".pdf,.doc,.docx,.jpg,.png" 
+                    />
+                    <button 
+                      type="button" 
+                      class="btn btn-outline-secondary flex-fill" 
+                      @click="$refs.attachmentInput.click()"
+                    >
                       <i class="fal fa-file-upload"></i> {{ fileLabel }}
                     </button>
                   </div>
                   <div v-if="existingFileUrls.length" class="mt-2">
                     <small class="text-muted">Existing Files:</small>
-                    <a v-for="(file, i) in existingFileUrls" :key="i" :href="file" target="_blank" class="btn btn-sm btn-outline-info mr-1 mb-1">
+                    <a 
+                      v-for="(file, i) in existingFileUrls" 
+                      :key="i" 
+                      :href="file" 
+                      target="_blank" 
+                      class="btn btn-sm btn-outline-info mr-1 mb-1"
+                    >
                       📄 File {{ i + 1 }}
                     </a>
                   </div>
@@ -65,20 +104,38 @@
             </div>
           </div>
 
-          <div class = "border rounded p-3 mb-4">
+          <!-- Purpose -->
+          <div class="border rounded p-3 mb-4">
             <div class="form-group">
-              <label class="font-weight-bold">🎯 Purpose</label>
-              <textarea v-model="form.purpose" class="form-control" rows="3" required></textarea>
+              <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
+              <textarea 
+                id="purpose"
+                name="purpose"
+                v-model="form.purpose" 
+                class="form-control" 
+                rows="3" 
+                required
+                autocomplete="off"
+              ></textarea>
             </div>
           </div>
 
           <!-- ROW 2: Import + Items -->
           <div class="border rounded p-3 mb-4">
             <div class="form-row mb-4">
+              <!-- Import Items -->
               <div class="form-group col-md-4">
-                <label class="font-weight-bold">📥 Import Items</label>
+                <label for="import_items" class="font-weight-bold">📥 Import Items</label>
                 <div class="input-group">
-                  <input type="file" class="d-none" ref="fileInput" @change="onImportFile" accept=".xlsx,.xls,.csv" />
+                  <input 
+                    type="file" 
+                    class="d-none" 
+                    ref="fileInput" 
+                    id="import_items"
+                    name="import_items"
+                    @change="onImportFile" 
+                    accept=".xlsx,.xls,.csv" 
+                  />
                   <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.fileInput.click()">
                     <i class="fal fa-file-upload"></i> {{ fileLabel }}
                   </button>
@@ -90,6 +147,8 @@
                   </a>
                 </div>
               </div>
+
+              <!-- Add Product -->
               <div class="form-group col-md-8">
                 <label class="font-weight-bold">➕ Add Product</label>
                 <button type="button" class="btn btn-primary btn-block" @click="showProductModal" :disabled="isLoadingProducts">
@@ -102,11 +161,11 @@
             <!-- Items Table -->
             <h5 class="font-weight-bold mb-3 text-primary">
               📦 Items ({{ form.items.length }}) 
-            <span v-if="totalAmount" class="badge badge-primary ml-2">
-              {{ totalAmount }}
-            </span>
+              <span v-if="totalAmount" class="badge badge-primary ml-2">
+                {{ totalAmount }}
+              </span>
             </h5>
-            <div class="table-responsive" style="max-height: 700px;overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
               <table class="table table-bordered table-striped table-sm table-hover" style="width: 100%;">
                 <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10;">
                   <tr>
@@ -127,38 +186,42 @@
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
-                    <td>{{ item.product_code }}</td>
-                    <td>{{ item.product_description }}</td>
-                    <td>{{ item.unit_name || 'N/A' }}</td>
-                    <td><textarea v-model="item.description" class="form-control form-control-sm" rows="1"></textarea></td>
+                    <td><input type="text" :name="`items[${index}][product_code]`" v-model="item.product_code" class="form-control form-control-sm" readonly /></td>
                     <td>
-                      <select v-model="item.currency" class="form-control form-control-sm">
+                      <textarea 
+                        :name="`items[${index}][product_description]`" 
+                        v-model="item.product_description" 
+                        class="form-control form-control-sm" 
+                        readonly
+                        rows="3"
+                      ></textarea>
+                    </td>
+                    <td><input type="text" :name="`items[${index}][unit_name]`" v-model="item.unit_name" class="form-control form-control-sm" readonly /></td>
+                    <td><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm" rows="1"></textarea></td>
+                    <td>
+                      <select :name="`items[${index}][currency]`" v-model="item.currency" class="form-control form-control-sm">
                         <option value="">Select</option>
                         <option value="USD">USD</option>
                         <option value="KHR">KHR</option>
                       </select>
                     </td>
-                    <td><input v-model.number="item.exchange_rate" type="number" min="0" step="0.01" class="form-control form-control-sm" /></td>
-                    <td><input v-model.number="item.unit_price" type="number" min="0" step="0.01" class="form-control form-control-sm" required /></td>
-                    <td><input v-model.number="item.quantity" type="number" min="0.01" step="0.01" class="form-control form-control-sm" required /></td>
+                    <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" min="0" step="0.01" class="form-control form-control-sm" /></td>
+                    <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" min="0.01" step="0.01" class="form-control form-control-sm" required /></td>
+                    <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" min="0" step="0.01" class="form-control form-control-sm" required /></td>
                     <td>
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
+                      <input type="text" class="form-control form-control-sm" 
+                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })" 
                         readonly
                       />
                     </td>
                     <td><select multiple class="form-control campus-select" :data-index="index"></select></td>
                     <td><select multiple class="form-control department-select" :data-index="index"></select></td>
-                    <td>
-                      <select class="form-control budget-select" :data-index="index"></select>
-                    </td>
+                    <td><select class="form-control budget-select" :data-index="index"></select></td>
                     <td class="text-center">
                       <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
                     </td>
                   </tr>
-                  <tr v-if="!form.items.length"><td colspan="12" class="text-center text-muted py-4">No items added</td></tr>
+                  <tr v-if="!form.items.length"><td colspan="13" class="text-center text-muted py-4">No items added</td></tr>
                 </tbody>
               </table>
             </div>
@@ -178,15 +241,9 @@
                 </thead>
                 <tbody>
                   <tr v-for="(approval, index) in form.approvals" :key="index">
-                    <td>
-                      <select class="form-control approval-type-select" :data-index="index" v-model="approval.request_type"></select>
-                    </td>
-                    <td>
-                      <select class="form-control user-select" :data-index="index" v-model="approval.user_id" :disabled="!approval.request_type"></select>
-                    </td>
-                    <td class="text-center">
-                      <button @click.prevent="removeApproval(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
-                    </td>
+                    <td><select class="form-control approval-type-select" :data-index="index" v-model="approval.request_type" :name="`approvals[${index}][request_type]`"></select></td>
+                    <td><select class="form-control user-select" :data-index="index" v-model="approval.user_id" :name="`approvals[${index}][user_id]`" :disabled="!approval.request_type"></select></td>
+                    <td class="text-center"><button @click.prevent="removeApproval(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button></td>
                   </tr>
                 </tbody>
               </table>
@@ -206,7 +263,7 @@
       </div>
     </form>
 
-    <!-- 🪟 Product Modal -->
+    <!-- Product Modal -->
     <div class="modal fade" id="productModal" tabindex="-1">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -243,6 +300,7 @@
     </div>
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
