@@ -15,7 +15,7 @@
           <div class="row">
             <!-- Requester Info -->
             <div class="col-md-6">
-              <div class="border rounded p-3 mb-4" style="max-height: 300px; overflow-y: auto;">
+              <div class="border rounded p-3 mb-4" style="height: 300px;">
                 <h5 class="font-weight-bold mb-3 text-primary">👤 Requester Info</h5>
                 <div v-for="(value, label) in requester" :key="label" class="row mb-2">
                   <div class="col-4 font-weight-bold text-muted">{{ label }}:</div>
@@ -26,7 +26,7 @@
 
             <!-- PR Info -->
             <div class="col-md-6">
-              <div class="border rounded p-3 mb-4">
+              <div class="border rounded p-3 mb-4" style ="height: 300px;">
                 <h5 class="font-weight-bold mb-3 text-primary">📋 PR Information</h5>
                 <div class="form-row">
                   <div class="form-group col-md-6">
@@ -47,11 +47,6 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="font-weight-bold">🎯 Purpose <span class="text-danger">*</span></label>
-                  <textarea v-model="form.purpose" class="form-control" rows="2" placeholder="Enter purpose..." required></textarea>
-                </div>
-
-                <div class="form-group">
                   <label class="font-weight-bold">📎 Attachment</label>
                   <div class="input-group">
                     <input type="file" class="d-none" ref="attachmentInput" @change="onFileChange" multiple accept=".pdf,.doc,.docx,.jpg,.png" />
@@ -67,6 +62,13 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class = "border rounded p-3 mb-4">
+            <div class="form-group">
+              <label class="font-weight-bold">🎯 Purpose</label>
+              <textarea v-model="form.purpose" class="form-control" rows="3" required></textarea>
             </div>
           </div>
 
