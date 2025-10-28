@@ -693,9 +693,7 @@ const initDatepicker = () => {
 
 // -------------------- Submit --------------------
 const submitForm = async () => {
-  if (!isFormValid.value) 
-    return showAlert('Error', 'Form is incomplete', 'danger');
-
+  if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
   isSubmitting.value = true;
 
   try {
@@ -706,40 +704,48 @@ const submitForm = async () => {
     fd.append('purpose', form.value.purpose || '');
     fd.append('is_urgent', form.value.is_urgent ? 1 : 0);
 
+    // If edit mode, use _method=PUT
+    if (isEditMode.value) fd.append('_method', 'PUT');
+
     // -------------------- Files --------------------
-    if (form.value.file) {
+    if (form.value.file && form.value.file.length) {
       Array.from(form.value.file).forEach(file => fd.append('file[]', file));
     }
 
     // -------------------- Items --------------------
-    // Convert each item array/object into FormData fields
-    form.value.items.forEach((item, i) => {
-      Object.entries(item).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          // Arrays: campus_ids, department_ids, etc.
-          value.forEach((v, j) => fd.append(`items[${i}][${key}][${j}]`, v));
-        } else {
-          fd.append(`items[${i}][${key}]`, value);
-        }
-      });
+    form.value.items.forEach((i, index) => {
+      if (i.id) fd.append(`items[${index}][id]`, i.id); // include id for existing items
+      fd.append(`items[${index}][product_id]`, i.product_id);
+      fd.append(`items[${index}][quantity]`, i.quantity);
+      fd.append(`items[${index}][unit_price]`, i.unit_price);
+      fd.append(`items[${index}][description]`, i.description || '');
+      fd.append(`items[${index}][currency]`, i.currency || '');
+      fd.append(`items[${index}][exchange_rate]`, i.exchange_rate || '');
+      fd.append(`items[${index}][budget_code_id]`, i.budget_code_id || '');
+
+      i.campus_ids.forEach((c, ci) => fd.append(`items[${index}][campus_ids][${ci}]`, c));
+      i.department_ids.forEach((d, di) => fd.append(`items[${index}][department_ids][${di}]`, d));
     });
 
     // -------------------- Approvals --------------------
-    form.value.approvals.forEach((app, i) => {
-      Object.entries(app).forEach(([key, value]) => {
-        fd.append(`approvals[${i}][${key}]`, value || '');
-      });
+    form.value.approvals.forEach((a, index) => {
+      fd.append(`approvals[${index}][user_id]`, a.user_id);
+      fd.append(`approvals[${index}][request_type]`, a.request_type);
     });
 
-    // -------------------- Method Spoofing for PUT --------------------
-    let url = '/api/purchase-requests';
-    let method = 'post';
-    if (isEditMode.value) {
-      url = `/api/purchase-requests/${props.purchaseRequestId}`;
-      fd.append('_method', 'PUT'); // Laravel requires this for PUT with FormData
+    // -------------------- Existing Files --------------------
+    if (form.value.existing_file_ids && form.value.existing_file_ids.length) {
+      form.value.existing_file_ids.forEach((id, idx) => {
+        fd.append(`existing_file_ids[${idx}]`, id);
+      });
     }
 
-    // -------------------- Send Request --------------------
+    // -------------------- API Call --------------------
+    const url = isEditMode.value
+      ? `/api/purchase-requests/${props.purchaseRequestId}`
+      : '/api/purchase-requests';
+    const method = 'post'; // always POST, use _method=PUT for edit
+
     const res = await axios({
       url,
       method,
@@ -747,18 +753,18 @@ const submitForm = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
-    await showAlert(
-      'Success',
-      isEditMode.value ? 'Updated successfully.' : 'Created successfully.',
-      'success'
-    );
-
+    await showAlert('Success', isEditMode.value ? 'Updated successfully.' : 'Created successfully.', 'success');
     emit('submitted', res.data.data);
     navigateToList();
 
   } catch (err) {
-    const msg = err.response?.data?.message || err.message || 'Unknown error';
-    showAlert('Error', msg, 'danger');
+    const errors = err.response?.data?.errors;
+    if (errors) {
+      const messages = Object.values(errors).flat().join('<br>');
+      showAlert('Validation Error', messages, 'danger');
+    } else {
+      showAlert('Error', err.response?.data?.message || err.message, 'danger');
+    }
   } finally {
     isSubmitting.value = false;
   }
