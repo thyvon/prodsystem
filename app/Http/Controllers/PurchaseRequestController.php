@@ -526,11 +526,23 @@ class PurchaseRequestController extends Controller
                 'position_id' => User::find($approval['user_id'])?->defaultPosition()?->id,
             ];
 
-            $existingApproval = $this->approvalService->updateApproval($approvalPayload);
+            try {
+                $existingApproval = $this->approvalService->updateApproval($approvalPayload);
 
-            // If no existing pending approval, create a new one
-            if (!$existingApproval['success']) {
-                $this->approvalService->storeApproval($approvalPayload);
+                // Safe check for success key
+                $isExistingPending = is_array($existingApproval) && !empty($existingApproval['success']) && $existingApproval['success'] === true;
+
+                if (!$isExistingPending) {
+                    $this->approvalService->storeApproval($approvalPayload);
+                }
+
+            } catch (\Throwable $e) {
+                Log::warning('Approval save failed', [
+                    'purchase_request_id' => $purchaseRequest->id,
+                    'user_id' => $approval['user_id'],
+                    'error' => $e->getMessage(),
+                ]);
+                // continue to next approval without breaking the transaction
             }
         }
     }
