@@ -693,7 +693,9 @@ const initDatepicker = () => {
 
 // -------------------- Submit --------------------
 const submitForm = async () => {
-  if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
+  if (!isFormValid.value) 
+    return showAlert('Error', 'Form is incomplete', 'danger');
+
   isSubmitting.value = true;
 
   try {
@@ -705,41 +707,39 @@ const submitForm = async () => {
     fd.append('is_urgent', form.value.is_urgent ? 1 : 0);
 
     // -------------------- Files --------------------
-    if (form.value.file && form.value.file.length) {
-      Array.from(form.value.file).forEach(file => fd.append('files[]', file));
+    if (form.value.file) {
+      Array.from(form.value.file).forEach(file => fd.append('file[]', file));
     }
 
     // -------------------- Items --------------------
-    // Convert items array to JSON string to avoid nested FormData complexity
-    const itemsPayload = form.value.items.map(i => ({
-      product_id: i.product_id,
-      product_code: i.product_code,
-      product_description: i.product_description,
-      unit_name: i.unit_name,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-      currency: i.currency,
-      exchange_rate: i.exchange_rate,
-      description: i.description,
-      campus_ids: i.campus_ids,
-      department_ids: i.department_ids,
-      budget_code_id: i.budget_code_id
-    }));
-    fd.append('items', JSON.stringify(itemsPayload));
+    // Convert each item array/object into FormData fields
+    form.value.items.forEach((item, i) => {
+      Object.entries(item).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          // Arrays: campus_ids, department_ids, etc.
+          value.forEach((v, j) => fd.append(`items[${i}][${key}][${j}]`, v));
+        } else {
+          fd.append(`items[${i}][${key}]`, value);
+        }
+      });
+    });
 
     // -------------------- Approvals --------------------
-    const approvalsPayload = form.value.approvals.map(a => ({
-      user_id: a.user_id,
-      request_type: a.request_type
-    }));
-    fd.append('approvals', JSON.stringify(approvalsPayload));
+    form.value.approvals.forEach((app, i) => {
+      Object.entries(app).forEach(([key, value]) => {
+        fd.append(`approvals[${i}][${key}]`, value || '');
+      });
+    });
 
-    // -------------------- API Call --------------------
-    const url = isEditMode.value
-      ? `/api/purchase-requests/${props.purchaseRequestId}`
-      : '/api/purchase-requests';
-    const method = isEditMode.value ? 'put' : 'post';
+    // -------------------- Method Spoofing for PUT --------------------
+    let url = '/api/purchase-requests';
+    let method = 'post';
+    if (isEditMode.value) {
+      url = `/api/purchase-requests/${props.purchaseRequestId}`;
+      fd.append('_method', 'PUT'); // Laravel requires this for PUT with FormData
+    }
 
+    // -------------------- Send Request --------------------
     const res = await axios({
       url,
       method,
@@ -747,19 +747,18 @@ const submitForm = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
-    await showAlert('Success', isEditMode.value ? 'Updated successfully.' : 'Created successfully.', 'success');
+    await showAlert(
+      'Success',
+      isEditMode.value ? 'Updated successfully.' : 'Created successfully.',
+      'success'
+    );
+
     emit('submitted', res.data.data);
     navigateToList();
 
   } catch (err) {
-    const errors = err.response?.data?.errors;
-    if (errors) {
-      // Format Laravel validation errors
-      const messages = Object.values(errors).flat().join('<br>');
-      showAlert('Validation Error', messages, 'danger');
-    } else {
-      showAlert('Error', err.response?.data?.message || err.message, 'danger');
-    }
+    const msg = err.response?.data?.message || err.message || 'Unknown error';
+    showAlert('Error', msg, 'danger');
   } finally {
     isSubmitting.value = false;
   }
