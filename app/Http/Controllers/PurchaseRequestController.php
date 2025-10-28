@@ -8,12 +8,12 @@ use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Imports\PurchaseItemImport;
 use Maatwebsite\Excel\Facades\Excel;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Models\User;
-use App\Imports\PurchaseItemImport;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
 use App\Services\ProductService;
@@ -33,15 +33,15 @@ class PurchaseRequestController extends Controller
         ProductService $productService,
         CampusService $campusService,
         DepartmentService $departmentService
-    ) {
+    )
+    {
         $this->approvalService = $approvalService;
         $this->productService = $productService;
         $this->campusService = $campusService;
         $this->departmentService = $departmentService;
     }
-
     // ====================
-    // Views
+    // Index & Form Views
     // ====================
     public function index(): View
     {
@@ -52,17 +52,20 @@ class PurchaseRequestController extends Controller
     public function form(?PurchaseRequest $purchaseRequest = null): View
     {
         $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
+
         $user = Auth::user();
 
+        // Map user data to labeled fields
         $requester = [
-            'Requester' => $user->name,
-            'Position'  => $user->defaultPosition()->title,
-            'Card ID'   => $user->card_number,
-            'Department'=> $user->defaultDepartment()->name,
-            'Cellphone' => $user->phone,
-            'Ext'       => $user->ext,
+            'Requester'  => $user->name,
+            'Position'   => $user->defaultPosition()->title,
+            'Card ID'    => $user->card_number,
+            'Department' => $user->defaultDepartment()->name,
+            'Cellphone'  => $user->phone,
+            'Ext'        => $user->ext,
         ];
 
+        // Get default department and campus
         $userDefaultDepartment = $user->defaultDepartment()->select('id', 'short_name')->first();
         $userDefaultCampus = $user->defaultCampus()->select('id', 'short_name')->first();
 
@@ -77,7 +80,7 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->load([
                 'items.campuses',
                 'items.departments',
-                'approvals.responder',
+                'approvals.responder', // include responder user
                 'files'
             ]);
 
@@ -91,11 +94,10 @@ class PurchaseRequestController extends Controller
                     'created_by' => $purchaseRequest->created_by,
                     'position_id' => $purchaseRequest->position_id,
                     'items' => $purchaseRequest->items->map(fn($i) => [
-                        'id' => $i->id,
                         'product_id' => $i->product_id,
-                        'product_code' => $i->product->item_code ?? null,
-                        'product_description' => ($i->product->product->name ?? '') . ' - ' . ($i->product->description ?? ''),
-                        'unit_name' => $i->product->product->unit->name ?? null,
+                        'product_code' => $i->product->item_code,
+                        'product_description' => $i->product->product->name . ' - ' . $i->product->description,
+                        'unit_name' => $i->product->product->unit->name,
                         'quantity' => $i->quantity,
                         'unit_price' => $i->unit_price,
                         'currency' => $i->currency,
@@ -118,7 +120,7 @@ class PurchaseRequestController extends Controller
                         'sharepoint_file_id' => $f->sharepoint_file_id,
                         'sharepoint_file_name' => $f->sharepoint_file_name,
                         'sharepoint_drive_id' => $f->sharepoint_drive_id,
-                        'url' => $f->url,
+                        'url' => $f->url, // make sure your DocumentRelation model has getUrlAttribute
                     ]),
                 ],
             ]);
@@ -127,6 +129,7 @@ class PurchaseRequestController extends Controller
                 'id' => $purchaseRequest->id,
                 'error' => $e->getMessage()
             ]);
+
             return response()->json([
                 'message' => 'Failed to retrieve purchase request.',
                 'error' => $e->getMessage()
@@ -135,59 +138,72 @@ class PurchaseRequestController extends Controller
     }
 
 
-    // ====================
-    // Import Items
-    // ====================
     public function importItems(Request $request): JsonResponse
     {
         $this->authorize('create', PurchaseRequest::class);
-        $request->validate(['file' => 'required|file|mimes:xlsx,xls,csv|max:2048']);
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
 
         try {
             $import = new PurchaseItemImport();
             Excel::import($import, $request->file('file'));
+
             $data = $import->getData();
 
             if (!empty($data['errors'])) {
-                return response()->json(['message' => 'Errors found in Excel file.', 'errors' => $data['errors']], 422);
-            }
-            if (empty($data['items'])) {
-                return response()->json(['message' => 'No valid data found.', 'errors' => ['No valid rows processed.']], 422);
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
             }
 
-            return response()->json(['message' => 'Purchase items parsed successfully.', 'data' => ['items' => $data['items']]], 200);
+            if (empty($data['items'])) {
+                return response()->json([
+                    'message' => 'No valid data found in the Excel file.',
+                    'errors' => ['No valid rows processed.'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Purchase items data parsed successfully.',
+                'data' => [
+                    'items' => $data['items'],
+                ],
+            ], 200);
         } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $errors = $e->failures()->map(fn($f) => "Row {$f->row()}: " . implode('; ', $f->errors()))->toArray();
-            return response()->json(['message' => 'Validation failed', 'errors' => $errors], 422);
+            $errors = $e->failures()->map(function ($failure) {
+                $row = $failure->row();
+                $errorMessages = $failure->errors();
+                return "Row {$row}: " . implode('; ', $errorMessages);
+            })->toArray();
+
+            return response()->json([
+                'message' => 'Validation failed during import',
+                'errors' => $errors,
+            ], 422);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Failed to parse purchase items', 'errors' => [$e->getMessage()]], 500);
+            return response()->json([
+                'message' => 'Failed to parse purchase items',
+                'errors' => [$e->getMessage()],
+            ], 500);
         }
     }
 
     // ====================
-    // Store / Update
+    // Store Purchase Request
     // ====================
     public function store(Request $request): JsonResponse
     {
-        return $this->savePurchaseRequest($request);
-    }
-
-    public function update(Request $request, PurchaseRequest $purchaseRequest): JsonResponse
-    {
-        return $this->savePurchaseRequest($request, $purchaseRequest);
-    }
-
-    protected function savePurchaseRequest(Request $request, PurchaseRequest $purchaseRequest = null): JsonResponse
-    {
+        $this->authorize('create', [PurchaseRequest::class]);
         $user = Auth::user();
-        $sharePoint = new SharePointService($user);
 
         $validated = $request->validate([
             'deadline_date' => 'nullable|date|after_or_equal:request_date',
             'purpose' => 'required|string',
             'is_urgent' => 'required|boolean',
             'items' => 'required|array|min:1',
-            'items.*.id' => 'nullable|exists:purchase_request_items,id',
             'items.*.product_id' => 'required|exists:product_variants,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -202,122 +218,148 @@ class PurchaseRequestController extends Controller
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial',
-            'files' => 'nullable|array',
-            'files.*.id' => 'nullable|exists:purchase_request_files,id',
-            'files.*.file' => 'nullable|file|mimes:xlsx,xls,csv,pdf,jpg,png|max:20480',
         ]);
 
-        $isNew = $purchaseRequest === null;
+        $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $sharePoint, $user, &$purchaseRequest, $isNew) {
-                if ($isNew) {
-                    $referenceNo = $this->generateReferenceNo();
-                    $purchaseRequest = PurchaseRequest::create([
-                        'reference_no' => $referenceNo,
-                        'request_date' => now()->format('Y-m-d'),
-                        'deadline_date' => $validated['deadline_date'] ?? null,
-                        'purpose' => $validated['purpose'],
-                        'is_urgent' => $validated['is_urgent'],
-                        'created_by' => $user->id,
-                        'position_id' => $user->defaultPosition()->id,
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
+
+                $referenceNo = $this->generateReferenceNo();
+                $folderPath = $this->getSharePointFolderPath($referenceNo);
+
+                // --------------------
+                // Create Purchase Request first
+                // --------------------
+                $purchaseRequest = PurchaseRequest::create([
+                    'reference_no' => $referenceNo,
+                    'request_date' => now()->format('Y-m-d'),
+                    'deadline_date' => $validated['deadline_date'] ?? null,
+                    'purpose' => $validated['purpose'],
+                    'is_urgent' => $validated['is_urgent'],
+                    'created_by' => $user->id,
+                    'position_id' => $user->defaultPosition()->id,
+                ]);
+
+                // --------------------
+                // Handle uploaded files
+                // --------------------
+                $files = $request->file('file');
+                $files = is_array($files) ? $files : [$files];
+                $uploadedFiles = [];
+                $counter = 1;
+
+                foreach ($files as $file) {
+                    if (!$file) continue;
+
+                    $extension = $file->getClientOriginalExtension();
+                    $fileName = "{$referenceNo}-{$counter}.{$extension}";
+
+                    // if upload fails, throw exception so DB rolls back
+                    $result = $sharePoint->uploadFile(
+                        $file,
+                        $folderPath,
+                        ['Title' => uniqid()],
+                        $fileName,
+                        self::CUSTOM_DRIVE_ID
+                    );
+
+                    if (!$result) {
+                        throw new \Exception("Failed to upload file: {$fileName}");
+                    }
+
+                    $uploadedFiles[] = $result;
+                    $counter++;
+                }
+                $this->storeDocuments($purchaseRequest, $uploadedFiles);
+
+                // --------------------
+                // Prepare and store items
+                // --------------------
+                foreach ($validated['items'] as $item) {
+                    $totalPrice = $item['quantity'] * $item['unit_price'];
+                    $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
+                        ? $totalPrice / $item['exchange_rate']
+                        : $totalPrice;
+
+                    $purchaseRequestItem = PurchaseRequestItem::create([
+                        'purchase_request_id' => $purchaseRequest->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'total_price' => $totalPrice,
+                        'currency' => $item['currency'] ?? null,
+                        'exchange_rate' => $item['exchange_rate'] ?? null,
+                        'total_price_usd' => $totalPriceUsd,
+                        'description' => $item['description'] ?? null,
+                        'budget_code_id' => $item['budget_code_id'] ?? null,
                     ]);
-                } else {
-                    $purchaseRequest->update([
-                        'deadline_date' => $validated['deadline_date'] ?? null,
-                        'purpose' => $validated['purpose'],
-                        'is_urgent' => $validated['is_urgent'],
-                    ]);
+
+                    $campusCount = count($item['campus_ids']);
+                    $departmentCount = count($item['department_ids']);
+                    $perCampusUsd = $totalPriceUsd / $campusCount;
+                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+
+                    $campusPivotData = array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]);
+                    $purchaseRequestItem->campuses()->sync($campusPivotData);
+
+                    $departmentPivotData = array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]);
+                    $purchaseRequestItem->departments()->sync($departmentPivotData);
                 }
 
-                $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
-
-                // -------------------- Files --------------------
-                $this->handleFiles($purchaseRequest, $validated['files'] ?? [], $sharePoint, $folderPath);
-
-                // -------------------- Items --------------------
-                $this->handleItems($purchaseRequest, $validated['items']);
-
-                // -------------------- Approvals --------------------
-                $purchaseRequest->approvals()->delete();
+                // --------------------
+                // Store approvals
+                // --------------------
                 $this->storeApprovals($purchaseRequest, $validated['approvals']);
 
+                // All succeeded, return
                 return response()->json([
-                    'message' => $isNew ? 'Purchase request created successfully.' : 'Purchase request updated successfully.',
-                    'data' => $purchaseRequest->load('items', 'approvals.responder', 'files'),
-                ], $isNew ? 201 : 200);
+                    'message' => 'Purchase request created successfully.',
+                    'data' => $purchaseRequest->load('items', 'approvals.responder'),
+                ], 201);
             });
         } catch (\Exception $e) {
-            Log::error('Failed to save purchase request', ['error' => $e->getMessage()]);
-            return response()->json(['message' => 'Failed to save purchase request.', 'error' => $e->getMessage()], 500);
+            Log::error('Failed to create purchase request', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'Failed to create purchase request.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
-    protected function handleFiles(PurchaseRequest $purchaseRequest, array $files, SharePointService $sharePoint, string $folderPath): void
-    {
-        foreach ($files as $fileData) {
-            if (isset($fileData['id'], $fileData['file'])) {
-                $oldFile = $purchaseRequest->files()->find($fileData['id']);
-                if ($oldFile) {
-                    $newFileInfo = $sharePoint->updateFile(
-                        $oldFile->sharepoint_file_id,
-                        $fileData['file'],
-                        ['Title' => 'Updated Document'],
-                        $oldFile->sharepoint_drive_id,
-                        $fileData['file']->getClientOriginalName()
-                    );
-                    $oldFile->update(['sharepoint_file_name' => $newFileInfo['name']]);
-                }
-            } elseif (isset($fileData['file'])) {
-                $newFileInfo = $sharePoint->uploadFile(
-                    $fileData['file'],
-                    $folderPath,
-                    ['Title' => 'Purchase Request Document'],
-                    $fileData['file']->getClientOriginalName()
-                );
-                $purchaseRequest->files()->create([
-                    'document_name' => 'Purchase Request Document',
-                    'document_reference' => $purchaseRequest->reference_no,
-                    'sharepoint_file_id' => $newFileInfo['id'],
-                    'sharepoint_file_name' => $newFileInfo['name'],
-                    'sharepoint_drive_id' => $newFileInfo['drive_id'] ?? config('services.sharepoint.drive_id'),
-                ]);
-            }
-        }
-    }
-
-    protected function handleItems(PurchaseRequest $purchaseRequest, array $items): void
-    {
-        $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
-        $newItemIds = [];
-
-        foreach ($items as $item) {
-            $totalPrice = $item['quantity'] * $item['unit_price'];
-            $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
-                ? $totalPrice / $item['exchange_rate']
-                : $totalPrice;
-
-            $purchaseItem = $item['id'] && in_array($item['id'], $existingItemIds)
-                ? $purchaseRequest->items()->find($item['id'])->update(array_merge($item, ['total_price' => $totalPrice, 'total_price_usd' => $totalPriceUsd]))
-                : $purchaseRequest->items()->create(array_merge($item, ['total_price' => $totalPrice, 'total_price_usd' => $totalPriceUsd]));
-
-            $purchaseItem = is_numeric($purchaseItem) ? $purchaseRequest->items()->find($item['id']) : $purchaseItem;
-            $this->syncItemRelations($purchaseItem, $item['campus_ids'], $item['department_ids'], $totalPriceUsd);
-
-            $newItemIds[] = $purchaseItem->id;
-        }
-
-        // Keep old items; optionally delete removed:
-        // $purchaseRequest->items()->whereNotIn('id', $newItemIds)->delete();
-    }
 
     // ====================
-    // Approval Handling
+    // Helpers
     // ====================
-    protected function storeApprovals(PurchaseRequest $purchaseRequest, array $approvals): void
+    private function getSharePointFolderPath(string $documentReference): string
+    {
+        $year = now()->format('Y');
+        $monthNumber = now()->format('m');
+        $monthName = now()->format('M');
+        return "PurchaseRequest/{$year}/{$monthNumber}-{$monthName}/{$documentReference}";
+    }
+
+    private function generateReferenceNo(): string
+    {
+        $prefix = 'PR-' . now()->format('Ym') . '-';
+        $count = PurchaseRequest::withTrashed()
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
+            ->count() + 1;
+
+        do {
+            $referenceNo = $prefix . str_pad($count, 4, '0', STR_PAD_LEFT);
+            $exists = PurchaseRequest::withTrashed()->where('reference_no', $referenceNo)->exists();
+            $count++;
+        } while ($exists);
+
+        return $referenceNo;
+    }
+
+    protected function storeApprovals(PurchaseRequest $purchaseRequest, array $approvals)
     {
         foreach ($approvals as $approval) {
-            $approvalPayload = [
+            $this->approvalService->storeApproval([
                 'approvable_type' => PurchaseRequest::class,
                 'approvable_id' => $purchaseRequest->id,
                 'document_name' => $purchaseRequest->document_type ?? 'Purchase Request',
@@ -328,9 +370,7 @@ class PurchaseRequestController extends Controller
                 'requester_id' => $purchaseRequest->created_by,
                 'responder_id' => $approval['user_id'],
                 'position_id' => User::find($approval['user_id'])?->defaultPosition()?->id,
-            ];
-            $existingApproval = $this->approvalService->updateApproval($approvalPayload);
-            if (!$existingApproval['success']) $this->approvalService->storeApproval($approvalPayload);
+            ]);
         }
     }
 
@@ -346,83 +386,115 @@ class PurchaseRequestController extends Controller
         };
     }
 
-    // ====================
-    // Pivot Sync
-    // ====================
-    protected function syncItemRelations(PurchaseRequestItem $item, array $campusIds, array $departmentIds, float $totalPriceUsd): void
+    protected function storeDocuments(PurchaseRequest $purchaseRequest, array $uploadedFiles)
     {
-        $item->campuses()->sync(array_fill_keys($campusIds, ['total_usd' => $totalPriceUsd / count($campusIds)]));
-        $item->departments()->sync(array_fill_keys($departmentIds, ['total_usd' => $totalPriceUsd / count($departmentIds)]));
+        foreach ($uploadedFiles as $file) {
+            $purchaseRequest->files()->create([
+                'document_name' => 'Purchase Request Document',
+                'document_reference' => $purchaseRequest->reference_no,
+                'sharepoint_file_id' => $file['id'],
+                'sharepoint_file_name' => $file['name'],
+                'sharepoint_drive_id' => self::CUSTOM_DRIVE_ID,
+            ]);
+        }
     }
 
     // ====================
-    // Utilities
-    // ====================
-    protected function getSharePointFolderPath(string $documentReference): string
-    {
-        $year = now()->format('Y');
-        $monthNumber = now()->format('m');
-        $monthName = now()->format('M');
-        return "PurchaseRequest/{$year}/{$monthNumber}-{$monthName}/{$documentReference}";
-    }
-
-    protected function generateReferenceNo(): string
-    {
-        $prefix = 'PR-' . now()->format('Ym') . '-';
-        $count = PurchaseRequest::withTrashed()->whereYear('created_at', now()->year)
-            ->whereMonth('created_at', now()->month)
-            ->count() + 1;
-
-        do {
-            $referenceNo = $prefix . str_pad($count, 4, '0', STR_PAD_LEFT);
-            $exists = PurchaseRequest::withTrashed()->where('reference_no', $referenceNo)->exists();
-            $count++;
-        } while ($exists);
-
-        return $referenceNo;
-    }
-
-    // ====================
-    // Lookup APIs
+    // Approval Users Endpoint
     // ====================
     public function getApprovalUsers(Request $request): JsonResponse
     {
         $this->authorize('viewAny', PurchaseRequest::class);
-        $validated = $request->validate(['request_type' => 'required|string|in:approve,initial,check,verify']);
+
+        $validated = $request->validate([
+            'request_type' => ['required', 'string', 'in:approve,initial,check,verify'],
+        ]);
+
         $permission = "purchaseRequest.{$validated['request_type']}";
         $authUserId = $request->user()->id;
 
-        $users = User::query()
-            ->whereHas('permissions', fn($q) => $q->where('name', $permission))
-            ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
-            ->whereNotNull('telegram_id')
-            ->where('id', '!=', $authUserId)
-            ->select('id', 'name', 'telegram_id', 'card_number')
-            ->orderBy('name')
-            ->get();
+        try {
+            $users = User::query()
+                ->whereHas('permissions', fn($q) => $q->where('name', $permission))
+                ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
+                ->whereNotNull('telegram_id')
+                ->where('id', '!=', $authUserId)
+                ->select('id', 'name', 'telegram_id', 'card_number')
+                ->orderBy('name')
+                ->distinct()
+                ->get();
 
-        return response()->json(['message' => 'Users fetched successfully.', 'data' => $users]);
+            return response()->json([
+                'message' => 'Users fetched successfully.',
+                'data' => $users,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch users for approval', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch users for approval.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
-    public function getProducts(Request $request): JsonResponse
+    // ====================
+    // Get Products
+    // ====================
+    public function getProducts(Request $request)
     {
         $this->authorize('viewAny', PurchaseRequest::class);
-        return response()->json($this->productService->getStockManagedVariants($request));
+        $response = $this->productService->getStockManagedVariants($request);
+        return response()->json($response);
     }
 
-    public function getCampuses(Request $request): JsonResponse
+
+    public function getCampuses(Request $request)
     {
         $this->authorize('viewAny', PurchaseRequest::class);
-        $items = collect($this->campusService->getCampuses($request)['data'] ?? [])
-            ->where('is_active', 1)->values();
-        return response()->json(['data' => $items, 'recordsFiltered' => $items->count()]);
+
+        // The service already returns an array
+        $response = $this->campusService->getCampuses($request);
+
+        $items = $response['data'] ?? [];
+        $filtered = collect($items)
+            ->filter(fn($item) => data_get($item, 'is_active') == 1)
+            ->values()
+            ->all();
+
+        $filteredResponse = [
+            'data'             => $filtered,
+            'recordsTotal'     => $response['recordsTotal'] ?? count($items),
+            'recordsFiltered'  => count($filtered),
+            'draw'             => $response['draw'] ?? null,
+        ];
+
+        return response()->json($filteredResponse);
     }
 
-    public function getDepartments(Request $request): JsonResponse
+    public function getDepartments(Request $request)
     {
         $this->authorize('viewAny', PurchaseRequest::class);
-        $items = collect($this->departmentService->getDepartments($request)['data'] ?? [])
-            ->where('is_active', 1)->values();
-        return response()->json(['data' => $items, 'recordsFiltered' => $items->count()]);
+
+        // The service already returns an array
+        $response = $this->departmentService->getDepartments($request);
+
+        $items = $response['data'] ?? [];
+        $filtered = collect($items)
+            ->filter(fn($item) => data_get($item, 'is_active') == 1)
+            ->values()
+            ->all();
+
+        $filteredResponse = [
+            'data'             => $filtered,
+            'recordsTotal'     => $response['recordsTotal'] ?? count($items),
+            'recordsFiltered'  => count($filtered),
+            'draw'             => $response['draw'] ?? null,
+        ];
+
+        return response()->json($filteredResponse);
     }
+
 }
