@@ -345,7 +345,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Route::get('/purchase-requests', [PurchaseRequestController::class, 'getPurchaseRequests'])->name('api.purchase-requests.index');
     Route::post('/purchase-requests', [PurchaseRequestController::class, 'store'])->name('api.purchase-requests.store')->middleware('can:create,' . PurchaseRequest::class);
     Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->name('api.purchase-requests.edit');
-    // Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('api.purchase-requests.update');
+    Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('api.purchase-requests.update');
     // Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('api.purchase-requests.destroy');
     Route::get('/purchase-requests/get-approval-users', [PurchaseRequestController::class, 'getApprovalUsers'])
     ->name('api.purchase-requests.get-approval-users');

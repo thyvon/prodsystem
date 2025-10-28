@@ -18,7 +18,7 @@
           <div class="row d-flex">
             <!-- Requester Info -->
             <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 mb-4 flex-fill" style="height: 300px;">
+              <div class="border rounded p-3 mb-4 flex-fill" style="height: 350px;">
                 <h5 class="font-weight-bold mb-3 text-primary">👤 Requester Info</h5>
                 <div v-for="(value, label) in requester" :key="label" class="row mb-2">
                   <div class="col-4 font-weight-bold text-muted">{{ label }}:</div>
@@ -29,7 +29,7 @@
 
             <!-- PR Info -->
             <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 mb-4 flex-fill" style="height: 300px;">
+              <div class="border rounded p-3 mb-4 flex-fill" style="height: 350px;">
                 <h5 class="font-weight-bold mb-3 text-primary">📋 PR Information</h5>
                 <div class="form-row">
                   <!-- Deadline -->
@@ -87,6 +87,7 @@
                       <i class="fal fa-file-upload"></i> {{ fileLabel }}
                     </button>
                   </div>
+
                   <div v-if="existingFileUrls.length" class="mt-2">
                     <small class="text-muted">Existing Files:</small>
                     <a 
@@ -100,23 +101,21 @@
                     </a>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Purpose -->
-          <div class="border rounded p-3 mb-4">
-            <div class="form-group">
-              <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
-              <textarea 
-                id="purpose"
-                name="purpose"
-                v-model="form.purpose" 
-                class="form-control" 
-                rows="3" 
-                required
-                autocomplete="off"
-              ></textarea>
+                <!-- Purpose (moved under attachment) -->
+                <div class="form-group mt-3">
+                  <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
+                  <textarea 
+                    id="purpose"
+                    name="purpose"
+                    v-model="form.purpose" 
+                    class="form-control" 
+                    rows="3" 
+                    required
+                    autocomplete="off"
+                  ></textarea>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -137,7 +136,7 @@
                     accept=".xlsx,.xls,.csv" 
                   />
                   <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.fileInput.click()">
-                    <i class="fal fa-file-upload"></i> {{ fileLabel }}
+                    <i class="fal fa-file-upload"></i> Choose file
                   </button>
                   <button type="button" class="btn btn-primary ml-2" @click="importItems" :disabled="isImporting || !fileLabel">
                     <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span> Import
@@ -169,9 +168,9 @@
               <table class="table table-bordered table-striped table-sm table-hover" style="width: 100%;">
                 <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10;">
                   <tr>
-                    <th style="min-width: 100px;">Code</th>
+                    <th style="min-width: 150px;">Code</th>
                     <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 30px;">UoM</th>
+                    <th style="min-width: 80px;">UoM</th>
                     <th style="min-width: 200px;">Remarks</th>
                     <th style="min-width: 100px;">Currency</th>
                     <th style="min-width: 100px;">Ex. Rate</th>
@@ -186,18 +185,24 @@
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
-                    <td><input type="text" :name="`items[${index}][product_code]`" v-model="item.product_code" class="form-control form-control-sm" readonly /></td>
+                    <td><div class="form-control form-control-sm bg-light">{{ item.product_code }}</div></td>
+
                     <td>
-                      <textarea 
-                        :name="`items[${index}][product_description]`" 
-                        v-model="item.product_description" 
-                        class="form-control form-control-sm" 
-                        readonly
-                        rows="3"
+                      <div class="form-control form-control-sm bg-light">
+                        {{ item.product_description }}
+                      </div>
+                    </td>
+
+                    <td><div class="form-control form-control-sm bg-light">{{ item.unit_name }}</div></td>
+
+                    <td>
+                      <textarea
+                        :name="`items[${index}][description]`"
+                        v-model="item.description"
+                        class="form-control form-control-sm"
                       ></textarea>
                     </td>
-                    <td><input type="text" :name="`items[${index}][unit_name]`" v-model="item.unit_name" class="form-control form-control-sm" readonly /></td>
-                    <td><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm" rows="1"></textarea></td>
+
                     <td>
                       <select :name="`items[${index}][currency]`" v-model="item.currency" class="form-control form-control-sm">
                         <option value="">Select</option>
@@ -205,23 +210,32 @@
                         <option value="KHR">KHR</option>
                       </select>
                     </td>
-                    <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" min="0" step="0.01" class="form-control form-control-sm" /></td>
-                    <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" min="0.01" step="0.01" class="form-control form-control-sm" required /></td>
-                    <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" min="0" step="0.01" class="form-control form-control-sm" required /></td>
+
+                    <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" class="form-control form-control-sm" /></td>
+                    <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" class="form-control form-control-sm" /></td>
+                    <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" class="form-control form-control-sm" /></td>
+
                     <td>
                       <input type="text" class="form-control form-control-sm" 
-                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })" 
+                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
                         readonly
                       />
                     </td>
+
                     <td><select multiple class="form-control campus-select" :data-index="index"></select></td>
                     <td><select multiple class="form-control department-select" :data-index="index"></select></td>
                     <td><select class="form-control budget-select" :data-index="index"></select></td>
+
                     <td class="text-center">
-                      <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm"><i class="fal fa-trash"></i></button>
+                      <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm">
+                        <i class="fal fa-trash"></i>
+                      </button>
                     </td>
                   </tr>
-                  <tr v-if="!form.items.length"><td colspan="13" class="text-center text-muted py-4">No items added</td></tr>
+
+                  <tr v-if="!form.items.length">
+                    <td colspan="13" class="text-center text-muted py-4">No items added</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -301,7 +315,6 @@
   </div>
 </template>
 
-
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
 import axios from 'axios';
@@ -356,10 +369,9 @@ const approvalTypes = [
 
 const usersForApproval = ref({ initial: [], approve: [], check: [], verify: [] });
 
-// -------------------- Computed Properties --------------------
+// -------------------- Computed --------------------
 const totalAmount = computed(() => {
   let totalKHR = 0, totalUSD = 0, totalKHRinUSD = 0;
-
   form.value.items.forEach(i => {
     const amount = i.quantity * i.unit_price;
     if (i.currency === 'KHR') {
@@ -367,12 +379,10 @@ const totalAmount = computed(() => {
       totalKHRinUSD += amount / (i.exchange_rate || 1);
     } else if (i.currency === 'USD') totalUSD += amount;
   });
-
   const parts = [];
   if (totalKHR) parts.push(`KHR = ${totalKHR.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
   if (totalUSD) parts.push(`USD = ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
   if (totalKHRinUSD || totalUSD) parts.push(`Total as USD = ${(totalUSD + totalKHRinUSD).toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
-
   return parts.length ? parts.join(' | ') : null;
 });
 
@@ -382,7 +392,7 @@ const isFormValid = computed(() =>
   !form.value.items.some(i => !i.product_id)
 );
 
-// -------------------- Helper Functions --------------------
+// -------------------- Helpers --------------------
 const createItem = (data = {}) => ({
   product_id: data.product_id || '',
   product_code: data.product_code || '',
@@ -398,7 +408,7 @@ const createItem = (data = {}) => ({
   budget_code_id: data.budget_code_id || budgetCodes.value[0]?.id || ''
 });
 
-const navigateToList = () => window.location.href = '/purchase-requests';
+const navigateToList = () => (window.location.href = '/purchase-requests');
 
 const onFileChange = (e) => {
   const files = e.target.files;
@@ -406,39 +416,24 @@ const onFileChange = (e) => {
   fileLabel.value = files?.length > 1 ? `${files.length} files selected` : files[0]?.name || 'Choose file(s)...';
 };
 
-// -------------------- Load Purchase Request --------------------
+// -------------------- Load PR --------------------
 const loadPurchaseRequest = async () => {
   if (!isEditMode.value) return;
-
   try {
     const { data } = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/edit`);
     const pr = data.data;
 
-    // Basic fields
     form.value.deadline_date = pr.deadline_date || '';
     form.value.purpose = pr.purpose || '';
     form.value.is_urgent = pr.is_urgent === 1;
-
-    // Files
     existingFileUrls.value = pr.files || [];
 
-    // Items
     form.value.items = (pr.items || []).map(item => createItem({
-      product_id: item.product_id,
-      product_code: item.product_code,
-      product_description: item.product_description,
-      unit_name: item.unit_name || 'N/A',
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      currency: item.currency,
-      exchange_rate: item.exchange_rate,
-      description: item.description,
+      ...item,
       campus_ids: item.campus_ids || [props.userDefaultCampus?.id],
       department_ids: item.department_ids || [props.userDefaultDepartment?.id],
-      budget_code_id: item.budget_code_id
     }));
 
-    // Approvals
     form.value.approvals = (pr.approvals || []).map(app => ({
       user_id: app.user_id || '',
       request_type: app.request_type || '',
@@ -450,8 +445,7 @@ const loadPurchaseRequest = async () => {
       initItemSelects();
       initApprovalSelects();
     });
-
-  } catch (err) {
+  } catch {
     showAlert('Error', 'Failed to load purchase request for edit mode.', 'danger');
   }
 };
@@ -459,7 +453,6 @@ const loadPurchaseRequest = async () => {
 // -------------------- Import Items --------------------
 const importItems = async () => {
   if (isImporting.value) return;
-
   if (!fileInput.value?.files?.length) {
     return showAlert('Error', 'Please select a file to import.', 'danger');
   }
@@ -477,31 +470,26 @@ const importItems = async () => {
       form.value.items = data.data.items.map(item => createItem({
         ...item,
         unit_name: item.unit_name || 'N/A',
-        quantity: item.quantity || 0,
-        unit_price: item.unit_price || 0,
-        exchange_rate: item.exchange_rate || 1,
-        campus_ids: item.campus_ids?.length ? item.campus_ids : [props.userDefaultCampus?.id],
-        department_ids: item.department_ids?.length ? item.department_ids : [props.userDefaultDepartment?.id],
-        budget_code_id: item.budget_code_id || budgetCodes.value[0]?.id
+        exchange_rate: item.exchange_rate || 1
       }));
 
       await nextTick(initItemSelects);
-      showAlert('Success', 'Purchase request items imported successfully.', 'success');
+      showAlert('Success', 'Items imported successfully.', 'success');
       fileInput.value.value = '';
       fileLabel.value = 'Choose file(s)...';
     } else {
-      const errors = data.errors || [data.message || 'Unknown error occurred'];
-      showAlert('Import Errors', `Errors in Excel file:<br>${errors.join('<br>')}`, 'danger');
+      const errors = data.errors || [data.message || 'Unknown error'];
+      showAlert('Import Errors', `Errors:<br>${errors.join('<br>')}`, 'danger');
     }
   } catch (err) {
-    const errors = err.response?.data?.errors || [err.response?.data?.message || 'Failed to import items.'];
+    const errors = err.response?.data?.errors || [err.response?.data?.message || 'Import failed.'];
     showAlert('Error', `Import failed:<br>${errors.join('<br>')}`, 'danger');
   } finally {
     isImporting.value = false;
   }
 };
 
-// -------------------- Items Management --------------------
+// -------------------- Items --------------------
 const addItem = (productId) => {
   const product = products.value.find(p => p.id === Number(productId));
   if (!product) return showAlert('Error', 'Product not found', 'danger');
@@ -520,61 +508,90 @@ const addItem = (productId) => {
 };
 
 const removeItem = (index) => {
-  ['campus', 'department', 'budget'].forEach(t => {
-    const el = document.querySelector(`.${t}-select[data-index="${index}"]`);
-    if (el) destroySelect2(el);
+  ['campus', 'department', 'budget'].forEach(type => {
+    const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
+    destroySelect2(el);
   });
   form.value.items.splice(index, 1);
   nextTick(initItemSelects);
 };
 
-// -------------------- Select2 Initialization --------------------
+// -------------------- Select2 Init (Reusable) --------------------
 const initSelect = (index, type) => {
   const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
   if (!el) return;
   destroySelect2(el);
-  $(el).empty();
 
   const dataList = type === 'campus' ? campuses.value : departments.value;
-  dataList.forEach(d => $(el).append(`<option value="${d.id}">${d.short_name || d.name}</option>`));
+  el.innerHTML = dataList.map(d => `<option value="${d.id}">${d.short_name || d.name}</option>`).join('');
 
-  initSelect2(el, { multiple: true, allowClear: true, width: '100%', placeholder: `Select ${type}` }, val => {
+  initSelect2(el, {
+    multiple: true,
+    allowClear: true,
+    width: '100%',
+    placeholder: `Select ${type}`,
+    value: form.value.items[index][`${type}_ids`].map(String)
+  }, (val) => {
     form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
   });
-
-  const current = form.value.items[index][`${type}_ids`] || [];
-  $(el).val(current.map(String)).trigger('change.select2');
 };
 
 const initBudgetSelect = (index) => {
   const el = document.querySelector(`.budget-select[data-index="${index}"]`);
   if (!el) return;
   destroySelect2(el);
-  $(el).empty();
+  el.innerHTML = budgetCodes.value.map(b => `<option value="${b.id}">${b.code}</option>`).join('');
 
-  budgetCodes.value.forEach(b => $(el).append(`<option value="${b.id}">${b.code}</option>`));
-
-  initSelect2(el, { width: '100%', allowClear: true, placeholder: 'Select Budget' }, val => {
+  initSelect2(el, {
+    width: '100%',
+    allowClear: true,
+    placeholder: 'Select Budget',
+    value: String(form.value.items[index].budget_code_id)
+  }, (val) => {
     form.value.items[index].budget_code_id = val ? Number(val) : null;
   });
-
-  const current = form.value.items[index].budget_code_id || '';
-  $(el).val(current ? String(current) : '').trigger('change.select2');
 };
 
-const initItemSelects = async () =>
+const initItemSelects = async () => {
   form.value.items.forEach((_, i) => {
     ['campus', 'department'].forEach(t => initSelect(i, t));
     initBudgetSelect(i);
   });
+};
 
-// -------------------- Approvals Management --------------------
+// -------------------- Approvals --------------------
 const fetchUsersForApproval = async (type) => {
   if (!type || usersForApproval.value[type]?.length) return;
   try {
-    const { data } = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: type } });
+    const { data } = await axios.get('/api/purchase-requests/get-approval-users', {
+      params: { request_type: type }
+    });
     usersForApproval.value[type] = data.data || [];
-  } catch { usersForApproval.value[type] = []; }
+  } catch {
+    usersForApproval.value[type] = [];
+  }
+};
+
+const populateUserSelect = async (approval, userEl) => {
+  await fetchUsersForApproval(approval.request_type);
+  let users = usersForApproval.value[approval.request_type] || [];
+
+  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
+    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
+  }
+  approval.availableUsers = users;
+
+  destroySelect2(userEl);
+  userEl.innerHTML = users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+
+  initSelect2(userEl, {
+    width: '100%',
+    allowClear: true,
+    placeholder: 'Select User',
+    value: String(approval.user_id)
+  }, (val) => {
+    approval.user_id = val ? Number(val) : '';
+  });
 };
 
 const initApprovalSelect = async (i) => {
@@ -585,44 +602,25 @@ const initApprovalSelect = async (i) => {
   const userEl = document.querySelector(`.user-select[data-index="${i}"]`);
   if (!typeEl || !userEl) return;
 
-  // --- Initialize type select ---
-  const initSelect = (el, options, selected, onChange) => {
-    destroySelect2(el);
-    el.innerHTML = options.map(o => `<option value="${o.id}">${o.text || o.name}</option>`).join('');
-    $(el).val(selected || '').trigger('change.select2');
-    initSelect2(el, { width: '100%', allowClear: true }, onChange);
-  };
+  destroySelect2(typeEl);
+  typeEl.innerHTML = approvalTypes.map(t => `<option value="${t.id}">${t.text}</option>`).join('');
 
-  initSelect(typeEl, approvalTypes, approval.request_type, async val => {
+  initSelect2(typeEl, {
+    width: '100%',
+    allowClear: true,
+    placeholder: 'Select Type',
+    value: approval.request_type
+  }, async (val) => {
     approval.request_type = val || '';
     await populateUserSelect(approval, userEl);
   });
 
-  // --- Initialize user select if type exists ---
   if (approval.request_type) await populateUserSelect(approval, userEl);
 };
 
-const populateUserSelect = async (approval, userEl) => {
-  await fetchUsersForApproval(approval.request_type);
-  let users = usersForApproval.value[approval.request_type] || [];
-
-  // Include old user if missing
-  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
-    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
-  }
-  approval.availableUsers = users;
-
-  destroySelect2(userEl);
-  userEl.innerHTML = '<option value="">Select User</option>' +
-    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
-
-  $(userEl).val(approval.user_id ? String(approval.user_id) : '').trigger('change.select2');
-  initSelect2(userEl, { width: '100%', allowClear: true }, val => approval.user_id = val ? Number(val) : '');
+const initApprovalSelects = async () => {
+  form.value.approvals.forEach((_, i) => initApprovalSelect(i));
 };
-
-const initApprovalSelects = async () =>
-form.value.approvals.forEach((_, i) => initApprovalSelect(i));
-
 
 const addApproval = async () => {
   form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
@@ -634,7 +632,7 @@ const removeApproval = async (i) => {
   await nextTick(initApprovalSelects);
 };
 
-// -------------------- Product Table Modal --------------------
+// -------------------- Product Table --------------------
 const initProductTable = () => {
   const tableEl = $('#productTable');
   if (!tableEl.length) return;
@@ -693,10 +691,9 @@ const initDatepicker = () => {
   if (form.value.deadline_date) $('.datepicker').datepicker('update', form.value.deadline_date);
 };
 
-// -------------------- Form Submission --------------------
+// -------------------- Submit --------------------
 const submitForm = async () => {
   if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
-
   isSubmitting.value = true;
 
   try {
@@ -723,20 +720,12 @@ const submitForm = async () => {
       : '/api/purchase-requests';
     const method = isEditMode.value ? 'put' : 'post';
 
-    const response = await axios({ url, method, data: fd, headers: { 'Content-Type': 'multipart/form-data' } });
-
-    await showAlert(
-      'Success',
-      isEditMode.value
-        ? 'Purchase Request updated successfully.'
-        : 'Purchase Request created successfully.',
-      'success'
-    );
-
-    emit('submitted', response.data.data);
+    const res = await axios({ url, method, data: fd, headers: { 'Content-Type': 'multipart/form-data' } });
+    await showAlert('Success', isEditMode.value ? 'Updated successfully.' : 'Created successfully.', 'success');
+    emit('submitted', res.data.data);
     navigateToList();
-  } catch (error) {
-    showAlert('Error', error.response?.data?.message || error.message, 'danger');
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || err.message, 'danger');
   } finally {
     isSubmitting.value = false;
   }
@@ -758,6 +747,25 @@ onMounted(async () => {
 });
 </script>
 
+
 <style scoped>
-.table td, .table th { vertical-align: middle; }
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+.table .form-control,
+.table textarea,
+.table select,
+.table div.form-control {
+  height: 50px; /* adjust to your preferred height */
+  min-height: 50px;
+  resize: none; /* prevent resizing textareas */
+}
+
+.table div.form-control {
+  display: flex;
+  align-items: center;
+  white-space: pre-line;
+}
 </style>

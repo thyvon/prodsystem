@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('documents_receivers', function (Blueprint $table) {
             $table->string('owner_received_status')->default('Pending')->after('status');
-            $table->datetime('owner_received_date')->nullable()->after('owner_receive_status');
+            $table->datetime('owner_received_date')->nullable()->after('owner_received_status');
         });
     }
 
