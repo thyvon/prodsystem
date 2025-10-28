@@ -327,6 +327,161 @@ class PurchaseRequestController extends Controller
         }
     }
 
+    public function update(Request $request, PurchaseRequest $purchaseRequest): JsonResponse
+    {
+        $this->authorize('update', $purchaseRequest);
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'deadline_date' => 'nullable|date|after_or_equal:request_date',
+            'purpose' => 'required|string',
+            'is_urgent' => 'required|boolean',
+            'items' => 'required|array|min:1',
+            'items.*.id' => 'nullable|exists:purchase_request_items,id',
+            'items.*.product_id' => 'required|exists:product_variants,id',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.description' => 'nullable|string|max:500',
+            'items.*.currency' => 'nullable|string|max:10',
+            'items.*.exchange_rate' => 'nullable|numeric|min:0',
+            'items.*.campus_ids' => 'required|array|min:1',
+            'items.*.campus_ids.*' => 'required|exists:campus,id',
+            'items.*.department_ids' => 'required|array|min:1',
+            'items.*.department_ids.*' => 'required|exists:departments,id',
+            'items.*.budget_code_id' => 'nullable',
+            'approvals' => 'required|array|min:1',
+            'approvals.*.user_id' => 'required|exists:users,id',
+            'approvals.*.request_type' => 'required|string|in:approve,initial',
+            'existing_file_ids' => 'nullable|array', // IDs of files to keep
+            'existing_file_ids.*' => 'integer|exists:purchase_request_files,id',
+        ]);
+
+        $sharePoint = new SharePointService($user);
+
+        try {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest, $user) {
+
+                // --------------------
+                // Update purchase request main fields
+                // --------------------
+                $purchaseRequest->update([
+                    'deadline_date' => $validated['deadline_date'] ?? null,
+                    'purpose' => $validated['purpose'],
+                    'is_urgent' => $validated['is_urgent'],
+                ]);
+
+                // --------------------
+                // Handle files
+                // --------------------
+                $existingFileIds = $validated['existing_file_ids'] ?? [];
+                $filesToDelete = $purchaseRequest->files()->whereNotIn('id', $existingFileIds)->get();
+
+                foreach ($filesToDelete as $file) {
+                    $sharePoint->deleteFile($file->sharepoint_drive_id, $file->sharepoint_file_id);
+                    $file->delete();
+                }
+
+                if ($request->hasFile('file')) {
+                    $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+                    $counter = $purchaseRequest->files()->count() + 1;
+                    $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
+
+                    foreach ($newFiles as $file) {
+                        if (!$file) continue;
+
+                        $extension = $file->getClientOriginalExtension();
+                        $fileName = "{$purchaseRequest->reference_no}-{$counter}.{$extension}";
+
+                        $result = $sharePoint->uploadFile(
+                            $file,
+                            $folderPath,
+                            ['Title' => uniqid()],
+                            $fileName,
+                            self::CUSTOM_DRIVE_ID
+                        );
+
+                        if (!$result) {
+                            throw new \Exception("Failed to upload file: {$fileName}");
+                        }
+
+                        $this->storeDocuments($purchaseRequest, [$result]);
+                        $counter++;
+                    }
+                }
+
+                // --------------------
+                // Smart update items
+                // --------------------
+                $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
+                $submittedItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
+
+                // Delete items removed in the request
+                $itemsToDelete = array_diff($existingItemIds, $submittedItemIds);
+                PurchaseRequestItem::destroy($itemsToDelete);
+
+                foreach ($validated['items'] as $item) {
+                    $totalPrice = $item['quantity'] * $item['unit_price'];
+                    $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
+                        ? $totalPrice / $item['exchange_rate']
+                        : $totalPrice;
+
+                    if (!empty($item['id'])) {
+                        $itemModel = PurchaseRequestItem::find($item['id']);
+                        $itemModel->update([
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price' => $item['unit_price'],
+                            'total_price' => $totalPrice,
+                            'currency' => $item['currency'] ?? null,
+                            'exchange_rate' => $item['exchange_rate'] ?? null,
+                            'total_price_usd' => $totalPriceUsd,
+                            'description' => $item['description'] ?? null,
+                            'budget_code_id' => $item['budget_code_id'] ?? null,
+                        ]);
+                    } else {
+                        $itemModel = PurchaseRequestItem::create([
+                            'purchase_request_id' => $purchaseRequest->id,
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price' => $item['unit_price'],
+                            'total_price' => $totalPrice,
+                            'currency' => $item['currency'] ?? null,
+                            'exchange_rate' => $item['exchange_rate'] ?? null,
+                            'total_price_usd' => $totalPriceUsd,
+                            'description' => $item['description'] ?? null,
+                            'budget_code_id' => $item['budget_code_id'] ?? null,
+                        ]);
+                    }
+
+                    $campusCount = count($item['campus_ids']);
+                    $departmentCount = count($item['department_ids']);
+                    $perCampusUsd = $totalPriceUsd / $campusCount;
+                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+
+                    $itemModel->campuses()->sync(array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]));
+                    $itemModel->departments()->sync(array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]));
+                }
+
+                // --------------------
+                // Replace approvals
+                // --------------------
+                $purchaseRequest->approvals()->delete();
+                $this->storeApprovals($purchaseRequest, $validated['approvals']);
+
+                return response()->json([
+                    'message' => 'Purchase request updated successfully.',
+                    'data' => $purchaseRequest->load('items', 'approvals.responder', 'files'),
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to update purchase request', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'Failed to update purchase request.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 
     // ====================
     // Helpers
@@ -359,7 +514,7 @@ class PurchaseRequestController extends Controller
     protected function storeApprovals(PurchaseRequest $purchaseRequest, array $approvals)
     {
         foreach ($approvals as $approval) {
-            $this->approvalService->storeApproval([
+            $approvalPayload = [
                 'approvable_type' => PurchaseRequest::class,
                 'approvable_id' => $purchaseRequest->id,
                 'document_name' => $purchaseRequest->document_type ?? 'Purchase Request',
@@ -370,9 +525,17 @@ class PurchaseRequestController extends Controller
                 'requester_id' => $purchaseRequest->created_by,
                 'responder_id' => $approval['user_id'],
                 'position_id' => User::find($approval['user_id'])?->defaultPosition()?->id,
-            ]);
+            ];
+
+            $existingApproval = $this->approvalService->updateApproval($approvalPayload);
+
+            // If no existing pending approval, create a new one
+            if (!$existingApproval['success']) {
+                $this->approvalService->storeApproval($approvalPayload);
+            }
         }
     }
+
 
     protected function getOrdinalForRequestType(string $requestType): int
     {
