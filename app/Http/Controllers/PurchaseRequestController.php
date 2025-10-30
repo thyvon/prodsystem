@@ -343,7 +343,6 @@ class PurchaseRequestController extends Controller
                         throw new \Exception("Failed to delete SharePoint file: {$file->name}");
                     }
                 }
-
                 // --------------------
                 // Upload new files
                 // --------------------
@@ -351,16 +350,21 @@ class PurchaseRequestController extends Controller
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
                     $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
 
-                    // Get the max file id for this PR
-                    $lastFileId = $purchaseRequest->files()->max('id') ?? 0;
-                    $counter = $lastFileId;
+                    // Get existing file numbers
+                    $existingNumbers = $purchaseRequest->files()->pluck('file_number')->toArray(); // file_number column required
 
                     foreach ($newFiles as $file) {
                         if (!$file) continue;
 
-                        $counter++;
+                        // Find the lowest available number
+                        $fileNumber = 1;
+                        while (in_array($fileNumber, $existingNumbers)) {
+                            $fileNumber++;
+                        }
+                        $existingNumbers[] = $fileNumber; // mark as used
+
                         $extension = $file->getClientOriginalExtension();
-                        $fileName = "{$purchaseRequest->reference_no}-" . str_pad($counter, 2, '0', STR_PAD_LEFT) . ".{$extension}";
+                        $fileName = "{$purchaseRequest->reference_no}-file" . str_pad($fileNumber, 3, '0', STR_PAD_LEFT) . ".{$extension}";
 
                         $result = $sharePoint->uploadFile(
                             $file,
@@ -374,7 +378,13 @@ class PurchaseRequestController extends Controller
                             throw new \Exception("Failed to upload file: {$fileName}");
                         }
 
-                        $this->storeDocuments($purchaseRequest, [$result]);
+                        // Store file and file_number in DB
+                        $purchaseRequest->files()->create([
+                            'name' => $fileName,
+                            'sharepoint_file_id' => $result['id'] ?? null,
+                            'sharepoint_drive_id' => self::CUSTOM_DRIVE_ID,
+                            'file_number' => $fileNumber,
+                        ]);
                     }
                 }
 
