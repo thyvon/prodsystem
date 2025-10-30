@@ -352,14 +352,14 @@ class PurchaseRequestController extends Controller
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial',
-            'existing_file_ids' => 'nullable|array', // IDs of files to keep
+            'existing_file_ids' => 'nullable|array',
             'existing_file_ids.*' => 'integer|exists:document_relations,id',
         ]);
 
         $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest, $user) {
 
                 // --------------------
                 // Update main fields
@@ -371,15 +371,15 @@ class PurchaseRequestController extends Controller
                 ]);
 
                 // --------------------
-                // Delete removed files from SharePoint & DB
+                // Handle file deletions
                 // --------------------
                 $existingFileIds = $validated['existing_file_ids'] ?? [];
                 $filesToDelete = $purchaseRequest->files()->whereNotIn('id', $existingFileIds)->get();
 
                 foreach ($filesToDelete as $file) {
-                    $deleted = $sharePoint->deleteFile($file->sharepoint_drive_id, $file->sharepoint_file_id);
+                    $deleted = $sharePoint->deleteFile($file->sharepoint_file_id, $file->sharepoint_drive_id);
                     if ($deleted) {
-                        $file->delete();
+                        $file->delete(); // remove DB record only if SP deletion succeeded
                     } else {
                         throw new \Exception("Failed to delete SharePoint file: {$file->name}");
                     }
@@ -417,12 +417,11 @@ class PurchaseRequestController extends Controller
                 }
 
                 // --------------------
-                // Update items
+                // Update items (smart update)
                 // --------------------
                 $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
                 $submittedItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
 
-                // Delete items removed
                 $itemsToDelete = array_diff($existingItemIds, $submittedItemIds);
                 PurchaseRequestItem::destroy($itemsToDelete);
 
@@ -480,7 +479,6 @@ class PurchaseRequestController extends Controller
                     'data' => $purchaseRequest->load('items', 'approvals.responder', 'files'),
                 ]);
             });
-
         } catch (\Exception $e) {
             Log::error('Failed to update purchase request', ['error' => $e->getMessage()]);
             return response()->json([
