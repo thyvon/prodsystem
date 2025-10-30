@@ -150,7 +150,7 @@
                 </a>
                 <ul>
                     <li class="{{ request()->is('purchase-requests*') ? 'active' : '' }}">
-                        <a href="#" title="Purchase Request" data-filter-tags="purchase request">
+                        <a href="{{ url('purchase-requests') }}" title="Purchase Request" data-filter-tags="purchase request">
                             <span class="nav-link-text">Purchase Request</span>
                         </a>
                     </li>
