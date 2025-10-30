@@ -87,7 +87,6 @@
                     <div v-if="existingFileUrls.length">
                       <small class="text-muted">Existing Files:</small>
                       <div v-for="(file, i) in existingFileUrls" :key="file.id" class="d-flex align-items-center mb-1">
-                        <a :href="file.url" target="_blank" class="btn btn-sm btn-outline-info mr-1">📄 {{ file.name }}</a>
                         <button
                           type="button"
                           class="btn btn-sm btn-outline-info me-1"
