@@ -351,16 +351,22 @@ class PurchaseRequestController extends Controller
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
                     $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
 
+                    // Start counter based on existing files
+                    $counter = $purchaseRequest->files()->count() + 1;
+
                     foreach ($newFiles as $file) {
                         if (!$file) continue;
 
                         $extension = $file->getClientOriginalExtension();
 
-                        // ✅ Secure 4-char random uppercase ID
+                        // 🔹 Secure random 4-character uppercase ID
                         $uniqueId = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
 
-                        // e.g. PR001-A2B7.pdf
-                        $fileName = "{$purchaseRequest->reference_no}-{$uniqueId}.{$extension}";
+                        // 🔹 Sequential counter padded to 2 digits
+                        $index = str_pad($counter, 2, '0', STR_PAD_LEFT);
+
+                        // 🔹 Example: PR001-A2B7-01.pdf
+                        $fileName = "{$purchaseRequest->reference_no}-{$uniqueId}-{$index}.{$extension}";
 
                         $result = $sharePoint->uploadFile(
                             $file,
@@ -375,6 +381,7 @@ class PurchaseRequestController extends Controller
                         }
 
                         $this->storeDocuments($purchaseRequest, [$result]);
+                        $counter++;
                     }
                 }
                 // --------------------
