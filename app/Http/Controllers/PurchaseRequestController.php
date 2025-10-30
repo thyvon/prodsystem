@@ -680,14 +680,18 @@ class PurchaseRequestController extends Controller
     public function viewFile(PurchaseRequest $purchaseRequest)
     {
         $this->authorize('view', $purchaseRequest);
-        if (!$purchaseRequest->sharepoint_file_id || !$purchaseRequest->sharepoint_drive_id) {
+
+        // Get the first attached file
+        $file = $purchaseRequest->files()->first();
+
+        if (!$file || !$file->sharepoint_file_id || !$file->sharepoint_drive_id) {
             abort(404, "File not found.");
         }
 
         $sharePoint = new SharePointService(Auth::user());
 
         try {
-            return $sharePoint->streamFile($purchaseRequest->sharepoint_file_id, $purchaseRequest->sharepoint_drive_id);
+            return $sharePoint->streamFile($file->sharepoint_file_id, $file->sharepoint_drive_id);
         } catch (\Exception $e) {
             abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
