@@ -2,6 +2,7 @@
   <div class="container-fluid">
     <form @submit.prevent="submitForm" enctype="multipart/form-data">
       <div class="card mb-0">
+
         <!-- Header -->
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
           <h4 class="mb-0 font-weight-bold">
@@ -14,12 +15,13 @@
 
         <!-- Body -->
         <div class="card-body">
+
           <!-- ROW 1: Requester + PR Info -->
-          <div class="row d-flex">
+          <div class="row d-flex mb-3">
             <!-- Requester Info -->
             <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 mb-4 flex-fill" style="height: 350px;">
-                <h5 class="font-weight-bold mb-3 text-primary">👤 Requester Info</h5>
+              <div class="border rounded p-3 flex-fill">
+                <h5 class="text-primary font-weight-bold mb-3">👤 Requester Info</h5>
                 <div v-for="(value, label) in requester" :key="label" class="row mb-2">
                   <div class="col-4 font-weight-bold text-muted">{{ label }}:</div>
                   <div class="col-8 border-bottom py-1">{{ value || 'N/A' }}</div>
@@ -29,8 +31,9 @@
 
             <!-- PR Info -->
             <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 mb-4 flex-fill" style="height: 350px;">
-                <h5 class="font-weight-bold mb-3 text-primary">📋 PR Information</h5>
+              <div class="border rounded p-3 flex-fill">
+                <h5 class="text-primary font-weight-bold mb-3">📋 PR Information</h5>
+
                 <div class="form-row">
                   <!-- Deadline -->
                   <div class="form-group col-md-6">
@@ -39,9 +42,8 @@
                       id="deadline_date"
                       name="deadline_date"
                       v-model="form.deadline_date"
-                      class="form-control datepicker" 
+                      class="form-control" 
                       type="date"
-                      autocomplete="bday"
                     />
                   </div>
 
@@ -63,81 +65,73 @@
                       </label>
                     </div>
                   </div>
-                </div>
 
-                <!-- Attachment -->
-                <div class="form-group">
-                  <label for="attachment" class="font-weight-bold">📎 Attachment</label>
-                  <div class="input-group">
-                    <input 
-                      type="file" 
-                      class="d-none" 
-                      ref="attachmentInput" 
-                      id="attachment"
-                      name="attachment[]"
-                      @change="onFileChange" 
-                      multiple 
-                      accept=".pdf,.doc,.docx,.jpg,.png" 
-                    />
-                    <button 
-                      type="button" 
-                      class="btn btn-outline-secondary flex-fill" 
-                      @click="$refs.attachmentInput.click()"
-                    >
-                      <i class="fal fa-file-upload"></i> {{ fileLabel }}
-                    </button>
+                  <!-- Attachment -->
+                  <div class="form-group col-12">
+                    <label class="font-weight-bold">📎 Attachment</label>
+                    <div class="input-group mb-2">
+                      <input 
+                        type="file" 
+                        class="d-none" 
+                        ref="attachmentInput" 
+                        multiple 
+                        accept=".pdf,.doc,.docx,.jpg,.png"
+                        @change="onFileChange"
+                      />
+                      <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.attachmentInput.click()">
+                        <i class="fal fa-file-upload"></i> {{ fileLabel }}
+                      </button>
+                    </div>
+
+                    <!-- Existing Files -->
+                    <div v-if="existingFileUrls.length">
+                      <small class="text-muted">Existing Files:</small>
+                      <div v-for="(file, i) in existingFileUrls" :key="file.id" class="d-flex align-items-center mb-1">
+                        <a :href="file.url" target="_blank" class="btn btn-sm btn-outline-info mr-1">📄 {{ file.name }}</a>
+                        <button type="button" class="btn btn-sm btn-danger" @click="removeFile(i, true)">
+                          <i class="fal fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- New Files -->
+                    <div v-if="newFiles.length">
+                      <small class="text-muted">New Files:</small>
+                      <div v-for="(f, i) in newFiles" :key="i" class="d-flex align-items-center mb-1">
+                        <span class="mr-2">📄 {{ f.name }}</span>
+                        <button type="button" class="btn btn-sm btn-danger" @click="removeNewFile(i)">
+                          <i class="fal fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div v-if="existingFileUrls.length" class="mt-2">
-                    <small class="text-muted">Existing Files:</small>
-                    <a 
-                      v-for="(file, i) in existingFileUrls" 
-                      :key="i" 
-                      :href="file" 
-                      target="_blank" 
-                      class="btn btn-sm btn-outline-info mr-1 mb-1"
-                    >
-                      📄 File {{ i + 1 }}
-                    </a>
+                  <!-- Purpose -->
+                  <div class="form-group col-12 mt-2">
+                    <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
+                    <textarea 
+                      id="purpose"
+                      name="purpose"
+                      v-model="form.purpose" 
+                      class="form-control" 
+                      rows="2" 
+                      required
+                    ></textarea>
                   </div>
-                </div>
-
-                <!-- Purpose (moved under attachment) -->
-                <div class="form-group mt-3">
-                  <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
-                  <textarea 
-                    id="purpose"
-                    name="purpose"
-                    v-model="form.purpose" 
-                    class="form-control" 
-                    rows="2" 
-                    required
-                    autocomplete="off"
-                  ></textarea>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- ROW 2: Import + Items -->
+          <!-- ROW 2: Import + Items Table -->
           <div class="border rounded p-3 mb-4">
-            <div class="form-row mb-4">
-              <!-- Import Items -->
+            <div class="form-row mb-3">
+              <!-- Import -->
               <div class="form-group col-md-4">
-                <label for="import_items" class="font-weight-bold">📥 Import Items</label>
+                <label class="font-weight-bold">📥 Import Items</label>
                 <div class="input-group">
-                  <input 
-                    type="file" 
-                    class="d-none" 
-                    ref="fileInput" 
-                    id="import_items"
-                    name="import_items"
-                    @change="onImportFile" 
-                    accept=".xlsx,.xls,.csv" 
-                  />
-                  <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.fileInput.click()">
-                    <i class="fal fa-file-upload"></i> Choose file
-                  </button>
+                  <input type="file" class="d-none" ref="fileInput" @change="onImportFile" accept=".xlsx,.xls,.csv"/>
+                  <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.fileInput.click()">Choose file</button>
                   <button type="button" class="btn btn-primary ml-2" @click="importItems" :disabled="isImporting || !fileLabel">
                     <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span> Import
                   </button>
@@ -160,49 +154,33 @@
             <!-- Items Table -->
             <h5 class="font-weight-bold mb-3 text-primary">
               📦 Items ({{ form.items.length }}) 
-              <span v-if="totalAmount" class="badge badge-primary ml-2">
-                {{ totalAmount }}
-              </span>
+              <span v-if="totalAmount" class="badge badge-primary ml-2">{{ totalAmount }}</span>
             </h5>
             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
-              <table class="table table-bordered table-striped table-sm table-hover" style="width: 100%;">
+              <table class="table table-bordered table-striped table-sm table-hover">
                 <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10;">
                   <tr>
-                    <th style="min-width: 150px;">Code</th>
-                    <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 80px;">UoM</th>
-                    <th style="min-width: 200px;">Remarks</th>
-                    <th style="min-width: 100px;">Currency</th>
-                    <th style="min-width: 100px;">Ex. Rate</th>
-                    <th style="min-width: 100px;">Qty</th>
-                    <th style="min-width: 100px;">Price</th>
-                    <th style="min-width: 100px;">Value USD</th>
-                    <th style="min-width: 100px;">Campus</th>
-                    <th style="min-width: 100px;">Dept</th>
-                    <th style="min-width: 100px;">Budget</th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Remarks</th>
+                    <th>Currency</th>
+                    <th>Ex. Rate</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Value USD</th>
+                    <th>Campus</th>
+                    <th>Dept</th>
+                    <th>Budget</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
                     <td><div class="form-control form-control-sm bg-light">{{ item.product_code }}</div></td>
-
-                    <td>
-                      <div class="form-control form-control-sm bg-light">
-                        {{ item.product_description }}
-                      </div>
-                    </td>
-
+                    <td><div class="form-control form-control-sm bg-light">{{ item.product_description }}</div></td>
                     <td><div class="form-control form-control-sm bg-light">{{ item.unit_name }}</div></td>
-
-                    <td>
-                      <textarea
-                        :name="`items[${index}][description]`"
-                        v-model="item.description"
-                        class="form-control form-control-sm"
-                      ></textarea>
-                    </td>
-
+                    <td><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm"></textarea></td>
                     <td>
                       <select :name="`items[${index}][currency]`" v-model="item.currency" class="form-control form-control-sm">
                         <option value="">Select</option>
@@ -210,29 +188,22 @@
                         <option value="KHR">KHR</option>
                       </select>
                     </td>
-
                     <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" class="form-control form-control-sm" /></td>
-
-                    <td>
-                      <input type="text" class="form-control form-control-sm" 
-                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
-                        readonly
-                      />
-                    </td>
-
+                    <td><input type="text" class="form-control form-control-sm" 
+                      :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
+                      readonly
+                    /></td>
                     <td><select multiple class="form-control campus-select" :data-index="index"></select></td>
                     <td><select multiple class="form-control department-select" :data-index="index"></select></td>
                     <td><select class="form-control budget-select" :data-index="index"></select></td>
-
                     <td class="text-center">
                       <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm">
                         <i class="fal fa-trash"></i>
                       </button>
                     </td>
                   </tr>
-
                   <tr v-if="!form.items.length">
                     <td colspan="13" class="text-center text-muted py-4">No items added</td>
                   </tr>
@@ -248,9 +219,9 @@
               <table class="table table-bordered table-sm">
                 <thead class="thead-light">
                   <tr>
-                    <th style="width: 50%">Type</th>
-                    <th style="width: 50%">User</th>
-                    <th style="width: 10%">Action</th>
+                    <th>Type</th>
+                    <th>User</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -265,7 +236,7 @@
             <button @click.prevent="addApproval" class="btn btn-outline-primary btn-sm mt-2"><i class="fal fa-plus"></i> Add Approval</button>
           </div>
 
-          <!-- SUBMIT BUTTONS -->
+          <!-- SUBMIT -->
           <div class="text-right">
             <button type="button" @click="navigateToList" class="btn btn-secondary mr-2"><i class="fal fa-times"></i> Cancel</button>
             <button type="submit" :disabled="!isFormValid" class="btn btn-primary">
@@ -283,37 +254,22 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Select Product</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span>&times;</span>
-            </button>
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
           </div>
           <div class="modal-body">
             <div v-if="isLoadingProducts" class="text-center py-4">
-              <div class="spinner-border text-primary" role="status"></div>
+              <div class="spinner-border text-primary"></div>
               <p class="mt-2">Loading products...</p>
             </div>
-            <table
-              v-show="!isLoadingProducts"
-              id="productTable"
-              class="table table-bordered table-striped"
-              style="width: 100%"
-            >
-              <thead>
-                <tr>
-                  <th>Item Code</th>
-                  <th>Description</th>
-                  <th>Unit</th>
-                  <th>Estimated Price</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-            </table>
+            <table v-show="!isLoadingProducts" id="productTable" class="table table-bordered table-striped" style="width: 100%"></table>
           </div>
         </div>
       </div>
     </div>
+
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
@@ -341,13 +297,16 @@ const campuses = ref([]);
 const departments = ref([]);
 const fileLabel = ref('Choose file(s)...');
 const existingFileUrls = ref([]);
+const existingFileIds = ref([]);
+const newFiles = ref([]);
 const fileInput = ref(null);
 
 const form = ref({
   deadline_date: '',
   purpose: '',
   is_urgent: false,
-  file: null,
+  file: [],
+  existing_file_ids: [],
   items: [],
   created_by: props.requester?.id || '',
   position_id: props.requester?.current_position_id || '',
@@ -410,10 +369,33 @@ const createItem = (data = {}) => ({
 
 const navigateToList = () => (window.location.href = '/purchase-requests');
 
+// -------------------- File Handling --------------------
 const onFileChange = (e) => {
-  const files = e.target.files;
-  form.value.file = files;
-  fileLabel.value = files?.length > 1 ? `${files.length} files selected` : files[0]?.name || 'Choose file(s)...';
+  const files = Array.from(e.target.files);
+  newFiles.value.push(...files);
+  fileLabel.value = newFiles.value.length > 1
+    ? `${newFiles.value.length} files selected`
+    : files[0]?.name || 'Choose file(s)...';
+  e.target.value = null; // allow re-selecting same file
+};
+
+const removeNewFile = (index) => {
+  newFiles.value.splice(index, 1);
+  fileLabel.value = newFiles.value.length
+    ? `${newFiles.value.length} file(s) selected`
+    : 'Choose file(s)...';
+};
+
+const removeFile = (index, isExisting = false) => {
+  if (isExisting) {
+    existingFileUrls.value.splice(index, 1);
+    existingFileIds.value.splice(index, 1);
+  } else {
+    newFiles.value.splice(index, 1);
+    fileLabel.value = newFiles.value.length
+      ? `${newFiles.value.length} file(s) selected`
+      : 'Choose file(s)...';
+  }
 };
 
 // -------------------- Load PR --------------------
@@ -427,6 +409,7 @@ const loadPurchaseRequest = async () => {
     form.value.purpose = pr.purpose || '';
     form.value.is_urgent = pr.is_urgent === 1;
     existingFileUrls.value = pr.files || [];
+    existingFileIds.value = (pr.files || []).map(f => f.id);
 
     form.value.items = (pr.items || []).map(item => createItem({
       ...item,
@@ -453,40 +436,34 @@ const loadPurchaseRequest = async () => {
 // -------------------- Import Items --------------------
 const importItems = async () => {
   if (isImporting.value) return;
-  if (!fileInput.value?.files?.length) {
-    return showAlert('Error', 'Please select a file to import.', 'danger');
-  }
+  if (!fileInput.value?.files?.length) return showAlert('Error', 'Please select a file.', 'danger');
 
   isImporting.value = true;
   const formData = new FormData();
   formData.append('file', fileInput.value.files[0]);
 
   try {
-    const { data, status } = await axios.post('/api/purchase-requests/import-items', formData, {
+    const { data } = await axios.post('/api/purchase-requests/import-items', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-
-    if (status === 200 && data.data?.items?.length) {
+    if (data.data?.items?.length) {
       form.value.items = data.data.items.map(item => createItem({
         ...item,
         unit_name: item.unit_name || 'N/A',
         exchange_rate: item.exchange_rate || 1
       }));
-
       await nextTick(initItemSelects);
       showAlert('Success', 'Items imported successfully.', 'success');
       fileInput.value.value = '';
       fileLabel.value = 'Choose file(s)...';
     } else {
       const errors = data.errors || [data.message || 'Unknown error'];
-      showAlert('Import Errors', `Errors:<br>${errors.join('<br>')}`, 'danger');
+      showAlert('Import Errors', errors.join('<br>'), 'danger');
     }
   } catch (err) {
     const errors = err.response?.data?.errors || [err.response?.data?.message || 'Import failed.'];
-    showAlert('Error', `Import failed:<br>${errors.join('<br>')}`, 'danger');
-  } finally {
-    isImporting.value = false;
-  }
+    showAlert('Error', errors.join('<br>'), 'danger');
+  } finally { isImporting.value = false; }
 };
 
 // -------------------- Items --------------------
@@ -516,24 +493,18 @@ const removeItem = (index) => {
   nextTick(initItemSelects);
 };
 
-// -------------------- Select2 Init (Reusable) --------------------
+// -------------------- Select2 Init --------------------
 const initSelect = (index, type) => {
   const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
   if (!el) return;
   destroySelect2(el);
-
   const dataList = type === 'campus' ? campuses.value : departments.value;
   el.innerHTML = dataList.map(d => `<option value="${d.id}">${d.short_name || d.name}</option>`).join('');
-
   initSelect2(el, {
-    multiple: true,
-    allowClear: true,
-    width: '100%',
+    multiple: true, allowClear: true, width: '100%',
     placeholder: `Select ${type}`,
     value: form.value.items[index][`${type}_ids`].map(String)
-  }, (val) => {
-    form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
-  });
+  }, val => form.value.items[index][`${type}_ids`] = val ? val.map(Number) : []);
 };
 
 const initBudgetSelect = (index) => {
@@ -541,18 +512,11 @@ const initBudgetSelect = (index) => {
   if (!el) return;
   destroySelect2(el);
   el.innerHTML = budgetCodes.value.map(b => `<option value="${b.id}">${b.code}</option>`).join('');
-
-  initSelect2(el, {
-    width: '100%',
-    allowClear: true,
-    placeholder: 'Select Budget',
-    value: String(form.value.items[index].budget_code_id)
-  }, (val) => {
-    form.value.items[index].budget_code_id = val ? Number(val) : null;
-  });
+  initSelect2(el, { width: '100%', allowClear: true, placeholder: 'Select Budget', value: String(form.value.items[index].budget_code_id) },
+    val => form.value.items[index].budget_code_id = val ? Number(val) : null);
 };
 
-const initItemSelects = async () => {
+const initItemSelects = () => {
   form.value.items.forEach((_, i) => {
     ['campus', 'department'].forEach(t => initSelect(i, t));
     initBudgetSelect(i);
@@ -563,131 +527,68 @@ const initItemSelects = async () => {
 const fetchUsersForApproval = async (type) => {
   if (!type || usersForApproval.value[type]?.length) return;
   try {
-    const { data } = await axios.get('/api/purchase-requests/get-approval-users', {
-      params: { request_type: type }
-    });
+    const { data } = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: type } });
     usersForApproval.value[type] = data.data || [];
-  } catch {
-    usersForApproval.value[type] = [];
-  }
+  } catch { usersForApproval.value[type] = []; }
 };
 
 const populateUserSelect = async (approval, userEl) => {
   await fetchUsersForApproval(approval.request_type);
   let users = usersForApproval.value[approval.request_type] || [];
-
-  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
-    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
-  }
+  if (approval.user_id && !users.find(u => u.id === approval.user_id)) users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
   approval.availableUsers = users;
-
   destroySelect2(userEl);
   userEl.innerHTML = users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
-
-  initSelect2(userEl, {
-    width: '100%',
-    allowClear: true,
-    placeholder: 'Select User',
-    value: String(approval.user_id)
-  }, (val) => {
-    approval.user_id = val ? Number(val) : '';
-  });
+  initSelect2(userEl, { width: '100%', allowClear: true, placeholder: 'Select User', value: String(approval.user_id) },
+    val => approval.user_id = val ? Number(val) : '');
 };
 
 const initApprovalSelect = async (i) => {
   const approval = form.value.approvals[i];
   if (!approval) return;
-
   const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`);
   const userEl = document.querySelector(`.user-select[data-index="${i}"]`);
   if (!typeEl || !userEl) return;
 
   destroySelect2(typeEl);
   typeEl.innerHTML = approvalTypes.map(t => `<option value="${t.id}">${t.text}</option>`).join('');
-
-  initSelect2(typeEl, {
-    width: '100%',
-    allowClear: true,
-    placeholder: 'Select Type',
-    value: approval.request_type
-  }, async (val) => {
-    approval.request_type = val || '';
-    await populateUserSelect(approval, userEl);
-  });
-
+  initSelect2(typeEl, { width: '100%', allowClear: true, placeholder: 'Select Type', value: approval.request_type },
+    async val => { approval.request_type = val || ''; await populateUserSelect(approval, userEl); });
   if (approval.request_type) await populateUserSelect(approval, userEl);
 };
 
-const initApprovalSelects = async () => {
-  form.value.approvals.forEach((_, i) => initApprovalSelect(i));
-};
-
-const addApproval = async () => {
-  form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
-  await nextTick(initApprovalSelects);
-};
-
-const removeApproval = async (i) => {
-  form.value.approvals.splice(i, 1);
-  await nextTick(initApprovalSelects);
-};
+const initApprovalSelects = () => form.value.approvals.forEach((_, i) => initApprovalSelect(i));
+const addApproval = async () => { form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] }); await nextTick(initApprovalSelects); };
+const removeApproval = async (i) => { form.value.approvals.splice(i, 1); await nextTick(initApprovalSelects); };
 
 // -------------------- Product Table --------------------
 const initProductTable = () => {
   const tableEl = $('#productTable');
   if (!tableEl.length) return;
+  if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().destroy();
 
-  const dt = tableEl.DataTable({
-    processing: true,
-    serverSide: true,
-    responsive: true,
-    destroy: true,
-    ajax: {
-      url: '/api/purchase-requests/get-products',
-      type: 'GET',
-      dataSrc: (json) => { products.value = json.data || []; return json.data; },
-      error: () => showAlert('Error', 'Failed to load products', 'danger')
-    },
-    paging: false,
-    lengthChange: false,
-    ordering: false,
+  tableEl.DataTable({
+    processing: true, serverSide: true, responsive: true, paging: false, lengthChange: false, ordering: false,
+    ajax: { url: '/api/purchase-requests/get-products', type: 'GET', dataSrc: (json) => { products.value = json.data || []; return json.data; }, error: () => showAlert('Error', 'Failed to load products', 'danger') },
     columns: [
-      { data: 'item_code' },
-      { data: 'description' },
-      { data: 'unit_name' },
+      { data: 'item_code' }, { data: 'description' }, { data: 'unit_name' },
       { data: 'estimated_price', render: d => d ? parseFloat(d).toLocaleString() : '-' },
       { data: null, orderable: false, render: (_, __, row) => `<button class="btn btn-primary btn-sm select-product-btn" data-id="${row.id}">Select</button>` }
     ]
   });
 
-  tableEl.off('click.select-product').on('click.select-product', '.select-product-btn', e =>
-    addItem($(e.currentTarget).data('id'))
-  );
-
-  return dt;
+  tableEl.off('click.select-product').on('click.select-product', '.select-product-btn', e => addItem($(e.currentTarget).data('id')));
 };
 
 const showProductModal = async () => {
   isLoadingProducts.value = true;
   $('#productModal').modal('show');
-
-  await nextTick(() => {
-    const tableEl = $('#productTable');
-    if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().ajax.reload(null, false);
-    else initProductTable();
-    isLoadingProducts.value = false;
-  });
+  await nextTick(() => { initProductTable(); isLoadingProducts.value = false; });
 };
 
 // -------------------- Datepicker --------------------
 const initDatepicker = () => {
-  $('.datepicker').datepicker({
-    format: 'yyyy-mm-dd',
-    autoclose: true
-  }).on('changeDate', function(e) {
-    form.value.deadline_date = e.format('yyyy-mm-dd');
-  });
-
+  $('.datepicker').datepicker({ format: 'yyyy-mm-dd', autoclose: true }).on('changeDate', e => form.value.deadline_date = e.format('yyyy-mm-dd'));
   if (form.value.deadline_date) $('.datepicker').datepicker('update', form.value.deadline_date);
 };
 
@@ -695,26 +596,18 @@ const initDatepicker = () => {
 const submitForm = async () => {
   if (!isFormValid.value) return showAlert('Error', 'Form is incomplete', 'danger');
   isSubmitting.value = true;
-
   try {
     const fd = new FormData();
-
-    // -------------------- Basic Fields --------------------
     fd.append('deadline_date', form.value.deadline_date || '');
     fd.append('purpose', form.value.purpose || '');
     fd.append('is_urgent', form.value.is_urgent ? 1 : 0);
-
-    // If edit mode, use _method=PUT
     if (isEditMode.value) fd.append('_method', 'PUT');
 
-    // -------------------- Files --------------------
-    if (form.value.file && form.value.file.length) {
-      Array.from(form.value.file).forEach(file => fd.append('file[]', file));
-    }
+    newFiles.value.forEach(f => fd.append('file[]', f));
+    existingFileIds.value.forEach((id, idx) => fd.append(`existing_file_ids[${idx}]`, id));
 
-    // -------------------- Items --------------------
     form.value.items.forEach((i, index) => {
-      if (i.id) fd.append(`items[${index}][id]`, i.id); // include id for existing items
+      if (i.id) fd.append(`items[${index}][id]`, i.id);
       fd.append(`items[${index}][product_id]`, i.product_id);
       fd.append(`items[${index}][quantity]`, i.quantity);
       fd.append(`items[${index}][unit_price]`, i.unit_price);
@@ -722,36 +615,13 @@ const submitForm = async () => {
       fd.append(`items[${index}][currency]`, i.currency || '');
       fd.append(`items[${index}][exchange_rate]`, i.exchange_rate || '');
       fd.append(`items[${index}][budget_code_id]`, i.budget_code_id || '');
-
       i.campus_ids.forEach((c, ci) => fd.append(`items[${index}][campus_ids][${ci}]`, c));
       i.department_ids.forEach((d, di) => fd.append(`items[${index}][department_ids][${di}]`, d));
     });
 
-    // -------------------- Approvals --------------------
-    form.value.approvals.forEach((a, index) => {
-      fd.append(`approvals[${index}][user_id]`, a.user_id);
-      fd.append(`approvals[${index}][request_type]`, a.request_type);
-    });
+    form.value.approvals.forEach((a, index) => { fd.append(`approvals[${index}][user_id]`, a.user_id); fd.append(`approvals[${index}][request_type]`, a.request_type); });
 
-    // -------------------- Existing Files --------------------
-    if (form.value.existing_file_ids && form.value.existing_file_ids.length) {
-      form.value.existing_file_ids.forEach((id, idx) => {
-        fd.append(`existing_file_ids[${idx}]`, id);
-      });
-    }
-
-    // -------------------- API Call --------------------
-    const url = isEditMode.value
-      ? `/api/purchase-requests/${props.purchaseRequestId}`
-      : '/api/purchase-requests';
-    const method = 'post'; // always POST, use _method=PUT for edit
-
-    const res = await axios({
-      url,
-      method,
-      data: fd,
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const res = await axios.post(isEditMode.value ? `/api/purchase-requests/${props.purchaseRequestId}` : '/api/purchase-requests', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
 
     await showAlert('Success', isEditMode.value ? 'Updated successfully.' : 'Created successfully.', 'success');
     emit('submitted', res.data.data);
@@ -759,17 +629,10 @@ const submitForm = async () => {
 
   } catch (err) {
     const errors = err.response?.data?.errors;
-    if (errors) {
-      const messages = Object.values(errors).flat().join('<br>');
-      showAlert('Validation Error', messages, 'danger');
-    } else {
-      showAlert('Error', err.response?.data?.message || err.message, 'danger');
-    }
-  } finally {
-    isSubmitting.value = false;
-  }
+    if (errors) showAlert('Validation Error', Object.values(errors).flat().join('<br>'), 'danger');
+    else showAlert('Error', err.response?.data?.message || err.message, 'danger');
+  } finally { isSubmitting.value = false; }
 };
-
 
 // -------------------- Lifecycle --------------------
 onMounted(async () => {
@@ -777,15 +640,12 @@ onMounted(async () => {
     const [campusRes, deptRes] = await Promise.all([axios.get('/api/campuses'), axios.get('/api/departments')]);
     campuses.value = campusRes.data.data || [];
     departments.value = deptRes.data.data || [];
-  } catch {
-    campuses.value = [];
-    departments.value = [];
-  }
-
+  } catch { campuses.value = []; departments.value = []; }
   initDatepicker();
   await loadPurchaseRequest();
 });
 </script>
+
 
 
 <style scoped>
