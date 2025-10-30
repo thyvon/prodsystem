@@ -34,8 +34,11 @@ class DocumentRelation extends Model
      */
     public function getUrlAttribute(): ?string
     {
-        if (!$this->sharepoint_file_id || !$this->sharepoint_drive_id) return null;
+        if (!$this->id || !$this->sharepoint_file_id || !$this->sharepoint_drive_id || !$this->sharepoint_file_name) return null;
 
-        return "https://mjqeducationplc.sharepoint.com/:u:/{$this->sharepoint_drive_id}/{$this->sharepoint_file_id}";
+        return route('purchase-requests.view-file', [
+            'purchaseRequest' => $this->id,
+            'fileName' => $this->sharepoint_file_name
+        ]);
     }
 }
