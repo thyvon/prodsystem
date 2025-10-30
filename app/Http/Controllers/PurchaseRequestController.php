@@ -472,6 +472,8 @@ class PurchaseRequestController extends Controller
             'approvals' => 'required|array|min:1',
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial,check,verify',
+            'existing_file_ids' => 'nullable|array',
+            'existing_file_ids.*' => 'integer|exists:document_relations,id',
         ];
 
         // ✅ Only apply "after_or_equal:request_date" if creating
