@@ -288,6 +288,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
         ->middleware('can:view,purchaseRequest')
          ->name('purchase-requests.show');
+    // web.php
+    Route::get('purchase-requests/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'viewPdf'])->name('purchase-requests.pdf');
+
+
 
 
 

@@ -5,9 +5,9 @@
       <button class="btn btn-sm btn-outline-success" @click="goBack">
         <i class="fal fa-backward"></i> Back
       </button>
-      <button class="btn btn-sm btn-outline-secondary" @click="window.print()">
-        <i class="fal fa-print"></i> Print
-      </button>
+  <button @click="openPdfViewer(purchaseRequest.id)" class="btn btn-outline-secondary btn-sm">
+    <i class="fal fa-print"></i> Print
+  </button>
     </div>
 
     <!-- Body -->
@@ -104,6 +104,31 @@
         </table>
       </div>
 
+      <!-- Attachement -->
+      <div class="mt-4">
+        <div class="row">
+          <div class="col-12">
+            <h5 class="text-primary font-weight-bold mb-3">Attachments</h5>
+            <div class="card border shadow-sm">
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-12">
+                    <button
+                      v-for="attachment in purchaseRequest.files"
+                      :key="attachment.id"
+                      type="button"
+                      class="btn btn-sm btn-outline-info m-1"
+                      @click="openFileViewer(attachment.url, attachment.name)"
+                    >
+                      📄 {{ attachment.name }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <!-- Requested & Approval Cards -->
       <div class="mt-4">
         <div class="row justify-content-center">
@@ -250,6 +275,12 @@
         </div>
       </div>
     </div>
+
+    <!-- File Viewer Modal -->
+    <FileViewerModal ref="fileViewerModal" />
+
+        <!-- Hidden Print component -->
+  <!-- <Print ref="printComponent" :purchaseRequest="purchaseRequest" @pdfGenerated="openPdfViewer" /> -->
   </div>
 
   <!-- Loading State -->
@@ -265,6 +296,7 @@ import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
+import FileViewerModal from '../Reusable/FileViewerModal.vue'
 
 const props = defineProps({
   purchaseRequestId: { type: Number, required: true },
@@ -278,6 +310,8 @@ const showApprovalButton = ref(false)
 const approvalRequestType = ref('approve')
 const currentAction = ref('approve')
 const commentInput = ref('')
+const fileViewerModal = ref(null)
+const printComponent = ref(null)
 
 const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
@@ -316,6 +350,20 @@ const submitApproval = async (action) => {
     showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
   } finally { loading.value = false }
 }
+
+const openFileViewer = (url, name) => {
+  if (fileViewerModal.value) fileViewerModal.value.openModal(url, name)
+}
+function openPrint() {
+  if (!printComponent.value) return
+  printComponent.value.createPdf()
+}
+
+const openPdfViewer = (purchaseRequestId) => {
+  const url = `/purchase-requests/${purchaseRequestId}/pdf`;
+  fileViewerModal.value.openModal(url, 'Purchase Request.pdf');
+}
+
 
 const openReassignModal = async () => {
   loading.value = true

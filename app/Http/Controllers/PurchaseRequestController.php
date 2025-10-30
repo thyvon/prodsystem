@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Imports\PurchaseItemImport;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Browsershot\Browsershot;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
@@ -47,6 +48,24 @@ class PurchaseRequestController extends Controller
     // ====================
     // Index & Form Views
     // ====================
+
+
+public function viewPdf(PurchaseRequest $purchaseRequest)
+{
+    $purchaseRequest->load('items');
+
+    $html = view('purchase-requests.printpage', compact('purchaseRequest'))->render();
+
+    return response(
+        Browsershot::html($html)
+            ->format('A4')
+            ->margins(10,10,10,10)
+            ->showBackground()
+            ->pdf()
+    )->header('Content-Type', 'application/pdf');
+}
+
+
     public function index(): View
     {
         $this->authorize('viewAny', PurchaseRequest::class);

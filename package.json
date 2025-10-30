@@ -19,8 +19,11 @@
     },
     "dependencies": {
         "@vueuse/core": "^14.0.0",
+        "html2pdf.js": "^0.12.1",
         "lodash": "^4.17.21",
         "pdf-lib": "^1.17.1",
-        "pinia": "^3.0.3"
+        "pdfmake": "^0.2.20",
+        "pinia": "^3.0.3",
+        "puppeteer": "^24.27.0"
     }
 }

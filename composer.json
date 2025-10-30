@@ -14,7 +14,9 @@
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.8",
         "maatwebsite/excel": "3.1.47",
+        "mpdf/mpdf": "^8.2",
         "socialiteproviders/microsoft": "^4.7",
+        "spatie/browsershot": "^5.0",
         "spatie/laravel-permission": "^6.20"
     },
     "require-dev": {
