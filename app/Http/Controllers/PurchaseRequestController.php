@@ -349,14 +349,18 @@ class PurchaseRequestController extends Controller
                 // --------------------
                 if ($request->hasFile('file')) {
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
-                    $counter = $purchaseRequest->files()->count() + 1;
                     $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
+
+                    // Get the max file id for this PR
+                    $lastFileId = $purchaseRequest->files()->max('id') ?? 0;
+                    $counter = $lastFileId;
 
                     foreach ($newFiles as $file) {
                         if (!$file) continue;
 
+                        $counter++;
                         $extension = $file->getClientOriginalExtension();
-                        $fileName = "{$purchaseRequest->reference_no}-{$counter}.{$extension}";
+                        $fileName = "{$purchaseRequest->reference_no}-" . str_pad($counter, 2, '0', STR_PAD_LEFT) . ".{$extension}";
 
                         $result = $sharePoint->uploadFile(
                             $file,
@@ -371,7 +375,6 @@ class PurchaseRequestController extends Controller
                         }
 
                         $this->storeDocuments($purchaseRequest, [$result]);
-                        $counter++;
                     }
                 }
 
