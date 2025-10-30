@@ -84,6 +84,8 @@ use App\Models\DocumentTransfer;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Models\PurchaseRequest;
 
+use App\Http\Controllers\AttachementController;
+
 // use App\Http\Controllers\StockRequestController;
 // use App\Models\StockRequest;
 
@@ -280,8 +282,12 @@ Route::middleware(['auth'])->group(function () {
          ->name('purchase-requests.edit');
     // Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
     //     ->name('purchase-requests.show');
-    Route::get('/purchase-requests/{purchaseRequest}/view', [PurchaseRequestController::class, 'viewFile'])
-        ->name('purchase-requests.view-file');
+
+
+
+    // Document Attachment View Route
+    Route::get('/documents/{file}', [AttachementController::class, 'viewFile'])
+        ->name('documents.view-file');
 
 });
 

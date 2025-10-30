@@ -34,9 +34,8 @@ class DocumentRelation extends Model
      */
     public function getUrlAttribute(): ?string
     {
-        if (!$this->id || !$this->sharepoint_file_id || !$this->sharepoint_drive_id) return null;
+        if (!$this->id) return null;
 
-        // Return a Laravel route URL that calls viewFile
-        return route('purchase-requests.view-file', ['purchaseRequest' => $this->id]);
+        return route('documents.view-file', ['file' => $this->id]);
     }
 }
