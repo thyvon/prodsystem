@@ -359,10 +359,10 @@ class PurchaseRequestController extends Controller
         $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest, $user) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest) {
 
                 // --------------------
-                // Update purchase request main fields
+                // Update main fields
                 // --------------------
                 $purchaseRequest->update([
                     'deadline_date' => $validated['deadline_date'] ?? null,
@@ -371,16 +371,23 @@ class PurchaseRequestController extends Controller
                 ]);
 
                 // --------------------
-                // Handle files
+                // Delete removed files from SharePoint & DB
                 // --------------------
                 $existingFileIds = $validated['existing_file_ids'] ?? [];
                 $filesToDelete = $purchaseRequest->files()->whereNotIn('id', $existingFileIds)->get();
 
                 foreach ($filesToDelete as $file) {
-                    $sharePoint->deleteFile($file->sharepoint_drive_id, $file->sharepoint_file_id);
-                    $file->delete();
+                    $deleted = $sharePoint->deleteFile($file->sharepoint_drive_id, $file->sharepoint_file_id);
+                    if ($deleted) {
+                        $file->delete();
+                    } else {
+                        throw new \Exception("Failed to delete SharePoint file: {$file->name}");
+                    }
                 }
 
+                // --------------------
+                // Upload new files
+                // --------------------
                 if ($request->hasFile('file')) {
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
                     $counter = $purchaseRequest->files()->count() + 1;
@@ -410,12 +417,12 @@ class PurchaseRequestController extends Controller
                 }
 
                 // --------------------
-                // Smart update items
+                // Update items
                 // --------------------
                 $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
                 $submittedItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
 
-                // Delete items removed in the request
+                // Delete items removed
                 $itemsToDelete = array_diff($existingItemIds, $submittedItemIds);
                 PurchaseRequestItem::destroy($itemsToDelete);
 
@@ -473,6 +480,7 @@ class PurchaseRequestController extends Controller
                     'data' => $purchaseRequest->load('items', 'approvals.responder', 'files'),
                 ]);
             });
+
         } catch (\Exception $e) {
             Log::error('Failed to update purchase request', ['error' => $e->getMessage()]);
             return response()->json([
