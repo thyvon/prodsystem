@@ -280,7 +280,7 @@ Route::middleware(['auth'])->group(function () {
          ->name('purchase-requests.edit');
     // Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
     //     ->name('purchase-requests.show');
-    Route::get('/purchase-requests/{purchaseRequest}/file/{fileName}', [PurchaseRequestController::class, 'viewFile'])
+    Route::get('/purchase-requests/{purchaseRequest}/file', [PurchaseRequestController::class, 'viewFile'])
         ->name('purchase-requests.view-file');
 
 });
