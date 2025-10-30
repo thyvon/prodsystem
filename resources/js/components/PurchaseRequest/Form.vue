@@ -42,7 +42,7 @@
                       id="deadline_date"
                       name="deadline_date"
                       v-model="form.deadline_date"
-                      class="form-control" 
+                      class="form-control datepicker" 
                       type="date"
                     />
                   </div>
@@ -158,28 +158,28 @@
             </h5>
             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
               <table class="table table-bordered table-striped table-sm table-hover">
-                <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10;">
-                  <tr>
-                    <th>Code</th>
-                    <th>Description</th>
-                    <th>UoM</th>
-                    <th>Remarks</th>
-                    <th>Currency</th>
-                    <th>Ex. Rate</th>
-                    <th>Qty</th>
-                    <th>Price</th>
-                    <th>Value USD</th>
-                    <th>Campus</th>
-                    <th>Dept</th>
-                    <th>Budget</th>
-                    <th>Action</th>
-                  </tr>
+                <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10; text-align: center;">
+                <tr>
+                  <th style="min-width: 150px;">Item Code</th>
+                  <th style="min-width: 300px;">Description</th>
+                  <th style="min-width: 80px;">UoM</th>
+                  <th style="min-width: 200px;">Remarks</th>
+                  <th style="min-width: 80px;">Currency</th>
+                  <th style="min-width: 100px;">Ex. Rate</th>
+                  <th style="min-width: 100px;">Qty</th>
+                  <th style="min-width: 100px;">Price</th>
+                  <th style="min-width: 100px;">Value USD</th>
+                  <th style="min-width: 120px;">Campus</th>
+                  <th style="min-width: 120px;">Dept</th>
+                  <th style="min-width: 100px;">Budget</th>
+                  <th style="min-width: 80px;">Action</th>
+                </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
-                    <td><div class="form-control form-control-sm bg-light">{{ item.product_code }}</div></td>
-                    <td><div class="form-control form-control-sm bg-light">{{ item.product_description }}</div></td>
-                    <td><div class="form-control form-control-sm bg-light">{{ item.unit_name }}</div></td>
+                    <td>{{ item.product_code }}</td>
+                    <td>{{ item.product_description }}</td>
+                    <td>{{ item.unit_name }}</td>
                     <td><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm"></textarea></td>
                     <td>
                       <select :name="`items[${index}][currency]`" v-model="item.currency" class="form-control form-control-sm">
@@ -252,16 +252,22 @@
     <div class="modal fade" id="productModal" tabindex="-1">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Select Product</h5>
-            <button type="button" class="close" data-dismiss="modal">&times;</button>
-          </div>
           <div class="modal-body">
             <div v-if="isLoadingProducts" class="text-center py-4">
               <div class="spinner-border text-primary"></div>
-              <p class="mt-2">Loading products...</p>
             </div>
-            <table v-show="!isLoadingProducts" id="productTable" class="table table-bordered table-striped" style="width: 100%"></table>
+            <table v-show="!isLoadingProducts" id="productTable" class="table table-bordered table-striped table-sm" style="width: 100%">
+              <thead class="thead-light">
+                <tr>
+                  <th style="width: 20%;">Code</th>
+                  <th style="width: 40%;">Description</th>
+                  <th style="width: 10%;">UoM</th>
+                  <th style="width: 20%;">Unit Price</th>
+                  <th style="width: 10%;">Select</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -476,12 +482,14 @@ const addItem = (productId) => {
     product_code: product.item_code,
     product_description: product.description,
     unit_name: product.unit_name,
+    currency: 'USD',
+    exchange_rate: 4000,
     quantity: 1,
     unit_price: 0
   }));
 
-  $('#productModal').modal('hide');
   nextTick(initItemSelects);
+  showAlert('Success', 'Product added to Iteam List.', 'success');
 };
 
 const removeItem = (index) => {
@@ -645,27 +653,3 @@ onMounted(async () => {
   await loadPurchaseRequest();
 });
 </script>
-
-
-
-<style scoped>
-.table td,
-.table th {
-  vertical-align: middle;
-}
-
-.table .form-control,
-.table textarea,
-.table select,
-.table div.form-control {
-  height: 50px; /* adjust to your preferred height */
-  min-height: 50px;
-  resize: none; /* prevent resizing textareas */
-}
-
-.table div.form-control {
-  display: flex;
-  align-items: center;
-  white-space: pre-line;
-}
-</style>
