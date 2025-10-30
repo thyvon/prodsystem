@@ -677,9 +677,10 @@ class PurchaseRequestController extends Controller
         return response()->json($filteredResponse);
     }
 
-    public function viewFile(PurchaseRequest $purchaseRequest)
+    public function viewFile(PurchaseRequest $purchaseRequest, $fileName = null)
     {
         $this->authorize('view', $purchaseRequest);
+
         if (!$purchaseRequest->sharepoint_file_id || !$purchaseRequest->sharepoint_drive_id) {
             abort(404, "File not found.");
         }
