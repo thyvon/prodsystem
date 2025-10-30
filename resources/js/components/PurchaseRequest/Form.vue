@@ -110,7 +110,7 @@
                     name="purpose"
                     v-model="form.purpose" 
                     class="form-control" 
-                    rows="3" 
+                    rows="2" 
                     required
                     autocomplete="off"
                   ></textarea>
