@@ -281,7 +281,7 @@
     </div>
 
     <!-- File Viewer Modal -->
-    <FileViewerModal ref="fileViewer" />
+  <FileViewerModal ref="viewerRef" />
 
   </div>
 </template>
@@ -317,7 +317,7 @@ const existingFileUrls = ref([]);
 const existingFileIds = ref([]);
 const newFiles = ref([]);
 const fileInput = ref(null);
-const fileViewerRef = ref(null);
+const viewerRef = ref(null);
 
 const form = ref({
   deadline_date: '',
@@ -333,8 +333,8 @@ const form = ref({
 
 
 const openFileViewer = (url, name) => {
-  fileViewerRef.value.openModal(url, name)  // Call your reusable modal's function
-};
+  if (viewerRef.value) viewerRef.value.openModal(url, name)
+}
 
 const budgetCodes = ref([
   { id: 1, code: 'BUD-001', name: 'Office Supplies' },
