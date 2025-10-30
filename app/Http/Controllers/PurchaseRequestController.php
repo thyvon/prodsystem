@@ -115,7 +115,7 @@ class PurchaseRequestController extends Controller
                     ] : null),
                     'files' => $purchaseRequest->files->map(fn($f) => [
                         'id' => $f->id,
-                        'name' => $f->document_name,
+                        'name' => $f->sharepoint_file_name,
                         'reference' => $f->document_reference,
                         'sharepoint_file_id' => $f->sharepoint_file_id,
                         'sharepoint_file_name' => $f->sharepoint_file_name,
