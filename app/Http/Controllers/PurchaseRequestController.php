@@ -345,33 +345,31 @@ class PurchaseRequestController extends Controller
                 }
 
                 // --------------------
-                // Upload new files
+                // Handle new file uploads
                 // --------------------
                 if ($request->hasFile('file')) {
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
                     $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
 
-                    // Get all existing file IDs for this PR
-                    $existingFileIds = $purchaseRequest->files()->pluck('id')->sort()->values()->toArray();
-
-                    // Start counter from 1 and reuse gaps
-                    $counter = 1;
-
                     foreach ($newFiles as $file) {
                         if (!$file) continue;
 
-                        // Find next available number (skip existing IDs)
-                        while (in_array($counter, $existingFileIds)) {
-                            $counter++;
-                        }
-
                         $extension = $file->getClientOriginalExtension();
-                        $fileName = "{$purchaseRequest->reference_no}-" . str_pad($counter, 3, '0', STR_PAD_LEFT) . ".{$extension}";
 
+                        // 1️⃣ Create DB record first to get unique file id
+                        $fileModel = $this->storeDocuments($purchaseRequest, [
+                            'sharepoint_file_name' => '', // temporary
+                            'title' => 'Purchase Request Document'
+                        ])[0];
+
+                        // 2️⃣ Generate unique filename using PR reference_no + file id
+                        $fileName = "{$purchaseRequest->reference_no}-" . str_pad($fileModel->id, 2, '0', STR_PAD_LEFT) . ".{$extension}";
+
+                        // 3️⃣ Upload to SharePoint
                         $result = $sharePoint->uploadFile(
                             $file,
                             $folderPath,
-                            ['Title' => uniqid()],
+                            ['Title' => 'Purchase Request Document'],
                             $fileName,
                             self::CUSTOM_DRIVE_ID
                         );
@@ -380,13 +378,10 @@ class PurchaseRequestController extends Controller
                             throw new \Exception("Failed to upload file: {$fileName}");
                         }
 
-                        $this->storeDocuments($purchaseRequest, [$result]);
-
-                        $existingFileIds[] = $counter; // mark this number as used
-                        $counter++;
+                        // 4️⃣ Update DB record with the correct SharePoint filename
+                        $fileModel->update(['sharepoint_file_name' => $fileName]);
                     }
                 }
-
 
                 // --------------------
                 // Update items (smart update)
