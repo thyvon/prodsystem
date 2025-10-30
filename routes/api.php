@@ -342,11 +342,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
     // Purchase Request Management
-    // Route::get('/purchase-requests', [PurchaseRequestController::class, 'getPurchaseRequests'])->name('api.purchase-requests.index');
+    Route::get('/purchase-requests', [PurchaseRequestController::class, 'getPurchaseRequests'])->middleware('can:viewAny,' . PurchaseRequest::class)->name('api.purchase-requests.index');
+    Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'showData'])->middleware('can:view,purchaseRequest')->name('api.purchase-requests.show');
     Route::post('/purchase-requests', [PurchaseRequestController::class, 'store'])->name('api.purchase-requests.store')->middleware('can:create,' . PurchaseRequest::class);
-    Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->name('api.purchase-requests.edit');
-    Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('api.purchase-requests.update');
-    // Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('api.purchase-requests.destroy');
+    Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.edit');
+    Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.update');
+    Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->middleware('can:delete,purchaseRequest')->name('api.purchase-requests.destroy');
     Route::get('/purchase-requests/get-approval-users', [PurchaseRequestController::class, 'getApprovalUsers'])
     ->name('api.purchase-requests.get-approval-users');
     // Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])

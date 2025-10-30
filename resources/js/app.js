@@ -84,6 +84,8 @@ import DigitalDocsApprovalShow from './components/Approval/DigitalApprovalShow.v
 
 // Purchase Request Management
 import PurchaseRequestForm from './components/PurchaseRequest/Form.vue'
+import PurchaseRequestList from './components/PurchaseRequest/List.vue'
+import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
 
 // Create Vue app instance
  const app = createApp({})
@@ -153,6 +155,8 @@ app.component('digital-docs-approval-show', DigitalDocsApprovalShow)
 
 // Purchase Request Management
 app.component('purchase-request-form', PurchaseRequestForm)
+app.component('purchase-request-list', PurchaseRequestList)
+app.component('purchase-request-show', PurchaseRequestShow)
 
 // Mount the Vue app
 app.mount('#app')

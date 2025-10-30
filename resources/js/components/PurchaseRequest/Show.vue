@@ -1,0 +1,351 @@
+<template>
+  <div class="card mb-0 shadow" v-if="loaded">
+    <!-- Header -->
+    <div class="card-header bg-light py-2 d-flex justify-between items-center">
+      <button class="btn btn-sm btn-outline-success" @click="goBack">
+        <i class="fal fa-backward"></i> Back
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" @click="window.print()">
+        <i class="fal fa-print"></i> Print
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
+      <!-- General Info -->
+      <div class="row mb-3">
+        <div class="col-3">
+        <div class="row mb-1">
+            <div class="col-6 text-muted">Requester / អ្នកស្នើសុំ:</div>
+            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
+        </div>
+        <div class="row mb-1">
+            <div class="col-6 text-muted">ID Card / អត្តលេខ:</div>
+            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_id_card ?? 'N/A' }}</div>
+        </div>
+        <div class="row mb-1">
+            <div class="col-6 text-muted">Position / មុខតំណែង:</div>
+            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_position ?? 'N/A' }}</div>
+        </div>
+        <div class="row mb-1">
+            <div class="col-6 text-muted">Purpose / គោលបំណង:</div>
+            <div class="col-6 font-weight-bold">{{ purchaseRequest.purpose ?? 'N/A' }}</div>
+        </div>
+        <div class="row mb-1">
+            <div class="col-6 text-muted">Urgent / បន្ទាន់:</div>
+            <div class="col-6 font-weight-bold">
+            <span class="badge" :class="purchaseRequest.is_urgent ? 'badge-danger' : 'badge-success'">
+                {{ purchaseRequest.is_urgent ? 'Yes' : 'No' }}
+            </span>
+            </div>
+        </div>
+        </div>
+
+
+        <div class="col-6 text-center">
+          <h4 class="font-weight-bold text-dark">Purchase Request</h4>
+          <h4 class="font-weight-bold text-dark">សំណើសុំទិញ</h4>
+        </div>
+
+        <div class="col-3 text-end">
+          <p class="text-muted mb-1">
+            REF. / លេខយោង: <span class="font-weight-bold">{{ purchaseRequest.reference_no ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            DATE REQUESTED / កាលបរិច្ឆេទ: <span class="font-weight-bold">{{ formatDate(purchaseRequest.request_date) ?? 'N/A' }}</span>
+          </p>
+          <p class="text-muted mb-1">
+            DEADLINE / ថ្ងៃផុតកំណត់: <span class="font-weight-bold">{{ formatDate(purchaseRequest.deadline_date) ?? 'N/A' }}</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Line Items -->
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+          <thead class="table-secondary">
+            <tr>
+              <th class="text-center">#</th>
+              <th>Product Code</th>
+              <th>Product Description</th>
+              <th>Additional Description</th>
+              <th>Unit</th>
+              <th class="text-center">Qty</th>
+              <th class="text-end">Unit Price</th>
+              <th class="text-end">Total Price</th>
+              <th>Department</th>
+              <th>Campus</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, i) in purchaseRequest.items" :key="i">
+              <td class="text-center">{{ i + 1 }}</td>
+              <td>{{ item.product_code ?? 'N/A' }}</td>
+              <td>{{ item.product_description ?? 'N/A' }}</td>
+              <td>{{ item.additional_description ?? '-' }}</td>
+              <td>{{ item.unit_name ?? 'N/A' }}</td>
+              <td class="text-center">{{ format(item.quantity) }}</td>
+              <td class="text-end">{{ format(item.unit_price) }}</td>
+              <td class="text-end">{{ format(item.total_price) }} {{ item.currency }}</td>
+              <td><p>{{ item.campus_short_names }}</p></td>
+              <td><p>{{ item.department_short_names }}</p></td>
+            </tr>
+            <tr class="table-secondary">
+            <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
+            <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_usd) }}</td>
+            <td colspan="4"></td>
+            </tr>
+            <tr class="table-secondary">
+            <td colspan="6" class="text-end font-weight-bold">Total (KHR)</td>
+            <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_khr) }}</td>
+            <td colspan="4"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Requested & Approval Cards -->
+      <div class="mt-4">
+        <div class="row justify-content-center">
+          <!-- Requested By -->
+          <div class="col-md-3 mb-4">
+            <div class="card border shadow-sm h-100">
+              <div class="card-body text-center">
+                <label class="font-weight-bold d-block">Requested By</label>
+                <div class="d-flex align-items-center justify-content-center mb-2">
+                  <img :src="purchaseRequest.creator?.profile_url" class="rounded-circle" width="50" height="50" />
+                </div>
+                <div class="font-weight-bold mb-1">{{ purchaseRequest.creator?.name ?? 'N/A' }}</div>
+                <div v-if="purchaseRequest.creator?.signature_url" class="mb-2">
+                  <img :src="purchaseRequest.creator.signature_url" height="50" />
+                </div>
+                <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
+                <p class="mb-1">Position: {{ purchaseRequest.creator_position?.title ?? 'N/A' }}</p>
+                <p class="mb-0">Date: {{ formatDate(purchaseRequest.created_at) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approvals -->
+          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-3 mb-4">
+            <div class="card border shadow-sm h-100">
+              <div class="card-body text-center">
+                <label class="font-weight-bold d-block">{{ approval.request_type_label || approval.request_type }} By</label>
+                <div class="d-flex align-items-center justify-content-center mb-2">
+                  <img :src="approval.responder_profile_url" class="rounded-circle" width="50" height="50" />
+                </div>
+                <div class="font-weight-bold mb-1">{{ approval.name ?? 'N/A' }}</div>
+                <div v-if="approval.status === 'Approved'" class="mb-2">
+                  <img :src="approval.responder_signature_url" height="50" />
+                </div>
+                <p class="mb-1">
+                  Status:
+                  <span class="badge"
+                        :class="{
+                          'badge-success': approval.status === 'Approved',
+                          'badge-danger': approval.status === 'Rejected',
+                          'badge-warning': approval.status === 'Pending',
+                          'badge-info': approval.status === 'Returned'
+                        }">
+                    <strong>{{ approval.status === 'Approved' ? 'Signed' : capitalize(approval.status) }}</strong>
+                  </span>
+                </p>
+                <p class="mb-1">Position: {{ approval.position_name ?? 'N/A' }}</p>
+                <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
+                <p class="mb-0">Comment: {{ approval.comment ?? '-' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="purchaseRequest.approvals.length === 0" class="col-12 text-center text-muted">
+            No approvals available.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approval Action Footer -->
+    <div class="card-footer">
+      <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
+      <div v-if="showApprovalButton">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
+            <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
+          </button>
+          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
+            <i class="fal fa-times"></i> Reject
+          </button>
+          <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
+            <i class="fal fa-undo"></i> Return
+          </button>
+          <button @click="openReassignModal" class="btn btn-sm btn-primary" :disabled="loading">
+            <i class="fal fa-exchange"></i> Reassign
+          </button>
+        </div>
+      </div>
+      <div v-else>
+        <p class="text-muted">No approval action available at this time.</p>
+      </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" ref="confirmModal">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
+                 : currentAction === 'reject' ? 'Reject' 
+                 : 'Return' }} Confirmation
+            </h5>
+            <button type="button" class="close" @click="resetConfirmModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <textarea v-model="commentInput" class="form-control" rows="4" placeholder="Enter your comment (optional)" :disabled="loading"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="resetConfirmModal" :disabled="loading">Cancel</button>
+            <button class="btn"
+                    :class="currentAction === 'approve' ? 'btn-success' 
+                              : currentAction === 'reject' ? 'btn-danger' 
+                              : 'btn-warning'"
+                    @click="submitApproval(currentAction)"
+                    :disabled="loading">
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
+                 : currentAction === 'reject' ? 'Reject' 
+                 : 'Return' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reassign Modal -->
+    <div class="modal fade" id="reassignModal" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Reassign {{ capitalize(approvalRequestType) }}</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close" @click="cleanupReassignModal">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="userSelect">Select New Responder</label>
+              <select id="userSelect" class="form-control w-100">
+                <option value="">-- Select a user --</option>
+                <option v-for="user in usersList" :value="user.id" :key="user.id">{{ user.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="reassignComment">Comment (optional)</label>
+              <textarea id="reassignComment" class="form-control" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal" @click="cleanupReassignModal">Cancel</button>
+            <button class="btn btn-primary" @click="confirmReassign">Reassign</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div v-else class="text-center p-5">
+    <i class="fas fa-spinner fa-spin fa-2x text-secondary"></i>
+    <p class="mt-2 text-muted">Loading purchase request...</p>
+  </div>
+</template>
+
+<script setup>
+import { ref, nextTick, onMounted, computed } from 'vue'
+import axios from 'axios'
+import { showAlert } from '@/Utils/bootbox'
+import { formatDateShort } from '@/Utils/dateFormat'
+import { initSelect2, destroySelect2 } from '@/Utils/select2'
+
+const props = defineProps({
+  purchaseRequestId: { type: Number, required: true },
+})
+
+const purchaseRequest = ref({ items: [], approvals: [] })
+const loaded = ref(false)
+const loading = ref(false)
+const usersList = ref([])
+const showApprovalButton = ref(false)
+const approvalRequestType = ref('approve')
+const currentAction = ref('approve')
+const commentInput = ref('')
+
+const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+const formatDate = date => formatDateShort(date)
+const goBack = () => window.history.back()
+
+const fetchPurchaseRequest = async () => {
+  try {
+    const res = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/show`)
+    purchaseRequest.value = res.data.data
+
+    // Extract approval button info into separate refs
+    showApprovalButton.value = res.data.data.approval_button_data?.showButton ?? false
+    approvalRequestType.value = res.data.data.approval_button_data?.requestType ?? 'approve'
+
+    loaded.value = true
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to load purchase request.', 'danger')
+  }
+}
+
+onMounted(fetchPurchaseRequest)
+
+// Approval Handling
+const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
+const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
+
+const submitApproval = async (action) => {
+  loading.value = true
+  try {
+    const res = await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/submit-approval`, { request_type: approvalRequestType.value, action, comment: commentInput.value.trim() })
+    showAlert('success', res.data.message || 'Action submitted successfully.')
+    $('#confirmModal').modal('hide')
+    setTimeout(() => window.location.reload(), 1500)
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
+  } finally { loading.value = false }
+}
+
+const openReassignModal = async () => {
+  loading.value = true
+  try {
+    const res = await axios.get('/api/purchase-requests/get-users-for-approval', { params: { request_type: approvalRequestType.value } })
+    usersList.value = res.data.data || []
+    await nextTick()
+    initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
+    $('#reassignModal').modal('show')
+  } catch (err) { showAlert('Error', 'Failed to load users.', 'danger') }
+  finally { loading.value = false }
+}
+
+const confirmReassign = async () => {
+  const newUserId = document.getElementById('userSelect')?.value
+  const comment = document.getElementById('reassignComment')?.value.trim()
+  if (!newUserId) { showAlert('Error', 'Please select a user.', 'danger'); return }
+  loading.value = true
+  try {
+    await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/reassign-approval`, { request_type: approvalRequestType.value, new_user_id: newUserId, comment })
+    showAlert('success', 'Responder reassigned successfully.')
+    $('#reassignModal').modal('hide')
+    destroySelect2(document.getElementById('userSelect'))
+    setTimeout(() => window.location.reload(), 1500)
+  } catch (err) { showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger') }
+  finally { loading.value = false }
+}
+
+const cleanupReassignModal = () => {
+  const el = document.getElementById('userSelect')
+  if (el) destroySelect2(el)
+}
+</script>

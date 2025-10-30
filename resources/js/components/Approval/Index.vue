@@ -29,8 +29,6 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import axios from 'axios'
-import { confirmAction, showAlert } from '@/Utils/bootbox'
 
 // Refs and state
 const datatableRef = ref(null)
@@ -73,7 +71,8 @@ const handlePreview = (approval) => {
     'App\\Models\\MainStockBeginning': 'approvals/stock-beginnings',
     'App\\Models\\StockRequest': 'approvals/stock-requests',
     'App\\Models\\StockTransfer': 'approvals/stock-transfers',
-    // Add your other mappings here
+    'App\\Models\\DigitalDocsApproval': 'approvals/digital-docs-approvals',
+    'App\\Models\\PurchaseRequest': 'approvals/purchase-requests',
   }
 
   const routePrefix = typeRouteMap[approval.approvable_type]

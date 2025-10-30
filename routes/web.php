@@ -243,6 +243,9 @@ Route::middleware(['auth'])->group(function () {
         //Digital Document View
         Route::get('/approvals/digital-docs-approvals/{digitalDocsApproval}/show', [DigitalDocsApprovalController::class, 'show'])
         ->name('approvals-digital-docs-approvals.show');
+        //Purchase Request View
+        Route::get('/approvals/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
+        ->name('approvals-purchase-requests.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])
@@ -273,15 +276,18 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Purchase Requests
-    // Route::get('/purchase-requests', [PurchaseRequestController::class, 'index'])
-    //     ->name('purchase-requests.index');
+    Route::get('/purchase-requests', [PurchaseRequestController::class, 'index'])
+         ->middleware('can:viewAny,' . PurchaseRequest::class)
+         ->name('purchase-requests.index');
     Route::get('/purchase-requests/create', [PurchaseRequestController::class, 'form'])
         ->middleware('can:create,' . PurchaseRequest::class)
         ->name('purchase-requests.create');
     Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'form'])
+        ->middleware('can:update,purchaseRequest')
          ->name('purchase-requests.edit');
-    // Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
-    //     ->name('purchase-requests.show');
+    Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
+        ->middleware('can:view,purchaseRequest')
+         ->name('purchase-requests.show');
 
 
 

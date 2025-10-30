@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
+use App\Models\Approval;
 use App\Models\User;
 use App\Services\SharePointService;
 use App\Services\ApprovalService;
@@ -27,6 +28,9 @@ class PurchaseRequestController extends Controller
     protected CampusService $campusService;
     protected DepartmentService $departmentService;
     private const CUSTOM_DRIVE_ID = 'b!M8DPdNUo-UW5SA5DQoh6WBOHI8g_WM1GqHrcuxe8NjqK7G8JZp38SZIzeDteW3fZ';
+
+    private const MAX_LIMIT = 50;
+    private const DEFAULT_LIMIT = 10;
 
     public function __construct(
         ApprovalService $approvalService,
@@ -47,6 +51,66 @@ class PurchaseRequestController extends Controller
     {
         $this->authorize('viewAny', PurchaseRequest::class);
         return view('purchase-requests.index');
+    }
+
+    public function getPurchaseRequests(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', PurchaseRequest::class);
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $sortColumn = $validated['sortColumn'] ?? 'id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+
+        $query = PurchaseRequest::select('id', 'reference_no', 'request_date', 'deadline_date', 'purpose', 'is_urgent', 'approval_status', 'created_by', 'created_at', 'updated_at')
+            ->with(['creator:id,name'])
+            ->whereNull('deleted_at');
+
+        if (!empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('reference_no', 'like', "%{$search}%")
+                ->orWhere('purpose', 'like', "%{$search}%");
+            });
+        }
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        $purchaseRequests = $query->paginate(
+            $validated['limit'] ?? self::DEFAULT_LIMIT,
+            ['*'],
+            'page',
+            $validated['page'] ?? 1
+        );
+        $totalRecords = PurchaseRequest::whereNull('deleted_at')->count();
+
+        $purchaseRequestsMapped = $purchaseRequests->map(fn($purchaseRequest) => [
+            'id' => $purchaseRequest->id,
+            'reference_no' => $purchaseRequest->reference_no,
+            'request_date' => $purchaseRequest->request_date,
+            'deadline_date' => $purchaseRequest->deadline_date,
+            'purpose' => $purchaseRequest->purpose,
+            'is_urgent' => $purchaseRequest->is_urgent,
+            'approval_status' => $purchaseRequest->approval_status,
+            'creator' => $purchaseRequest->creator?->name,
+            'created_at' => $purchaseRequest->created_at,
+            'updated_at' => $purchaseRequest->updated_at,
+            'amount_usd' => number_format($purchaseRequest->items()->sum('total_price_usd'), 2, '.', ',') . ' USD',
+        ]);
+
+        return response()->json([
+            'draw' => (int) ($validated['draw'] ?? 1),
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => $purchaseRequests->total(),
+            'data' => $purchaseRequestsMapped,
+        ]);
     }
 
     public function form(?PurchaseRequest $purchaseRequest = null): View
@@ -72,6 +136,97 @@ class PurchaseRequestController extends Controller
         return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
     }
 
+    public function show(PurchaseRequest $purchaseRequest): View
+    {
+        $this->authorize('view', $purchaseRequest);
+
+        return view('purchase-requests.show', [
+            'purchaseRequestId' => $purchaseRequest->id,
+            'referenceNo' => $purchaseRequest->reference_no,
+        ]);
+    }
+
+
+    public function showData(PurchaseRequest $purchaseRequest): JsonResponse
+    {
+        try {
+            $this->authorize('update', $purchaseRequest);
+
+            $purchaseRequest->load([
+                'items.campuses',
+                'items.departments',
+                'approvals.responder', // include responder user
+                'files'
+            ]);
+            $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
+
+            return response()->json([
+                'message' => 'Purchase request retrieved successfully.',
+                'data' => [
+                    'id' => $purchaseRequest->id,
+                    'deadline_date' => $purchaseRequest->deadline_date,
+                    'purpose' => $purchaseRequest->purpose,
+                    'is_urgent' => $purchaseRequest->is_urgent,
+                    'creator_name' => $purchaseRequest->creator?->name,
+                    'creator_position' => $purchaseRequest->creator->defaultPosition()->title,
+                    'creator_id_card' => $purchaseRequest->creator->card_number,
+                    'creator_department' => $purchaseRequest->creator->defaultDepartment()->name,
+                    'creator_cellphone' => $purchaseRequest->creator->phone,
+                    'request_date' => $purchaseRequest->request_date,
+                    'approval_status' => $purchaseRequest->approval_status,
+                    'reference_no' => $purchaseRequest->reference_no,
+                    'total_value_usd' => $purchaseRequest->items->where('currency', 'USD')->sum('total_price'),
+                    'total_value_khr' => $purchaseRequest->items->where('currency', 'KHR')->sum('total_price'),
+                    'items' => $purchaseRequest->items->map(fn($i) => [
+                        'product_id' => $i->product_id,
+                        'product_code' => $i->product->item_code,
+                        'product_description' => $i->product->product->name . ' - ' . $i->product->description,
+                        'unit_name' => $i->product->product->unit->name,
+                        'quantity' => $i->quantity,
+                        'unit_price' => $i->unit_price,
+                        'currency' => $i->currency,
+                        'exchange_rate' => $i->exchange_rate,
+                        'description' => $i->description,
+                        'campus_ids' => $i->campuses->pluck('id')->toArray(),
+                        'department_ids' => $i->departments->pluck('id')->toArray(),
+                        'campus_short_names' => $i->campuses->pluck('short_name')->implode(', '),
+                        'department_short_names' => $i->departments->pluck('short_name')->implode(', '),
+                        'budget_code_id' => $i->budget_code_id,
+                        'total_price' => $i->total_price,
+                        'total_price_usd' => $i->total_price_usd,
+                        'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
+                    ]),
+                    'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
+                        'user_id' => $a->responder->id,
+                        'name' => $a->responder->name,
+                        'email' => $a->responder->email,
+                        'request_type' => $a->request_type,
+                    ] : null),
+                    'approval_button_data' => $approvalButtonData,
+
+                    'files' => $purchaseRequest->files->map(fn($f) => [
+                        'id' => $f->id,
+                        'name' => $f->sharepoint_file_name,
+                        'reference' => $f->document_reference,
+                        'sharepoint_file_id' => $f->sharepoint_file_id,
+                        'sharepoint_file_name' => $f->sharepoint_file_name,
+                        'sharepoint_drive_id' => $f->sharepoint_drive_id,
+                        'url' => $f->url, // make sure your DocumentRelation model has getUrlAttribute
+                    ]),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve purchase request', [
+                'id' => $purchaseRequest->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to retrieve purchase request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
     public function getEditData(PurchaseRequest $purchaseRequest): JsonResponse
     {
         try {
@@ -136,7 +291,6 @@ class PurchaseRequestController extends Controller
             ], 500);
         }
     }
-
 
     public function importItems(Request $request): JsonResponse
     {
@@ -457,6 +611,64 @@ class PurchaseRequestController extends Controller
         }
     }
 
+
+    public function destroy(PurchaseRequest $purchaseRequest): JsonResponse
+    {
+        $this->authorize('delete', $purchaseRequest);
+        $user = Auth::user();
+        $sharePoint = new SharePointService($user);
+
+        try {
+            DB::transaction(function () use ($purchaseRequest, $sharePoint) {
+
+                // --------------------
+                // Delete files from SharePoint
+                // --------------------
+                foreach ($purchaseRequest->files as $file) {
+                    $deleted = $sharePoint->deleteFile($file->sharepoint_file_id, $file->sharepoint_drive_id);
+                    if ($deleted) {
+                        $file->delete(); // remove DB record only if SP deletion succeeded
+                    } else {
+                        throw new \Exception("Failed to delete SharePoint file: {$file->name}");
+                    }
+                }
+
+                // --------------------
+                // Delete items and detach relations
+                // --------------------
+                foreach ($purchaseRequest->items as $item) {
+                    $item->campuses()->detach();
+                    $item->departments()->detach();
+                    $item->delete();
+                }
+
+                // --------------------
+                // Delete approvals
+                // --------------------
+                $purchaseRequest->approvals()->delete();
+
+                // --------------------
+                // Soft delete main purchase request
+                // --------------------
+                $purchaseRequest->delete();
+            });
+
+            return response()->json([
+                'message' => 'Purchase request deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete purchase request', [
+                'id' => $purchaseRequest->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete purchase request.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     // ====================
     // Helpers
     // ====================
@@ -698,6 +910,79 @@ class PurchaseRequestController extends Controller
         } catch (\Exception $e) {
             abort(404, "File not found or access denied. Error: " . $e->getMessage());
         }
+    }
+
+        private function canShowApprovalButton(int $documentId): array
+    {
+        try {
+            $userId = auth()->id();
+            if (!$userId) {
+                return $this->approvalButtonResponse('User not authenticated.');
+            }
+
+            $approvals = Approval::where([
+                'approvable_type' => PurchaseRequest::class,
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
+
+            if ($approvals->isEmpty()) {
+                return $this->approvalButtonResponse('No approvals configured.');
+            }
+
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
+            if (!$currentApproval) {
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
+            }
+
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) || 
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
+            }
+
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
+            }
+
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
+        }
+    }
+
+    private function approvalButtonResponse(string $reason): array
+    {
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 
 }

@@ -89,6 +89,7 @@ const renderColumnData = (key, val) => {
   // Status badges
   const statusKeys = {
     is_active: { true: ['badge-success', 'Active'], false: ['badge-secondary', 'Inactive'] },
+    is_urgent: { true: ['badge-danger', 'Yes'], false: ['badge-secondary', 'No'] },
     has_variants: { true: ['badge-primary', 'Yes'], false: ['badge-danger', 'No'] },
   };
 
