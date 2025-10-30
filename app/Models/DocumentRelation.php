@@ -36,6 +36,6 @@ class DocumentRelation extends Model
     {
         if (!$this->sharepoint_file_id || !$this->sharepoint_drive_id) return null;
 
-        return "https://yourdomain.sharepoint.com/:u:/{$this->sharepoint_drive_id}/{$this->sharepoint_file_id}";
+        return "https://mjqeducationplc.sharepoint.com/sites/PRODMJQE/:u:/{$this->sharepoint_drive_id}/{$this->sharepoint_file_id}";
     }
 }
