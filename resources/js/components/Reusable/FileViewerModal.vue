@@ -48,9 +48,6 @@ defineExpose({ openModal, closeModal })
           <iframe v-else :src="props.fallbackUrl" style="width:100%; height:100%; border:none;" allowfullscreen></iframe>
         </div>
         <div class="modal-footer">
-          <a :href="fileUrl" target="_blank" class="btn btn-outline-primary btn-sm">
-            <i class="fal fa-external-link"></i> Open
-          </a>
           <a :href="fileUrl" download class="btn btn-outline-secondary btn-sm">
             <i class="fal fa-download"></i> Download
           </a>
