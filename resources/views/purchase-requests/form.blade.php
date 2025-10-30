@@ -1,4 +1,4 @@
-@php($header = 'Digital Document Approval')
+@php($header = 'Purchase Request Form')
 @extends('layouts.main')
 
 @section('content')

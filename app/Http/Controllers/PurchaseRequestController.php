@@ -199,26 +199,7 @@ class PurchaseRequestController extends Controller
         $this->authorize('create', [PurchaseRequest::class]);
         $user = Auth::user();
 
-        $validated = $request->validate([
-            'deadline_date' => 'nullable|date|after_or_equal:request_date',
-            'purpose' => 'required|string',
-            'is_urgent' => 'required|boolean',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:product_variants,id',
-            'items.*.quantity' => 'required|numeric|min:0.01',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'items.*.description' => 'nullable|string|max:500',
-            'items.*.currency' => 'nullable|string|max:10',
-            'items.*.exchange_rate' => 'nullable|numeric|min:0',
-            'items.*.campus_ids' => 'required|array|min:1',
-            'items.*.campus_ids.*' => 'required|exists:campus,id',
-            'items.*.department_ids' => 'required|array|min:1',
-            'items.*.department_ids.*' => 'required|exists:departments,id',
-            'items.*.budget_code_id' => 'nullable',
-            'approvals' => 'required|array|min:1',
-            'approvals.*.user_id' => 'required|exists:users,id',
-            'approvals.*.request_type' => 'required|string|in:approve,initial',
-        ]);
+        $validated = $request->validate($this->validationRules());
 
         $sharePoint = new SharePointService($user);
 
@@ -332,29 +313,7 @@ class PurchaseRequestController extends Controller
         $this->authorize('update', $purchaseRequest);
         $user = Auth::user();
 
-        $validated = $request->validate([
-            'deadline_date' => 'nullable|date|after_or_equal:request_date',
-            'purpose' => 'required|string',
-            'is_urgent' => 'required|boolean',
-            'items' => 'required|array|min:1',
-            'items.*.id' => 'nullable|exists:purchase_request_items,id',
-            'items.*.product_id' => 'required|exists:product_variants,id',
-            'items.*.quantity' => 'required|numeric|min:0.01',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'items.*.description' => 'nullable|string|max:500',
-            'items.*.currency' => 'nullable|string|max:10',
-            'items.*.exchange_rate' => 'nullable|numeric|min:0',
-            'items.*.campus_ids' => 'required|array|min:1',
-            'items.*.campus_ids.*' => 'required|exists:campus,id',
-            'items.*.department_ids' => 'required|array|min:1',
-            'items.*.department_ids.*' => 'required|exists:departments,id',
-            'items.*.budget_code_id' => 'nullable',
-            'approvals' => 'required|array|min:1',
-            'approvals.*.user_id' => 'required|exists:users,id',
-            'approvals.*.request_type' => 'required|string|in:approve,initial',
-            'existing_file_ids' => 'nullable|array',
-            'existing_file_ids.*' => 'integer|exists:document_relations,id',
-        ]);
+        $validated = $request->validate($this->validationRules($purchaseRequest));
 
         $sharePoint = new SharePointService($user);
 
@@ -491,6 +450,38 @@ class PurchaseRequestController extends Controller
     // ====================
     // Helpers
     // ====================
+
+    private function validationRules(?PurchaseRequest $purchaseRequest = null): array
+    {
+        $rules = [
+            'deadline_date' => 'nullable|date',
+            'purpose' => 'required|string',
+            'is_urgent' => 'required|boolean',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:product_variants,id',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.description' => 'nullable|string|max:500',
+            'items.*.currency' => 'nullable|string|max:10',
+            'items.*.exchange_rate' => 'nullable|numeric|min:0',
+            'items.*.campus_ids' => 'required|array|min:1',
+            'items.*.campus_ids.*' => 'required|exists:campus,id',
+            'items.*.department_ids' => 'required|array|min:1',
+            'items.*.department_ids.*' => 'required|exists:departments,id',
+            'items.*.budget_code_id' => 'nullable',
+            'approvals' => 'required|array|min:1',
+            'approvals.*.user_id' => 'required|exists:users,id',
+            'approvals.*.request_type' => 'required|string|in:approve,initial,check,verify',
+        ];
+
+        // ✅ Only apply "after_or_equal:request_date" if creating
+        if (!$purchaseRequest) {
+            $rules['deadline_date'] .= '|after_or_equal:request_date';
+        }
+
+        return $rules;
+    }
+
     private function getSharePointFolderPath(string $documentReference): string
     {
         $year = now()->format('Y');
