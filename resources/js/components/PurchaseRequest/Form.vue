@@ -88,6 +88,13 @@
                       <small class="text-muted">Existing Files:</small>
                       <div v-for="(file, i) in existingFileUrls" :key="file.id" class="d-flex align-items-center mb-1">
                         <a :href="file.url" target="_blank" class="btn btn-sm btn-outline-info mr-1">📄 {{ file.name }}</a>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-info me-1"
+                          @click="openFileViewer(file.url, file.name)"
+                        >
+                          📄 {{ file.name }}
+                        </button>
                         <button type="button" class="btn btn-sm btn-danger" @click="removeFile(i, true)">
                           <i class="fal fa-trash"></i>
                         </button>
@@ -273,6 +280,9 @@
       </div>
     </div>
 
+    <!-- File Viewer Modal -->
+    <FileViewerModal ref="fileViewer" />
+
   </div>
 </template>
 
@@ -282,6 +292,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import axios from 'axios';
 import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
+import FileViewerModal from '../Reusable/FileViewerModal.vue';
 
 // -------------------- Props & Emits --------------------
 const props = defineProps({
@@ -306,6 +317,7 @@ const existingFileUrls = ref([]);
 const existingFileIds = ref([]);
 const newFiles = ref([]);
 const fileInput = ref(null);
+const fileViewerRef = ref(null);
 
 const form = ref({
   deadline_date: '',
@@ -318,6 +330,11 @@ const form = ref({
   position_id: props.requester?.current_position_id || '',
   approvals: []
 });
+
+
+const openFileViewer = (url, name) => {
+  fileViewerRef.value.openModal(url, name)  // Call your reusable modal's function
+};
 
 const budgetCodes = ref([
   { id: 1, code: 'BUD-001', name: 'Office Supplies' },
