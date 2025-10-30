@@ -198,15 +198,20 @@ class PurchaseRequestController extends Controller
     {
         $this->authorize('create', [PurchaseRequest::class]);
         $user = Auth::user();
+
         $validated = $request->validate($this->validationRules());
+
         $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
 
                 $referenceNo = $this->generateReferenceNo();
+                $folderPath = $this->getSharePointFolderPath($referenceNo);
 
-                // Create PR
+                // --------------------
+                // Create Purchase Request first
+                // --------------------
                 $purchaseRequest = PurchaseRequest::create([
                     'reference_no' => $referenceNo,
                     'request_date' => now()->format('Y-m-d'),
@@ -217,18 +222,86 @@ class PurchaseRequestController extends Controller
                     'position_id' => $user->defaultPosition()->id,
                 ]);
 
-                // Upload files
-                $this->handleFiles($request, $purchaseRequest, $sharePoint);
+                // --------------------
+                // Handle uploaded files
+                // --------------------
+                if ($request->hasFile('file')) {
+                    $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+                    $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
+                    $counter = $purchaseRequest->files()->count() + 1;
 
-                // Store items
-                $this->storeItems($purchaseRequest, $validated['items']);
+                    foreach ($newFiles as $file) {
+                        if (!$file) continue;
 
+                        $ext = strtoupper($file->getClientOriginalExtension());
+                        $name = strtoupper(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+                        $unique = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+                        $index = str_pad($counter, 2, '0', STR_PAD_LEFT);
+
+                        // 🔹 Example: PR001-AB12-01-QUOTATION.PDF
+                        $safeName = preg_replace('/[^A-Z0-9_\-]/', '_', $name);
+                        $fileName = strtoupper("{$purchaseRequest->reference_no}-{$unique}-{$index}-{$safeName}.{$ext}");
+
+                        $result = $sharePoint->uploadFile(
+                            $file,
+                            $folderPath,
+                            ['Title' => 'PURCHASE REQUEST DOCUMENT'],
+                            $fileName,
+                            self::CUSTOM_DRIVE_ID
+                        );
+
+                        if (!$result) {
+                            throw new \Exception("FAILED TO UPLOAD FILE: {$fileName}");
+                        }
+
+                        $this->storeDocuments($purchaseRequest, [$result]);
+                        $counter++;
+                    }
+                }
+
+                // --------------------
+                // Prepare and store items
+                // --------------------
+                foreach ($validated['items'] as $item) {
+                    $totalPrice = $item['quantity'] * $item['unit_price'];
+                    $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
+                        ? $totalPrice / $item['exchange_rate']
+                        : $totalPrice;
+
+                    $purchaseRequestItem = PurchaseRequestItem::create([
+                        'purchase_request_id' => $purchaseRequest->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'total_price' => $totalPrice,
+                        'currency' => $item['currency'] ?? null,
+                        'exchange_rate' => $item['exchange_rate'] ?? null,
+                        'total_price_usd' => $totalPriceUsd,
+                        'description' => $item['description'] ?? null,
+                        'budget_code_id' => $item['budget_code_id'] ?? null,
+                    ]);
+
+                    $campusCount = count($item['campus_ids']);
+                    $departmentCount = count($item['department_ids']);
+                    $perCampusUsd = $totalPriceUsd / $campusCount;
+                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+
+                    $campusPivotData = array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]);
+                    $purchaseRequestItem->campuses()->sync($campusPivotData);
+
+                    $departmentPivotData = array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]);
+                    $purchaseRequestItem->departments()->sync($departmentPivotData);
+                }
+
+                // --------------------
                 // Store approvals
+                // --------------------
                 $this->storeApprovals($purchaseRequest, $validated['approvals']);
 
+                // All succeeded, return
                 return response()->json([
                     'message' => 'Purchase request created successfully.',
-                    'data' => $purchaseRequest->load('items', 'approvals.responder', 'files'),
+                    'data' => $purchaseRequest->load('items', 'approvals.responder'),
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -240,42 +313,133 @@ class PurchaseRequestController extends Controller
         }
     }
 
-
     public function update(Request $request, PurchaseRequest $purchaseRequest): JsonResponse
     {
         $this->authorize('update', $purchaseRequest);
         $user = Auth::user();
+
         $validated = $request->validate($this->validationRules($purchaseRequest));
+
         $sharePoint = new SharePointService($user);
 
         try {
-            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest) {
+            return DB::transaction(function () use ($validated, $request, $sharePoint, $purchaseRequest, $user) {
 
+                // --------------------
                 // Update main fields
+                // --------------------
                 $purchaseRequest->update([
                     'deadline_date' => $validated['deadline_date'] ?? null,
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
                 ]);
 
-                // Delete removed files
+                // --------------------
+                // Handle file deletions
+                // --------------------
                 $existingFileIds = $validated['existing_file_ids'] ?? [];
                 $filesToDelete = $purchaseRequest->files()->whereNotIn('id', $existingFileIds)->get();
+
                 foreach ($filesToDelete as $file) {
-                    if ($sharePoint->deleteFile($file->sharepoint_file_id, $file->sharepoint_drive_id)) {
-                        $file->delete();
+                    $deleted = $sharePoint->deleteFile($file->sharepoint_file_id, $file->sharepoint_drive_id);
+                    if ($deleted) {
+                        $file->delete(); // remove DB record only if SP deletion succeeded
                     } else {
                         throw new \Exception("Failed to delete SharePoint file: {$file->name}");
                     }
                 }
 
+                // --------------------
                 // Upload new files
-                $this->handleFiles($request, $purchaseRequest, $sharePoint);
+                // --------------------
+                if ($request->hasFile('file')) {
+                    $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+                    $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
+                    $counter = $purchaseRequest->files()->count() + 1;
 
-                // Update items
-                $this->storeItems($purchaseRequest, $validated['items'], true);
+                    foreach ($newFiles as $file) {
+                        if (!$file) continue;
 
+                        $ext = strtoupper($file->getClientOriginalExtension());
+                        $name = strtoupper(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+                        $unique = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+                        $index = str_pad($counter, 2, '0', STR_PAD_LEFT);
+
+                        // 🔹 Example: PR001-AB12-01-QUOTATION.PDF
+                        $safeName = preg_replace('/[^A-Z0-9_\-]/', '_', $name);
+                        $fileName = strtoupper("{$purchaseRequest->reference_no}-{$unique}-{$index}-{$safeName}.{$ext}");
+
+                        $result = $sharePoint->uploadFile(
+                            $file,
+                            $folderPath,
+                            ['Title' => 'PURCHASE REQUEST DOCUMENT'],
+                            $fileName,
+                            self::CUSTOM_DRIVE_ID
+                        );
+
+                        if (!$result) {
+                            throw new \Exception("FAILED TO UPLOAD FILE: {$fileName}");
+                        }
+
+                        $this->storeDocuments($purchaseRequest, [$result]);
+                        $counter++;
+                    }
+                }
+                // --------------------
+                // Update items (smart update)
+                // --------------------
+                $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
+                $submittedItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
+
+                $itemsToDelete = array_diff($existingItemIds, $submittedItemIds);
+                PurchaseRequestItem::destroy($itemsToDelete);
+
+                foreach ($validated['items'] as $item) {
+                    $totalPrice = $item['quantity'] * $item['unit_price'];
+                    $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
+                        ? $totalPrice / $item['exchange_rate']
+                        : $totalPrice;
+
+                    if (!empty($item['id'])) {
+                        $itemModel = PurchaseRequestItem::find($item['id']);
+                        $itemModel->update([
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price' => $item['unit_price'],
+                            'total_price' => $totalPrice,
+                            'currency' => $item['currency'] ?? null,
+                            'exchange_rate' => $item['exchange_rate'] ?? null,
+                            'total_price_usd' => $totalPriceUsd,
+                            'description' => $item['description'] ?? null,
+                            'budget_code_id' => $item['budget_code_id'] ?? null,
+                        ]);
+                    } else {
+                        $itemModel = PurchaseRequestItem::create([
+                            'purchase_request_id' => $purchaseRequest->id,
+                            'product_id' => $item['product_id'],
+                            'quantity' => $item['quantity'],
+                            'unit_price' => $item['unit_price'],
+                            'total_price' => $totalPrice,
+                            'currency' => $item['currency'] ?? null,
+                            'exchange_rate' => $item['exchange_rate'] ?? null,
+                            'total_price_usd' => $totalPriceUsd,
+                            'description' => $item['description'] ?? null,
+                            'budget_code_id' => $item['budget_code_id'] ?? null,
+                        ]);
+                    }
+
+                    $campusCount = count($item['campus_ids']);
+                    $departmentCount = count($item['department_ids']);
+                    $perCampusUsd = $totalPriceUsd / $campusCount;
+                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+
+                    $itemModel->campuses()->sync(array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]));
+                    $itemModel->departments()->sync(array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]));
+                }
+
+                // --------------------
                 // Replace approvals
+                // --------------------
                 $purchaseRequest->approvals()->delete();
                 $this->storeApprovals($purchaseRequest, $validated['approvals']);
 
@@ -293,47 +457,9 @@ class PurchaseRequestController extends Controller
         }
     }
 
-
     // ====================
     // Helpers
     // ====================
-
-    protected function handleFiles(Request $request, PurchaseRequest $purchaseRequest, SharePointService $sharePoint)
-    {
-        if (!$request->hasFile('file')) return;
-
-        $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
-        $uploadedFiles = [];
-        $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
-        $existingCount = $purchaseRequest->files()->count();
-
-        foreach ($files as $index => $file) {
-            if (!$file) continue;
-
-            $extension = strtoupper($file->getClientOriginalExtension());
-            $originalName = strtoupper(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-            $uniqueId = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
-            $counter = str_pad($existingCount + $index + 1, 2, '0', STR_PAD_LEFT);
-            $safeName = preg_replace('/[^A-Z0-9_\-]/', '_', $originalName);
-
-            $fileName = "{$purchaseRequest->reference_no}-{$uniqueId}-{$counter}-{$safeName}.{$extension}";
-
-            $result = $sharePoint->uploadFile(
-                $file,
-                $folderPath,
-                ['Title' => $fileName],
-                $fileName,
-                self::CUSTOM_DRIVE_ID
-            );
-
-            if (!$result) throw new \Exception("Failed to upload file: {$fileName}");
-
-            $uploadedFiles[] = $result;
-        }
-
-        $this->storeDocuments($purchaseRequest, $uploadedFiles);
-    }
-
 
     private function validationRules(?PurchaseRequest $purchaseRequest = null): array
     {
