@@ -345,7 +345,7 @@ class PurchaseRequestController extends Controller
                 }
 
                 // --------------------
-                // Handle new file uploads
+                // Upload new files
                 // --------------------
                 if ($request->hasFile('file')) {
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
@@ -356,16 +356,12 @@ class PurchaseRequestController extends Controller
 
                         $extension = $file->getClientOriginalExtension();
 
-                        // 1️⃣ Create DB record first to get unique file id
-                        $fileModel = $this->storeDocuments($purchaseRequest, [
-                            'sharepoint_file_name' => '', // temporary
-                            'title' => 'Purchase Request Document'
-                        ])[0];
+                        // ✅ Secure 4-char random uppercase ID
+                        $uniqueId = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
 
-                        // 2️⃣ Generate unique filename using PR reference_no + file id
-                        $fileName = "{$purchaseRequest->reference_no}-" . str_pad($fileModel->id, 2, '0', STR_PAD_LEFT) . ".{$extension}";
+                        // e.g. PR001-A2B7.pdf
+                        $fileName = "{$purchaseRequest->reference_no}-{$uniqueId}.{$extension}";
 
-                        // 3️⃣ Upload to SharePoint
                         $result = $sharePoint->uploadFile(
                             $file,
                             $folderPath,
@@ -378,11 +374,9 @@ class PurchaseRequestController extends Controller
                             throw new \Exception("Failed to upload file: {$fileName}");
                         }
 
-                        // 4️⃣ Update DB record with the correct SharePoint filename
-                        $fileModel->update(['sharepoint_file_name' => $fileName]);
+                        $this->storeDocuments($purchaseRequest, [$result]);
                     }
                 }
-
                 // --------------------
                 // Update items (smart update)
                 // --------------------
