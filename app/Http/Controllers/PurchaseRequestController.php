@@ -353,7 +353,7 @@ class PurchaseRequestController extends Controller
             'approvals.*.user_id' => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|string|in:approve,initial',
             'existing_file_ids' => 'nullable|array', // IDs of files to keep
-            'existing_file_ids.*' => 'integer|exists:purchase_request_files,id',
+            'existing_file_ids.*' => 'integer|exists:document_relations,id',
         ]);
 
         $sharePoint = new SharePointService($user);
