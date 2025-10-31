@@ -1,13 +1,13 @@
 <template>
-  <div class="card mb-0 shadow" v-if="loaded">
+  <div class="card mb-0 shadow">
     <!-- Header -->
     <div class="card-header bg-light py-2 d-flex justify-between items-center">
-      <button class="btn btn-sm btn-outline-success" @click="goBack">
-        <i class="fal fa-backward"></i> Back
-      </button>
-  <button @click="openPdfViewer(purchaseRequest.id)" class="btn btn-outline-secondary btn-sm">
-    <i class="fal fa-print"></i> Print
-  </button>
+        <button class="btn btn-sm btn-outline-success" @click="goBack">
+          <i class="fal fa-backward"></i> Back
+        </button>
+        <button @click="openPdfViewer(purchaseRequest.id)" class="btn btn-outline-secondary btn-sm">
+          <i class="fal fa-print"></i> Print
+        </button>
     </div>
 
     <!-- Body -->
@@ -26,10 +26,6 @@
         <div class="row mb-1">
             <div class="col-6 text-muted">Position / មុខតំណែង:</div>
             <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_position ?? 'N/A' }}</div>
-        </div>
-        <div class="row mb-1">
-            <div class="col-6 text-muted">Purpose / គោលបំណង:</div>
-            <div class="col-6 font-weight-bold">{{ purchaseRequest.purpose ?? 'N/A' }}</div>
         </div>
         <div class="row mb-1">
             <div class="col-6 text-muted">Urgent / បន្ទាន់:</div>
@@ -57,6 +53,12 @@
           <p class="text-muted mb-1">
             DEADLINE / ថ្ងៃផុតកំណត់: <span class="font-weight-bold">{{ formatDate(purchaseRequest.deadline_date) ?? 'N/A' }}</span>
           </p>
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-12">
+          <p class="mb-2">PURPOSE/គោលបំណង: <span class="font-weight-bold">{{ purchaseRequest.purpose ?? 'N/A' }}</span></p>
         </div>
       </div>
 
@@ -278,15 +280,6 @@
 
     <!-- File Viewer Modal -->
     <FileViewerModal ref="fileViewerModal" />
-
-        <!-- Hidden Print component -->
-  <!-- <Print ref="printComponent" :purchaseRequest="purchaseRequest" @pdfGenerated="openPdfViewer" /> -->
-  </div>
-
-  <!-- Loading State -->
-  <div v-else class="text-center p-5">
-    <i class="fas fa-spinner fa-spin fa-2x text-secondary"></i>
-    <p class="mt-2 text-muted">Loading purchase request...</p>
   </div>
 </template>
 
@@ -303,7 +296,6 @@ const props = defineProps({
 })
 
 const purchaseRequest = ref({ items: [], approvals: [] })
-const loaded = ref(false)
 const loading = ref(false)
 const usersList = ref([])
 const showApprovalButton = ref(false)
@@ -311,7 +303,6 @@ const approvalRequestType = ref('approve')
 const currentAction = ref('approve')
 const commentInput = ref('')
 const fileViewerModal = ref(null)
-const printComponent = ref(null)
 
 const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
@@ -326,8 +317,6 @@ const fetchPurchaseRequest = async () => {
     // Extract approval button info into separate refs
     showApprovalButton.value = res.data.data.approval_button_data?.showButton ?? false
     approvalRequestType.value = res.data.data.approval_button_data?.requestType ?? 'approve'
-
-    loaded.value = true
   } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to load purchase request.', 'danger')
   }
@@ -353,10 +342,6 @@ const submitApproval = async (action) => {
 
 const openFileViewer = (url, name) => {
   if (fileViewerModal.value) fileViewerModal.value.openModal(url, name)
-}
-function openPrint() {
-  if (!printComponent.value) return
-  printComponent.value.createPdf()
 }
 
 const openPdfViewer = (purchaseRequestId) => {

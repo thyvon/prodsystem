@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Campus;
+use App\Models\Department;
 
 class PurchaseRequestItem extends Model
 {
@@ -35,6 +37,11 @@ class PurchaseRequestItem extends Model
     public function product()
     {
         return $this->belongsTo(ProductVariant::class);
+    }
+
+    public function budgetCode()
+    {
+        return $this->belongsTo(BudgetItem::class, 'budget_code_id');
     }
 
     public function campuses(): BelongsToMany

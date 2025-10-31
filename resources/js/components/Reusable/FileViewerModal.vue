@@ -52,7 +52,7 @@ defineExpose({ openModal, openCustom, closeModal })
   <div class="modal fade" tabindex="-1" role="dialog" ref="modalRef">
     <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
       <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-header bg-dark text-white">
           <h5 class="modal-title">{{ fileName || props.title }}</h5>
           <button type="button" class="close" @click="closeModal">&times;</button>
         </div>
@@ -81,10 +81,7 @@ defineExpose({ openModal, openCustom, closeModal })
           </iframe>
         </div>
 
-        <div class="modal-footer">
-          <a v-if="fileUrl" :href="fileUrl" download class="btn btn-outline-secondary btn-sm">
-            <i class="fal fa-download"></i> Download
-          </a>
+        <div class="modal-footer bg-dark">
           <button type="button" class="btn btn-secondary btn-sm" @click="closeModal">Close</button>
         </div>
       </div>

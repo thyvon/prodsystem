@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use App\Imports\PurchaseItemImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Browsershot\Browsershot;
+use Carbon\Carbon;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
@@ -48,22 +49,6 @@ class PurchaseRequestController extends Controller
     // ====================
     // Index & Form Views
     // ====================
-
-
-public function viewPdf(PurchaseRequest $purchaseRequest)
-{
-    $purchaseRequest->load('items');
-
-    $html = view('purchase-requests.printpage', compact('purchaseRequest'))->render();
-
-    return response(
-        Browsershot::html($html)
-            ->format('A4')
-            ->margins(10,10,10,10)
-            ->showBackground()
-            ->pdf()
-    )->header('Content-Type', 'application/pdf');
-}
 
 
     public function index(): View
@@ -170,69 +155,11 @@ public function viewPdf(PurchaseRequest $purchaseRequest)
     {
         try {
             $this->authorize('update', $purchaseRequest);
-
-            $purchaseRequest->load([
-                'items.campuses',
-                'items.departments',
-                'approvals.responder', // include responder user
-                'files'
-            ]);
-            $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
+            $data = $this->mapPurchaseRequestData($purchaseRequest);
 
             return response()->json([
                 'message' => 'Purchase request retrieved successfully.',
-                'data' => [
-                    'id' => $purchaseRequest->id,
-                    'deadline_date' => $purchaseRequest->deadline_date,
-                    'purpose' => $purchaseRequest->purpose,
-                    'is_urgent' => $purchaseRequest->is_urgent,
-                    'creator_name' => $purchaseRequest->creator?->name,
-                    'creator_position' => $purchaseRequest->creator->defaultPosition()->title,
-                    'creator_id_card' => $purchaseRequest->creator->card_number,
-                    'creator_department' => $purchaseRequest->creator->defaultDepartment()->name,
-                    'creator_cellphone' => $purchaseRequest->creator->phone,
-                    'request_date' => $purchaseRequest->request_date,
-                    'approval_status' => $purchaseRequest->approval_status,
-                    'reference_no' => $purchaseRequest->reference_no,
-                    'total_value_usd' => $purchaseRequest->items->where('currency', 'USD')->sum('total_price'),
-                    'total_value_khr' => $purchaseRequest->items->where('currency', 'KHR')->sum('total_price'),
-                    'items' => $purchaseRequest->items->map(fn($i) => [
-                        'product_id' => $i->product_id,
-                        'product_code' => $i->product->item_code,
-                        'product_description' => $i->product->product->name . ' - ' . $i->product->description,
-                        'unit_name' => $i->product->product->unit->name,
-                        'quantity' => $i->quantity,
-                        'unit_price' => $i->unit_price,
-                        'currency' => $i->currency,
-                        'exchange_rate' => $i->exchange_rate,
-                        'description' => $i->description,
-                        'campus_ids' => $i->campuses->pluck('id')->toArray(),
-                        'department_ids' => $i->departments->pluck('id')->toArray(),
-                        'campus_short_names' => $i->campuses->pluck('short_name')->implode(', '),
-                        'department_short_names' => $i->departments->pluck('short_name')->implode(', '),
-                        'budget_code_id' => $i->budget_code_id,
-                        'total_price' => $i->total_price,
-                        'total_price_usd' => $i->total_price_usd,
-                        'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
-                    ]),
-                    'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
-                        'user_id' => $a->responder->id,
-                        'name' => $a->responder->name,
-                        'email' => $a->responder->email,
-                        'request_type' => $a->request_type,
-                    ] : null),
-                    'approval_button_data' => $approvalButtonData,
-
-                    'files' => $purchaseRequest->files->map(fn($f) => [
-                        'id' => $f->id,
-                        'name' => $f->sharepoint_file_name,
-                        'reference' => $f->document_reference,
-                        'sharepoint_file_id' => $f->sharepoint_file_id,
-                        'sharepoint_file_name' => $f->sharepoint_file_name,
-                        'sharepoint_drive_id' => $f->sharepoint_drive_id,
-                        'url' => $f->url, // make sure your DocumentRelation model has getUrlAttribute
-                    ]),
-                ],
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve purchase request', [
@@ -245,6 +172,22 @@ public function viewPdf(PurchaseRequest $purchaseRequest)
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+
+    public function viewPdf(PurchaseRequest $purchaseRequest)
+    {
+        $data = $this->mapPurchaseRequestData($purchaseRequest);
+
+        $html = view('purchase-requests.printpage', [
+            'purchaseRequest' => $data
+        ])->render();
+
+        return Browsershot::html($html)
+            ->format('A4')
+            ->margins(5, 3, 5, 3) // top, right, bottom, left
+            ->showBackground()
+            ->pdf(); // return PDF content
     }
     public function getEditData(PurchaseRequest $purchaseRequest): JsonResponse
     {
@@ -1001,6 +944,78 @@ public function viewPdf(PurchaseRequest $purchaseRequest)
             'message' => "Approval button not available: {$reason}",
             'showButton' => false,
             'requestType' => null,
+        ];
+    }
+
+    private function mapPurchaseRequestData(PurchaseRequest $purchaseRequest): array
+    {
+        $purchaseRequest->load([
+            'items.campuses',
+            'items.departments',
+            'approvals.responder',
+            'files',
+        ]);
+
+        $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
+
+        return [
+            'id' => $purchaseRequest->id,
+            'deadline_date' => $purchaseRequest->deadline_date 
+                ? Carbon::parse($purchaseRequest->deadline_date)->format('M d, Y') 
+                : null,
+            'purpose' => $purchaseRequest->purpose,
+            'is_urgent' => $purchaseRequest->is_urgent,
+            'creator_name' => $purchaseRequest->creator?->name,
+            'creator_position' => $purchaseRequest->creator->defaultPosition()?->title,
+            'creator_id_card' => $purchaseRequest->creator->card_number,
+            'creator_department' => $purchaseRequest->creator->defaultDepartment()?->name,
+            'creator_cellphone' => $purchaseRequest->creator->phone,
+            'request_date' => $purchaseRequest->request_date 
+                ? Carbon::parse($purchaseRequest->request_date)->format('M d, Y') 
+                : null,
+            'approval_status' => $purchaseRequest->approval_status,
+            'reference_no' => $purchaseRequest->reference_no,
+            'total_value_usd' => $purchaseRequest->items->where('currency', 'USD')->sum('total_price'),
+            'total_value_khr' => $purchaseRequest->items->where('currency', 'KHR')->sum('total_price'),
+
+            'items' => $purchaseRequest->items->map(fn($i) => [
+                'product_id' => $i->product_id,
+                'product_code' => $i->product->item_code,
+                'product_description' => $i->product->product->name . ' - ' . $i->product->description,
+                'unit_name' => $i->product->product->unit->name,
+                'quantity' => $i->quantity,
+                'unit_price' => $i->unit_price,
+                'currency' => $i->currency,
+                'exchange_rate' => $i->exchange_rate,
+                'description' => $i->description,
+                'campus_ids' => $i->campuses->pluck('id')->toArray(),
+                'department_ids' => $i->departments->pluck('id')->toArray(),
+                'campus_short_names' => $i->campuses->pluck('short_name')->implode(', '),
+                'department_short_names' => $i->departments->pluck('short_name')->implode(', '),
+                'budget_code_ref' => $i->budgetCode->reference_no,
+                'total_price' => $i->total_price,
+                'total_price_usd' => $i->total_price_usd,
+                'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
+            ]),
+
+            'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
+                'user_id' => $a->responder->id,
+                'name' => $a->responder->name,
+                'email' => $a->responder->email,
+                'request_type' => $a->request_type,
+            ] : null),
+
+            'approval_button_data' => $approvalButtonData,
+
+            'files' => $purchaseRequest->files->map(fn($f) => [
+                'id' => $f->id,
+                'name' => $f->sharepoint_file_name,
+                'reference' => $f->document_reference,
+                'sharepoint_file_id' => $f->sharepoint_file_id,
+                'sharepoint_file_name' => $f->sharepoint_file_name,
+                'sharepoint_drive_id' => $f->sharepoint_drive_id,
+                'url' => $f->url,
+            ]),
         ];
     }
 
