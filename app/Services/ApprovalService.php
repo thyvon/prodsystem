@@ -6,10 +6,54 @@ use App\Models\Approval;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 use Exception;
 
 class ApprovalService
 {
+
+    protected array $typeLabels = [
+    'initial' => 'Initialed By',
+    'check' => 'Checked By',
+    'approve' => 'Approved By',
+    'review' => 'Reviewed By',
+    // Add more types here
+    ];
+
+    
+    public function mapApprovals(Collection $approvals): Collection
+    {
+        return $approvals->map(function($a, $key) use ($approvals) {
+            if (!$a->responder) return null;
+
+            $sameTypeCount = $approvals->where('request_type', $a->request_type)->count();
+            $occurrences = $approvals
+                ->take($key + 1)
+                ->where('request_type', $a->request_type)
+                ->count();
+
+            $label = $this->typeLabels[$a->request_type] ?? ucfirst(str_replace('_', ' ', $a->request_type));
+            if ($sameTypeCount > 1 && $occurrences > 1) {
+                $label = 'Co-' . $label;
+            }
+
+            return [
+                'user_id' => $a->responder->id,
+                'user_profile_url' => $a->responder->profile_url,
+                'user_signature_url' => $a->responder->signature_url,
+                'name' => $a->responder->name,
+                'email' => $a->responder->email,
+                'request_type' => $a->request_type,
+                'approval_status' => $a->approval_status,
+                'position_id' => $a->position_id,
+                'position_title' => $a->responderPosition->title ?? 'N/A',
+                'ordinal' => $a->ordinal,
+                'responded_date' => $a->responded_date,
+                'comment' => $a->comment,
+                'request_type_label' => $label,
+            ];
+        });
+    }
     /* ---------------------- Create / Update ---------------------- */
 
     public function storeApproval(array $data): array

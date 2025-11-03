@@ -70,11 +70,11 @@
               <th class="text-center">#</th>
               <th>Product Code</th>
               <th>Product Description</th>
-              <th>Additional Description</th>
               <th>Unit</th>
               <th class="text-center">Qty</th>
               <th class="text-end">Unit Price</th>
               <th class="text-end">Total Price</th>
+              <th>Division</th>
               <th>Department</th>
               <th>Campus</th>
             </tr>
@@ -84,13 +84,13 @@
               <td class="text-center">{{ i + 1 }}</td>
               <td>{{ item.product_code ?? 'N/A' }}</td>
               <td>{{ item.product_description ?? 'N/A' }}</td>
-              <td>{{ item.additional_description ?? '-' }}</td>
               <td>{{ item.unit_name ?? 'N/A' }}</td>
               <td class="text-center">{{ format(item.quantity) }}</td>
               <td class="text-end">{{ format(item.unit_price) }}</td>
               <td class="text-end">{{ format(item.total_price) }} {{ item.currency }}</td>
-              <td><p>{{ item.campus_short_names }}</p></td>
+              <td><p>{{ item.division_short_names }}</p></td>
               <td><p>{{ item.department_short_names }}</p></td>
+              <td><p>{{ item.campus_short_names }}</p></td>
             </tr>
             <tr class="table-secondary">
             <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
@@ -156,28 +156,28 @@
           <!-- Approvals -->
           <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
-              <div class="card-body text-center">
-                <label class="font-weight-bold d-block">{{ approval.request_type_label || approval.request_type }} By</label>
+              <div class="card-body">
+                <label class="font-weight-bold d-block">{{ approval.request_type_label || approval.request_type }}</label>
                 <div class="d-flex align-items-center justify-content-center mb-2">
                   <img :src="approval.responder_profile_url" class="rounded-circle" width="50" height="50" />
                 </div>
-                <div class="font-weight-bold mb-1">{{ approval.name ?? 'N/A' }}</div>
+                <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
                 <div v-if="approval.status === 'Approved'" class="mb-2">
                   <img :src="approval.responder_signature_url" height="50" />
                 </div>
-                <p class="mb-1">
+                <p class="mb-1 text-start">
                   Status:
                   <span class="badge"
                         :class="{
-                          'badge-success': approval.status === 'Approved',
-                          'badge-danger': approval.status === 'Rejected',
-                          'badge-warning': approval.status === 'Pending',
-                          'badge-info': approval.status === 'Returned'
+                          'badge-success': approval.approval_status === 'Approved',
+                          'badge-danger': approval.approval_status === 'Rejected',
+                          'badge-warning': approval.approval_status === 'Pending',
+                          'badge-info': approval.approval_status === 'Returned'
                         }">
-                    <strong>{{ approval.status === 'Approved' ? 'Signed' : capitalize(approval.status) }}</strong>
+                    <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
                   </span>
                 </p>
-                <p class="mb-1">Position: {{ approval.position_name ?? 'N/A' }}</p>
+                <p class="mb-1">Position: {{ approval.position_title ?? 'N/A' }}</p>
                 <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
                 <p class="mb-0">Comment: {{ approval.comment ?? '-' }}</p>
               </div>

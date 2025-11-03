@@ -45,9 +45,35 @@
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .note { margin-top: 5px; font-size: 12px; line-height: 1.4; border: 1px solid #333232ff; padding: 5px; }
-        .signature-section { margin-top: 30px; display: flex; justify-content: space-between; text-align: center; }
-        .signature-box { width: 30%; }
-        .signature-line { margin-top: 50px; border-top: 1px solid #000; width: 80%; margin-left: auto; margin-right: auto; }
+        .signature-section {
+            margin-top: 30px;
+            display: flex;
+            flex-wrap: wrap; /* allows boxes to wrap to next row */
+            gap: 20px; /* spacing between boxes */
+        }
+
+        .signature-box {
+            flex: 1 1 calc((100% / 3) - 20px); /* 3 columns per row */
+            max-width: calc((100% / 3) - 20px); /* prevents boxes from exceeding 1/3 width */
+            min-width: 150px; /* ensures boxes aren’t too small on mobile */
+            text-align: left; /* align text to start */
+            margin-bottom: 20px; /* spacing for wrapped rows */
+        }
+
+        .signature-line {
+            margin-top: 50px;
+            height: 1px; /* fixed line thickness */
+            background-color: #413f3fff; /* line color */
+            width: 100%; /* always match box width */
+        }
+
+        .signature-image {
+            width: 100px;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+        }
+
     </style>
 </head>
 <body>
@@ -195,28 +221,32 @@
 <div class="signature-section">
     <!-- Requested by -->
     <div class="signature-box">
-        <div class="signature-line"></div>
+        @if(!empty($pr['creator_signature_url']))
+            <img src="{{ $pr['creator_signature_url'] }}" alt="Signature" class="signature-image">
+        @else
+            <div class="signature-line"></div>
+        @endif
+
         <strong>Requested by</strong><br>
-        {{ $pr['creator_name'] }}<br>
-        <small>{{ $pr['creator_position'] }}</small><br>
-        <small>Date: {{ $pr['request_date'] }}</small>
+        Name: {{ $pr['creator_name'] }}<br>
+        Position: {{ $pr['creator_position'] }}<br>
+        Date: {{ $pr['request_date'] }}
     </div>
 
-    <!-- Checked by -->
-    <div class="signature-box">
-        <div class="signature-line"></div>
-        <strong>Checked by</strong><br>
-        Rothanak Lim<br>
-        <small>Head of AIS Administration Department</small>
-    </div>
+    @foreach($pr['approvals'] as $approval)
+        <div class="signature-box">
+            @if(($approval['approval_status'] ?? '') === 'Approve' && !empty($approval['signature_url']))
+                <img src="{{ $approval['signature_url'] }}" alt="Signature" class="signature-image">
+            @else
+                <div class="signature-line"></div>
+            @endif
 
-    <!-- Approved by -->
-    <div class="signature-box">
-        <div class="signature-line"></div>
-        <strong>Approved by</strong><br>
-        Sarourn Hul<br>
-        <small>Head Principal</small>
-    </div>
+            <strong>{{ $approval['request_type_label'] ?? 'Approved by' }}</strong><br>
+            Name: {{ $approval['name'] ?? '' }}<br>
+            Position: {{ $approval['position_title'] ?? '' }}<br>
+            Date: {{ $approval['responded_date'] ?? '' }}
+        </div>
+    @endforeach
 </div>
 
 </body>

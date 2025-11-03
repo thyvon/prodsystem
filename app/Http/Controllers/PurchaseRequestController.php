@@ -968,6 +968,8 @@ class PurchaseRequestController extends Controller
             'creator_name' => $purchaseRequest->creator?->name,
             'creator_position' => $purchaseRequest->creator->defaultPosition()?->title,
             'creator_id_card' => $purchaseRequest->creator->card_number,
+            'creator_profile_url' => $purchaseRequest->creator->profile_url,
+            'creator_signature_url' => $purchaseRequest->creator->signature_url,
             'creator_department' => $purchaseRequest->creator->defaultDepartment()?->name,
             'creator_cellphone' => $purchaseRequest->creator->phone,
             'request_date' => $purchaseRequest->request_date 
@@ -981,13 +983,12 @@ class PurchaseRequestController extends Controller
             'items' => $purchaseRequest->items->map(fn($i) => [
                 'product_id' => $i->product_id,
                 'product_code' => $i->product->item_code,
-                'product_description' => $i->product->product->name . ' - ' . $i->product->description,
+                'product_description' => collect([optional($i->product->product)->name, $i->product->description, $i->description])->filter()->join(' '),
                 'unit_name' => $i->product->product->unit->name,
                 'quantity' => $i->quantity,
                 'unit_price' => $i->unit_price,
                 'currency' => $i->currency,
                 'exchange_rate' => $i->exchange_rate,
-                'description' => $i->description,
                 'campus_ids' => $i->campuses->pluck('id')->toArray(),
                 'department_ids' => $i->departments->pluck('id')->toArray(),
                 'campus_short_names' => $i->campuses->pluck('short_name')->implode(', '),
@@ -1003,13 +1004,7 @@ class PurchaseRequestController extends Controller
                 'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
             ]),
 
-            'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
-                'user_id' => $a->responder->id,
-                'name' => $a->responder->name,
-                'email' => $a->responder->email,
-                'request_type' => $a->request_type,
-            ] : null),
-
+            'approvals' => $this->approvalService->mapApprovals($purchaseRequest->approvals),
             'approval_button_data' => $approvalButtonData,
 
             'files' => $purchaseRequest->files->map(fn($f) => [
