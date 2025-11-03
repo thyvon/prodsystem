@@ -147,7 +147,7 @@
                 <td class="text-center">{{ $i + 1 }}</td>
                 <td>{{ $item['product_code'] }}</td>
                 <td>{{ $item['product_description'] }}</td>
-                <td class="text-center">AIS</td>
+                <td class="text-center">{{ $item['division_short_names'] }}</td>
                 <td class="text-center">{{ $item['department_short_names'] }}</td>
                 <td class="text-center">{{ $item['campus_short_names'] }}</td>
                 <td class="text-center">{{ $item['quantity'] }}</td>

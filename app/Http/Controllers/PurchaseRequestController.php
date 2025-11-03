@@ -991,6 +991,11 @@ class PurchaseRequestController extends Controller
                 'campus_ids' => $i->campuses->pluck('id')->toArray(),
                 'department_ids' => $i->departments->pluck('id')->toArray(),
                 'campus_short_names' => $i->campuses->pluck('short_name')->implode(', '),
+                'division_short_names' => $i->departments
+                ->map(fn($d) => $d->division?->short_name)
+                ->filter()
+                ->unique()
+                ->implode(', '),
                 'department_short_names' => $i->departments->pluck('short_name')->implode(', '),
                 'budget_code_ref' => $i->budgetCode->reference_no,
                 'total_price' => $i->total_price,
