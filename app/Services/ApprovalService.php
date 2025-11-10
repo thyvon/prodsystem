@@ -79,8 +79,6 @@ class ApprovalService
                 'responded_date'     => $data['approval_status'] === 'Approved' ? now() : null,
             ]);
 
-            Log::debug('Approval created', ['approval_id' => $approval->id]);
-
             return $this->jsonResponse(true, 'Approval created successfully', $approval);
         } catch (Exception $e) {
             Log::error('Failed to create approval', ['error' => $e->getMessage(), 'data' => $data]);
@@ -106,11 +104,6 @@ class ApprovalService
                 'approval_status' => $data['approval_status'],
                 'comment'         => $data['comment'] ?? $approval->comment,
                 'responded_date'  => now(),
-            ]);
-
-            Log::debug('Approval updated', [
-                'approval_id' => $approval->id,
-                'status'      => $data['approval_status'],
             ]);
 
             return $this->jsonResponse(true, 'Approval updated successfully', $approval);
@@ -227,10 +220,5 @@ class ApprovalService
         $newStatus = $anyRejected ? 'Rejected' : ($anyReturned ? 'Returned' : ($allApproved ? 'Approved' : 'Pending'));
 
         $approvable->update(['status' => $newStatus]);
-
-        Log::debug('Document status updated', [
-            'approvable_id' => $approvable->id,
-            'new_status'    => $newStatus
-        ]);
     }
 }
