@@ -184,6 +184,8 @@ class PurchaseRequestController extends Controller
         ])->render();
 
         return Browsershot::html($html)
+            ->noSandbox() // ✅ disable Chromium sandbox (required in Docker)
+            ->setOption('args', ['--disable-dev-shm-usage']) // ✅ prevent memory issue
             ->format('A4')
             ->margins(5, 3, 5, 3) // top, right, bottom, left
             ->showBackground()
