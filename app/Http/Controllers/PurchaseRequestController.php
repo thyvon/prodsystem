@@ -719,7 +719,6 @@ class PurchaseRequestController extends Controller
                     'user_id' => $approval['user_id'],
                     'error' => $e->getMessage(),
                 ]);
-                // continue to next approval
             }
         }
     }
