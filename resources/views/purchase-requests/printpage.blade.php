@@ -90,7 +90,7 @@
     <div class="title-section" style="text-align: center; position: absolute; left: 50%; top: 0; transform: translateX(-50%);">
         <h3>សំណើទិញសម្ភារ</h3>
         <h3>Purchase Request</h3>
-        <div class="sub-title">{{ $pr['is_urgent'] == 1 ? 'Urgent' : 'Non-Urgent' }}</div>
+        <div class="sub-title">{{ $pr['is_urgent'] == 1 ? 'Urgent' : '' }}</div>
     </div>
 
     <!-- Right: Form Info + PR Info stacked -->

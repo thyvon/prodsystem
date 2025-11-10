@@ -56,9 +56,6 @@ class ApprovalController extends Controller
                 'position_id'       => $data['position_id'] ?? null,
                 'responded_date'    => $data['approval_status'] === 'Approved' ? now() : null,
             ]);
-
-            Log::debug('Approval created', ['approval_id' => $approval->id]);
-
             return $this->jsonResponse(true, 'Approval created successfully', $approval);
         } catch (\Exception $e) {
             Log::error('Failed to create approval', ['error' => $e->getMessage(), 'data' => $data]);
