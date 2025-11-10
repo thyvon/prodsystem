@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use App\Models\Approval;
 
@@ -16,110 +15,64 @@ class SharePendingApprovalCount
         $user = Auth::user();
         $pendingCount = 0;
         $pendingList = collect();
+        $unseenCount = 0; // 👈 unseen only counter
+        $unseenList = collect(); // 👈 unseen only list
 
         if ($user) {
-            if ($user->hasRole('admin')) {
-                $rawApprovals = Approval::where('approval_status', 'Pending')
-                    ->with(['requester:id,name,profile_url', 'responder:id,name,profile_url'])
-                    ->latest()
+            $rawApprovals = Approval::where('approval_status', 'Pending')
+                ->where('responder_id', $user->id)
+                ->with(['requester:id,name,profile_url', 'responder:id,name,profile_url'])
+                ->get();
+
+            $filtered = $rawApprovals->filter(function ($approval) {
+                $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
+                    ->where('approvable_id', $approval->approvable_id)
+                    ->orderBy('ordinal')
+                    ->orderBy('id')
                     ->get();
 
-                $filtered = $rawApprovals->filter(function ($approval) {
-                    $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
-                        ->where('approvable_id', $approval->approvable_id)
-                        ->orderBy('ordinal')
-                        ->orderBy('id')
-                        ->get();
-
-                    $previous = $allApprovals->filter(function ($a) use ($approval) {
-                        return ($a->ordinal < $approval->ordinal) ||
-                            ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
-                    });
-
-                    // Exclude if any previous is Pending
-                    if ($previous->firstWhere('approval_status', 'Pending')) {
-                        return false;
-                    }
-
-                    // Exclude if any previous is Rejected
-                    if ($previous->firstWhere('approval_status', 'Rejected')) {
-                        return false;
-                    }
-
-                    // Exclude if any previous is Returned
-                    if ($previous->firstWhere('approval_status', 'Returned')) {
-                        return false;
-                    }
-
-                    return true;
+                $previous = $allApprovals->filter(function ($a) use ($approval) {
+                    return ($a->ordinal < $approval->ordinal) ||
+                        ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
                 });
 
-                $pendingCount = $filtered->count();
+                if ($previous->firstWhere('approval_status', 'Pending')
+                    || $previous->firstWhere('approval_status', 'Rejected')
+                    || $previous->firstWhere('approval_status', 'Returned')) {
+                    return false;
+                }
 
-                $pendingList = $filtered->take(10)->map(function ($approval) {
-                    return $this->mapWithRoute($approval);
-                });
-            } else {
-                $rawApprovals = Approval::where('approval_status', 'Pending')
-                    ->where('responder_id', $user->id)
-                    ->with(['requester:id,name', 'responder:id,name'])
-                    ->get();
-
-                $filtered = $rawApprovals->filter(function ($approval) {
-                    $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
-                        ->where('approvable_id', $approval->approvable_id)
-                        ->orderBy('ordinal')
-                        ->orderBy('id')
-                        ->get();
-
-                    // Get all previous steps by ordinal and id
-                    $previous = $allApprovals->filter(function ($a) use ($approval) {
-                        return ($a->ordinal < $approval->ordinal) ||
-                            ($a->ordinal === $approval->ordinal && $a->id < $approval->id);
-                    });
-
-                    // Exclude if any previous is Pending
-                    if ($previous->firstWhere('approval_status', 'Pending')) {
-                        return false;
-                    }
-
-                    // Exclude if any previous is Rejected
-                    if ($previous->firstWhere('approval_status', 'Rejected')) {
-                        return false;
-                    }
-
-                    // Exclude if any previous is Returned
-                    if ($previous->firstWhere('approval_status', 'Returned')) {
-                        return false;
-                    }
-
-                    // Keep only the first duplicate (same ordinal + type + pending status)
-                    $duplicates = $allApprovals->filter(function ($a) use ($approval) {
-                        return $a->ordinal === $approval->ordinal &&
-                            $a->request_type === $approval->request_type &&
-                            $a->approval_status === 'Pending';
-                    });
-
-                    $firstDuplicate = $duplicates->sortBy('id')->first();
-                    return $firstDuplicate && $firstDuplicate->id === $approval->id;
+                $duplicates = $allApprovals->filter(function ($a) use ($approval) {
+                    return $a->ordinal === $approval->ordinal &&
+                        $a->request_type === $approval->request_type &&
+                        $a->approval_status === 'Pending';
                 });
 
-                $pendingCount = $filtered->count();
+                $firstDuplicate = $duplicates->sortBy('id')->first();
+                return $firstDuplicate && $firstDuplicate->id === $approval->id;
+            });
 
-                $pendingList = $filtered->sortByDesc('created_at')->take(10)->map(function ($approval) {
-                    return $this->mapWithRoute($approval);
-                });
-            }
+            $pendingCount = $filtered->count();
+
+            // unseen (is_seen = false) only
+            $unseenFiltered = $filtered->where('is_seen', false);
+            $unseenCount = $unseenFiltered->count();
+
+            $pendingList = $filtered->sortByDesc('created_at')->take(10)->map(fn($a) => $this->mapWithRoute($a));
+            $unseenList = $unseenFiltered->sortByDesc('created_at')->take(10)->map(fn($a) => $this->mapWithRoute($a));
         }
 
-        // Share to all views
+        // Share globally
         View::share([
             'pendingApprovalCount' => $pendingCount,
             'pendingApprovalsList' => $pendingList,
+            'unseenApprovalCount'  => $unseenCount,
+            'unseenApprovalsList'  => $unseenList,
         ]);
 
         return $next($request);
     }
+
     /**
      * Map approval with route URL for viewing.
      */

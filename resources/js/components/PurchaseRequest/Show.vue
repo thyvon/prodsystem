@@ -135,35 +135,49 @@
       <div class="mt-4">
         <div class="row justify-content-center">
           <!-- Requested By -->
-          <div class="col-md-3 mb-4">
+          <div class="col-md-4 mb-4">
             <div class="card border shadow-sm h-100">
-              <div class="card-body text-center">
-                <label class="font-weight-bold d-block">Requested By</label>
+              <div class="card-body">
+                <label class="font-weight-bold d-block text-center">Requested By</label>
                 <div class="d-flex align-items-center justify-content-center mb-2">
-                  <img :src="purchaseRequest.creator?.profile_url" class="rounded-circle" width="50" height="50" />
+                  <img
+                      :src="purchaseRequest.creator_profile_url ? '/storage/' + purchaseRequest.creator_profile_url : '/images/default-avatar.png'"
+                      class="rounded-circle"
+                      width="50"
+                      height="50"
+                  />
                 </div>
-                <div class="font-weight-bold mb-1">{{ purchaseRequest.creator?.name ?? 'N/A' }}</div>
+                <div class="font-weight-bold mb-1">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
                 <div v-if="purchaseRequest.creator?.signature_url" class="mb-2">
                   <img :src="purchaseRequest.creator.signature_url" height="50" />
                 </div>
                 <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
-                <p class="mb-1">Position: {{ purchaseRequest.creator_position?.title ?? 'N/A' }}</p>
-                <p class="mb-0">Date: {{ formatDate(purchaseRequest.created_at) }}</p>
+                <p class="mb-1">Position: {{ purchaseRequest.creator_position ?? 'N/A' }}</p>
+                <p class="mb-0">Date: {{ formatDate(purchaseRequest.request_date) }}</p>
               </div>
             </div>
           </div>
 
           <!-- Approvals -->
-          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-3 mb-4">
+          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-4 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
-                <label class="font-weight-bold d-block">{{ approval.request_type_label || approval.request_type }}</label>
+                <label class="font-weight-bold d-block text-center">{{ approval.request_type_label || approval.request_type }}</label>
                 <div class="d-flex align-items-center justify-content-center mb-2">
-                  <img :src="approval.responder_profile_url" class="rounded-circle" width="50" height="50" />
+                  <img
+                    :src="approval.user_profile_url
+                      ? (approval.user_profile_url.startsWith('http')
+                          ? approval.user_profile_url
+                          : '/storage/' + approval.user_profile_url)
+                      : '/images/default-avatar.png'"
+                    class="rounded-circle"
+                    width="50"
+                    height="50"
+                  />
                 </div>
                 <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
-                <div v-if="approval.status === 'Approved'" class="mb-2">
-                  <img :src="approval.responder_signature_url" height="50" />
+                <div v-if="approval.approvalstatus === 'Approved'" class="mb-2">
+                  <img :src="approval.user_signature_url" height="50" />
                 </div>
                 <p class="mb-1 text-start">
                   Status:

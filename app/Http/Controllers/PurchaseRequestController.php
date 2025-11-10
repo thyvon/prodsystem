@@ -157,6 +157,15 @@ class PurchaseRequestController extends Controller
             $this->authorize('update', $purchaseRequest);
             $data = $this->mapPurchaseRequestData($purchaseRequest);
 
+            // ✅ If approval button is visible, mark as seen
+            if ($data['approval_button_data']) {
+                $purchaseRequest->approvals()
+                    ->where('responder_id', auth()->id())
+                    ->where('approval_status', 'Pending')
+                    ->where('is_seen', false)
+                    ->update(['is_seen' => true]);
+            }
+
             return response()->json([
                 'message' => 'Purchase request retrieved successfully.',
                 'data' => $data,
@@ -866,7 +875,7 @@ class PurchaseRequestController extends Controller
         }
     }
 
-        private function canShowApprovalButton(int $documentId): array
+    private function canShowApprovalButton(int $documentId): array
     {
         try {
             $userId = auth()->id();

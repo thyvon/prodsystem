@@ -46,25 +46,28 @@
 
     <a href="#" class="header-icon" data-toggle="dropdown" title="Notifications">
         <i class="fal fa-bell"></i>
-        @if($pendingApprovalCount > 0)
-            <span class="badge badge-icon">{{ $pendingApprovalCount }}</span>
+        @if($unseenApprovalCount > 0)
+            <span class="badge badge-icon">{{ $unseenApprovalCount }}</span>
         @endif
     </a>
 
     <div class="dropdown-menu dropdown-menu-animated dropdown-xl">
         <div class="dropdown-header bg-trans-gradient d-flex justify-content-center align-items-center rounded-top mb-2">
             <h4 class="m-0 text-center text-white">
-                {{ $pendingApprovalCount }} New
+                {{ $unseenApprovalCount }} New
                 <small class="opacity-80">Notifications</small>
             </h4>
         </div>
 
-        <div class="list-group list-group-flush">
-            @forelse($pendingApprovalsList as $item)
+        {{-- Scrollable container --}}
+        <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+            @forelse($unseenApprovalsList as $item)
                 <a href="{{ $item['route_url'] }}" class="list-group-item list-group-item-action d-flex align-items-center">
-                    {{-- Demo static placeholder avatar --}}
-                    <img src="{{ $item['requester_photo'] }}" alt="Requester Photo" class="rounded-circle mr-2" style="width: 50px; height: 50px; object-fit: cover;">
-                    
+                    <img src="{{ asset('storage/' . $item['requester_photo']) }}" 
+                        alt="Requester Photo" 
+                        class="rounded-circle mr-2" 
+                        style="width: 50px; height: 50px; object-fit: cover;">
+
                     <div>
                         <strong>{{ $item['document_name'] }}</strong><br>
                         Ref: {{ $item['document_reference'] }}<br>
