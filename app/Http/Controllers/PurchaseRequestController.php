@@ -327,21 +327,22 @@ class PurchaseRequestController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate($this->validationRules());
-
         $sharePoint = new SharePointService($user);
 
         try {
             return DB::transaction(function () use ($validated, $request, $sharePoint, $user) {
 
+                // --------------------
+                // Generate reference number
+                // --------------------
                 $referenceNo = $this->generateReferenceNo();
-                $folderPath = $this->getSharePointFolderPath($referenceNo);
 
                 // --------------------
-                // Create Purchase Request first
+                // Create Purchase Request
                 // --------------------
                 $purchaseRequest = PurchaseRequest::create([
                     'reference_no' => $referenceNo,
-                    'request_date' => now()->format('Y-m-d'),
+                    'request_date' => $validated['request_date'] ?? now()->format('Y-m-d'),
                     'deadline_date' => $validated['deadline_date'] ?? null,
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
@@ -350,14 +351,18 @@ class PurchaseRequestController extends Controller
                 ]);
 
                 // --------------------
+                // SharePoint folder path
+                // --------------------
+                $folderPath = $this->getSharePointFolderPath($purchaseRequest);
+
+                // --------------------
                 // Handle uploaded files
                 // --------------------
                 if ($request->hasFile('file')) {
-                    $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
-                    $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
+                    $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
                     $counter = $purchaseRequest->files()->count() + 1;
 
-                    foreach ($newFiles as $file) {
+                    foreach ($files as $file) {
                         if (!$file) continue;
 
                         $ext = strtoupper($file->getClientOriginalExtension());
@@ -365,20 +370,19 @@ class PurchaseRequestController extends Controller
                         $unique = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
                         $index = str_pad($counter, 2, '0', STR_PAD_LEFT);
 
-                        // 🔹 Example: PR001-AB12-01-QUOTATION.PDF
                         $safeName = preg_replace('/[^A-Z0-9_\-]/', '_', $name);
-                        $fileName = strtoupper("{$purchaseRequest->reference_no}-{$unique}-{$index}-{$safeName}.{$ext}");
+                        $fileName = "{$purchaseRequest->reference_no}-{$unique}-{$index}-{$safeName}.{$ext}";
 
                         $result = $sharePoint->uploadFile(
                             $file,
                             $folderPath,
                             ['Title' => 'PURCHASE REQUEST DOCUMENT'],
-                            $fileName,
+                            strtoupper($fileName),
                             self::CUSTOM_DRIVE_ID
                         );
 
                         if (!$result) {
-                            throw new \Exception("FAILED TO UPLOAD FILE: {$fileName}");
+                            throw new \Exception("Failed to upload file: {$fileName}");
                         }
 
                         $this->storeDocuments($purchaseRequest, [$result]);
@@ -387,9 +391,9 @@ class PurchaseRequestController extends Controller
                 }
 
                 // --------------------
-                // Prepare and store items
+                // Handle Purchase Request Items
                 // --------------------
-                foreach ($validated['items'] as $item) {
+                foreach ($validated['items'] ?? [] as $item) {
                     $totalPrice = $item['quantity'] * $item['unit_price'];
                     $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
                         ? $totalPrice / $item['exchange_rate']
@@ -408,24 +412,28 @@ class PurchaseRequestController extends Controller
                         'budget_code_id' => $item['budget_code_id'] ?? null,
                     ]);
 
-                    $campusCount = count($item['campus_ids']);
-                    $departmentCount = count($item['department_ids']);
-                    $perCampusUsd = $totalPriceUsd / $campusCount;
-                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+                    // Calculate per campus/department
+                    $campusCount = count($item['campus_ids'] ?? []);
+                    $departmentCount = count($item['department_ids'] ?? []);
 
-                    $campusPivotData = array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]);
+                    $perCampusUsd = $campusCount ? $totalPriceUsd / $campusCount : 0;
+                    $perDepartmentUsd = $departmentCount ? $totalPriceUsd / $departmentCount : 0;
+
+                    $campusPivotData = array_fill_keys($item['campus_ids'] ?? [], ['total_usd' => $perCampusUsd]);
                     $purchaseRequestItem->campuses()->sync($campusPivotData);
 
-                    $departmentPivotData = array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]);
+                    $departmentPivotData = array_fill_keys($item['department_ids'] ?? [], ['total_usd' => $perDepartmentUsd]);
                     $purchaseRequestItem->departments()->sync($departmentPivotData);
                 }
 
                 // --------------------
                 // Store approvals
                 // --------------------
-                $this->storeApprovals($purchaseRequest, $validated['approvals']);
+                $this->storeApprovals($purchaseRequest, $validated['approvals'] ?? []);
 
-                // All succeeded, return
+                // --------------------
+                // Return success
+                // --------------------
                 return response()->json([
                     'message' => 'Purchase request created successfully.',
                     'data' => $purchaseRequest->load('items', 'approvals.responder'),
@@ -446,7 +454,6 @@ class PurchaseRequestController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate($this->validationRules($purchaseRequest));
-
         $sharePoint = new SharePointService($user);
 
         try {
@@ -460,6 +467,11 @@ class PurchaseRequestController extends Controller
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
                 ]);
+
+                // --------------------
+                // SharePoint folder path based on request_date
+                // --------------------
+                $folderPath = $this->getSharePointFolderPath($purchaseRequest);
 
                 // --------------------
                 // Handle file deletions
@@ -481,7 +493,6 @@ class PurchaseRequestController extends Controller
                 // --------------------
                 if ($request->hasFile('file')) {
                     $newFiles = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
-                    $folderPath = $this->getSharePointFolderPath($purchaseRequest->reference_no);
                     $counter = $purchaseRequest->files()->count() + 1;
 
                     foreach ($newFiles as $file) {
@@ -492,7 +503,6 @@ class PurchaseRequestController extends Controller
                         $unique = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
                         $index = str_pad($counter, 2, '0', STR_PAD_LEFT);
 
-                        // 🔹 Example: PR001-AB12-01-QUOTATION.PDF
                         $safeName = preg_replace('/[^A-Z0-9_\-]/', '_', $name);
                         $fileName = strtoupper("{$purchaseRequest->reference_no}-{$unique}-{$index}-{$safeName}.{$ext}");
 
@@ -512,16 +522,17 @@ class PurchaseRequestController extends Controller
                         $counter++;
                     }
                 }
+
                 // --------------------
                 // Update items (smart update)
                 // --------------------
                 $existingItemIds = $purchaseRequest->items()->pluck('id')->toArray();
-                $submittedItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
+                $submittedItemIds = collect($validated['items'] ?? [])->pluck('id')->filter()->toArray();
 
                 $itemsToDelete = array_diff($existingItemIds, $submittedItemIds);
                 PurchaseRequestItem::destroy($itemsToDelete);
 
-                foreach ($validated['items'] as $item) {
+                foreach ($validated['items'] ?? [] as $item) {
                     $totalPrice = $item['quantity'] * $item['unit_price'];
                     $totalPriceUsd = ($item['currency'] ?? null) === 'KHR' && !empty($item['exchange_rate'])
                         ? $totalPrice / $item['exchange_rate']
@@ -555,20 +566,20 @@ class PurchaseRequestController extends Controller
                         ]);
                     }
 
-                    $campusCount = count($item['campus_ids']);
-                    $departmentCount = count($item['department_ids']);
-                    $perCampusUsd = $totalPriceUsd / $campusCount;
-                    $perDepartmentUsd = $totalPriceUsd / $departmentCount;
+                    $campusCount = count($item['campus_ids'] ?? []);
+                    $departmentCount = count($item['department_ids'] ?? []);
+                    $perCampusUsd = $campusCount ? $totalPriceUsd / $campusCount : 0;
+                    $perDepartmentUsd = $departmentCount ? $totalPriceUsd / $departmentCount : 0;
 
-                    $itemModel->campuses()->sync(array_fill_keys($item['campus_ids'], ['total_usd' => $perCampusUsd]));
-                    $itemModel->departments()->sync(array_fill_keys($item['department_ids'], ['total_usd' => $perDepartmentUsd]));
+                    $itemModel->campuses()->sync(array_fill_keys($item['campus_ids'] ?? [], ['total_usd' => $perCampusUsd]));
+                    $itemModel->departments()->sync(array_fill_keys($item['department_ids'] ?? [], ['total_usd' => $perDepartmentUsd]));
                 }
 
                 // --------------------
                 // Replace approvals
                 // --------------------
                 $purchaseRequest->approvals()->delete();
-                $this->storeApprovals($purchaseRequest, $validated['approvals']);
+                $this->storeApprovals($purchaseRequest, $validated['approvals'] ?? []);
 
                 return response()->json([
                     'message' => 'Purchase request updated successfully.',
@@ -583,7 +594,6 @@ class PurchaseRequestController extends Controller
             ], 500);
         }
     }
-
 
     public function destroy(PurchaseRequest $purchaseRequest): JsonResponse
     {
@@ -679,12 +689,14 @@ class PurchaseRequestController extends Controller
         return $rules;
     }
 
-    private function getSharePointFolderPath(string $documentReference): string
+    private function getSharePointFolderPath(PurchaseRequest $purchaseRequest): string
     {
-        $year = now()->format('Y');
-        $monthNumber = now()->format('m');
-        $monthName = now()->format('M');
-        return "PurchaseRequest/{$year}/{$monthNumber}-{$monthName}/{$documentReference}";
+        $date = \Carbon\Carbon::parse($purchaseRequest->request_date);
+        $year = $date->format('Y');
+        $monthNumber = $date->format('m');
+        $monthName = $date->format('M');
+
+        return "PurchaseRequest/{$year}/{$monthNumber}-{$monthName}/{$purchaseRequest->reference_no}";
     }
 
     private function generateReferenceNo(): string
