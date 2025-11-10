@@ -71,4 +71,5 @@ volumes:
 
 networks:
   laravel:
-    driver: bridge
+    name: prodsystem_laravel
+    external: true

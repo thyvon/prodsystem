@@ -15,6 +15,11 @@ RUN apk add --no-cache \
     oniguruma-dev \
     nodejs \
     npm \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install pdo_mysql mbstring intl gd zip opcache \
     && apk del icu-dev oniguruma-dev
@@ -27,6 +32,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Expose PHP-FPM port
 EXPOSE 9000
