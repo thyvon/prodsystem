@@ -45,33 +45,49 @@
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .note { margin-top: 5px; font-size: 12px; line-height: 1.4; border: 1px solid #333232ff; padding: 5px; }
+                
         .signature-section {
             margin-top: 30px;
             display: flex;
-            flex-wrap: wrap; /* allows boxes to wrap to next row */
+            flex-wrap: wrap;
             gap: 20px; /* spacing between boxes */
         }
 
         .signature-box {
-            flex: 1 1 calc((100% / 3) - 20px); /* 3 columns per row */
-            max-width: calc((100% / 3) - 20px); /* prevents boxes from exceeding 1/3 width */
-            min-width: 150px; /* ensures boxes aren’t too small on mobile */
-            text-align: left; /* align text to start */
-            margin-bottom: 20px; /* spacing for wrapped rows */
+            flex: 1 1 calc((100% / 3) - 20px); /* 3 boxes per row */
+            max-width: calc((100% / 3) - 20px);
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* keep content at top */
+            height: 115px; /* fixed height */
+            box-sizing: border-box;
+            margin-bottom: 10px;
         }
 
-        .signature-line {
-            margin-top: 50px;
-            height: 1px; /* fixed line thickness */
-            background-color: #413f3fff; /* line color */
-            width: 100%; /* always match box width */
+        .signature-image-box {
+            height: 50px; /* fixed height for signature image */
+            display: flex;
+            justify-content: center; /* center the image horizontally */
+            align-items: center;     /* center the image vertically */
+            margin-bottom: 5px;
+            border: 1px dashed transparent; /* optional: for debug or alignment */
         }
 
         .signature-image {
-            width: 100px;
-            height: auto;
-            display: block;
-            margin-bottom: 10px;
+            max-width: 100px;
+            max-height: 50px;
+        }
+
+        .signature-line {
+            height: 1px;
+            background-color: #333232ff;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .signature-info {
+            font-size: 10px;
         }
 
     </style>
@@ -221,33 +237,37 @@
 <div class="signature-section">
     <!-- Requested by -->
     <div class="signature-box">
-        @if(!empty($pr['creator_signature_url']))
-            <img src="{{ $pr['creator_signature_url'] }}" alt="Signature" class="signature-image">
-        @else
-            <div class="signature-line"></div>
-        @endif
-
-        <strong>Requested by</strong><br>
-        Name: {{ $pr['creator_name'] }}<br>
-        Position: {{ $pr['creator_position'] }}<br>
-        Date: {{ $pr['request_date'] }}
+        <div class="signature-image-box">
+            @if (!empty($pr['creator_signature_url']))
+                <img src="{{ public_path('storage/' . $pr['creator_signature_url']) }}" alt="Signature" class="signature-image">
+            @endif
+        </div>
+        <div class="signature-line"></div>
+        <div class="signature-info">
+            <strong>Requested by</strong><br>
+            Name: {{ $pr['creator_name'] }}<br>
+            Position: {{ $pr['creator_position'] }}<br>
+            Date: {{ $pr['request_date'] }}
+        </div>
     </div>
 
+    <!-- Approval signatures -->
     @foreach($pr['approvals'] as $approval)
         <div class="signature-box">
-            @if(($approval['approval_status'] ?? '') === 'Approve' && !empty($approval['signature_url']))
-                <img src="{{ $approval['signature_url'] }}" alt="Signature" class="signature-image">
-            @else
-                <div class="signature-line"></div>
-            @endif
-
-            <strong>{{ $approval['request_type_label'] ?? 'Approved by' }}</strong><br>
-            Name: {{ $approval['name'] ?? '' }}<br>
-            Position: {{ $approval['position_title'] ?? '' }}<br>
-            Date: {{ $approval['responded_date'] ?? '' }}
+            <div class="signature-image-box">
+                @if(($approval['approval_status'] ?? '') === 'Approved' && !empty($approval['user_signature_url']))
+                    <img src="{{ public_path('storage/' . $approval['user_signature_url']) }}" alt="Signature" class="signature-image">
+                @endif
+            </div>
+            <div class="signature-line"></div>
+            <div class="signature-info">
+                <strong>{{ $approval['request_type_label'] ?? 'Approved by' }}</strong><br>
+                Name: {{ $approval['name'] ?? '' }}<br>
+                Position: {{ $approval['position_title'] ?? '' }}<br>
+                Date: {{ $approval['responded_date'] ?? '' }}
+            </div>
         </div>
     @endforeach
 </div>
-
 </body>
 </html>

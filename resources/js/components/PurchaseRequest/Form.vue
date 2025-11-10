@@ -66,52 +66,6 @@
                     </div>
                   </div>
 
-                  <!-- Attachment -->
-                  <div class="form-group col-12">
-                    <label class="font-weight-bold">📎 Attachment</label>
-                    <div class="input-group mb-2">
-                      <input 
-                        type="file" 
-                        class="d-none" 
-                        ref="attachmentInput" 
-                        multiple 
-                        accept=".pdf,.doc,.docx,.jpg,.png"
-                        @change="onFileChange"
-                      />
-                      <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.attachmentInput.click()">
-                        <i class="fal fa-file-upload"></i> {{ fileLabel }}
-                      </button>
-                    </div>
-
-                    <!-- Existing Files -->
-                    <div v-if="existingFileUrls.length">
-                      <small class="text-muted">Existing Files:</small>
-                      <div v-for="(file, i) in existingFileUrls" :key="file.id" class="d-flex align-items-center mb-1">
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-outline-info me-1"
-                          @click="openFileViewer(file.url, file.name)"
-                        >
-                          📄 {{ file.name }}
-                        </button>
-                        <button type="button" class="btn btn-sm btn-danger" @click="removeFile(i, true)">
-                          <i class="fal fa-trash"></i>
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- New Files -->
-                    <div v-if="newFiles.length">
-                      <small class="text-muted">New Files:</small>
-                      <div v-for="(f, i) in newFiles" :key="i" class="d-flex align-items-center mb-1">
-                        <span class="mr-2">📄 {{ f.name }}</span>
-                        <button type="button" class="btn btn-sm btn-danger" @click="removeNewFile(i)">
-                          <i class="fal fa-trash"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
                   <!-- Purpose -->
                   <div class="form-group col-12 mt-2">
                     <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
@@ -218,7 +172,55 @@
             </div>
           </div>
 
-          <!-- ROW 3: Approvals -->
+          <!-- ROW 3: Attachments -->
+          <div class="border rounded p-3 mb-4">
+                  <div class="form-group col-12">
+                    <label class="font-weight-bold">📎 Attachment</label>
+                    <div class="input-group mb-2">
+                      <input 
+                        type="file" 
+                        class="d-none" 
+                        ref="attachmentInput" 
+                        multiple 
+                        accept=".pdf,.doc,.docx,.jpg,.png"
+                        @change="onFileChange"
+                      />
+                      <button type="button" class="btn btn-outline-secondary flex-fill" @click="$refs.attachmentInput.click()">
+                        <i class="fal fa-file-upload"></i> {{ fileLabel }}
+                      </button>
+                    </div>
+
+                    <!-- Existing Files -->
+                    <div v-if="existingFileUrls.length">
+                      <small class="text-muted">Existing Files:</small>
+                      <div v-for="(file, i) in existingFileUrls" :key="file.id" class="d-flex align-items-center mb-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-info me-1"
+                          @click="openFileViewer(file.url, file.name)"
+                        >
+                          📄 {{ file.name }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" @click="removeFile(i, true)">
+                          <i class="fal fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- New Files -->
+                    <div v-if="newFiles.length">
+                      <small class="text-muted">New Files:</small>
+                      <div v-for="(f, i) in newFiles" :key="i" class="d-flex align-items-center mb-1">
+                        <span class="mr-2">📄 {{ f.name }}</span>
+                        <button type="button" class="btn btn-sm btn-danger" @click="removeNewFile(i)">
+                          <i class="fal fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+          </div>
+
+          <!-- ROW 4: Approvals -->
           <div class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">✅ Approvals ({{ form.approvals.length }})</h5>
             <div class="table-responsive">

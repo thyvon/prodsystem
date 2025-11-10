@@ -77,6 +77,7 @@
               <th>Division</th>
               <th>Department</th>
               <th>Campus</th>
+              <th>Budget Code</th>
             </tr>
           </thead>
           <tbody>
@@ -91,6 +92,7 @@
               <td><p>{{ item.division_short_names }}</p></td>
               <td><p>{{ item.department_short_names }}</p></td>
               <td><p>{{ item.campus_short_names }}</p></td>
+              <td><p>{{ item.budget_code_ref ?? 'N/A' }}</p></td>
             </tr>
             <tr class="table-secondary">
             <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
@@ -107,30 +109,30 @@
       </div>
 
       <!-- Attachement -->
-      <div class="mt-4">
-        <div class="row">
-          <div class="col-12">
-            <h5 class="text-primary font-weight-bold mb-3">Attachments</h5>
-            <div class="card border shadow-sm">
-              <div class="card-body">
-                <div class="row">
-                  <div class="col-12">
-                    <button
-                      v-for="attachment in purchaseRequest.files"
-                      :key="attachment.id"
-                      type="button"
-                      class="btn btn-sm btn-outline-info m-1"
-                      @click="openFileViewer(attachment.url, attachment.name)"
-                    >
-                      📄 {{ attachment.name }}
-                    </button>
-                  </div>
-                </div>
+  <div class="mt-4" v-if="purchaseRequest.files && purchaseRequest.files.length > 0">
+    <div class="row">
+      <div class="col-12">
+        <h5 class="text-primary font-weight-bold mb-3">Attachments</h5>
+        <div class="card border shadow-sm">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-12">
+                <button
+                  v-for="attachment in purchaseRequest.files"
+                  :key="attachment.id"
+                  type="button"
+                  class="btn btn-sm btn-outline-info m-1"
+                  @click="openFileViewer(attachment.url, attachment.name)"
+                >
+                  📄 {{ attachment.name }}
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  </div>
       <!-- Requested & Approval Cards -->
       <div class="mt-4">
         <div class="row justify-content-center">
@@ -147,9 +149,12 @@
                       height="50"
                   />
                 </div>
-                <div class="font-weight-bold mb-1">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
-                <div v-if="purchaseRequest.creator?.signature_url" class="mb-2">
-                  <img :src="purchaseRequest.creator.signature_url" height="50" />
+                <div class="font-weight-bold mb-1 text-center">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
+                <div v-if="purchaseRequest.creator_signature_url" class="mb-2 mt-2 text-center">
+                  <img
+                    :src="'/storage/' + purchaseRequest.creator_signature_url"
+                    height="50"
+                  />
                 </div>
                 <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
                 <p class="mb-1">Position: {{ purchaseRequest.creator_position ?? 'N/A' }}</p>
@@ -165,19 +170,15 @@
                 <label class="font-weight-bold d-block text-center">{{ approval.request_type_label || approval.request_type }}</label>
                 <div class="d-flex align-items-center justify-content-center mb-2">
                   <img
-                    :src="approval.user_profile_url
-                      ? (approval.user_profile_url.startsWith('http')
-                          ? approval.user_profile_url
-                          : '/storage/' + approval.user_profile_url)
-                      : '/images/default-avatar.png'"
+                    :src="approval.user_profile_url ? `/storage/${approval.user_profile_url}` : '/images/default-avatar.png'"
                     class="rounded-circle"
                     width="50"
                     height="50"
                   />
                 </div>
                 <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
-                <div v-if="approval.approvalstatus === 'Approved'" class="mb-2">
-                  <img :src="approval.user_signature_url" height="50" />
+                <div v-if="approval.approval_status === 'Approved'" class="mb-2 mt-2 text-center">
+                  <img :src="approval.user_signature_url ? `/storage/${approval.user_signature_url}` : ''" height="50" />
                 </div>
                 <p class="mb-1 text-start">
                   Status:
@@ -193,7 +194,9 @@
                 </p>
                 <p class="mb-1">Position: {{ approval.position_title ?? 'N/A' }}</p>
                 <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
-                <p class="mb-0">Comment: {{ approval.comment ?? '-' }}</p>
+                <p v-if="approval.comment && approval.comment.trim()" class="mb-0">
+                  Comment: {{ approval.comment }}
+                </p>
               </div>
             </div>
           </div>
@@ -367,7 +370,7 @@ const openPdfViewer = (purchaseRequestId) => {
 const openReassignModal = async () => {
   loading.value = true
   try {
-    const res = await axios.get('/api/purchase-requests/get-users-for-approval', { params: { request_type: approvalRequestType.value } })
+    const res = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: approvalRequestType.value } })
     usersList.value = res.data.data || []
     await nextTick()
     initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
