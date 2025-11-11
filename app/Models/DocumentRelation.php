@@ -16,9 +16,10 @@ class DocumentRelation extends Model
         'documentable_id',
         'document_name',
         'document_reference',
-        'sharepoint_file_id',
-        'sharepoint_file_name',
-        'sharepoint_drive_id',
+        // 'sharepoint_file_id',
+        'file_name',
+        'path',
+        // 'sharepoint_drive_id',
     ];
 
     /**

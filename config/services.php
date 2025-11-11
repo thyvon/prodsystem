@@ -44,4 +44,10 @@ return [
         'site_url' => env('SHAREPOINT_SITE_URL'),
     ],
 
+    'file_server' => [
+        'base_url' => env('FILE_SERVER_BASE_URL'),
+        'username' => env('FILE_SERVER_USERNAME'),
+        'password' => env('FILE_SERVER_PASSWORD'),
+    ],
+
 ];

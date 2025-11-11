@@ -16,9 +16,11 @@ return new class extends Migration
             $table->morphs('documentable'); // documentable_type, documentable_id
             $table->string('document_name');
             $table->string('document_reference');
-            $table->string('sharepoint_file_id');
-            $table->string('sharepoint_file_name');
-            $table->string('sharepoint_drive_id');
+            // $table->string('sharepoint_file_id');
+            $table->string('file_name');
+            // $table->string('sharepoint_drive_id');
+            $table->string('path');
+            $table->string('url')->nullable();
             $table->timestamps();
         });
     }
