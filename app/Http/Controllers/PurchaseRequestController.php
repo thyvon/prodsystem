@@ -239,6 +239,7 @@ class PurchaseRequestController extends Controller
                         'name' => $f->file_name,
                         'reference' => $f->document_reference,
                         'path' => $f->path,
+                        'url' => $f->url
                     ]),
                 ],
             ]);
