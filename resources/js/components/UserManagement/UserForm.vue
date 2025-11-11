@@ -82,24 +82,66 @@
             </div>
             <div class="form-row">
               <div class="form-group col-md-4">
-                <label for="profile_url" class="font-weight-bold">Profile URL</label>
-                <input
-                  v-model="form.profile_url"
-                  type="text"
-                  class="form-control"
-                  id="profile_url"
-                  placeholder="Enter profile URL"
-                />
+                <label class="font-weight-bold">Profile Image</label>
+                <div class="input-group mb-2">
+                  <input
+                    type="file"
+                    class="d-none"
+                    ref="profileInput"
+                    accept="image/*"
+                    @change="onProfileChange"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary flex-fill"
+                    @click="$refs.profileInput.click()"
+                  >
+                    <i class="fal fa-file-upload"></i>
+                    {{ profileLabel || 'Choose profile image' }}
+                  </button>
+                </div>
+
+                <div v-if="form.profile_file">
+                  <small class="text-muted">Selected File:</small>
+                  <div class="d-flex align-items-center mb-1">
+                    <span class="mr-2">📄 {{ form.profile_file.name }}</span>
+                    <button type="button" class="btn btn-sm btn-danger" @click="removeProfileFile">
+                      <i class="fal fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              <!-- Signature -->
               <div class="form-group col-md-4">
-                <label for="signature_url" class="font-weight-bold">Signature URL</label>
-                <input
-                  v-model="form.signature_url"
-                  type="text"
-                  class="form-control"
-                  id="signature_url"
-                  placeholder="Enter signature URL"
-                />
+                <label class="font-weight-bold">Signature</label>
+                <div class="input-group mb-2">
+                  <input
+                    type="file"
+                    class="d-none"
+                    ref="signatureInput"
+                    accept="image/*"
+                    @change="onSignatureChange"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary flex-fill"
+                    @click="$refs.signatureInput.click()"
+                  >
+                    <i class="fal fa-file-upload"></i>
+                    {{ signatureLabel || 'Choose signature' }}
+                  </button>
+                </div>
+
+                <div v-if="form.signature_file">
+                  <small class="text-muted">Selected File:</small>
+                  <div class="d-flex align-items-center mb-1">
+                    <span class="mr-2">📄 {{ form.signature_file.name }}</span>
+                    <button type="button" class="btn btn-sm btn-danger" @click="removeSignatureFile">
+                      <i class="fal fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="form-group col-md-2">
                 <label for="building_id" class="font-weight-bold">Building</label>
@@ -576,6 +618,12 @@ const isAddingDepartment = ref(false);
 const isAddingCampus = ref(false);
 const isAddingWarehouse = ref(false);
 const isAddingPosition = ref(false);
+const profileFile = ref(null);
+const profileLabel = ref('');
+const signatureFile = ref(null);
+const signatureLabel = ref('');
+const profileInput = ref(null);
+const signatureInput = ref(null);
 
 // Form state
 const form = ref({
@@ -605,6 +653,29 @@ const isActiveChecked = computed({
     form.value.is_active = value ? 1 : 0;
   },
 });
+
+// Methods
+function onProfileChange(event) {
+  profileFile.value = event.target.files[0] || null;
+  profileLabel.value = profileFile.value?.name || "";
+}
+
+function removeProfileFile() {
+  profileFile.value = null;
+  profileLabel.value = "";
+  profileInput.value.value = null;
+}
+
+function onSignatureChange(event) {
+  signatureFile.value = event.target.files[0] || null;
+  signatureLabel.value = signatureFile.value?.name || "";
+}
+
+function removeSignatureFile() {
+  signatureFile.value = null;
+  signatureLabel.value = "";
+  signatureInput.value.value = null;
+}
 
 // Computed properties for unique selections
 const availableDepartments = computed(() => (index) => {
@@ -1082,38 +1153,59 @@ const submitForm = async () => {
   if (isSubmitting.value) return;
   if (!validateForm()) return;
   isSubmitting.value = true;
+
   try {
-    const payload = {
-      name: form.value.name.trim(),
-      email: form.value.email.trim(),
-      password: form.value.password ? form.value.password.trim() : undefined,
-      card_number: form.value.card_number?.trim() || null,
-      profile_url: form.value.profile_url?.trim() || null,
-      signature_url: form.value.signature_url?.trim() || null,
-      telegram_id: form.value.telegram_id?.trim() || null,
-      phone: form.value.phone?.trim() || null,
-      is_active: form.value.is_active,
-      building_id: form.value.building_id ? Number(form.value.building_id) : null,
-      departments: form.value.departments,
-      campus: form.value.campus,
-      warehouses: form.value.warehouses,
-      positions: form.value.positions,
-      roles: form.value.roles,
-      permissions: form.value.permissions,
-    };
+    const formData = new FormData();
+
+    // Append regular fields
+    formData.append('name', form.value.name.trim());
+    formData.append('email', form.value.email.trim());
+    if (form.value.password) formData.append('password', form.value.password.trim());
+    formData.append('card_number', form.value.card_number?.trim() || '');
+    formData.append('telegram_id', form.value.telegram_id?.trim() || '');
+    formData.append('phone', form.value.phone?.trim() || '');
+    formData.append('is_active', form.value.is_active);
+    formData.append('building_id', form.value.building_id ? Number(form.value.building_id) : '');
+    
+    // Append arrays as JSON strings
+    formData.append('departments', JSON.stringify(form.value.departments || []));
+    formData.append('campus', JSON.stringify(form.value.campus || []));
+    formData.append('warehouses', JSON.stringify(form.value.warehouses || []));
+    formData.append('positions', JSON.stringify(form.value.positions || []));
+    formData.append('roles', JSON.stringify(form.value.roles || []));
+    formData.append('permissions', JSON.stringify(form.value.permissions || []));
+
+    // Append files if they exist
+    if (form.value.profile_url instanceof File) formData.append('profile_url', form.value.profile_url);
+    if (form.value.signature_url instanceof File) formData.append('signature_url', form.value.signature_url);
+
     const url = isEditMode.value ? `/api/users/${userId.value}` : '/api/users';
-    const method = isEditMode.value ? 'put' : 'post';
-    await axios[method](url, payload);
-    await showAlert('Success', isEditMode.value ? 'User updated successfully.' : 'User created successfully.', 'success');
+    const method = isEditMode.value ? 'post' : 'post'; // Always post, but PUT support for Laravel can be done via _method
+    if (isEditMode.value) formData.append('_method', 'PUT'); // Laravel expects this for PUT over POST
+
+    await axios.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    await showAlert(
+      'Success',
+      isEditMode.value ? 'User updated successfully.' : 'User created successfully.',
+      'success'
+    );
     emit('submitted');
     goToIndex();
   } catch (err) {
     console.error('Submit error:', err.response?.data || err);
-    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save user.', 'danger');
+    await showAlert(
+      'Error',
+      err.response?.data?.message || err.message || 'Failed to save user.',
+      'danger'
+    );
   } finally {
     isSubmitting.value = false;
   }
 };
+
 
 // Lifecycle hooks
 onMounted(async () => {
