@@ -20,7 +20,6 @@ return new class extends Migration
             $table->string('file_name');
             // $table->string('sharepoint_drive_id');
             $table->string('path');
-            $table->string('url')->nullable();
             $table->timestamps();
         });
     }

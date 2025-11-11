@@ -29,14 +29,4 @@ class DocumentRelation extends Model
     {
         return $this->morphTo();
     }
-
-    /**
-     * Get file URL attribute for SharePoint file
-     */
-    public function getUrlAttribute(): ?string
-    {
-        if (!$this->id) return null;
-
-        return route('documents.view-file', ['file' => $this->id]);
-    }
 }

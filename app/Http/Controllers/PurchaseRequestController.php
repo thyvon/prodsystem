@@ -239,7 +239,6 @@ class PurchaseRequestController extends Controller
                         'name' => $f->file_name,
                         'reference' => $f->document_reference,
                         'path' => $f->path,
-                        'url' => $f->url, // make sure your DocumentRelation model has getUrlAttribute
                     ]),
                 ],
             ]);
@@ -737,7 +736,6 @@ class PurchaseRequestController extends Controller
                 'document_name' => 'Purchase Request',
                 'file_name' => $file['name'],
                 'path' => $file['path'],
-                'url' => $file['url'] ?? null,
                 'document_reference' => $purchaseRequest->reference_no,
             ]);
         }
@@ -997,7 +995,6 @@ class PurchaseRequestController extends Controller
                 'id' => $f->id,
                 'name' => $f->file_name,
                 'reference' => $f->document_reference,
-                'url' => $f->url,
             ]),
         ];
     }
