@@ -84,6 +84,8 @@ use App\Models\DocumentTransfer;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Models\PurchaseRequest;
 
+use App\Http\Controllers\FileCenterController;
+
 use App\Http\Controllers\AttachementController;
 
 // use App\Http\Controllers\StockRequestController;
@@ -290,15 +292,14 @@ Route::middleware(['auth'])->group(function () {
          ->name('purchase-requests.show');
     // web.php
     Route::get('purchase-requests/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'viewPdf'])->name('purchase-requests.pdf');
-
-
-
-
-
     // Document Attachment View Route
     Route::get('/documents/{file}', [AttachementController::class, 'viewFile'])
         ->name('documents.view-file');
 
+    // File Center
+    Route::get('/files', [FileCenterController::class, 'index'])->name('files.index');
+    Route::get('/file/stream/{path}', [FileCenterController::class, 'viewFileByPath'])
+        ->where('path', '.*');
 });
 
 // Microsoft OAuth Login Route

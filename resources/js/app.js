@@ -87,6 +87,10 @@ import PurchaseRequestForm from './components/PurchaseRequest/Form.vue'
 import PurchaseRequestList from './components/PurchaseRequest/List.vue'
 import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
 
+// File Center
+
+import FileCenter from './components/FileCenter/List.vue'
+
 // Create Vue app instance
  const app = createApp({})
 
@@ -157,6 +161,9 @@ app.component('digital-docs-approval-show', DigitalDocsApprovalShow)
 app.component('purchase-request-form', PurchaseRequestForm)
 app.component('purchase-request-list', PurchaseRequestList)
 app.component('purchase-request-show', PurchaseRequestShow)
+
+// File Center
+app.component('file-center-list', FileCenter)
 
 // Mount the Vue app
 app.mount('#app')

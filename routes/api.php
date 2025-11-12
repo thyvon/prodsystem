@@ -80,6 +80,8 @@ use App\Models\DigitalDocsApproval;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Models\PurchaseRequest;
 
+use App\Http\Controllers\FileCenterController;
+
 // Telegram Bot
 use App\Http\Controllers\TelegramController;
 
@@ -358,6 +360,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
     Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->name('api.purchase-requests.import-items');
 
+        // File Center
+    Route::get('/folder', [FileCenterController::class, 'listFolder']);
 });
 
 // Telegram Bot Document Transfer Webhook
