@@ -79,110 +79,93 @@ const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 // Renderers
 const renderColumnData = (key, val) => {
-  if (!val) return '';
+  const capitalize = (str) => str?.charAt(0).toUpperCase() + str?.slice(1) || '';
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }) : '';
+  const formatDateTime = (d) => d ? new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 
-  // Date formatting
-  if (key === 'created_at' || key === 'updated_at' || key === 'beginning_date' || /_date$/.test(key)) {
-    return key === 'updated_at' ? formatDateTime(val) : formatDate(val);
-  }
+  // Helper for badges
+  const badge = (cls, text) => `<span class="badge ${cls} text-center">${text}</span>`;
 
-  // Status badges
+  // Status mapping
   const statusKeys = {
     is_active: { true: ['badge-success', 'Active'], false: ['badge-secondary', 'Inactive'] },
     is_urgent: { true: ['badge-danger', 'Yes'], false: ['badge-secondary', 'No'] },
     has_variants: { true: ['badge-primary', 'Yes'], false: ['badge-danger', 'No'] },
   };
 
-  if (statusKeys[key] !== undefined) {
-    const [badgeClass, text] = statusKeys[key][!!val];
-    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
+  switch (key) {
+    // Dates
+    case 'created_at':
+    case 'beginning_date': return formatDate(val);
+    case 'updated_at': return formatDateTime(val);
+
+    // Boolean status badges
+    case 'is_active':
+    case 'is_urgent':
+    case 'has_variants':
+      const [cls, text] = statusKeys[key][String(!!val)];
+      return badge(cls, text);
+
+    // Request type badge
+    case 'request_type': {
+      const map = { review: 'badge-info', check: 'badge-primary', approve: 'badge-success' };
+      return badge(map[val?.toLowerCase()] || 'badge-secondary', capitalize(val));
+    }
+
+    // Approval status badge
+    case 'approval_status': {
+      const status = val?.toLowerCase();
+      const cls = status?.includes('rejected') ? 'badge-danger' :
+                  status === 'pending' ? 'badge-warning' :
+                  status === 'approved' ? 'badge-success' :
+                  status === 'reviewed' ? 'badge-info' :
+                  status === 'checked' ? 'badge-primary' : 'badge-secondary';
+      return badge(cls, capitalize(val));
+    }
+
+    // Approvals array
+    case 'approvals':
+      if (Array.isArray(val)) {
+        return `<ul class="mb-0 ps-2">
+          ${val.map(a => {
+            const cls = a.approval_status === 'Pending' ? 'badge-warning' : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success');
+            const date = a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : '';
+            return `<li>${a.approver_name || 'Unknown'} (${capitalize(a.request_type || '')}) ${badge(cls, a.approval_status || 'Pending')}${date}</li>`;
+          }).join('')}
+        </ul>`;
+      }
+      break;
+
+    // Sharepoint file
+    case 'sharepoint_file_ui_url':
+      return `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fal fa-folder"></i> View Document</a>`;
+
+    // Document status
+    case 'status': {
+      const cls = val?.toLowerCase() === 'pending' ? 'badge-warning' : val?.toLowerCase() === 'completed' ? 'badge-success' : 'badge-secondary';
+      return badge(cls, capitalize(val));
+    }
+
+    // Send back
+    case 'is_send_back':
+      return badge(val ? 'badge-danger' : 'badge-success', val ? 'Yes' : 'No');
+
+    // Receivers array
+    case 'receivers':
+      if (Array.isArray(val)) {
+        return `<ul class="mb-0">
+          ${val.map(r => `<li>${r.name} ${badge(r.status === 'Pending' ? 'badge-warning' : 'badge-success', r.status)}${r.received_date ? ` - <small class="text-muted">${r.received_date}</small>` : ''}</li>`).join('')}
+        </ul>`;
+      }
+      break;
+
+    // Images
+    case 'image': return `<div class="text-center"><img src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
+    case 'profile_url': return `<div class="text-center"><img class="rounded-circle" src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
+
+    // Default
+    default: return val ?? '';
   }
-
-  // Request type badge
-  if (key === 'request_type') {
-    const map = { review: 'badge-info', check: 'badge-primary', approve: 'badge-success' };
-    const status = (val || '').toLowerCase();
-    const badgeClass = map[status] || 'badge-secondary';
-    const text = capitalize(val);
-    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
-  }
-
-  // Approval status badge
-  if (key === 'approval_status') {
-    let badgeClass = 'badge badge-secondary';
-    const status = (val || '').toLowerCase();
-    if (status.includes('rejected')) badgeClass = 'badge badge-danger';
-    else if (status === 'pending') badgeClass = 'badge badge-warning';
-    else if (status === 'approved') badgeClass = 'badge badge-success';
-    else if (status === 'reviewed') badgeClass = 'badge badge-info';
-    else if (status === 'checked') badgeClass = 'badge badge-primary';
-    const text = capitalize(val);
-    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
-  }
-
-
-  // Digital Document Approvals
-  if (key === 'approvals' && Array.isArray(val)) {
-    return `<ul class="mb-0 ps-2">
-      ${val.map(a => {
-        const statusClass = a.approval_status === 'Pending' 
-          ? 'badge-warning' 
-          : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success');
-
-        const approvedDate = a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : '';
-
-        return `<li>
-          ${a.approver_name || 'Unknown'} (${capitalize(a.request_type || '')}) 
-          <span class="badge ${statusClass}">${a.approval_status || 'Pending'}</span>
-          ${approvedDate}
-        </li>`;
-      }).join('')}
-    </ul>`;
-  }
-
-  if (key === 'sharepoint_file_ui_url' && val) {
-    return `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary">
-              <i class="fal fa-folder"></i> View Document
-            </a>`;
-  }
-
-
-  // Document Status
-  if (key === 'status') {
-    let badgeClass = 'badge badge-secondary';
-    const status = (val || '').toLowerCase();
-    if (status === 'pending') badgeClass = 'badge badge-warning';
-    else if (status === 'completed') badgeClass = 'badge badge-success';
-    const text = capitalize(val);
-    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
-  }
-
-  // Document is send back
-  if (key === 'is_send_back') {
-    const badgeClass = val ? 'badge badge-danger' : 'badge badge-success';
-    const text = val ? 'Yes' : 'No';
-    return `<span class="badge ${badgeClass} text-center">${text}</span>`;
-  }
-
-    // Receivers
-  if (key === 'receivers' && Array.isArray(val)) {
-    return `<ul class="mb-0">
-      ${val.map(r => `
-        <li>
-          ${r.name} 
-          <span class="badge ${r.status === 'Pending' ? 'badge-warning' : 'badge-success'}">${r.status}</span>
-          ${r.received_date ? ` - <small class="text-muted">${r.received_date}</small>` : ''}
-        </li>
-      `).join('')}
-    </ul>`;
-  }
-
-  // Images
-  if (key === 'image') return `<div class="text-center"><img src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
-  if (key === 'profile_url') return `<div class="text-center"><img class="rounded-circle" src="/storage/${val}" style="max-width:60px;max-height:60px;" /></div>`;
-
-  // Default
-  return val ?? '';
 };
 
 

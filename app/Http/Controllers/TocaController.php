@@ -106,7 +106,7 @@ class TocaController extends Controller
     }
 
     /**
-     * Store a new TocaPolicy.
+     * Store a new TocaPolicy with its value items.
      *
      * @param Request $request
      * @return JsonResponse
@@ -115,26 +115,40 @@ class TocaController extends Controller
     {
         $this->authorize('create', TocaPolicy::class);
 
-        $validated = Validator::make($request->all(), $this->tocaPolicyValidationRules())->validate();
+        $validatedPolicy = Validator::make($request->all(), $this->tocaPolicyValidationRules())->validate();
+
+        // Validate items
+        $items = $request->input('items', []);
+        foreach ($items as $index => $item) {
+            Validator::make($item, [
+                'min_amount' => 'required|numeric|min:0',
+                'max_amount' => 'required|numeric|min:0|gte:min_amount',
+                'is_active' => 'required|integer|in:0,1',
+            ])->validate();
+        }
 
         DB::beginTransaction();
         try {
             $tocaPolicy = TocaPolicy::create([
-                'short_name' => $validated['short_name'],
-                'name' => $validated['name'],
-                'is_active' => $validated['is_active'] ?? 1,
+                'short_name' => $validatedPolicy['short_name'],
+                'name' => $validatedPolicy['name'],
+                'is_active' => $validatedPolicy['is_active'] ?? 1,
             ]);
+
+            // Create value items
+            foreach ($items as $item) {
+                $tocaPolicy->tocaAmounts()->create([
+                    'min_amount' => $item['min_amount'],
+                    'max_amount' => $item['max_amount'],
+                    'is_active' => $item['is_active'],
+                ]);
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'TocaPolicy created successfully.',
-                'data' => [
-                    'id' => $tocaPolicy->id,
-                    'short_name' => $tocaPolicy->short_name,
-                    'name' => $tocaPolicy->name,
-                    'is_active' => (bool) $tocaPolicy->is_active,
-                    'created_at' => $tocaPolicy->created_at?->toDateTimeString(),
-                ]
+                'data' => $tocaPolicy->load('tocaAmounts')
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -146,21 +160,7 @@ class TocaController extends Controller
     }
 
     /**
-     * Get a TocaPolicy for editing.
-     *
-     * @param TocaPolicy $tocaPolicy
-     * @return JsonResponse
-     */
-    public function edit(TocaPolicy $tocaPolicy): JsonResponse
-    {
-        $this->authorize('update', $tocaPolicy);
-        return response()->json([
-            'data' => $tocaPolicy
-        ]);
-    }
-
-    /**
-     * Update an existing TocaPolicy.
+     * Update an existing TocaPolicy with its value items.
      *
      * @param Request $request
      * @param TocaPolicy $tocaPolicy
@@ -170,26 +170,60 @@ class TocaController extends Controller
     {
         $this->authorize('update', $tocaPolicy);
 
-        $validated = Validator::make($request->all(), $this->tocaPolicyValidationRules($tocaPolicy->id))->validate();
+        $validatedPolicy = Validator::make($request->all(), $this->tocaPolicyValidationRules($tocaPolicy->id))->validate();
+
+        $items = $request->input('items', []);
+        foreach ($items as $index => $item) {
+            Validator::make($item, [
+                'id' => 'nullable|exists:toca_amount,id',
+                'min_amount' => 'required|numeric|min:0',
+                'max_amount' => 'required|numeric|min:0|gte:min_amount',
+                'is_active' => 'required|integer|in:0,1',
+            ])->validate();
+        }
 
         DB::beginTransaction();
         try {
             $tocaPolicy->update([
-                'short_name' => $validated['short_name'],
-                'name' => $validated['name'],
-                'is_active' => $validated['is_active'] ?? 1,
+                'short_name' => $validatedPolicy['short_name'],
+                'name' => $validatedPolicy['name'],
+                'is_active' => $validatedPolicy['is_active'] ?? 1,
             ]);
+
+            // Update/create value items
+            $existingIds = $tocaPolicy->tocaAmounts()->pluck('id')->toArray();
+            $submittedIds = [];
+
+            foreach ($items as $item) {
+                if (!empty($item['id']) && in_array($item['id'], $existingIds)) {
+                    $tocaAmount = TocaAmount::find($item['id']);
+                    $tocaAmount->update([
+                        'min_amount' => $item['min_amount'],
+                        'max_amount' => $item['max_amount'],
+                        'is_active' => $item['is_active'],
+                    ]);
+                    $submittedIds[] = $item['id'];
+                } else {
+                    $newItem = $tocaPolicy->tocaAmounts()->create([
+                        'min_amount' => $item['min_amount'],
+                        'max_amount' => $item['max_amount'],
+                        'is_active' => $item['is_active'],
+                    ]);
+                    $submittedIds[] = $newItem->id;
+                }
+            }
+
+            // Delete removed items
+            $idsToDelete = array_diff($existingIds, $submittedIds);
+            if (!empty($idsToDelete)) {
+                TocaAmount::whereIn('id', $idsToDelete)->delete();
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'TocaPolicy updated successfully.',
-                'data' => [
-                    'id' => $tocaPolicy->id,
-                    'short_name' => $tocaPolicy->short_name,
-                    'name' => $tocaPolicy->name,
-                    'is_active' => (bool) $tocaPolicy->is_active,
-                    'created_at' => $tocaPolicy->created_at?->toDateTimeString(),
-                ]
+                'data' => $tocaPolicy->load('tocaAmounts')
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -199,6 +233,40 @@ class TocaController extends Controller
             ], 500);
         }
     }
+
+
+    /**
+     * Get a TocaPolicy for editing.
+     *
+     * @param TocaPolicy $tocaPolicy
+     * @return JsonResponse
+     */
+    public function edit(TocaPolicy $tocaPolicy): JsonResponse
+    {
+        $this->authorize('update', $tocaPolicy);
+
+        // Load associated value items
+        $tocaPolicy->load('tocaAmounts');
+
+        return response()->json([
+            'data' => [
+                'id' => $tocaPolicy->id,
+                'short_name' => $tocaPolicy->short_name,
+                'name' => $tocaPolicy->name,
+                'is_active' => $tocaPolicy->is_active,
+                'items' => $tocaPolicy->tocaAmounts->map(function ($amount) {
+                    return [
+                        'id' => $amount->id,
+                        'min_amount' => $amount->min_amount,
+                        'max_amount' => $amount->max_amount,
+                        'is_active' => $amount->is_active,
+                    ];
+                }),
+                'created_at' => $tocaPolicy->created_at?->toDateTimeString(),
+            ]
+        ]);
+    }
+
 
     /**
      * Delete a TocaPolicy.

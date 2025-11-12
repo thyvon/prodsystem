@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Purchase Request</title>
-
     <style>
-        /* @page { margin: 1px } */
         body {
             font-family: 'TW Cen MT', 'Khmer OS Battambang', sans-serif;
             font-size: 10px;
@@ -17,108 +15,124 @@
             font-family: 'Khmer OS Battambang';
             src: url("{{ storage_path('fonts/KhmerOSbattambang.ttf') }}") format('truetype');
         }
-
         @font-face {
             font-family: 'TW Cen MT';
             src: url("{{ storage_path('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
-        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 0px; }
-        .logo-section { display: flex; align-items: center; gap: 8px; }
-        .logo { width: 110px; height: auto; }
-        .form-info { font-size: 10px; text-align: right;}
-        .form-info p { margin: 0; line-height: 1.4; }
-        .pr-info { font-size: 10px; text-align: left; }
-        .pr-info p { margin: 0; line-height: 1.4; }
-        .title-section { text-align: center; line-height: 1; margin-bottom: 10px; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            padding-bottom: 10px;
+            min-height: 80px;
+        }
+        .logo-section {
+            position: absolute;
+            left: 0; top: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logo { width: 110px; }
+
+        .title-section {
+            position: absolute;
+            left: 50%; top: 0;
+            transform: translateX(-50%);
+            text-align: center;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
         .title-section h3 { margin: 0; font-size: 14px; }
         .sub-title { color: red; font-weight: bold; }
-        .section { margin-top: 10px; }
+
+        .form-info, .pr-info { font-size: 10px; }
+        .form-info p, .pr-info p { margin: 0; line-height: 1.4; }
+
         .info-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         .info-table td { padding: 3px 5px; vertical-align: top; }
         .label { width: 18%; white-space: nowrap; }
-        .value { border-bottom: 1px dotted #000; width: 30%; display: inline-block; padding: 0 3px; font-weight: bold; }
+        .value {
+            display: inline-block;
+            border-bottom: 1px dotted #000;
+            width: 100%;
+            font-weight: bold;
+        }
+
         table.items { width: 100%; border-collapse: collapse; margin-top: 8px; }
         table.items, .items th, .items td { border: 1px solid #333232ff; }
         .items th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
         .items th, .items td { padding: 4px; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
-        .note { margin-top: 5px; font-size: 12px; line-height: 1.4; border: 1px solid #333232ff; padding: 5px; }
-                
+
+        .note {
+            margin-top: 5px;
+            font-size: 12px;
+            line-height: 1.4;
+            border: 1px solid #333232ff;
+            padding: 5px;
+        }
+
         .signature-section {
             margin-top: 30px;
             display: flex;
             flex-wrap: wrap;
-            gap: 20px; /* spacing between boxes */
+            gap: 20px;
         }
-
         .signature-box {
-            flex: 1 1 calc((100% / 3) - 20px); /* 3 boxes per row */
+            flex: 1 1 calc((100% / 3) - 20px);
             max-width: calc((100% / 3) - 20px);
             min-width: 150px;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start; /* keep content at top */
-            height: 115px; /* fixed height */
-            box-sizing: border-box;
+            justify-content: flex-start;
+            height: 150px;
             margin-bottom: 10px;
+            box-sizing: border-box;
+            position: relative;
         }
 
         .signature-image-box {
-            height: 50px; /* fixed height for signature image */
+            height: 50px;
             display: flex;
-            justify-content: center; /* center the image horizontally */
-            align-items: center;     /* center the image vertically */
+            justify-content: center;
+            align-items: center;
             margin-bottom: 5px;
-            border: 1px dashed transparent; /* optional: for debug or alignment */
         }
-
-        .signature-image {
-            max-width: 100px;
-            max-height: 50px;
-        }
-
+        .signature-image { max-width: 100px; max-height: 70px; }
         .signature-line {
             height: 1px;
-            background-color: #333232ff;
+            background-color: #333232ff;  /* dark line */
             width: 100%;
             margin-bottom: 5px;
         }
-
-        .signature-info {
-            font-size: 10px;
-        }
-
+        .signature-info { font-size: 10px; }
     </style>
 </head>
 <body>
 
 @php $pr = $purchaseRequest; @endphp
 
-<div class="header" style="position: relative; width: 100%; padding-bottom: 10px; min-height: 80px;">
-    <!-- Left: Logo -->
-    <div class="logo-section" style="position: absolute; left: 0; top: 0;">
+<div class="header">
+    <div class="logo-section">
         <img src="{{ public_path('img/logo/logo-dark.png') }}" class="logo" alt="MJQ Logo">
     </div>
 
-    <!-- Center: Title -->
-    <div class="title-section" style="text-align: center; position: absolute; left: 50%; top: 0; transform: translateX(-50%);">
+    <div class="title-section">
         <h3>សំណើទិញសម្ភារ</h3>
         <h3>Purchase Request</h3>
-        <div class="sub-title">{{ $pr['is_urgent'] == 1 ? 'Urgent' : '' }}</div>
+        <div class="sub-title">{{ $pr['is_urgent'] ? 'Urgent' : '' }}</div>
     </div>
 
-    <!-- Right: Form Info + PR Info stacked -->
     <div style="position: absolute; right: 0; top: 0; display: flex; flex-direction: column; align-items: flex-end; font-size: 10px;">
-        <!-- Form Info -->
-        <div class="form-info" style="margin-bottom: 5px; text-align: right;">
+        <div class="form-info">
             <p><strong>Code:</strong> MJQE0051</p>
             <p><strong>Version:</strong> 2.0</p>
         </div>
-
-        <!-- PR Info -->
-        <div class="pr-info" style="margin-top: 5px;">
+        <div class="pr-info">
             <p>លេខរៀង / PR Number: <strong>{{ $pr['reference_no'] }}</strong></p>
             <p>កាលបរិច្ឆេទស្នើសុំ / Request Date:<strong> {{ $pr['request_date'] }}</strong></p>
             <p>កាលបរិច្ឆេទយក / Deadline: <strong> {{ $pr['deadline_date'] }} </strong></p>
@@ -126,14 +140,11 @@
     </div>
 </div>
 
-
-<!-- Centered Requester Info and Purpose section -->
-<div class="section" style="width: 100%; margin: 0; padding: 0; box-sizing: border-box;">
-    <table class="info-table" style="width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0; padding: 0;">
+<div class="section">
+    <table class="info-table">
         <tr>
-            <!-- Left: Requester Info -->
-            <td style="width: 40%; vertical-align: top; padding: 0; margin: 0;">
-                <table class="info-table" style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
+            <td style="width: 40%;">
+                <table class="info-table">
                     @foreach([
                         'ឈ្មោះ / Name' => 'creator_name',
                         'អត្តលេខ / ID' => 'creator_id_card',
@@ -142,23 +153,15 @@
                         'ទូរស័ព្ទ / Cell Phone' => 'creator_cellphone'
                     ] as $label => $key)
                         <tr>
-                            <td class="label" style="width: 40%; padding: 3px 0;">{{ $label }}:</td>
-                            <td style="padding: 3px 0;">
-                                <span class="value" style="display: inline-block; border-bottom: 1px dotted #333232ff; width: 100%; font-weight: bold;">
-                                    {{ $pr[$key] }}
-                                </span>
-                            </td>
+                            <td class="label">{{ $label }}:</td>
+                            <td><span class="value">{{ $pr[$key] }}</span></td>
                         </tr>
                     @endforeach
                 </table>
             </td>
-
-            <!-- Right: Purpose -->
-            <td style="width: 60%; vertical-align: top; padding: 0 0 0 10px; margin: 0;">
-                <!-- Label on top -->
+            <td style="width: 60%; padding-left: 10px;">
                 <div style="margin-bottom: 4px;">គោលបំណង / Purpose:</div>
-                <!-- Box -->
-                <div style="border: 1px solid #333232ff; min-height: 90px; padding: 5px; box-sizing: border-box;">
+                <div style="border:1px solid #333232ff; min-height:90px; padding:5px; box-sizing:border-box;">
                     {{ $pr['purpose'] }}
                 </div>
             </td>
@@ -166,7 +169,6 @@
     </table>
 </div>
 
-<!-- Items -->
 <table class="items">
     <thead>
         <tr>
@@ -200,24 +202,18 @@
             </tr>
         @endforeach
 
-@php
-    $emptyCount = 5 - count($pr['items']);
-    $totalCols = 11; // total number of columns
-    $rowHeight = 40; // height of each row
-@endphp
-
-@if($emptyCount > 0)
-<tr style="height: {{ $emptyCount * $rowHeight }}px;">
-    @for($i = 0; $i < $totalCols; $i++)
-        <td style="border: 1px solid #000;">&nbsp;</td>
-    @endfor
-</tr>
-@endif
-
-
+        @php
+            $emptyCount = 5 - count($pr['items']);
+        @endphp
+        @if($emptyCount > 0)
+            <tr style="height: {{ $emptyCount*40 }}px;">
+                @for($i=0;$i<11;$i++)
+                    <td>&nbsp;</td>
+                @endfor
+            </tr>
+        @endif
     </tbody>
-
-    <tfoot style="display: table-row-group;">
+    <tfoot>
         <tr>
             <td colspan="9" class="text-right"><strong>Total</strong></td>
             <td colspan="2" class="text-right"><strong>$ {{ number_format(collect($pr['items'])->sum('total_price'),2) }}</strong></td>
@@ -225,46 +221,41 @@
     </tfoot>
 </table>
 
-
-<!-- Note -->
 <div class="note">
     <strong>កំណត់ចំណាំ ៖ </strong>ការដាក់ទម្រង់សំណើទិញសម្ភារនេះ ត្រូវធ្វើឡើងឲ្យបានមុនប្រាំពីរ(២)ថ្ងៃ នៃថ្ងៃធ្វើការ។<br>
     <strong>Notice:</strong> The requisition form must be submitted at least seven (7)-working days ahead of time.<br>
     Be explicit, give accurate description and use catalog reference whenever possible.
 </div>
 
-<!-- Signature Section -->
 <div class="signature-section">
-    <!-- Requested by -->
     <div class="signature-box">
         <div class="signature-image-box">
             @if (!empty($pr['creator_signature_url']))
-                <img src="{{ public_path('storage/' . $pr['creator_signature_url']) }}" alt="Signature" class="signature-image">
+                <img src="{{ public_path('storage/' . $pr['creator_signature_url']) }}" class="signature-image">
             @endif
         </div>
         <div class="signature-line"></div>
         <div class="signature-info">
             <strong>Requested by</strong><br>
-            Name: {{ $pr['creator_name'] }}<br>
-            Position: {{ $pr['creator_position'] }}<br>
-            Date: {{ $pr['request_date'] }}
+            ឈ្មោះ/Name: {{ $pr['creator_name'] }}<br>
+            តួនាទី/Position: {{ $pr['creator_position'] }}<br>
+            កាលបរិច្ឆេទ/Date: {{ $pr['request_date'] }}
         </div>
     </div>
 
-    <!-- Approval signatures -->
     @foreach($pr['approvals'] as $approval)
         <div class="signature-box">
             <div class="signature-image-box">
                 @if(($approval['approval_status'] ?? '') === 'Approved' && !empty($approval['user_signature_url']))
-                    <img src="{{ public_path('storage/' . $approval['user_signature_url']) }}" alt="Signature" class="signature-image">
+                    <img src="{{ public_path('storage/' . $approval['user_signature_url']) }}" class="signature-image">
                 @endif
             </div>
             <div class="signature-line"></div>
             <div class="signature-info">
                 <strong>{{ $approval['request_type_label'] ?? 'Approved by' }}</strong><br>
-                Name: {{ $approval['name'] ?? '' }}<br>
-                Position: {{ $approval['position_title'] ?? '' }}<br>
-                Date: {{ $approval['responded_date'] ?? '' }}
+                ឈ្មោះ/Name: {{ $approval['name'] ?? '' }}<br>
+                តួនាទី/Position: {{ $approval['position_title'] ?? '' }}<br>
+                កាលបរិច្ឆេទ/Date: {{ $approval['responded_date'] ?? '' }}
             </div>
         </div>
     @endforeach

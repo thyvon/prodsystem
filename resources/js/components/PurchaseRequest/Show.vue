@@ -27,20 +27,12 @@
             <div class="col-6 text-muted">Position / មុខតំណែង:</div>
             <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_position ?? 'N/A' }}</div>
         </div>
-        <div class="row mb-1">
-            <div class="col-6 text-muted">Urgent / បន្ទាន់:</div>
-            <div class="col-6 font-weight-bold">
-            <span class="badge" :class="purchaseRequest.is_urgent ? 'badge-danger' : 'badge-success'">
-                {{ purchaseRequest.is_urgent ? 'Yes' : 'No' }}
-            </span>
-            </div>
         </div>
-        </div>
-
 
         <div class="col-6 text-center">
           <h4 class="font-weight-bold text-dark">Purchase Request</h4>
           <h4 class="font-weight-bold text-dark">សំណើសុំទិញ</h4>
+          <h4 v-if="purchaseRequest.is_urgent" class="font-weight-bold text-danger">Urgent</h4>
         </div>
 
         <div class="col-3 text-end">

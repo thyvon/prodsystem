@@ -91,8 +91,8 @@ class UserController extends Controller
                 'email' => ['required', 'email', 'max:255', 'unique:users,email'],
                 'password' => ['required', 'string', 'min:8'],
                 'card_number' => ['nullable', 'string', 'max:255'],
-                'profile_url' => ['nullable', 'string', 'max:255'],
-                'signature_url' => ['nullable', 'string', 'max:255'],
+                'profile_url' => ['nullable', 'file', 'image', 'max:2048'],
+                'signature_url' => ['nullable', 'file', 'image', 'max:2048'],
                 'telegram_id' => ['nullable', 'string', 'max:255'],
                 'phone' => ['nullable', 'string', 'max:255'],
                 'is_active' => ['required', 'integer'],
@@ -124,13 +124,17 @@ class UserController extends Controller
 
             DB::beginTransaction();
 
+            // Handle file uploads
+            $profilePath = $request->hasFile('profile_url') ? $request->file('profile_url')->store('profiles', 'public') : null;
+            $signaturePath = $request->hasFile('signature_url') ? $request->file('signature_url')->store('signatures', 'public') : null;
+
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'card_number' => $request->card_number,
-                'profile_url' => $request->profile_url,
-                'signature_url' => $request->signature_url,
+                'profile_url' => $profilePath,
+                'signature_url' => $signaturePath,
                 'telegram_id' => $request->telegram_id,
                 'phone' => $request->phone,
                 'is_active' => (int) $request->is_active,
@@ -138,45 +142,29 @@ class UserController extends Controller
                 'email_verified_at' => $request->email_verified_at,
             ]);
 
-            // Sync departments
+            // Sync relations
             if ($request->has('departments')) {
-                $departments = collect($request->departments)->mapWithKeys(function ($dept) {
-                    return [$dept['id'] => ['is_default' => $dept['is_default']]];
-                });
+                $departments = collect($request->departments)->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
                 $user->departments()->sync($departments);
             }
 
-            // Sync campus
             if ($request->has('campus')) {
-                $campus = collect($request->campus)->mapWithKeys(function ($campus) {
-                    return [$campus['id'] => ['is_default' => $campus['is_default']]];
-                });
+                $campus = collect($request->campus)->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
                 $user->campus()->sync($campus);
             }
 
-            // Sync warehouses
             if ($request->has('warehouses')) {
-                $warehouses = collect($request->warehouses)->mapWithKeys(function ($warehouse) {
-                    return [$warehouse['id'] => ['is_default' => $warehouse['is_default']]];
-                });
+                $warehouses = collect($request->warehouses)->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
                 $user->warehouses()->sync($warehouses);
             }
 
-            // Sync positions
             if ($request->has('positions')) {
-                $positions = collect($request->positions)->mapWithKeys(function ($position) {
-                    return [$position['id'] => ['is_default' => $position['is_default']]];
-                });
+                $positions = collect($request->positions)->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
                 $user->positions()->sync($positions);
             }
 
-            // Sync roles and permissions
-            if ($request->has('roles')) {
-                $user->syncRoles($request->roles);
-            }
-            if ($request->has('permissions')) {
-                $user->syncPermissions($request->permissions);
-            }
+            if ($request->has('roles')) $user->syncRoles($request->roles);
+            if ($request->has('permissions')) $user->syncPermissions($request->permissions);
 
             DB::commit();
 
@@ -184,6 +172,7 @@ class UserController extends Controller
                 'message' => 'User created successfully.',
                 'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions']),
             ], 201);
+
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -192,6 +181,113 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    public function update(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($id)],
+                'password' => ['nullable', 'string', 'min:8'],
+                'card_number' => ['nullable', 'string', 'max:255'],
+                'profile_url' => ['nullable', 'file', 'image', 'max:2048'],
+                'signature_url' => ['nullable', 'file', 'image', 'max:2048'],
+                'telegram_id' => ['nullable', 'string', 'max:255'],
+                'phone' => ['nullable', 'string', 'max:255'],
+                'is_active' => ['required', 'integer'],
+                'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
+                'departments' => ['sometimes', 'array'],
+                'departments.*.id' => ['required_with:departments', 'integer', 'exists:departments,id'],
+                'departments.*.is_default' => ['required_with:departments', 'boolean'],
+                'campus' => ['sometimes', 'array'],
+                'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
+                'campus.*.is_default' => ['required_with:campus', 'boolean'],
+                'warehouses' => ['sometimes', 'array'],
+                'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
+                'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
+                'positions' => ['sometimes', 'array'],
+                'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
+                'positions.*.is_default' => ['required_with:positions', 'boolean'],
+                'roles' => ['sometimes', 'array'],
+                'roles.*' => ['string', 'exists:roles,name'],
+                'permissions' => ['sometimes', 'array'],
+                'permissions.*' => ['string', 'exists:permissions,name'],
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed.',
+                    'errors' => $validator->errors()->all(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $userData = [
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => $request->password ? Hash::make($request->password) : $user->password,
+                'card_number' => $request->card_number,
+                'telegram_id' => $request->telegram_id,
+                'phone' => $request->phone,
+                'is_active' => (int) $request->is_active,
+                'building_id' => $request->building_id,
+                'email_verified_at' => $request->email_verified_at ?? $user->email_verified_at,
+            ];
+
+            // Handle uploaded files
+            if ($request->hasFile('profile_url')) {
+                $userData['profile_url'] = $request->file('profile_url')->store('profiles', 'public');
+            }
+
+            if ($request->hasFile('signature_url')) {
+                $userData['signature_url'] = $request->file('signature_url')->store('signatures', 'public');
+            }
+
+            $user->update($userData);
+
+            // Sync relations
+            if ($request->has('departments')) {
+                $departments = collect($request->departments)->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
+                $user->departments()->sync($departments);
+            }
+
+            if ($request->has('campus')) {
+                $campus = collect($request->campus)->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
+                $user->campus()->sync($campus);
+            }
+
+            if ($request->has('warehouses')) {
+                $warehouses = collect($request->warehouses)->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
+                $user->warehouses()->sync($warehouses);
+            }
+
+            if ($request->has('positions')) {
+                $positions = collect($request->positions)->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
+                $user->positions()->sync($positions);
+            }
+
+            if ($request->has('roles')) $user->syncRoles($request->roles);
+            if ($request->has('permissions')) $user->syncPermissions($request->permissions);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'User updated successfully.',
+                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions']),
+            ], 200);
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['message' => 'User not found.'], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Failed to update user.', 'errors' => [$e->getMessage()]], 500);
+        }
+    }
+
+
 
     public function edit($id)
     {
@@ -266,122 +362,6 @@ class UserController extends Controller
             return response()->view('errors.500', [
                 'message' => 'Failed to fetch user.',
                 'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        try {
-            $user = User::findOrFail($id);
-
-            $validator = Validator::make($request->all(), [
-                'name' => ['required', 'string', 'max:255'],
-                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($id)],
-                'password' => ['nullable', 'string', 'min:8'],
-                'card_number' => ['nullable', 'string', 'max:255'],
-                'profile_url' => ['nullable', 'string', 'max:255'],
-                'signature_url' => ['nullable', 'string', 'max:255'],
-                'telegram_id' => ['nullable', 'string', 'max:255'],
-                'phone' => ['nullable', 'string', 'max:255'],
-                'is_active' => ['required', 'integer'],
-                'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
-                'departments' => ['sometimes', 'array'],
-                'departments.*.id' => ['required_with:departments', 'integer', 'exists:departments,id'],
-                'departments.*.is_default' => ['required_with:departments', 'boolean'],
-                'campus' => ['sometimes', 'array'],
-                'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
-                'campus.*.is_default' => ['required_with:campus', 'boolean'],
-                'warehouses' => ['sometimes', 'array'],
-                'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
-                'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
-                'positions' => ['sometimes', 'array'],
-                'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
-                'positions.*.is_default' => ['required_with:positions', 'boolean'],
-                'roles' => ['sometimes', 'array'],
-                'roles.*' => ['string', 'exists:roles,name'],
-                'permissions' => ['sometimes', 'array'],
-                'permissions.*' => ['string', 'exists:permissions,name'],
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Validation failed.',
-                    'errors' => $validator->errors()->all(),
-                ], 422);
-            }
-
-            DB::beginTransaction();
-
-            $user->update([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => $request->password ? Hash::make($request->password) : $user->password,
-                'card_number' => $request->card_number,
-                'profile_url' => $request->profile_url,
-                'signature_url' => $request->signature_url,
-                'telegram_id' => $request->telegram_id,
-                'phone' => $request->phone,
-                'is_active' => (int) $request->is_active,
-                'building_id' => $request->building_id,
-                'email_verified_at' => $request->email_verified_at ?? $user->email_verified_at,
-            ]);
-
-            // Sync departments
-            if ($request->has('departments')) {
-                $departments = collect($request->departments)->mapWithKeys(function ($dept) {
-                    return [$dept['id'] => ['is_default' => $dept['is_default']]];
-                });
-                $user->departments()->sync($departments);
-            }
-
-            // Sync campus
-            if ($request->has('campus')) {
-                $campus = collect($request->campus)->mapWithKeys(function ($campus) {
-                    return [$campus['id'] => ['is_default' => $campus['is_default']]];
-                });
-                $user->campus()->sync($campus);
-            }
-
-            // Sync warehouses
-            if ($request->has('warehouses')) {
-                $warehouses = collect($request->warehouses)->mapWithKeys(function ($warehouse) {
-                    return [$warehouse['id'] => ['is_default' => $warehouse['is_default']]];
-                });
-                $user->warehouses()->sync($warehouses);
-            }
-
-            // Sync positions
-            if ($request->has('positions')) {
-                $positions = collect($request->positions)->mapWithKeys(function ($position) {
-                    return [$position['id'] => ['is_default' => $position['is_default']]];
-                });
-                $user->positions()->sync($positions);
-            }
-
-            // Sync roles and permissions
-            if ($request->has('roles')) {
-                $user->syncRoles($request->roles);
-            }
-            if ($request->has('permissions')) {
-                $user->syncPermissions($request->permissions);
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'User updated successfully.',
-                'user' => $user->load(['roles', 'permissions', 'departments', 'campus', 'warehouses', 'positions']),
-            ], 200);
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'message' => 'User not found.',
-            ], 404);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Failed to update user.',
-                'errors' => [$e->getMessage()],
             ], 500);
         }
     }

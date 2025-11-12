@@ -104,7 +104,7 @@
                 <div v-if="form.profile_file">
                   <small class="text-muted">Selected File:</small>
                   <div class="d-flex align-items-center mb-1">
-                    <span class="mr-2">📄 {{ form.profile_file.name }}</span>
+                    <span class="mr-2">📄 {{ form.profile_url.name }}</span>
                     <button type="button" class="btn btn-sm btn-danger" @click="removeProfileFile">
                       <i class="fal fa-trash"></i>
                     </button>
@@ -136,7 +136,7 @@
                 <div v-if="form.signature_file">
                   <small class="text-muted">Selected File:</small>
                   <div class="d-flex align-items-center mb-1">
-                    <span class="mr-2">📄 {{ form.signature_file.name }}</span>
+                    <span class="mr-2">📄 {{ form.signature_url.name }}</span>
                     <button type="button" class="btn btn-sm btn-danger" @click="removeSignatureFile">
                       <i class="fal fa-trash"></i>
                     </button>
@@ -1166,22 +1166,50 @@ const submitForm = async () => {
     formData.append('phone', form.value.phone?.trim() || '');
     formData.append('is_active', form.value.is_active);
     formData.append('building_id', form.value.building_id ? Number(form.value.building_id) : '');
-    
-    // Append arrays as JSON strings
-    formData.append('departments', JSON.stringify(form.value.departments || []));
-    formData.append('campus', JSON.stringify(form.value.campus || []));
-    formData.append('warehouses', JSON.stringify(form.value.warehouses || []));
-    formData.append('positions', JSON.stringify(form.value.positions || []));
-    formData.append('roles', JSON.stringify(form.value.roles || []));
-    formData.append('permissions', JSON.stringify(form.value.permissions || []));
+
+    // Append arrays correctly
+    (form.value.departments || []).forEach((d, i) => {
+      formData.append(`departments[${i}][id]`, d.id);
+      formData.append(`departments[${i}][is_default]`, d.is_default ? 1 : 0);
+    });
+
+    (form.value.campus || []).forEach((c, i) => {
+      formData.append(`campus[${i}][id]`, c.id);
+      formData.append(`campus[${i}][is_default]`, c.is_default ? 1 : 0);
+    });
+
+    (form.value.warehouses || []).forEach((w, i) => {
+      formData.append(`warehouses[${i}][id]`, w.id);
+      formData.append(`warehouses[${i}][is_default]`, w.is_default ? 1 : 0);
+    });
+
+    (form.value.positions || []).forEach((p, i) => {
+      formData.append(`positions[${i}][id]`, p.id);
+      formData.append(`positions[${i}][is_default]`, p.is_default ? 1 : 0);
+    });
+
+
+    (form.value.roles || []).forEach((r, i) => {
+      formData.append(`roles[${i}]`, r);
+    });
+
+    (form.value.permissions || []).forEach((perm, i) => {
+      formData.append(`permissions[${i}]`, perm);
+    });
 
     // Append files if they exist
-    if (form.value.profile_url instanceof File) formData.append('profile_url', form.value.profile_url);
-    if (form.value.signature_url instanceof File) formData.append('signature_url', form.value.signature_url);
+    if (profileFile.value) formData.append('profile_url', profileFile.value);
+    if (signatureFile.value) formData.append('signature_url', signatureFile.value);
+
+
+    // Console FormData for debugging
+    console.log('FormData content:');
+    for (let pair of formData.entries()) {
+      console.log(pair[0], pair[1]);
+    }
 
     const url = isEditMode.value ? `/api/users/${userId.value}` : '/api/users';
-    const method = isEditMode.value ? 'post' : 'post'; // Always post, but PUT support for Laravel can be done via _method
-    if (isEditMode.value) formData.append('_method', 'PUT'); // Laravel expects this for PUT over POST
+    if (isEditMode.value) formData.append('_method', 'PUT');
 
     await axios.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -1205,7 +1233,6 @@ const submitForm = async () => {
     isSubmitting.value = false;
   }
 };
-
 
 // Lifecycle hooks
 onMounted(async () => {
