@@ -25,8 +25,8 @@
             justify-content: space-between;
             align-items: center;
             position: relative;
-            padding-bottom: 10px;
-            min-height: 80px;
+            padding-bottom: 5px;
+            min-height: 60px;
         }
         .logo-section {
             position: absolute;
@@ -140,11 +140,12 @@
     </div>
 </div>
 
-<div class="section">
-    <table class="info-table">
+<div class="section" style="width: 100%; margin-top: 10px; box-sizing: border-box;">
+    <table class="info-table" style="width: 100%; border-collapse: collapse;">
         <tr>
-            <td style="width: 40%;">
-                <table class="info-table">
+            <!-- Requester Info -->
+            <td style="width: 40%; vertical-align: top; padding: 0;">
+                <table class="info-table" style="width: 100%; border-collapse: collapse;">
                     @foreach([
                         'ឈ្មោះ / Name' => 'creator_name',
                         'អត្តលេខ / ID' => 'creator_id_card',
@@ -153,15 +154,17 @@
                         'ទូរស័ព្ទ / Cell Phone' => 'creator_cellphone'
                     ] as $label => $key)
                         <tr>
-                            <td class="label">{{ $label }}:</td>
-                            <td><span class="value">{{ $pr[$key] }}</span></td>
+                            <td class="label" style="padding: 3px 5px;">{{ $label }}:</td>
+                            <td style="padding: 3px 5px;"><span class="value">{{ $pr[$key] }}</span></td>
                         </tr>
                     @endforeach
                 </table>
             </td>
-            <td style="width: 60%; padding-left: 10px;">
-                <div style="margin-bottom: 4px;">គោលបំណង / Purpose:</div>
-                <div style="border:1px solid #333232ff; min-height:90px; padding:5px; box-sizing:border-box;">
+
+            <!-- Purpose -->
+            <td style="width: 60%; vertical-align: top; padding: 0 0 0 0;">
+                <div style="margin-bottom: 4px; font-weight: bold;">គោលបំណង / Purpose:</div>
+                <div style="border:1px solid #333; min-height:90px; padding:5px; box-sizing:border-box;">
                     {{ $pr['purpose'] }}
                 </div>
             </td>
