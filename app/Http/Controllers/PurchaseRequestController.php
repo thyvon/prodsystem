@@ -188,6 +188,7 @@ class PurchaseRequestController extends Controller
         ])->render();
 
         return Browsershot::html($html)
+            ->noSandbox()
             ->format('A4')
             ->margins(5, 3, 5, 3) // top, right, bottom, left
             ->showBackground()
