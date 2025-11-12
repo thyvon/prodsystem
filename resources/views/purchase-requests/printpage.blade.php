@@ -162,9 +162,9 @@
             </td>
 
             <!-- Purpose -->
-            <td style="width: 60%; vertical-align: top; padding: 0 0 0 0;">
-                <div style="margin-bottom: 4px; font-weight: bold;">គោលបំណង / Purpose:</div>
-                <div style="border:1px solid #333; min-height:90px; padding:5px; box-sizing:border-box;">
+            <td style="width: 60%; vertical-align: top; padding-top: 5px;">
+                <div >គោលបំណង / Purpose:</div>
+                <div style="border:1px solid #333; min-height:96px; padding:2px; box-sizing:border-box;">
                     {{ $pr['purpose'] }}
                 </div>
             </td>
