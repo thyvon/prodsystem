@@ -97,37 +97,14 @@ class FileServerService
      * @param string $folderPath
      * @return array
      */
-    public function listFiles(string $folderPath = ''): array
-    {
-        try {
-            return Storage::disk($this->disk)->files(trim($folderPath, '/'));
-        } catch (\Throwable $e) {
-            Log::warning("Wasabi list files failed: {$e->getMessage()}");
-            return [];
-        }
-    }
-    public function listFolder(string $folderPath = ''): array
-    {
-        try {
-            $folderPath = trim($folderPath, '/');
-
-            // List directories (folders)
-            $folders = Storage::disk($this->disk)->directories($folderPath);
-
-            // List files
-            $files = Storage::disk($this->disk)->files($folderPath);
-
-            return [
-                'folders' => $folders,
-                'files' => $files,
-            ];
-        } catch (\Throwable $e) {
-            Log::warning("Wasabi list folder failed: {$e->getMessage()}");
-            return [
-                'folders' => [],
-                'files' => [],
-            ];
-        }
-    }
+    // public function listFiles(string $folderPath = ''): array
+    // {
+    //     try {
+    //         return Storage::disk($this->disk)->files(trim($folderPath, '/'));
+    //     } catch (\Throwable $e) {
+    //         Log::warning("Wasabi list files failed: {$e->getMessage()}");
+    //         return [];
+    //     }
+    // }
 
 }
