@@ -183,12 +183,6 @@
                     </li>
                 </ul>
             </li>
-            <li class="{{ request()->is('files*') ? 'active' : '' }}">
-                <a href="{{ url('files') }}" title="File Explorer" data-filter-tags="file explorer">
-                    <i class="fal fa-folder"></i>
-                    <span class="nav-link-text">File Explorer</span>
-                </a>
-            </li>
 
             @php
                 $inventoryActive = request()->is('inventory/warehouses*') 
