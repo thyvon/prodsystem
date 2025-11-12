@@ -49,6 +49,7 @@ class ProductService
                 'sc.name as sub_category_name',
             ])
             ->where('pv.is_active', 1)
+            ->where('pv.deleted_at', null)
             ->orderBy('pv.item_code', 'asc');
 
         // Apply search on item_code, description, or product name

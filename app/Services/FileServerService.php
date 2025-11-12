@@ -2,85 +2,62 @@
 
 namespace App\Services;
 
-use GuzzleHttp\Client;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class FileServerService
 {
-    protected string $baseUrl;
-    protected string $username;
-    protected string $password;
-    protected Client $guzzle;
+    protected string $disk;
 
-    /**
-     * Constructor
-     *
-     * @param string $baseUrl HFS folder URL, e.g., https://file.mjqe-purchasing.site/File-Storage
-     * @param string $username HFS user
-     * @param string $password HFS password
-     */
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.file_server.base_url'), '/');
-        $this->username = config('services.file_server.username');
-        $this->password = config('services.file_server.password');
-        $this->guzzle = new \GuzzleHttp\Client(['timeout' => 0, 'connect_timeout' => 0]);
+        // Use the Wasabi disk you configured in config/filesystems.php
+        $this->disk = 'wasabi';
     }
 
     /**
-     * Auth options for Guzzle
-     */
-    protected function authOptions(): array
-    {
-        return ['auth' => [$this->username, $this->password]];
-    }
-
-    /**
-     * Upload file to server
+     * Upload file to Wasabi
      *
      * @param UploadedFile $file
-     * @param string $folderPath relative folder path
-     * @param string|null $remoteName optional custom filename
+     * @param string $folderPath
+     * @param string|null $remoteName
      * @return array
      */
     public function uploadFile(UploadedFile $file, string $folderPath = '', ?string $remoteName = null): array
     {
         $remoteName = $remoteName ?? $file->getClientOriginalName();
-        $url = $this->baseUrl . '/' . trim($folderPath, '/') . '/' . $remoteName;
+        $path = trim($folderPath, '/') . '/' . $remoteName;
 
         try {
-            $this->guzzle->put($url, array_merge($this->authOptions(), [
-                'body' => fopen($file->getRealPath(), 'rb'),
-                'headers' => ['Content-Type' => $file->getMimeType()],
-            ]));
+            // Store the file
+            Storage::disk($this->disk)->putFileAs(trim($folderPath, '/'), $file, $remoteName, 'public');
+
+            $url = Storage::disk($this->disk)->temporaryUrl($path, now()->addMinutes(10));
 
             return [
                 'name' => $remoteName,
-                'path' => trim($folderPath, '/') . '/' . $remoteName,
+                'path' => $path,
                 'url' => $url,
             ];
         } catch (\Throwable $e) {
-            Log::error("File upload failed: {$e->getMessage()}");
+            Log::error("Wasabi upload failed: {$e->getMessage()}");
             throw $e;
         }
     }
 
     /**
-     * Delete file from server
+     * Delete file from Wasabi
      *
-     * @param string $filePath relative file path on server
+     * @param string $filePath
      * @return bool
      */
     public function deleteFile(string $filePath): bool
     {
-        $url = $this->baseUrl . '/' . ltrim($filePath, '/');
-
         try {
-            $this->guzzle->delete($url, $this->authOptions());
-            return true;
+            return Storage::disk($this->disk)->delete($filePath);
         } catch (\Throwable $e) {
-            Log::warning("File delete failed: {$e->getMessage()}");
+            Log::warning("Wasabi delete failed: {$e->getMessage()}");
             return false;
         }
     }
@@ -88,62 +65,44 @@ class FileServerService
     /**
      * Stream file to browser
      *
-     * @param string $filePath relative file path on server
+     * @param string $filePath
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response
      */
     public function streamFile(string $filePath)
     {
-        // Ensure clean and valid URL
-        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($filePath, '/');
-
         try {
-            // Send GET request with authentication
-            $response = $this->guzzle->get($url, [
-                'auth' => [$this->username, $this->password],
-                'http_errors' => false,
-                'stream' => true,
-            ]);
-
-            // Check for valid response
-            if ($response->getStatusCode() !== 200) {
-                throw new \Exception("File server returned status: " . $response->getStatusCode());
+            if (!Storage::disk($this->disk)->exists($filePath)) {
+                abort(404, 'File not found.');
             }
 
-            // Get MIME type and file content
-            $mimeType = $response->getHeaderLine('Content-Type') ?: 'application/octet-stream';
-            $content = $response->getBody()->getContents();
+            $mimeType = Storage::disk($this->disk)->mimeType($filePath);
+            $stream = Storage::disk($this->disk)->readStream($filePath);
             $fileName = basename($filePath);
 
-            // Return streamed response
-            return response($content, 200)
-                ->header('Content-Type', $mimeType)
-                ->header('Content-Disposition', 'inline; filename="' . $fileName . '"');
-
+            return response()->stream(function () use ($stream) {
+                fpassthru($stream);
+            }, 200, [
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            ]);
         } catch (\Throwable $e) {
-            Log::error("File stream failed for {$filePath}: {$e->getMessage()}");
-            abort(404, 'File not found or cannot be accessed.');
+            Log::error("Wasabi stream failed: {$e->getMessage()}");
+            abort(404, 'File cannot be accessed.');
         }
     }
 
-
     /**
-     * List files in folder
+     * List files in a folder
      *
-     * @param string $folderPath relative folder path
+     * @param string $folderPath
      * @return array
      */
     public function listFiles(string $folderPath = ''): array
     {
-        $url = $this->baseUrl . '/' . trim($folderPath, '/');
-
         try {
-            $response = $this->guzzle->get($url, $this->authOptions());
-            $body = $response->getBody()->getContents();
-
-            // Extract links from HFS folder page
-            preg_match_all('/<a href="([^"]+)"/i', $body, $matches);
-            return $matches[1] ?? [];
+            return Storage::disk($this->disk)->files(trim($folderPath, '/'));
         } catch (\Throwable $e) {
-            Log::warning("List files failed: {$e->getMessage()}");
+            Log::warning("Wasabi list files failed: {$e->getMessage()}");
             return [];
         }
     }
