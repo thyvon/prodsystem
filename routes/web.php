@@ -290,15 +290,9 @@ Route::middleware(['auth'])->group(function () {
          ->name('purchase-requests.show');
     // web.php
     Route::get('purchase-requests/{purchaseRequest}/pdf', [PurchaseRequestController::class, 'viewPdf'])->name('purchase-requests.pdf');
-
-
-
-
-
     // Document Attachment View Route
     Route::get('/documents/{file}', [AttachementController::class, 'viewFile'])
         ->name('documents.view-file');
-
 });
 
 // Microsoft OAuth Login Route

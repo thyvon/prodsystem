@@ -33,12 +33,12 @@ class FileServerService
             // Store the file
             Storage::disk($this->disk)->putFileAs(trim($folderPath, '/'), $file, $remoteName, 'public');
 
-            $url = Storage::disk($this->disk)->temporaryUrl($path, now()->addMinutes(10));
+            // $url = Storage::disk($this->disk)->temporaryUrl($path, now()->addMinutes(10));
 
             return [
                 'name' => $remoteName,
                 'path' => $path,
-                'url' => $url,
+                // 'url' => $url,
             ];
         } catch (\Throwable $e) {
             Log::error("Wasabi upload failed: {$e->getMessage()}");
@@ -97,13 +97,14 @@ class FileServerService
      * @param string $folderPath
      * @return array
      */
-    public function listFiles(string $folderPath = ''): array
-    {
-        try {
-            return Storage::disk($this->disk)->files(trim($folderPath, '/'));
-        } catch (\Throwable $e) {
-            Log::warning("Wasabi list files failed: {$e->getMessage()}");
-            return [];
-        }
-    }
+    // public function listFiles(string $folderPath = ''): array
+    // {
+    //     try {
+    //         return Storage::disk($this->disk)->files(trim($folderPath, '/'));
+    //     } catch (\Throwable $e) {
+    //         Log::warning("Wasabi list files failed: {$e->getMessage()}");
+    //         return [];
+    //     }
+    // }
+
 }
