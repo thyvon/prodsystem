@@ -85,7 +85,7 @@ const datatableParams = reactive({
 const datatableHeaders = [
   { text: 'Image', value: 'image', width: '8%', sortable: false },
   { text: 'Item Code', value: 'item_code', width: '8%', sortable: true },
-  { text: 'Description', value: 'description', width: '10%', sortable: true },
+  { text: 'Description', value: 'description', width: '30%', sortable: true },
   { text: 'Category', value: 'category_name', width: '10%', sortable: false },
   { text: 'Sub-Category', value: 'sub_category_name', width: '10%', sortable: false },
   { text: 'UoM', value: 'unit_name', width: '10%', sortable: false },

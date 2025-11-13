@@ -8,7 +8,6 @@ use App\Models\MainCategory;
 use App\Models\SubCategory;
 use App\Models\UnitOfMeasure;
 use App\Models\VariantAttribute;
-use App\Models\VariantValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +17,8 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 class ProductsImport implements ToCollection, WithHeadingRow
 {
     private array $errors = [];
+    private int $createdCount = 0;
+    private int $updatedCount = 0;
 
     public function collection(Collection $rows): void
     {
@@ -40,24 +41,20 @@ class ProductsImport implements ToCollection, WithHeadingRow
         $existingVariants = ProductVariant::withTrashed()->whereIn('item_code', $variantItemCodes)->get()->keyBy('item_code');
 
         $variantAttributes = VariantAttribute::with('values')->get()->keyBy('name');
-
         $usedVariantCodes = [];
-
         $grouped = $rows->groupBy(fn($row) => trim($row['item_code'] ?? ''));
 
         foreach ($grouped as $itemCode => $productRows) {
             $firstRow = $productRows->first();
             $rowData = array_map(fn($v) => is_string($v) ? trim($v) : $v, $firstRow->toArray());
 
-            // Validation
+            // Validate
             $validator = Validator::make($rowData, $this->rules(), $this->customValidationMessages());
             if ($validator->fails()) {
-                $errors = implode('; ', collect($validator->errors()->all())->toArray());
-                $this->errors[] = "Product code '{$itemCode}': {$errors}";
+                $this->errors[] = "Product code '{$itemCode}': " . implode('; ', $validator->errors()->all());
                 continue;
             }
 
-            // Related models
             $category = $categories->get($rowData['category']);
             $subCategory = $subCategories->get($rowData['sub_category']);
             $unit = $units->get($rowData['unit']);
@@ -67,68 +64,101 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            // Generate item code if missing
-            $itemCode = $itemCode ?: $this->generateBaseItemCode($category->id);
-            if ($existingProducts->has($itemCode)) {
-                $this->errors[] = "Product code '{$itemCode}' already exists.";
-                continue;
-            }
-
+            // Handle product create or update
             DB::beginTransaction();
             try {
-                $product = Product::create([
-                    'item_code' => $itemCode,
-                    'name' => $rowData['name'],
-                    'khmer_name' => $rowData['khmer_name'] ?? null,
-                    'description' => $rowData['description'] ?? null,
-                    'barcode' => $rowData['barcode'] ?? null,
+                $product = $existingProducts->get($itemCode);
+
+                $productData = [
+                    'item_code' => $itemCode ?: $this->generateBaseItemCode($category->id),
                     'category_id' => $category->id,
                     'sub_category_id' => $subCategory?->id,
                     'unit_id' => $unit->id,
-                    'manage_stock' => filter_var($rowData['manage_stock'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                    'is_active' => filter_var($rowData['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                    'has_variants' => filter_var($rowData['has_variants'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'created_by' => auth()->id(),
                     'updated_by' => auth()->id(),
-                ]);
+                ];
 
-                // Process variants
+                $fields = [
+                    'name', 'khmer_name', 'description', 'barcode',
+                    'manage_stock', 'is_active', 'has_variants'
+                ];
+
+                foreach ($fields as $field) {
+                    if (!is_null($rowData[$field] ?? null)) {
+                        $productData[$field] = $rowData[$field];
+                    }
+                }
+
+                if ($product) {
+                    $product->update($productData);
+                    $this->updatedCount++;
+                } else {
+                    $productData['created_by'] = auth()->id();
+                    $product = Product::create($productData);
+                    $this->createdCount++;
+                }
+
+                // Handle variants
                 if ($product->has_variants) {
                     foreach ($productRows as $index => $row) {
                         $variantValueIds = $this->parseVariantAttributes($row['variant_attributes'] ?? '', $variantAttributes);
                         $variantItemCode = $row['variant_item_code'] ?? $this->generateVariantItemCode($itemCode, $index + 1);
 
-                        if ($existingVariants->has($variantItemCode) || in_array($variantItemCode, $usedVariantCodes)) {
-                            $this->errors[] = "Variant code '{$variantItemCode}' already exists.";
-                            continue;
-                        }
-                        $usedVariantCodes[] = $variantItemCode;
+                        $variant = ProductVariant::withTrashed()
+                            ->where('item_code', $variantItemCode)
+                            ->first();
 
-                        $variant = ProductVariant::create([
+                        $variantData = [
                             'product_id' => $product->id,
-                            'item_code' => $variantItemCode,
-                            'estimated_price' => (float)($row['variant_estimated_price'] ?? 0),
-                            'average_price' => (float)($row['variant_average_price'] ?? 0),
+                            'updated_by' => auth()->id(),
+                        ];
+
+                        $variantFields = [
+                            'estimated_price' => (float)($row['variant_estimated_price'] ?? null),
+                            'average_price' => (float)($row['variant_average_price'] ?? null),
                             'description' => $row['variant_description'] ?? null,
                             'is_active' => filter_var($row['variant_is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                            'updated_by' => auth()->id(),
-                        ]);
+                        ];
+
+                        foreach ($variantFields as $key => $value) {
+                            if (!is_null($value)) {
+                                $variantData[$key] = $value;
+                            }
+                        }
+
+                        if ($variant) {
+                            $variant->update($variantData);
+                        } else {
+                            $variantData['item_code'] = $variantItemCode;
+                            ProductVariant::create($variantData);
+                        }
 
                         if (!empty($variantValueIds)) {
-                            $variant->values()->sync($variantValueIds);
+                            $variant?->values()->sync($variantValueIds);
                         }
                     }
                 } else {
-                    // Single default variant
-                    ProductVariant::create([
+                    $variant = ProductVariant::where('item_code', $itemCode)->first();
+                    $variantData = [
                         'product_id' => $product->id,
                         'item_code' => $itemCode,
-                        'estimated_price' => (float)($rowData['variant_estimated_price'] ?? 0),
-                        'average_price' => (float)($rowData['variant_average_price'] ?? 0),
-                        'description' => $rowData['variant_description'] ?? $rowData['description'] ?? null,
-                        'is_active' => true,
                         'updated_by' => auth()->id(),
-                    ]);
+                    ];
+
+                    if (!is_null($rowData['variant_estimated_price'] ?? null)) {
+                        $variantData['estimated_price'] = (float)$rowData['variant_estimated_price'];
+                    }
+                    if (!is_null($rowData['variant_average_price'] ?? null)) {
+                        $variantData['average_price'] = (float)$rowData['variant_average_price'];
+                    }
+                    if (!is_null($rowData['variant_description'] ?? null)) {
+                        $variantData['description'] = $rowData['variant_description'];
+                    }
+
+                    if ($variant) {
+                        $variant->update($variantData);
+                    } else {
+                        ProductVariant::create($variantData);
+                    }
                 }
 
                 DB::commit();
@@ -144,28 +174,21 @@ class ProductsImport implements ToCollection, WithHeadingRow
         return $this->errors;
     }
 
-    // --- Helpers ---
+    public function getSummaryMessage(): string
+    {
+        $created = $this->createdCount;
+        $updated = $this->updatedCount;
+        return "Import completed successfully: {$created} new products created, {$updated} updated.";
+    }
 
+    // --- Helpers ---
     private function rules(): array
     {
         return [
             'item_code' => ['nullable', 'string', 'max:255'],
             'name' => ['required', 'string', 'max:255'],
-            'khmer_name' => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'barcode' => ['nullable', 'string', 'max:255'],
             'category' => ['required', 'string', 'max:255'],
-            'sub_category' => ['nullable', 'string', 'max:255'],
             'unit' => ['required', 'string', 'max:255'],
-            'manage_stock' => ['nullable', 'boolean'],
-            'is_active' => ['nullable', 'boolean'],
-            'has_variants' => ['nullable', 'boolean'],
-            'variant_item_code' => ['nullable', 'string', 'max:255'],
-            'variant_estimated_price' => ['nullable', 'numeric', 'min:0'],
-            'variant_average_price' => ['nullable', 'numeric', 'min:0'],
-            'variant_description' => ['nullable', 'string'],
-            'variant_is_active' => ['nullable', 'boolean'],
-            'variant_attributes' => ['nullable', 'string'],
         ];
     }
 
@@ -182,13 +205,10 @@ class ProductsImport implements ToCollection, WithHeadingRow
     {
         if (!$attributes) return [];
         $ids = [];
-        $pairs = array_map('trim', explode(',', $attributes));
-        foreach ($pairs as $pair) {
+        foreach (array_map('trim', explode(',', $attributes)) as $pair) {
             [$attrName, $valueName] = array_map('trim', explode(':', $pair, 2));
-            if (!$attrName || !$valueName) continue;
             $attr = $variantAttributes->get($attrName);
-            if (!$attr) continue;
-            $value = $attr->values->firstWhere('value', $valueName);
+            $value = $attr?->values->firstWhere('value', $valueName);
             if ($value) $ids[] = $value->id;
         }
         return $ids;

@@ -479,25 +479,34 @@ class ProductController extends Controller
 
     public function import(Request $request)
     {
-        $request->validate(['file' => 'required|file|mimes:xlsx,csv']);
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,csv'
+        ]);
 
         $import = new ProductsImport();
 
         try {
             Excel::import($import, $request->file('file'));
+
             $errors = $import->getErrors();
+            $summary = $import->getSummaryMessage();
 
             return response()->json([
-                'message' => empty($errors) ? 'Products imported successfully.' : 'Products imported with errors.',
+                'message' => empty($errors)
+                    ? "✅ {$summary}"
+                    : "⚠️ {$summary} However, some rows had issues.",
+                'created_count' => $import->createdCount ?? 0,
+                'updated_count' => $import->updatedCount ?? 0,
                 'errors' => $errors,
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Product import failed.',
+                'message' => '❌ Product import failed.',
                 'errors' => [$e->getMessage()],
             ], 500);
         }
     }
+
 
     /**
      * Restore a soft-deleted product and its variants.
