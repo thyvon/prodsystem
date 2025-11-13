@@ -44,11 +44,33 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     ? StockRequest::where('reference_no', $row['stock_request_no'])->value('id')
                     : null;
 
-                $warehouseId   = Warehouse::where('name', $row['warehouse_name'] ?? '')->value('id');
-                $requestedById = User::where('name', $row['requested_by_name'] ?? '')->value('id');
-                $productId     = ProductVariant::where('item_code', $row['product_code'] ?? '')->value('id');
-                $campusId      = Campus::where('short_name', $row['campus_short_name'] ?? '')->value('id');
-                $departmentId  = Department::where('short_name', $row['department_short_name'] ?? '')->value('id');
+                $warehouseId = Warehouse::where('name', $row['warehouse_name'] ?? '')->value('id');
+
+                // Auto-create or get requested_by user
+                $requestedByName = $row['requested_by_name'] ?? null;
+                $requestedById = null;
+
+                if ($requestedByName) {
+                    $parts = explode(' ', $requestedByName);
+                    $firstName = strtolower($parts[0]);
+                    $lastName  = strtolower(end($parts));
+                    $email = $firstName . '.' . $lastName . '@mjqeducation.edu.kh';
+
+                    $requestedBy = User::firstOrCreate(
+                        ['name' => $requestedByName], // search by full name
+                        [
+                            'email' => $email,
+                            'password' => bcrypt('password123'), // default password
+                            'is_active' => 1,
+                        ]
+                    );
+                    $requestedById = $requestedBy->id;
+                }
+
+
+                $productId    = ProductVariant::where('item_code', $row['product_code'] ?? '')->value('id');
+                $campusId     = Campus::where('short_name', $row['campus_short_name'] ?? '')->value('id');
+                $departmentId = Department::where('short_name', $row['department_short_name'] ?? '')->value('id');
 
                 // --- VALIDATION ---
                 $validator = Validator::make([
