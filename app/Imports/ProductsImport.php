@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\MainCategory;
 use App\Models\SubCategory;
 use App\Models\UnitOfMeasure;
@@ -10,29 +11,22 @@ use App\Models\VariantAttribute;
 use App\Models\VariantValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class ProductsImport implements ToCollection, WithHeadingRow
 {
-    private $data;
-
-    public function __construct()
-    {
-        $this->data = [
-            'products' => [],
-            'errors' => [],
-        ];
-    }
+    private array $errors = [];
 
     public function collection(Collection $rows): void
     {
         if ($rows->isEmpty()) {
-            $this->data['errors'][] = 'Excel file is empty or has no valid rows.';
+            $this->errors[] = 'Excel file is empty or has no valid rows.';
             return;
         }
 
-        // Preload related data
+        // Preload data
         $categoryNames = $rows->pluck('category')->unique()->filter()->values();
         $subCategoryNames = $rows->pluck('sub_category')->unique()->filter()->values();
         $unitNames = $rows->pluck('unit')->unique()->filter()->values();
@@ -45,126 +39,113 @@ class ProductsImport implements ToCollection, WithHeadingRow
         $existingProducts = Product::withTrashed()->whereIn('item_code', $itemCodes)->get()->keyBy('item_code');
         $existingVariants = ProductVariant::withTrashed()->whereIn('item_code', $variantItemCodes)->get()->keyBy('item_code');
 
-        $processedRows = [];
+        $variantAttributes = VariantAttribute::with('values')->get()->keyBy('name');
 
-        foreach ($rows as $index => $row) {
-            $rowKey = md5(json_encode($row->toArray()));
-            if (isset($processedRows[$rowKey])) {
-                continue;
-            }
-            $processedRows[$rowKey] = true;
+        $usedVariantCodes = [];
 
-            $rowData = array_map(function ($value) {
-                return is_string($value) ? trim($value) : $value;
-            }, $row->toArray());
+        $grouped = $rows->groupBy(fn($row) => trim($row['item_code'] ?? ''));
 
-            // Cast numeric fields
-            $rowData['variant_estimated_price'] = isset($rowData['variant_estimated_price']) ? (float) $rowData['variant_estimated_price'] : null;
-            $rowData['variant_average_price'] = isset($rowData['variant_average_price']) ? (float) $rowData['variant_average_price'] : null;
+        foreach ($grouped as $itemCode => $productRows) {
+            $firstRow = $productRows->first();
+            $rowData = array_map(fn($v) => is_string($v) ? trim($v) : $v, $firstRow->toArray());
 
-            // Validate row
-            $validator = Validator::make($rowData, $this->rules(), $this->customValidationMessages($index + 2));
+            // Validation
+            $validator = Validator::make($rowData, $this->rules(), $this->customValidationMessages());
             if ($validator->fails()) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": " . json_encode($validator->errors()->toArray());
+                $errors = implode('; ', collect($validator->errors()->all())->toArray());
+                $this->errors[] = "Product code '{$itemCode}': {$errors}";
                 continue;
             }
 
-            // Only use existing related models
-            $category = $this->getExistingCategory($rowData['category'], $categories);
-            $subCategory = $this->getExistingSubCategory($rowData['sub_category'], $category ? $category->id : null, $subCategories);
-            $unit = $this->getExistingUnit($rowData['unit'], $units);
+            // Related models
+            $category = $categories->get($rowData['category']);
+            $subCategory = $subCategories->get($rowData['sub_category']);
+            $unit = $units->get($rowData['unit']);
 
-            if (!$category) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": Category '{$rowData['category']}' does not exist.";
-                continue;
-            }
-            if (!$unit) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": Unit '{$rowData['unit']}' does not exist.";
-                continue;
-            }
-            if ($rowData['sub_category'] && !$subCategory) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": Sub-category '{$rowData['sub_category']}' does not exist for category '{$rowData['category']}'.";
+            if (!$category || !$unit || ($rowData['sub_category'] && !$subCategory)) {
+                $this->errors[] = "Product code '{$itemCode}': Invalid category, sub-category, or unit.";
                 continue;
             }
 
-            $itemCode = $rowData['item_code'] ?? $this->generateBaseItemCode($category->id);
+            // Generate item code if missing
+            $itemCode = $itemCode ?: $this->generateBaseItemCode($category->id);
             if ($existingProducts->has($itemCode)) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": Item code $itemCode already exists.";
+                $this->errors[] = "Product code '{$itemCode}' already exists.";
                 continue;
             }
 
-            // Parse variant attributes (only existing)
-            $variantValueIds = $this->parseExistingVariantAttributes($rowData['variant_attributes'] ?? null);
+            DB::beginTransaction();
+            try {
+                $product = Product::create([
+                    'item_code' => $itemCode,
+                    'name' => $rowData['name'],
+                    'khmer_name' => $rowData['khmer_name'] ?? null,
+                    'description' => $rowData['description'] ?? null,
+                    'barcode' => $rowData['barcode'] ?? null,
+                    'category_id' => $category->id,
+                    'sub_category_id' => $subCategory?->id,
+                    'unit_id' => $unit->id,
+                    'manage_stock' => filter_var($rowData['manage_stock'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                    'is_active' => filter_var($rowData['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                    'has_variants' => filter_var($rowData['has_variants'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'created_by' => auth()->id(),
+                    'updated_by' => auth()->id(),
+                ]);
 
-            // If variant attributes are required but not found, skip
-            if (($rowData['has_variants'] ?? false) && ($rowData['variant_attributes'] ?? null) && empty($variantValueIds)) {
-                $this->data['errors'][] = "Row " . ($index + 2) . ": Variant attributes do not match existing attributes/values.";
-                continue;
-            }
+                // Process variants
+                if ($product->has_variants) {
+                    foreach ($productRows as $index => $row) {
+                        $variantValueIds = $this->parseVariantAttributes($row['variant_attributes'] ?? '', $variantAttributes);
+                        $variantItemCode = $row['variant_item_code'] ?? $this->generateVariantItemCode($itemCode, $index + 1);
 
-            // Prepare product data
-            $productData = [
-                'item_code' => $itemCode,
-                'name' => $rowData['name'] ?? 'Unnamed Product',
-                'khmer_name' => $rowData['khmer_name'] ?? null,
-                'description' => $rowData['description'] ?? null,
-                'barcode' => $rowData['barcode'] ?? null,
-                'category_id' => $category->id,
-                'sub_category_id' => $subCategory ? $subCategory->id : null,
-                'unit_id' => $unit->id,
-                'manage_stock' => filter_var($rowData['manage_stock'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                'is_active' => true, // Default to true to allow user review
-                'has_variants' => filter_var($rowData['has_variants'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'variants' => [],
-                'selected_attributes' => [],
-            ];
+                        if ($existingVariants->has($variantItemCode) || in_array($variantItemCode, $usedVariantCodes)) {
+                            $this->errors[] = "Variant code '{$variantItemCode}' already exists.";
+                            continue;
+                        }
+                        $usedVariantCodes[] = $variantItemCode;
 
-            // Handle variants
-            if ($productData['has_variants']) {
-                if (empty($rowData['variant_attributes']) && empty($rowData['variant_item_code']) && 
-                    !isset($rowData['variant_estimated_price']) && !isset($rowData['variant_average_price'])) {
-                    $this->data['errors'][] = "Row " . ($index + 2) . ": At least one variant field (item code, attributes, or prices) must be provided when has_variants is true.";
-                    continue;
+                        $variant = ProductVariant::create([
+                            'product_id' => $product->id,
+                            'item_code' => $variantItemCode,
+                            'estimated_price' => (float)($row['variant_estimated_price'] ?? 0),
+                            'average_price' => (float)($row['variant_average_price'] ?? 0),
+                            'description' => $row['variant_description'] ?? null,
+                            'is_active' => filter_var($row['variant_is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                            'updated_by' => auth()->id(),
+                        ]);
+
+                        if (!empty($variantValueIds)) {
+                            $variant->values()->sync($variantValueIds);
+                        }
+                    }
+                } else {
+                    // Single default variant
+                    ProductVariant::create([
+                        'product_id' => $product->id,
+                        'item_code' => $itemCode,
+                        'estimated_price' => (float)($rowData['variant_estimated_price'] ?? 0),
+                        'average_price' => (float)($rowData['variant_average_price'] ?? 0),
+                        'description' => $rowData['variant_description'] ?? $rowData['description'] ?? null,
+                        'is_active' => true,
+                        'updated_by' => auth()->id(),
+                    ]);
                 }
 
-                $variantItemCode = $rowData['variant_item_code'] ?? $this->generateVariantItemCode($itemCode, 1, $productData['has_variants']);
-                if ($existingVariants->has($variantItemCode)) {
-                    $this->data['errors'][] = "Row " . ($index + 2) . ": Variant item code $variantItemCode already exists.";
-                    continue;
-                }
-
-                $productData['variants'] = [
-                    [
-                        'id' => null,
-                        'item_code' => $variantItemCode,
-                        'estimated_price' => $rowData['variant_estimated_price'] ?? 0, // Default to 0
-                        'average_price' => $rowData['variant_average_price'] ?? 0, // Default to 0
-                        'description' => $rowData['variant_description'] ?? null,
-                        'is_active' => filter_var($rowData['variant_is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                        'image' => null,
-                        'values' => array_map(function ($valueId) {
-                            $value = VariantValue::find($valueId);
-                            return [
-                                'id' => $valueId,
-                                'attribute' => $value && $value->attribute ? ['id' => $value->attribute->id] : null,
-                            ];
-                        }, $variantValueIds),
-                    ],
-                ];
-                $productData['selected_attributes'] = $this->mapSelectedAttributes($variantValueIds);
+                DB::commit();
+            } catch (\Exception $e) {
+                DB::rollBack();
+                $this->errors[] = "Product code '{$itemCode}': Failed to import. Error: {$e->getMessage()}";
             }
-
-            $this->data['products'][] = $productData;
-        }
-
-        if (empty($this->data['products']) && empty($this->data['errors'])) {
-            $this->data['errors'] = ['No valid products processed.'];
         }
     }
 
-    /**
-     * Validation rules.
-     */
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+
+    // --- Helpers ---
+
     private function rules(): array
     {
         return [
@@ -188,149 +169,52 @@ class ProductsImport implements ToCollection, WithHeadingRow
         ];
     }
 
-    /**
-     * Custom validation messages.
-     */
-    private function customValidationMessages(int $rowIndex): array
+    private function customValidationMessages(): array
     {
         return [
-            'name.required' => "The name field is required in row $rowIndex.",
-            'category.required' => "The category field is required in row $rowIndex.",
-            'unit.required' => "The unit field is required in row $rowIndex.",
+            'name.required' => "The name field is required.",
+            'category.required' => "The category field is required.",
+            'unit.required' => "The unit field is required.",
         ];
     }
 
-    /**
-     * Get a category from preloaded collection.
-     */
-    private function getExistingCategory(?string $name, Collection $categories): ?MainCategory
-    {
-        if (!$name) return null;
-        return $categories->get($name);
-    }
-
-    /**
-     * Get a sub-category from preloaded collection.
-     */
-    private function getExistingSubCategory(?string $name, ?int $categoryId, Collection $subCategories): ?SubCategory
-    {
-        if (!$name || !$categoryId) return null;
-        $subCategory = $subCategories->get($name);
-        if ($subCategory && $subCategory->main_category_id === $categoryId) {
-            return $subCategory;
-        }
-        return null;
-    }
-
-    /**
-     * Get a unit from preloaded collection.
-     */
-    private function getExistingUnit(?string $name, Collection $units): ?UnitOfMeasure
-    {
-        if (!$name) return null;
-        return $units->get($name);
-    }
-
-    /**
-     * Parse variant attributes (e.g., "Size:Small,Color:Red") using only existing attributes/values.
-     */
-    private function parseExistingVariantAttributes(?string $attributes): array
+    private function parseVariantAttributes(string $attributes, Collection $variantAttributes): array
     {
         if (!$attributes) return [];
-
-        $variantValueIds = [];
-        $attributePairs = array_map('trim', explode(',', $attributes));
-
-        foreach ($attributePairs as $pair) {
-            [$attributeName, $valueName] = array_map('trim', explode(':', $pair, 2));
-            if (!$attributeName || !$valueName) continue;
-
-            $attribute = VariantAttribute::where('name', $attributeName)->first();
-            if (!$attribute) continue;
-
-            $value = VariantValue::where('variant_attribute_id', $attribute->id)
-                ->where('value', $valueName)
-                ->first();
-            if (!$value) continue;
-
-            $variantValueIds[] = $value->id;
+        $ids = [];
+        $pairs = array_map('trim', explode(',', $attributes));
+        foreach ($pairs as $pair) {
+            [$attrName, $valueName] = array_map('trim', explode(':', $pair, 2));
+            if (!$attrName || !$valueName) continue;
+            $attr = $variantAttributes->get($attrName);
+            if (!$attr) continue;
+            $value = $attr->values->firstWhere('value', $valueName);
+            if ($value) $ids[] = $value->id;
         }
-
-        return $variantValueIds;
+        return $ids;
     }
 
-    /**
-     * Map variant attributes for selected_attributes.
-     */
-    private function mapSelectedAttributes(array $variantValueIds): array
-    {
-        $selectedAttributes = [];
-        foreach ($variantValueIds as $valueId) {
-            $value = VariantValue::find($valueId);
-            if ($value && $value->variant_attribute_id) {
-                if (!isset($selectedAttributes[$value->variant_attribute_id])) {
-                    $selectedAttributes[$value->variant_attribute_id] = [];
-                }
-                if (!in_array($valueId, $selectedAttributes[$value->variant_attribute_id])) {
-                    $selectedAttributes[$value->variant_attribute_id][] = $valueId;
-                }
-            }
-        }
-        return $selectedAttributes;
-    }
-
-    /**
-     * Generate a unique base item code for a product based on category.
-     *
-     * @param int $categoryId
-     * @return string
-     */
-    protected function generateBaseItemCode($categoryId)
+    private function generateBaseItemCode($categoryId): string
     {
         $mainCategory = MainCategory::find($categoryId);
-        $shortName = $mainCategory ? strtoupper($mainCategory->short_name) : 'GEN';
-
-        $nextNumber = 1;
+        $short = $mainCategory ? strtoupper($mainCategory->short_name) : 'GEN';
+        $num = 1;
         do {
-            $itemCode = 'PRO-' . $shortName . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
-            $exists = Product::withTrashed()->where('item_code', $itemCode)->exists();
-            $nextNumber++;
+            $code = 'PRO-' . $short . '-' . str_pad($num, 4, '0', STR_PAD_LEFT);
+            $exists = Product::withTrashed()->where('item_code', $code)->exists();
+            $num++;
         } while ($exists);
-
-        return $itemCode;
+        return $code;
     }
 
-    /**
-     * Generate a unique item code for a variant.
-     *
-     * @param string $baseItemCode
-     * @param int $index
-     * @param bool $hasVariants
-     * @return string
-     */
-    protected function generateVariantItemCode($baseItemCode, $index, $hasVariants = true)
+    private function generateVariantItemCode(string $baseCode, int $index): string
     {
-        // If product has no variants, use the base item code for the variant
-        if (!$hasVariants) {
-            return $baseItemCode;
-        }
-
-        $itemCode = $baseItemCode . '-' . str_pad($index, 2, '0', STR_PAD_LEFT);
-        $exists = ProductVariant::withTrashed()->where('item_code', $itemCode)->exists();
+        $code = $baseCode . '-' . str_pad($index, 2, '0', STR_PAD_LEFT);
         $suffix = $index;
-        while ($exists) {
+        while (ProductVariant::withTrashed()->where('item_code', $code)->exists()) {
             $suffix++;
-            $itemCode = $baseItemCode . '-' . str_pad($suffix, 2, '0', STR_PAD_LEFT);
-            $exists = ProductVariant::withTrashed()->where('item_code', $itemCode)->exists();
+            $code = $baseCode . '-' . str_pad($suffix, 2, '0', STR_PAD_LEFT);
         }
-        return $itemCode;
-    }
-
-    /**
-     * Get the processed data.
-     */
-    public function getData(): array
-    {
-        return $this->data;
+        return $code;
     }
 }

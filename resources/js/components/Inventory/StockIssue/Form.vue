@@ -15,29 +15,59 @@
           <!-- Stock Issue Header -->
           <div class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">🏷️ Stock Issue Details</h5>
+
             <div class="form-row">
-              <div class="form-group col-md-4">
-                <label for="transaction_date" class="font-weight-bold">Issue Date <span class="text-danger">*</span></label>
-                <input v-model="form.transaction_date" type="text" class="form-control datepicker" id="transaction_date" required />
+              <div class="form-group col-md-3">
+                <label class="font-weight-bold">Issue Date <span class="text-danger">*</span></label>
+                <input id="transaction_date" v-model="form.transaction_date" type="text" class="form-control datepicker" required />
               </div>
 
+              <div class="form-group col-md-3">
+                <label class="font-weight-bold">Transaction Type <span class="text-danger">*</span></label>
+                <input v-model="form.transaction_type" type="text" class="form-control" required />
+              </div>
+
+              <div class="form-group col-md-3">
+                <label class="font-weight-bold">Account Code <span class="text-danger">*</span></label>
+                <input v-model="form.account_code" type="text" class="form-control" required />
+              </div>
+
+              <div class="form-group col-md-3">
+                <label class="font-weight-bold">Reference No (IO)</label>
+                <input v-model="form.reference_no" type="text" class="form-control" placeholder="Auto-generated if empty" />
+              </div>
+            </div>
+
+            <div class="form-row">
               <div class="form-group col-md-4">
-                <label for="stock_request_id" class="font-weight-bold">Stock Request <span class="text-danger">*</span></label>
-                <select ref="stockRequestSelect" v-model="form.stock_request_id" class="form-control" id="stock_request_id" required>
+                <label class="font-weight-bold">Stock Request</label>
+                <select ref="stockRequestSelect" v-model="form.stock_request_id" class="form-control">
                   <option value="">Select Stock Request</option>
                   <option v-for="sr in stockRequests" :key="sr.id" :value="sr.id">{{ sr.request_number }}</option>
                 </select>
               </div>
 
               <div class="form-group col-md-4">
-                <label class="font-weight-bold">Warehouse</label>
-                <input v-model="currentWarehouseName" type="text" class="form-control" readonly />
+                <label class="font-weight-bold">Requested By <span class="text-danger">*</span></label>
+                <select id="requestedBySelect" v-model="form.requested_by" class="form-control">
+                  <option value="">Select User</option>
+                  <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                </select>
+              </div>
+
+              <div class="form-group col-md-4">
+                <label class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
+                <select id="warehouseSelect" v-if="!form.stock_request_id" v-model="form.warehouse_id" class="form-control">
+                  <option value="">Select Warehouse</option>
+                  <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+                </select>
+                <input v-else type="text" class="form-control" :value="currentWarehouseName" readonly />
               </div>
             </div>
 
             <div class="form-group">
-              <label for="remarks" class="font-weight-bold">Remarks</label>
-              <textarea v-model="form.remarks" class="form-control" id="remarks" rows="2"></textarea>
+              <label class="font-weight-bold">Remarks</label>
+              <textarea v-model="form.remarks" class="form-control" rows="2"></textarea>
             </div>
           </div>
 
@@ -45,21 +75,23 @@
           <div class="border rounded p-3 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="font-weight-bold text-primary">📦 Issue Items <span class="text-danger">*</span></h5>
-              <button type="button" class="btn btn-sm btn-success" @click="openItemsModal">Add Items</button>
+              <button type="button" class="btn btn-sm btn-success" @click="openItemsSelection">Add Items</button>
             </div>
             <div class="table-responsive">
-              <table class="table table-bordered table-sm table-hover">
-                <thead class="thead-light">
+              <table class="table table-bordered table-striped">
+                <thead class="thead-light" style="position: sticky; top: 0; z-index: 10; background: #f8f9fa;">
                   <tr>
-                    <th>Code</th>
-                    <th>Description</th>
-                    <th>UoM</th>
-                    <th>Qty On Hand</th>
-                    <th>Issue Qty</th>
-                    <th>Unit Price</th>
-                    <th>Total Price</th>
-                    <th>Remarks</th>
-                    <th>Action</th>
+                    <th style="min-width: 80px;">Code</th>
+                    <th style="min-width: 150px;">Description</th>
+                    <th style="min-width: 60px;">UoM</th>
+                    <!-- <th style="min-width: 100px;">Qty On Hand</th> -->
+                    <th style="min-width: 100px;">Issue Qty</th>
+                    <th style="min-width: 120px;">Unit Price</th>
+                    <th style="min-width: 130px;">Total Price</th>
+                    <th style="min-width: 120px;">Campus</th>
+                    <th style="min-width: 130px;">Department</th>
+                    <th style="min-width: 150px;">Remarks</th>
+                    <th style="min-width: 80px;">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -67,10 +99,28 @@
                     <td>{{ item.product_code }}</td>
                     <td>{{ item.product_name }} {{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <td><input type="number" class="form-control" :value="item.stock_on_hand" readonly /></td>
-                    <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0001" step="0.0001" /></td>
-                    <td><input type="number" class="form-control" :value="item.unit_price" readonly /></td>
-                    <td><input type="number" class="form-control" :value="(item.quantity * item.unit_price).toFixed(4)" readonly /></td>
+                    <!-- <td><input type="number" class="form-control" :value="item.stock_on_hand" readonly /></td> -->
+                    <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0000000001" step="0.0000000001" /></td>
+                    <td>
+                      <input type="number" class="form-control"
+                            v-model.number="item.unit_price"
+                            min="0" step="0.0000000001" />
+                    </td>
+                    <td>
+                      <input type="number" class="form-control"
+                            :value="(item.quantity * item.unit_price).toFixed(10)"
+                            readonly />
+                    </td>
+                    <td>
+                      <select class="campusSelect" v-model="item.campus_id">
+                        <option v-for="campus in campuses" :key="campus.id" :value="campus.id">{{ campus.short_name }}</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select class="departmentSelect" v-model="item.department_id">
+                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.short_name }}</option>
+                      </select>
+                    </td>
                     <td><textarea class="form-control" rows="1" v-model="item.remarks"></textarea></td>
                     <td>
                       <button type="button" class="btn btn-sm btn-danger" @click="removeItem(index)">
@@ -79,7 +129,7 @@
                     </td>
                   </tr>
                   <tr v-if="form.items.length === 0">
-                    <td colspan="9" class="text-center text-muted">No items added</td>
+                    <td colspan="11" class="text-center text-muted">No items added</td>
                   </tr>
                 </tbody>
               </table>
@@ -98,12 +148,12 @@
       </div>
     </form>
 
-    <!-- Inline Modal -->
-    <div v-if="isItemsModalOpen" class="modal fade show" tabindex="-1" style="display: block;" role="dialog">
+    <!-- Items Modal -->
+    <div ref="itemsModal" class="modal fade" tabindex="-1" role="dialog">
       <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Select Stock Request Items</h5>
+            <h5 class="modal-title">{{ modalTitle }}</h5>
             <button type="button" class="close" @click="closeItemsModal">&times;</button>
           </div>
           <div class="modal-body">
@@ -121,16 +171,11 @@
                 <tr v-for="item in modalItems" :key="item.id">
                   <td>
                     <div class="custom-control custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="custom-control-input"
-                        :id="'select-item-' + item.id"
-                        v-model="item.selected"
-                      />
+                      <input type="checkbox" class="custom-control-input" :id="'select-item-' + item.id" v-model="item.selected" />
                       <label class="custom-control-label" :for="'select-item-' + item.id"></label>
                     </div>
                   </td>
-                  <td>{{ item.item_code }}</td>
+                  <td>{{ item.item_code || item.product_code }}</td>
                   <td>{{ item.product_name }} {{ item.description }}</td>
                   <td>{{ item.stock_on_hand }}</td>
                   <td>{{ item.unit_price }}</td>
@@ -145,7 +190,6 @@
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -160,136 +204,173 @@ const emit = defineEmits(['submitted'])
 
 const isEditMode = computed(() => !!props.initialData.id)
 const isSubmitting = ref(false)
-const isItemsModalOpen = ref(false)
+const modalTitle = ref('Select Items')
 
 const stockRequests = ref([])
+const users = ref([])
+const campuses = ref([])
+const departments = ref([])
+const products = ref([])
+const warehouses = ref([])
 const stockRequestSelect = ref(null)
 const currentWarehouseName = ref('')
 
 const form = ref({
   stock_request_id: null,
+  warehouse_id: null,
   transaction_date: '',
+  transaction_type: '',
+  account_code: '',
+  reference_no: '',
+  requested_by: null,
   remarks: '',
   items: []
 })
 
-const stockRequestItemsCache = ref({})
 const modalItems = ref([])
+const itemsModal = ref(null)
 
-const mapItem = item => ({
+// Map item for form
+const mapItem = (item, source = 'product') => ({
   id: null,
-  stock_request_item_id: item.id,
-  product_id: item.product_id,
-  product_code: item.item_code,
+  stock_request_item_id: item.id || null,
+  product_id: item.product_id || item.id,
+  product_code: item.item_code || item.product_code,
   product_name: item.product_name,
   description: item.description || '',
   unit_name: item.unit_name,
   quantity: parseFloat(item.quantity) || 1,
   unit_price: parseFloat(item.unit_price) || 0,
   stock_on_hand: parseFloat(item.stock_on_hand) || 0,
-  total_price: parseFloat((item.quantity * item.unit_price).toFixed(4)),
-  remarks: ''
+  total_price: parseFloat(((item.quantity || 1) * (item.unit_price || 0)).toFixed(10)),
+  remarks: '',
+  campus_id: item.campus_id || null,
+  department_id: item.department_id || null,
+  source
 })
 
-const goToIndex = () => (window.location.href = '/inventory/stock-issues')
+// Navigation
+const goToIndex = () => window.location.href = '/inventory/stock-issues'
 const removeItem = index => form.value.items.splice(index, 1)
 
-// Fetch stock requests
-const fetchStockRequests = async () => {
+// Fetch initial data
+const fetchInitialData = async () => {
   try {
-    const { data } = await axios.get('/api/inventory/stock-issues/get-stock-requests')
-    stockRequests.value = Array.isArray(data) ? data : data.data
-  } catch { showAlert('Error', 'Failed to fetch stock requests.', 'danger') }
+    const [{data: sr}, {data: u}, {data: c}, {data: d}, {data: p}, {data: w}] = await Promise.all([
+      axios.get('/api/inventory/stock-issues/get-stock-requests'),
+      axios.get('/api/users'),
+      axios.get('/api/campuses'),
+      axios.get('/api/departments'),
+      axios.get('/api/inventory/stock-issues/get-products'),
+      axios.get('/api/inventory/warehouses')
+    ])
+    stockRequests.value = sr.data ?? sr
+    users.value = u.data ?? u
+    campuses.value = c.data ?? c
+    departments.value = d.data ?? d
+    products.value = p.data ?? p
+    warehouses.value = w.data ?? w
+  } catch {
+    showAlert('Error', 'Failed to fetch initial data.', 'danger')
+  }
 }
 
-// Modal Methods
-const openItemsModal = async () => {
-  if (!form.value.stock_request_id) return showAlert('Error', 'Please select a Stock Request.', 'danger')
+// Watch total price
+watch(form, (newForm) => {
+  newForm.items.forEach(item => {
+    item.total_price = parseFloat((item.quantity * item.unit_price).toFixed(10))
+  })
+}, { deep: true })
+
+// Watch stock request change
+watch(() => form.value.stock_request_id, newId => {
+  if (!newId) {
+    currentWarehouseName.value = ''
+    form.value.warehouse_id = null
+    return
+  }
+  const selectedSR = stockRequests.value.find(sr => sr.id === Number(newId))
+  currentWarehouseName.value = selectedSR?.warehouse_name || ''
+  form.value.warehouse_id = selectedSR?.warehouse_id || null
+})
+
+// Open modal selection
+const openItemsSelection = async () => {
+  if (form.value.stock_request_id) {
+    await openStockRequestItemsModal()
+  } else {
+    await openProductsModal()
+  }
+  $(itemsModal.value).modal('show')
+}
+
+const openStockRequestItemsModal = async () => {
   try {
+    if (!form.value.stock_request_id) return showAlert('Error', 'Please select a Stock Request.', 'danger')
     const { data } = await axios.get(`/api/inventory/stock-issues/get-stock-request-items/${form.value.stock_request_id}`, { params: { cutoff_date: form.value.transaction_date } })
     modalItems.value = (data.items ?? []).map(i => ({ ...i, selected: false }))
-    isItemsModalOpen.value = true
-  } catch { showAlert('Error', 'Failed to fetch items.', 'danger') }
+    modalTitle.value = 'Select Stock Request Items'
+  } catch {
+    showAlert('Error', 'Failed to fetch stock request items.', 'danger')
+  }
 }
 
-const closeItemsModal = () => isItemsModalOpen.value = false
+const openProductsModal = async () => {
+  modalItems.value = products.value.map(i => ({ ...i, selected: false }))
+  modalTitle.value = 'Select Products'
+}
 
-const addSelectedItems = () => {
-  const duplicates = []
+// Close modal
+const closeItemsModal = () => $(itemsModal.value).modal('hide')
 
+// Add selected items (allow duplicates)
+const addSelectedItems = async () => {
+  const source = form.value.stock_request_id ? 'stock_request' : 'product'
   modalItems.value.forEach(item => {
     if (!item.selected) return
-    const exists = form.value.items.some(i => i.stock_request_item_id === item.id)
-    if (!exists) form.value.items.push(mapItem(item))
-    else duplicates.push(item.item_code || item.product_name)
+    form.value.items.push(mapItem(item, source))
   })
-
-  if (duplicates.length) showAlert('Warning', `Skipped duplicates: ${duplicates.join(', ')}`, 'warning')
-
-  stockRequestItemsCache.value[form.value.stock_request_id] = JSON.parse(JSON.stringify(form.value.items))
+  await nextTick()
+  initRowSelect2()
   closeItemsModal()
 }
 
 // Datepicker
 const initDatepicker = async () => {
   await nextTick()
-  $('#transaction_date').datepicker({
-    format: 'yyyy-mm-dd',
-    autoclose: true,
-    todayHighlight: true,
-    orientation: 'bottom left'
-  }).on('changeDate', () => form.value.transaction_date = $('#transaction_date').val())
+  $('#transaction_date').datepicker({ format: 'yyyy-mm-dd', autoclose: true, todayHighlight: true, orientation: 'bottom left' })
+    .on('changeDate', () => form.value.transaction_date = $('#transaction_date').val())
 }
 
-// Watchers
-watch(() => form.value.stock_request_id, async newId => {
-  if (!newId) {
-    form.value.items = []
-    currentWarehouseName.value = ''
-    return
-  }
-
-  const selectedSR = stockRequests.value.find(sr => sr.id === Number(newId))
-  currentWarehouseName.value = selectedSR?.warehouse_name || ''
-
-  if (stockRequestItemsCache.value[newId]) {
-    form.value.items = JSON.parse(JSON.stringify(stockRequestItemsCache.value[newId]))
-    return
-  }
-
-  try {
-    const { data } = await axios.get(`/api/inventory/stock-issues/get-stock-request-items/${newId}`, { params: { cutoff_date: form.value.transaction_date } })
-    form.value.items = (data.items ?? []).map(mapItem)
-    stockRequestItemsCache.value[newId] = JSON.parse(JSON.stringify(form.value.items))
-  } catch { showAlert('Error', 'Failed to fetch stock request items.', 'danger') }
-})
-
-watch([() => form.value.stock_request_id, () => form.value.transaction_date], async ([newId, newDate]) => {
-  if (!newId || !newDate) return
-  try {
-    const { data } = await axios.get(`/api/inventory/stock-issues/get-stock-request-items/${newId}`, { params: { cutoff_date: newDate } })
-    const latestItems = (data.items ?? []).map(mapItem)
-
-    form.value.items.forEach(item => {
-      const updated = latestItems.find(i => i.stock_request_item_id === item.stock_request_item_id)
-      if (updated) {
-        item.stock_on_hand = updated.stock_on_hand
-        item.unit_price = updated.unit_price
-        item.total_price = parseFloat((item.quantity * item.unit_price).toFixed(4))
-      }
+// Initialize Select2 for table rows
+const initRowSelect2 = () => {
+  document.querySelectorAll('.campusSelect').forEach(el => {
+    initSelect2(el, { placeholder: 'Select Campus', width: '100%' }, val => {
+      const index = Array.from(document.querySelectorAll('.campusSelect')).indexOf(el)
+      if (index !== -1) form.value.items[index].campus_id = val
     })
-  } catch { showAlert('Error', 'Failed to refresh stock and price.', 'danger') }
-})
+  })
+  document.querySelectorAll('.departmentSelect').forEach(el => {
+    initSelect2(el, { placeholder: 'Select Department', width: '100%' }, val => {
+      const index = Array.from(document.querySelectorAll('.departmentSelect')).indexOf(el)
+      if (index !== -1) form.value.items[index].department_id = val
+    })
+  })
+}
 
 // Submit
 const submitForm = async () => {
-  if (isSubmitting.value || !form.value.stock_request_id || !form.value.items.length) return
+  if (isSubmitting.value || !form.value.items.length) return
   isSubmitting.value = true
-
   try {
     const payload = {
       stock_request_id: form.value.stock_request_id,
+      warehouse_id: form.value.warehouse_id,
       transaction_date: form.value.transaction_date,
+      transaction_type: form.value.transaction_type,
+      account_code: form.value.account_code,
+      reference_no: form.value.reference_no || null,
+      requested_by: form.value.requested_by || null,
       remarks: form.value.remarks,
       items: form.value.items.map(item => ({
         id: item.id,
@@ -297,41 +378,71 @@ const submitForm = async () => {
         product_id: item.product_id,
         quantity: parseFloat(item.quantity),
         unit_price: parseFloat(item.unit_price),
-        total_price: parseFloat((item.quantity * item.unit_price).toFixed(4)),
-        remarks: item.remarks
+        total_price: parseFloat((item.quantity * item.unit_price).toFixed(10)),
+        remarks: item.remarks,
+        campus_id: item.campus_id,
+        department_id: item.department_id
       }))
     }
-
     const url = isEditMode.value ? `/api/inventory/stock-issues/${props.initialData.id}` : '/api/inventory/stock-issues'
     const method = isEditMode.value ? 'put' : 'post'
     await axios[method](url, payload)
-
     await showAlert('Success', 'Stock issue saved successfully.', 'success')
     emit('submitted')
     goToIndex()
-  } catch { showAlert('Error', 'Failed to save stock issue.', 'danger') }
-  finally { isSubmitting.value = false }
+  } catch {
+    showAlert('Error', 'Failed to save stock issue.', 'danger')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // Lifecycle
 onMounted(async () => {
-  await fetchStockRequests()
+  await fetchInitialData()
   await initDatepicker()
 
+  // Stock Request select
   if (stockRequestSelect.value) {
-    initSelect2(stockRequestSelect.value, { placeholder: 'Select Stock Request', width: '100%' }, val => form.value.stock_request_id = val)
+    initSelect2(stockRequestSelect.value, {
+      placeholder: 'Select Stock Request',
+      width: '100%',
+      allowClear: true // this enables the clear button
+    }, val => {
+      form.value.stock_request_id = val || null // clear sets null
+    })
   }
 
+  // Other selects
+  await nextTick()
+  const requestedBy = document.querySelector('#requestedBySelect')
+  const warehouse = document.querySelector('#warehouseSelect')
+  if (requestedBy) initSelect2(requestedBy, { placeholder: 'Select User', width: '100%' }, val => form.value.requested_by = val)
+  if (warehouse) initSelect2(warehouse, { placeholder: 'Select Warehouse', width: '100%' }, val => form.value.warehouse_id = val)
+
+  // Edit mode
   if (isEditMode.value) {
-    form.value.stock_request_id = props.initialData.stock_request_id
-    form.value.transaction_date = props.initialData.transaction_date
-    form.value.remarks = props.initialData.remarks
-    form.value.items = JSON.parse(JSON.stringify(props.initialData.items))
-    stockRequestItemsCache.value[props.initialData.stock_request_id] = JSON.parse(JSON.stringify(form.value.items))
+    Object.assign(form.value, { ...props.initialData, items: JSON.parse(JSON.stringify(props.initialData.items)) })
     currentWarehouseName.value = props.initialData.warehouse_name || ''
 
-    if (stockRequestSelect.value) $(stockRequestSelect.value).val(form.value.stock_request_id).trigger('change.select2')
+    // Set Select2 values
+    if (stockRequestSelect.value) {
+      $(stockRequestSelect.value).val(form.value.stock_request_id).trigger('change.select2')
+    }
+    if (requestedBy) {
+      $(requestedBy).val(form.value.requested_by).trigger('change.select2')
+    }
+    if (warehouse) {
+      $(warehouse).val(form.value.warehouse_id).trigger('change.select2')
+    }
+
     if (form.value.transaction_date) $('#transaction_date').datepicker('setDate', form.value.transaction_date)
+    await nextTick()
+    initRowSelect2()
   }
 })
 </script>
+
+<style scoped>
+
+</style>

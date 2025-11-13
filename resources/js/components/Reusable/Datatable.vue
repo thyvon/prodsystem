@@ -98,6 +98,7 @@ const renderColumnData = (key, val) => {
     case 'created_at':
     case 'beginning_date': return formatDate(val);
     case 'updated_at': return formatDateTime(val);
+    case 'transaction_date': return formatDate(val);
 
     // Boolean status badges
     case 'is_active':

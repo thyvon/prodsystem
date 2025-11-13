@@ -14,10 +14,13 @@ class StockIssue extends Model
     protected $fillable = [
         'stock_request_id',
         'transaction_date',
+        'transaction_type',
+        'account_code',
         'reference_no',
         'warehouse_id',
         'remarks',
         'approval_status',
+        'requested_by',
         'created_by',
         'position_id',
         'updated_by',
@@ -37,6 +40,11 @@ class StockIssue extends Model
     public function stockIssueItems()
     {
         return $this->hasMany(StockIssueItem::class);
+    }
+
+    public function requestedBy()
+    {
+        return $this->belongsTo(User::class, 'requested_by');
     }
 
     public function createdBy()

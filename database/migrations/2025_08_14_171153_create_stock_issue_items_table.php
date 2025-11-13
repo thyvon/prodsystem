@@ -13,23 +13,19 @@ return new class extends Migration
     {
         Schema::create('stock_issue_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('stock_issue_id');
-            $table->unsignedBigInteger('product_id');
-            $table->decimal('quantity', 10, 4);
-            $table->decimal('unit_price', 10, 4);
-            $table->decimal('total_price', 10, 4);
+            $table->foreignId('stock_issue_id')->constrained('stock_issues')->cascadeOnDelete();
+            $table->foreignId('stock_request_item_id')->nullable()->constrained('stock_request_items')->restrictOnDelete();
+            $table->foreignId('product_id')->constrained('product_variants')->restrictOnDelete();
+            $table->decimal('quantity', 20, 10);
+            $table->decimal('unit_price', 20, 10);
+            $table->decimal('total_price', 20, 10);
             $table->string('remarks')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->unsignedBigInteger('deleted_by')->nullable();
+            $table->foreignId('campus_id')->constrained('campus')->restrictOnDelete();
+            $table->foreignId('department_id')->constrained('departments')->restrictOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->restrictOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->restrictOnDelete();
             $table->timestamps();
             $table->softDeletes();
-
-            $table->foreign('stock_issue_id')->references('id')->on('stock_issues')->onDelete('cascade');
-            $table->foreign('product_id')->references('id')->on('product_variants')->onDelete('restrict');
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('deleted_by')->references('id')->on('users')->onDelete('restrict');
         });
     }
 

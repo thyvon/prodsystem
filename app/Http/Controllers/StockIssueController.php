@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use App\Services\StockRequestService;
 use App\Services\StockLedgerService;
+use App\Services\ProductService;
+use App\Imports\StockIssueImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class StockIssueController extends Controller
 {
@@ -34,14 +37,17 @@ class StockIssueController extends Controller
 
     protected StockRequestService $stockRequestService;
     protected StockLedgerService $stockLedgerService;
+    protected ProductService $productService;
 
     public function __construct(
         StockRequestService $stockRequestService,
-        StockLedgerService $stockLedgerService
+        StockLedgerService $stockLedgerService,
+        ProductService $productService
     )
     {
         $this->stockRequestService = $stockRequestService;
         $this->stockLedgerService = $stockLedgerService;
+        $this->productService = $productService;
     }
 
     public function index()
@@ -74,6 +80,7 @@ class StockIssueController extends Controller
             'stockRequest.warehouse.building.campus',
             'createdBy.campus',
             'updatedBy',
+            'requestedBy'
         ])
         ->when(!$isAdmin, fn($q) => $q->whereHas('stockRequest.warehouse.building.campus', fn($q2) => $q2->whereIn('id', $campusIds)))
         ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) =>
@@ -113,10 +120,10 @@ class StockIssueController extends Controller
             'reference_no' => $issue->reference_no,
             'request_number' => $issue->stockRequest->request_number ?? null,
             'transaction_date' => $issue->transaction_date,
-            'requester_name' => $issue->stockRequest->createdBy->name ?? null,
-            'requester_campus_name' => $issue->stockRequest->campus->short_name ?? null,
-            'warehouse_name' => $issue->stockRequest->warehouse->name ?? null,
-            'warehouse_campus_name' => $issue->stockRequest->warehouse->building->campus->short_name ?? null,
+            'requester_name' => $issue->requestedBy->name ?? null,
+            'requester_campus_name' => optional($issue->requestedBy->defaultCampus())->short_name,
+            'warehouse_name' => $issue->warehouse->name ?? null,
+            'warehouse_campus_name' => $issue->warehouse->building->campus->short_name ?? null,
             'quantity' => $issue->stockIssueItems->sum('quantity'),
             'total_price' => $issue->stockIssueItems->sum('total_price'),
             'created_by' => $issue->createdBy->name ?? null,
@@ -143,63 +150,94 @@ class StockIssueController extends Controller
         return view('Inventory.stockIssue.form', compact('stockRequests'));
     }
 
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,csv'],
+        ]);
+
+        try {
+            Excel::import(new StockIssueImport, $request->file('file'));
+
+            return response()->json([
+                'message' => 'Stock Issues imported successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('create', StockIssue::class);
 
-        // Validate the request (approvals removed)
+        // Validate the request
         $validated = Validator::make($request->all(), array_merge(
             $this->stockIssueValidationRule(),
             $this->stockIssueItemValidationRule()
         ))->validate();
 
-        // Fetch the StockRequest and verify it exists
-        $stockRequest = StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id']);
+        // Fetch the StockRequest and verify it exists (if provided)
+        $stockRequest = isset($validated['stock_request_id'])
+            ? StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id'])
+            : null;
 
         try {
             return DB::transaction(function () use ($validated, $stockRequest) {
                 $user = auth()->user();
                 $userPosition = $user?->defaultPosition();
+
                 if (!$userPosition) {
                     return response()->json([
                         'message' => 'No default position assigned to this user.',
                     ], 404);
                 }
 
-                // Generate issue number using StockRequest (uses warehouse relation)
-                $issueNumber = $this->generateReferenceNo($stockRequest, $validated['transaction_date']);
+                // Use provided reference_no or generate a new one
+                $referenceNo = $validated['reference_no'] ?? $this->generateReferenceNo($stockRequest ?? null, $validated['transaction_date']);
 
-                // Create StockIssue using warehouse_id from StockRequest
+                // Create StockIssue
                 $stockIssue = StockIssue::create([
                     'transaction_date' => $validated['transaction_date'],
-                    'reference_no'     => $issueNumber,
-                    'stock_request_id' => $validated['stock_request_id'],
-                    'warehouse_id'     => $stockRequest->warehouse_id,
+                    'transaction_type' => $validated['transaction_type'],
+                    'account_code'     => $validated['account_code'],
+                    'reference_no'     => $referenceNo,
                     'remarks'          => $validated['remarks'] ?? null,
+                    'warehouse_id'     => $validated['warehouse_id'] ?? $stockRequest?->warehouse_id,
+                    'stock_request_id' => $validated['stock_request_id'] ?? null,
+                    'requested_by'     => $validated['requested_by'] ?? $user?->id ?? 1,
                     'created_by'       => $user?->id ?? 1,
-                    'position_id'      => $userPosition->id,
+                    'updated_by'       => $user?->id ?? 1,
                 ]);
 
-                // Prepare items (using unit_price + total_price)
-                $items = array_map(function ($item) use ($stockIssue) {
-                    $avg = $item['unit_price'];
+                // Prepare StockIssueItems
+                $items = array_map(function ($item) {
                     $qty = $item['quantity'];
+                    $unitPrice = $item['unit_price'];
                     return [
-                        'stock_issue_id'        => $stockIssue->id,
-                        'stock_request_item_id' => $item['stock_request_item_id'],
-                        'product_id'            => $item['product_id'],
-                        'quantity'              => $qty,
-                        'unit_price'         => $avg,
-                        'total_price'           => $qty * $avg,
-                        'remarks'               => $item['remarks'] ?? null,
-                        'created_by'            => auth()->id() ?? 1,
-                        'updated_by'            => auth()->id() ?? 1,
-                        'created_at'            => now(),
-                        'updated_at'            => now(),
+                        'stock_issue_id' => $item['stock_issue_id'] ?? null,
+                        'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
+                        'product_id'     => $item['product_id'],
+                        'quantity'       => $qty,
+                        'unit_price'     => $unitPrice,
+                        'total_price'    => bcmul($qty, $unitPrice, 10), // precise 10 decimals
+                        'remarks'        => $item['remarks'] ?? null,
+                        'campus_id'      => $item['campus_id'],
+                        'department_id'  => $item['department_id'],
+                        'updated_by'     => auth()->id() ?? 1,
+                        'deleted_by'     => null,
+                        'created_at'     => now(),
+                        'updated_at'     => now(),
                     ];
                 }, $validated['items']);
 
+                // Insert items
                 if (!empty($items)) {
+                    foreach ($items as &$item) {
+                        $item['stock_issue_id'] = $stockIssue->id;
+                    }
                     StockIssueItem::insert($items);
                 }
 
@@ -217,24 +255,29 @@ class StockIssueController extends Controller
         }
     }
 
+
     public function edit(StockIssue $stockIssue)
     {
         $this->authorize('update', $stockIssue);
 
         try {
             $stockIssue->load([
-                'stockIssueItems.productVariant.product.unit',
+                'stockIssueItems',
                 'warehouse',
                 'stockRequest',
+                'requestedBy'
             ]);
 
             $stockIssueData = [
                 'id' => $stockIssue->id,
                 'stock_request_id' => $stockIssue->stock_request_id,
                 'transaction_date' => $stockIssue->transaction_date,
+                'transaction_type' => $stockIssue->transaction_type,
+                'account_code' => $stockIssue->account_code,
                 'reference_no' => $stockIssue->reference_no,
                 'warehouse_id' => $stockIssue->warehouse_id,
                 'remarks' => $stockIssue->remarks,
+                'requested_by' => $stockIssue->requested_by,
                 'created_by' => $stockIssue->created_by,
                 'position_id' => $stockIssue->position_id,
                 'items' => $stockIssue->stockIssueItems->map(function ($item) use ($stockIssue) {
@@ -259,10 +302,12 @@ class StockIssueController extends Controller
                             'variant' => $item->productVariant?->variant_name ?? null,
                             'unit_name' => $unitName,
                             'quantity' => $item->quantity,
-                            'unit_price' => $averagePrice,
+                            'unit_price' => $item->unit_price,
                             'total_price' => round($item->quantity * $averagePrice, 4),
                             'remarks' => $item->remarks,
                             'stock_on_hand' => $stockOnHand,
+                            'campus_id' => $item->campus_id,
+                            'department_id' => $item->department_id
                         ];
                 })->toArray(),
             ];
@@ -286,13 +331,19 @@ class StockIssueController extends Controller
         $this->authorize('update', $stockIssue);
 
         // Validate the request
-        $validated = Validator::make($request->all(), array_merge(
-            $this->stockIssueValidationRule(),
-            $this->stockIssueItemValidationRule()
-        ))->validate();
+        $validated = Validator::make(
+            $request->all(),
+            array_merge(
+                $this->stockIssueValidationRule(null, $stockIssue->id),
+                $this->stockIssueItemValidationRule()
+            )
+        )->validate();
 
-        // Fetch the StockRequest and ensure it exists
-        $stockRequest = StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id']);
+
+        // Fetch the StockRequest if provided
+        $stockRequest = $validated['stock_request_id'] ?? null
+            ? StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id'])
+            : null;
 
         try {
             return DB::transaction(function () use ($validated, $stockIssue, $stockRequest) {
@@ -307,12 +358,15 @@ class StockIssueController extends Controller
 
                 // Update StockIssue main details
                 $stockIssue->update([
-                    'stock_request_id' => $stockRequest->id,
-                    'warehouse_id' => $stockRequest->warehouse_id,
                     'transaction_date' => $validated['transaction_date'],
-                    'position_id' => $userPosition->id,
-                    'remarks' => $validated['remarks'] ?? null,
-                    'updated_by' => $user?->id ?? 1,
+                    'transaction_type' => $validated['transaction_type'],
+                    'account_code'     => $validated['account_code'],
+                    'reference_no'     => $validated['reference_no'] ?? $stockIssue->reference_no,
+                    'stock_request_id' => $stockRequest?->id ?? $validated['stock_request_id'] ?? null,
+                    'warehouse_id'     => $validated['warehouse_id'] ?? $stockRequest?->warehouse_id,
+                    'requested_by'     => $validated['requested_by'] ?? $stockIssue->requested_by,
+                    'remarks'          => $validated['remarks'] ?? null,
+                    'updated_by'       => $user?->id ?? 1,
                 ]);
 
                 // Handle StockIssueItems
@@ -321,42 +375,46 @@ class StockIssueController extends Controller
 
                 foreach ($validated['items'] as $item) {
                     $qty = $item['quantity'];
-                    $avg = $item['unit_price'];
+                    $unitPrice = $item['unit_price'];
 
                     if (!empty($item['id']) && $existingItems->has($item['id'])) {
                         // Update existing item
                         $existingItems[$item['id']]->update([
-                            'stock_request_item_id' => $item['stock_request_item_id'],
-                            'product_id' => $item['product_id'],
-                            'quantity' => $qty,
-                            'unit_price' => $avg,
-                            'total_price' => $qty * $avg,
-                            'remarks' => $item['remarks'] ?? null,
-                            'updated_by' => auth()->id() ?? 1,
+                            'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
+                            'product_id'            => $item['product_id'],
+                            'quantity'              => $qty,
+                            'unit_price'            => $unitPrice,
+                            'total_price'           => bcmul($qty, $unitPrice, 10),
+                            'remarks'               => $item['remarks'] ?? null,
+                            'campus_id'             => $item['campus_id'],
+                            'department_id'         => $item['department_id'],
+                            'updated_by'            => $user?->id ?? 1,
                         ]);
                         $submittedItemIds[] = $item['id'];
                     } else {
                         // Insert new item
                         $newItem = StockIssueItem::create([
-                            'stock_issue_id' => $stockIssue->id,
-                            'stock_request_item_id' => $item['stock_request_item_id'],
-                            'product_id' => $item['product_id'],
-                            'quantity' => $qty,
-                            'unit_price' => $avg,
-                            'total_price' => $qty * $avg,
-                            'remarks' => $item['remarks'] ?? null,
-                            'created_by' => auth()->id() ?? 1,
-                            'updated_by' => auth()->id() ?? 1,
+                            'stock_issue_id'        => $stockIssue->id,
+                            'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
+                            'product_id'            => $item['product_id'],
+                            'quantity'              => $qty,
+                            'unit_price'            => $unitPrice,
+                            'total_price'           => bcmul($qty, $unitPrice, 10),
+                            'remarks'               => $item['remarks'] ?? null,
+                            'campus_id'             => $item['campus_id'],
+                            'department_id'         => $item['department_id'],
+                            'updated_by'            => $user?->id ?? 1,
+                            'deleted_by'            => null,
                         ]);
-                        $submittedItemIds[] = $newItem->id; // Track new item
+                        $submittedItemIds[] = $newItem->id;
                     }
                 }
 
                 // Soft-delete items not submitted
                 $stockIssue->stockIssueItems()
                     ->whereNotIn('id', $submittedItemIds)
-                    ->each(function ($item) {
-                        $item->deleted_by = auth()->id() ?? 1;
+                    ->each(function ($item) use ($user) {
+                        $item->deleted_by = $user?->id ?? 1;
                         $item->save();
                         $item->delete();
                     });
@@ -379,16 +437,31 @@ class StockIssueController extends Controller
         }
     }
 
+
     /**
      * Validation rule methods (note: singular names to match calls in store/update)
      */
-    private function stockIssueValidationRule(?int $stockRequestId = null): array
+    private function stockIssueValidationRule(?int $stockRequestId = null, ?int $ignoreId = null): array
     {
-        return [
+        $rules = [
             'transaction_date' => ['required', 'date', 'date_format:' . self::DATE_FORMAT],
-            'stock_request_id' => ['required', 'integer', 'exists:stock_requests,id'],
-            'remarks' => ['nullable', 'string', 'max:1000'],
+            'transaction_type' => ['required', 'string', 'max:50'],
+            'account_code'     => ['required', 'string', 'max:50'],
+            'reference_no'     => ['nullable', 'string', 'max:50'],
+            'stock_request_id' => ['nullable', 'integer', 'exists:stock_requests,id'],
+            'warehouse_id'     => ['required', 'integer', 'exists:warehouses,id'],
+            'requested_by'     => ['nullable', 'integer', 'exists:users,id'],
+            'remarks'          => ['nullable', 'string', 'max:1000'],
         ];
+
+        // If updating, ignore current record for unique reference_no
+        if ($ignoreId) {
+            $rules['reference_no'][] = 'unique:stock_issues,reference_no,' . $ignoreId;
+        } else {
+            $rules['reference_no'][] = 'unique:stock_issues,reference_no';
+        }
+
+        return $rules;
     }
 
     private function stockIssueItemValidationRule(): array
@@ -396,10 +469,12 @@ class StockIssueController extends Controller
         return [
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:stock_issue_items,id'],
-            'items.*.stock_request_item_id' => ['required', 'integer', 'exists:stock_request_items,id'],
+            'items.*.stock_request_item_id' => ['nullable', 'integer', 'exists:stock_request_items,id'],
             'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.0000000001'], // allow 10 decimals
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],          // allow 10 decimals
+            'items.*.campus_id' => ['required', 'integer', 'exists:campus,id'],
+            'items.*.department_id' => ['required', 'integer', 'exists:departments,id'],
             'items.*.remarks' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -508,5 +583,11 @@ class StockIssueController extends Controller
         $items = collect($stockRequestsData['data'])
             ->firstWhere('id', $stockRequest->id)['items'] ?? [];
         return response()->json(['items' => $items]);
+    }
+    public function getProducts(Request $request)
+    {
+        $this->authorize('viewAny', PurchaseRequest::class);
+        $response = $this->productService->getStockManagedVariants($request);
+        return response()->json($response);
     }
 }

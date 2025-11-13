@@ -210,9 +210,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('can:update,product')->name('api.products.update');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('can:delete,product')->name('api.products.destroy');
     Route::get('/product-variants-stock', [ProductController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
+    Route::post('/products/import', [ProductController::class, 'import'])->middleware('can:create,' . Product::class);
 
-    Route::post('products/import', [ProductController::class, 'import'])->middleware('can:create,' . Product::class)->name('api.products.import');
-    Route::get('products/export', [ProductController::class, 'export'])->middleware('can:viewAny,' . Product::class)->name('api.products.export');
+    // Route::post('products/import', [ProductController::class, 'import'])->middleware('can:create,' . Product::class)->name('api.products.import');
+    // Route::get('products/export', [ProductController::class, 'export'])->middleware('can:viewAny,' . Product::class)->name('api.products.export');
 
 
     // Product Management - Trashed
@@ -293,6 +294,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/stock-issues/{stockIssue}', [StockIssueController::class, 'destroy'])->middleware('can:delete,stockIssue')->name('api.stock-issues.destroy');
         Route::get('/stock-issues/get-stock-requests', [StockIssueController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-stock-requests');
         Route::get('/stock-issues/get-stock-request-items/{stockRequest}', [StockIssueController::class, 'getStockRequestItems'])->name('api.stock-issues.get-stock-request-items');
+        Route::get('/stock-issues/get-products', [StockIssueController::class, 'getProducts'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-products');
+        Route::post('/stock-issues/import', [StockIssueController::class, 'import'])->name('api.stock-issues.import');
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'getStockTransfers'])->middleware('can:viewAny,' . StockTransfer::class)->name('api.stock-transfers.index');

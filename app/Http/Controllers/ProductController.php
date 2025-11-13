@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Services\ProductService;
+use App\Imports\ProductsImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Controller for managing products with variants, including soft deletes and user tracking.
@@ -470,6 +472,29 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'Failed to soft delete product',
                 'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function import(Request $request)
+    {
+        $request->validate(['file' => 'required|file|mimes:xlsx,csv']);
+
+        $import = new ProductsImport();
+
+        try {
+            Excel::import($import, $request->file('file'));
+            $errors = $import->getErrors();
+
+            return response()->json([
+                'message' => empty($errors) ? 'Products imported successfully.' : 'Products imported with errors.',
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Product import failed.',
+                'errors' => [$e->getMessage()],
             ], 500);
         }
     }

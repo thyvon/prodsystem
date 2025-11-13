@@ -31,7 +31,7 @@
 
         <div class="col-6 text-center">
           <h4 class="font-weight-bold text-dark">Purchase Request</h4>
-          <h4 class="font-weight-bold text-dark">សំណើសុំទិញ</h4>
+          <h4 class="font-weight-bold text-dark">សំណើទិញសម្ភារ</h4>
           <h4 v-if="purchaseRequest.is_urgent" class="font-weight-bold text-danger">Urgent</h4>
         </div>
 
@@ -142,12 +142,12 @@
                   />
                 </div>
                 <div class="font-weight-bold mb-1 text-center">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
-                <div v-if="purchaseRequest.creator_signature_url" class="mb-2 mt-2 text-center">
+                <!-- <div v-if="purchaseRequest.creator_signature_url" class="mb-2 mt-2 text-center">
                   <img
                     :src="'/storage/' + purchaseRequest.creator_signature_url"
                     height="50"
                   />
-                </div>
+                </div> -->
                 <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
                 <p class="mb-1">Position: {{ purchaseRequest.creator_position ?? 'N/A' }}</p>
                 <p class="mb-0">Date: {{ formatDate(purchaseRequest.request_date) }}</p>
@@ -169,9 +169,9 @@
                   />
                 </div>
                 <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
-                <div v-if="approval.approval_status === 'Approved'" class="mb-2 mt-2 text-center">
+                <!-- <div v-if="approval.approval_status === 'Approved'" class="mb-2 mt-2 text-center">
                   <img :src="approval.user_signature_url ? `/storage/${approval.user_signature_url}` : ''" height="50" />
-                </div>
+                </div> -->
                 <p class="mb-1 text-start">
                   Status:
                   <span class="badge"

@@ -19,7 +19,8 @@ class StockIssueItem extends Model
         'unit_price',
         'total_price',
         'remarks',
-        'created_by',
+        'campus_id',
+        'department_id',
         'updated_by',
         'deleted_by',
     ];
