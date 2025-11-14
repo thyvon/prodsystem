@@ -6,6 +6,8 @@ use App\Models\StockIssue;
 use App\Models\StockRequest;
 use App\Models\StockIssueItem;
 use App\Models\Warehouse;
+use App\Models\Campus;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -554,6 +556,8 @@ class StockIssueController extends Controller
         }
     }
 
+    // Helper functions
+
     public function getStockRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockIssue::class);
@@ -589,5 +593,35 @@ class StockIssueController extends Controller
         $this->authorize('viewAny', PurchaseRequest::class);
         $response = $this->productService->getStockManagedVariants($request);
         return response()->json($response);
+    }
+
+    public function getCampuses(Request $request)
+    {
+        $campuses = Campus::where('is_active', 1)->get();
+
+        return $campuses->map(fn($c) => [
+            'id'   => $c->id,
+            'text' => $c->short_name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getWarehouses(Request $request)
+    {
+        $warehouses = Warehouse::where('is_active', 1)->get();
+
+        return $warehouses->map(fn($w) => [
+            'id'   => $w->id,
+            'text' => $w->name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getDepartments(Request $request)
+    {
+        $departments = Department::where('is_active', 1)->get();
+
+        return $departments->map(fn($d) => [
+            'id'   => $d->id,
+            'text' => $d->short_name, // Select2 needs "text"
+        ]);
     }
 }

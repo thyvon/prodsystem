@@ -59,7 +59,7 @@
                 <label class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
                 <select id="warehouseSelect" v-if="!form.stock_request_id" v-model="form.warehouse_id" class="form-control">
                   <option value="">Select Warehouse</option>
-                  <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+                  <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.text }}</option>
                 </select>
                 <input v-else type="text" class="form-control" :value="currentWarehouseName" readonly />
               </div>
@@ -78,13 +78,12 @@
               <button type="button" class="btn btn-sm btn-success" @click="openItemsSelection">Add Items</button>
             </div>
             <div class="table-responsive">
-              <table class="table table-bordered table-striped">
+              <table class="table table-bordered table-striped mb-0">
                 <thead class="thead-light" style="position: sticky; top: 0; z-index: 10; background: #f8f9fa;">
                   <tr>
                     <th style="min-width: 80px;">Code</th>
                     <th style="min-width: 150px;">Description</th>
                     <th style="min-width: 60px;">UoM</th>
-                    <!-- <th style="min-width: 100px;">Qty On Hand</th> -->
                     <th style="min-width: 100px;">Issue Qty</th>
                     <th style="min-width: 120px;">Unit Price</th>
                     <th style="min-width: 130px;">Total Price</th>
@@ -99,26 +98,17 @@
                     <td>{{ item.product_code }}</td>
                     <td>{{ item.product_name }} {{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <!-- <td><input type="number" class="form-control" :value="item.stock_on_hand" readonly /></td> -->
                     <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0000000001" step="0.0000000001" /></td>
-                    <td>
-                      <input type="number" class="form-control"
-                            v-model.number="item.unit_price"
-                            min="0" step="0.0000000001" />
-                    </td>
-                    <td>
-                      <input type="number" class="form-control"
-                            :value="(item.quantity * item.unit_price).toFixed(10)"
-                            readonly />
-                    </td>
+                    <td><input type="number" class="form-control" v-model.number="item.unit_price" min="0" step="0.0000000001" /></td>
+                    <td><input type="number" class="form-control" :value="(item.quantity * item.unit_price).toFixed(10)" readonly /></td>
                     <td>
                       <select class="campusSelect" v-model="item.campus_id">
-                        <option v-for="campus in campuses" :key="campus.id" :value="campus.id">{{ campus.short_name }}</option>
+                        <option v-for="campus in campuses" :key="campus.id" :value="campus.id">{{ campus.text }}</option>
                       </select>
                     </td>
                     <td>
                       <select class="departmentSelect" v-model="item.department_id">
-                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.short_name }}</option>
+                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.text }}</option>
                       </select>
                     </td>
                     <td><textarea class="form-control" rows="1" v-model="item.remarks"></textarea></td>
@@ -129,11 +119,12 @@
                     </td>
                   </tr>
                   <tr v-if="form.items.length === 0">
-                    <td colspan="11" class="text-center text-muted">No items added</td>
+                    <td colspan="10" class="text-center text-muted">No items added</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+
           </div>
 
           <!-- Buttons -->
@@ -157,7 +148,7 @@
             <button type="button" class="close" @click="closeItemsModal">&times;</button>
           </div>
           <div class="modal-body">
-            <table class="table table-bordered table-sm">
+            <table ref="modalItemsTable" class="table table-bordered table-sm">
               <thead>
                 <tr>
                   <th>Select</th>
@@ -178,7 +169,7 @@
                   <td>{{ item.item_code || item.product_code }}</td>
                   <td>{{ item.product_name }} {{ item.description }}</td>
                   <td>{{ item.stock_on_hand }}</td>
-                  <td>{{ item.unit_price }}</td>
+                  <td>{{ item.average_price }}</td>
                 </tr>
               </tbody>
             </table>
@@ -206,6 +197,7 @@ const isEditMode = computed(() => !!props.initialData.id)
 const isSubmitting = ref(false)
 const modalTitle = ref('Select Items')
 
+const modalItemsTable = ref(null)
 const stockRequests = ref([])
 const users = ref([])
 const campuses = ref([])
@@ -259,10 +251,10 @@ const fetchInitialData = async () => {
     const [{data: sr}, {data: u}, {data: c}, {data: d}, {data: p}, {data: w}] = await Promise.all([
       axios.get('/api/inventory/stock-issues/get-stock-requests'),
       axios.get('/api/users'),
-      axios.get('/api/campuses'),
-      axios.get('/api/departments'),
+      axios.get('/api/inventory/stock-issues/get-campuses'),
+      axios.get('/api/inventory/stock-issues/get-departments'),
       axios.get('/api/inventory/stock-issues/get-products'),
-      axios.get('/api/inventory/warehouses')
+      axios.get('/api/inventory/stock-issues/get-warehouses')
     ])
     stockRequests.value = sr.data ?? sr
     users.value = u.data ?? u
@@ -274,6 +266,19 @@ const fetchInitialData = async () => {
     showAlert('Error', 'Failed to fetch initial data.', 'danger')
   }
 }
+
+// Watch warehouse change
+
+watch(() => form.value.warehouse_id, (newWhId) => {
+  modalItems.value = modalItems.value.map(item => {
+    const stockEntry = item.stock_by_campus?.find(s => s.warehouse_id === newWhId) || {}
+    return {
+      ...item,
+      stock_on_hand: stockEntry.stock_on_hand || 0,
+      unit_price: stockEntry.average_price || parseFloat(item.estimated_price || 0)
+    }
+  })
+})
 
 // Watch total price
 watch(form, (newForm) => {
@@ -310,15 +315,30 @@ const openStockRequestItemsModal = async () => {
     const { data } = await axios.get(`/api/inventory/stock-issues/get-stock-request-items/${form.value.stock_request_id}`, { params: { cutoff_date: form.value.transaction_date } })
     modalItems.value = (data.items ?? []).map(i => ({ ...i, selected: false }))
     modalTitle.value = 'Select Stock Request Items'
+    await nextTick()
+    initModalDataTable()
   } catch {
     showAlert('Error', 'Failed to fetch stock request items.', 'danger')
   }
 }
 
 const openProductsModal = async () => {
-  modalItems.value = products.value.map(i => ({ ...i, selected: false }))
+  const whId = form.value.warehouse_id
+  modalItems.value = products.value.map(i => {
+    // Find stock for selected warehouse
+    const stockEntry = i.stock_by_campus?.find(s => s.warehouse_id === whId) || {}
+    return {
+      ...i,
+      selected: false,
+      stock_on_hand: stockEntry.stock_on_hand || 0,
+      unit_price: stockEntry.average_price || parseFloat(i.estimated_price || 0)
+    }
+  })
   modalTitle.value = 'Select Products'
+  await nextTick()
+  initModalDataTable()
 }
+
 
 // Close modal
 const closeItemsModal = () => $(itemsModal.value).modal('hide')
@@ -395,6 +415,22 @@ const submitForm = async () => {
   } finally {
     isSubmitting.value = false
   }
+}
+
+const initModalDataTable = () => {
+  nextTick(() => {
+    $(itemsModal.value).find('table').DataTable({
+      destroy: true,          // allows re-initialization
+      paging: true,
+      searching: true,
+      info: false,
+      lengthChange: true,
+      pageLength: 5,
+      columnDefs: [
+        { orderable: false, targets: 0 } // disable sorting on the checkbox column
+      ]
+    })
+  })
 }
 
 // Lifecycle

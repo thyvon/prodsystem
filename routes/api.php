@@ -294,6 +294,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/stock-issues/{stockIssue}', [StockIssueController::class, 'destroy'])->middleware('can:delete,stockIssue')->name('api.stock-issues.destroy');
         Route::get('/stock-issues/get-stock-requests', [StockIssueController::class, 'getStockRequests'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-stock-requests');
         Route::get('/stock-issues/get-stock-request-items/{stockRequest}', [StockIssueController::class, 'getStockRequestItems'])->name('api.stock-issues.get-stock-request-items');
+        Route::get('/stock-issues/get-campuses', [StockIssueController::class, 'getCampuses'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-campuses');
+        Route::get('/stock-issues/get-departments', [StockIssueController::class, 'getDepartments'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-departments');
+        Route::get('/stock-issues/get-warehouses', [StockIssueController::class, 'getWarehouses'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-warehouses');
         Route::get('/stock-issues/get-products', [StockIssueController::class, 'getProducts'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-products');
         Route::post('/stock-issues/import', [StockIssueController::class, 'import'])->name('api.stock-issues.import');
 
