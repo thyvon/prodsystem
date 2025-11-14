@@ -208,7 +208,7 @@
                             :key="department.id"
                             :value="department.id"
                           >
-                            {{ department.name }}
+                            {{ department.text }}
                           </option>
                         </select>
                       </td>
@@ -275,7 +275,7 @@
                             :key="campusOption.id"
                             :value="campusOption.id"
                           >
-                            {{ campusOption.name }}
+                            {{ campusOption.text }}
                           </option>
                         </select>
                       </td>
@@ -341,7 +341,7 @@
                             :key="warehouseOption.id"
                             :value="warehouseOption.id"
                           >
-                            {{ warehouseOption.name }}
+                            {{ warehouseOption.text }}
                           </option>
                         </select>
                       </td>
@@ -728,7 +728,7 @@ const fetchBuildings = async () => {
 
 const fetchDepartments = async () => {
   try {
-    const response = await axios.get('/api/users/departments');
+    const response = await axios.get('/api/main-value-lists/get-departments');
     departments.value = Array.isArray(response.data.data) ? response.data.data : response.data;
   } catch (err) {
     console.error('Failed to load departments:', err);
@@ -738,7 +738,7 @@ const fetchDepartments = async () => {
 
 const fetchCampuses = async () => {
   try {
-    const response = await axios.get('/api/campuses');
+    const response = await axios.get('/api/main-value-lists/get-campuses');
     campus.value = Array.isArray(response.data.data) ? response.data.data : response.data;
   } catch (err) {
     console.error('Failed to load campuses:', err);
@@ -748,7 +748,7 @@ const fetchCampuses = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const response = await axios.get('/api/users/warehouses');
+    const response = await axios.get('/api/main-value-lists/get-warehouses');
     warehouses.value = Array.isArray(response.data.data) ? response.data.data : response.data;
   } catch (err) {
     console.error('Failed to load warehouses:', err);
