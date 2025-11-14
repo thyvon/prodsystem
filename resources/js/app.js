@@ -51,6 +51,7 @@ import StockRequestShow from './components/Inventory/StockRequest/Show.vue'
 
 import StockIssueForm from './components/Inventory/StockIssue/Form.vue'
 import StockIssueList from './components/Inventory/StockIssue/StockIssueList.vue'
+import StockIssueItemList from './components/Inventory/StockIssue/StockIssueItem.vue'
 
 import StockTransferForm from './components/Inventory/StockTransfer/Form.vue'
 import StockTransferList from './components/Inventory/StockTransfer/StockTransferList.vue'
@@ -125,6 +126,7 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  //=======Stock Issue
  app.component('stock-issue-form', StockIssueForm)
  app.component('stock-issue-list', StockIssueList)
+ app.component('stock-issue-item-list', StockIssueItemList)
 
   //=======Stock Transfer
  app.component('stock-transfer-form', StockTransferForm)

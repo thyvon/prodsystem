@@ -25,13 +25,18 @@ class StockIssueImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows)
     {
         DB::transaction(function () use ($rows) {
+
             $user = Auth::user();
-            $stockIssuesCache = []; // cache reference_no => StockIssue model
+            $stockIssuesCache = [];
+            $existingUsers = [];
+
+            // Preload existing users
+            $requestedNames = $rows->pluck('requested_by_name')->filter()->unique();
+            $users = User::whereIn('name', $requestedNames)->get();
+            foreach ($users as $u) $existingUsers[$u->name] = $u->id;
 
             foreach ($rows as $index => $row) {
                 $row = collect($row)->map(fn($v) => is_string($v) ? trim($v) : $v)->toArray();
-
-                // Skip empty rows
                 if (empty($row['product_code'])) continue;
 
                 // --- Excel date fix ---
@@ -39,38 +44,35 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     $row['transaction_date'] = Date::excelToDateTimeObject($row['transaction_date'])->format('Y-m-d');
                 }
 
-                // --- RELATIONSHIP MAPPING ---
-                $stockRequestId = !empty($row['stock_request_no'])
+                // --- RELATIONSHIP LOOKUP ---
+                $stockRequestId = $row['stock_request_no'] ?? null
                     ? StockRequest::where('reference_no', $row['stock_request_no'])->value('id')
                     : null;
 
                 $warehouseId = Warehouse::where('name', $row['warehouse_name'] ?? '')->value('id');
+                $productId   = ProductVariant::where('item_code', $row['product_code'])->value('id');
+                $campusId    = Campus::where('short_name', $row['campus_short_name'] ?? '')->value('id');
+                $departmentId = Department::where('short_name', $row['department_short_name'] ?? '')->value('id');
 
-                // Auto-create or get requested_by user
+                // --- REQUESTED BY ---
                 $requestedByName = $row['requested_by_name'] ?? null;
                 $requestedById = null;
-
                 if ($requestedByName) {
-                    $parts = explode(' ', $requestedByName);
-                    $firstName = strtolower($parts[0]);
-                    $lastName  = strtolower(end($parts));
-                    $email = $firstName . '.' . $lastName . '@mjqeducation.edu.kh';
-
-                    $requestedBy = User::firstOrCreate(
-                        ['name' => $requestedByName], // search by full name
-                        [
+                    if (isset($existingUsers[$requestedByName])) {
+                        $requestedById = $existingUsers[$requestedByName];
+                    } else {
+                        $parts = explode(' ', $requestedByName);
+                        $email = strtolower($parts[0] . '.' . end($parts) . '@mjqeducation.edu.kh');
+                        $newUser = User::create([
+                            'name' => $requestedByName,
                             'email' => $email,
-                            'password' => bcrypt('password123'), // default password
+                            'password' => bcrypt('password123'),
                             'is_active' => 1,
-                        ]
-                    );
-                    $requestedById = $requestedBy->id;
+                        ]);
+                        $requestedById = $newUser->id;
+                        $existingUsers[$requestedByName] = $requestedById;
+                    }
                 }
-
-
-                $productId    = ProductVariant::where('item_code', $row['product_code'] ?? '')->value('id');
-                $campusId     = Campus::where('short_name', $row['campus_short_name'] ?? '')->value('id');
-                $departmentId = Department::where('short_name', $row['department_short_name'] ?? '')->value('id');
 
                 // --- VALIDATION ---
                 $validator = Validator::make([
@@ -91,7 +93,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     'transaction_date' => ['required', 'date', 'date_format:Y-m-d'],
                     'transaction_type' => ['required', 'string', 'max:50'],
                     'account_code'     => ['required', 'string', 'max:50'],
-                    'reference_no'     => ['nullable', 'string', 'max:50'], // allow duplicates
+                    'reference_no'     => ['nullable', 'string', 'max:50'],
                     'stock_request_id' => ['nullable', 'integer', 'exists:stock_requests,id'],
                     'warehouse_id'     => ['required', 'integer', 'exists:warehouses,id'],
                     'requested_by'     => ['nullable', 'integer', 'exists:users,id'],
@@ -128,10 +130,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                         'created_by'       => $user?->id ?? 1,
                         'updated_by'       => $user?->id ?? 1,
                     ]);
-
-                    if ($referenceNo) {
-                        $stockIssuesCache[$referenceNo] = $stockIssue;
-                    }
+                    if ($referenceNo) $stockIssuesCache[$referenceNo] = $stockIssue;
                 }
 
                 // --- CREATE ITEM ---

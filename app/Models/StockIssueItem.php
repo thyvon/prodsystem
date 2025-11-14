@@ -54,4 +54,14 @@ class StockIssueItem extends Model
     {
         return $this->belongsTo(StockIssue::class, 'stock_issue_id');
     }
+
+    public function campus()
+    {
+        return $this->belongsTo(Campus::class, 'campus_id');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
 }

@@ -8,6 +8,8 @@ use App\Models\StockIssueItem;
 use App\Models\Warehouse;
 use App\Models\Campus;
 use App\Models\Department;
+use App\Models\User;
+use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -126,8 +128,8 @@ class StockIssueController extends Controller
             'requester_campus_name' => optional($issue->requestedBy->defaultCampus())->short_name,
             'warehouse_name' => $issue->warehouse->name ?? null,
             'warehouse_campus_name' => $issue->warehouse->building->campus->short_name ?? null,
-            'quantity' => $issue->stockIssueItems->sum('quantity'),
-            'total_price' => $issue->stockIssueItems->sum('total_price'),
+            'quantity' => number_format($issue->stockIssueItems->sum('quantity'), 2, '.', ''),
+            'total_price' => number_format($issue->stockIssueItems->sum('total_price'), 4, '.', ''),
             'created_by' => $issue->createdBy->name ?? null,
             'created_at' => $issue->created_at,
             'updated_at' => $issue->updated_at,
@@ -140,6 +142,109 @@ class StockIssueController extends Controller
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
+
+
+    public function indexItem()
+    {
+        $this->authorize('viewAny', StockIssue::class);
+        return view('Inventory.stockIssue.item-list');
+    }
+    public function getAllStockIssueItems(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', StockIssue::class);
+
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin');
+        $campusIds = $user->campus->pluck('id')->toArray();
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+            'warehouse_id' => 'nullable|integer|exists:warehouses,id', // ← NEW
+        ]);
+
+        $sortColumn = $validated['sortColumn'] ?? 'stock_issue_items.id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+
+        $query = StockIssueItem::with(['productVariant', 'stockIssue.warehouse.building.campus'])
+            ->when(!$isAdmin, fn($q) =>
+                $q->whereHas('stockIssue.warehouse.building.campus', fn($q2) =>
+                    $q2->whereIn('id', $campusIds)
+                )
+            )
+            ->when($validated['search'] ?? null, fn($q, $search) =>
+                $q->where(fn($subQ) =>
+                    $subQ->where('remarks', 'like', "%{$search}%")
+                        ->orWhereHas('productVariant', fn($pvQ) =>
+                            $pvQ->where('name', 'like', "%{$search}%")
+                                ->orWhere('item_code', 'like', "%{$search}%")
+                        )
+                        ->orWhereHas('stockIssue', fn($siQ) =>
+                            $siQ->where('reference_no', 'like', "%{$search}%")
+                        )
+                )
+            )
+            ->when($validated['warehouse_id'] ?? null, function ($q, $warehouseId) {  // ← NEW
+                $q->whereHas('stockIssue', function ($siQ) use ($warehouseId) {
+                    $siQ->where('warehouse_id', $warehouseId);
+                });
+            });
+
+        // Sorting for relational columns
+        if ($sortColumn === 'product_name') {
+            $query->join('product_variants', 'stock_issue_items.product_id', '=', 'product_variants.id')
+                ->orderBy('product_variants.name', $sortDirection)
+                ->select('stock_issue_items.*');
+        } elseif ($sortColumn === 'product_code') {
+            $query->join('product_variants', 'stock_issue_items.product_id', '=', 'product_variants.id')
+                ->orderBy('product_variants.item_code', $sortDirection)
+                ->select('stock_issue_items.*');
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
+
+        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
+        $page = $validated['page'] ?? 1;
+
+        $items = $query->paginate($limit, ['*'], 'page', $page);
+
+        $itemsMapped = $items->map(function ($item) {
+            $productName = $item->productVariant->product->name ?? '';
+            $variantDescription = $item->productVariant->description ?? '';
+
+            return [
+                'id' => $item->id,
+                'stock_issue_reference' => $item->stockIssue->reference_no ?? null,
+                'product_code' => $item->productVariant->item_code ?? null,
+                'description' => trim($productName . ' ' . $variantDescription),
+                'quantity' => number_format($item->quantity, 2, '.', ''),
+                'unit_name' => $item->productVariant->product->unit->name ?? null,
+                'unit_price' => number_format($item->unit_price, 4, '.', ''),
+                'total_price' => number_format($item->total_price, 4, '.', ''),
+                'requester_name' => $item->stockIssue->requestedBy->name ?? null,
+                'campus_name' => $item->campus->short_name ?? null,
+                'department_name' => $item->department->short_name ?? null,
+                'division_name' => $item->department->department->short_name ?? null,
+                'purpose' => $item->stockIssue->remarks ?? null,
+                'remarks' => $item->remarks,
+                'warehouse_name' => $item->stockIssue->warehouse->name ?? null,
+                'transaction_type' => $item->stockIssue->transaction_type ?? null,
+                'transaction_date' => $item->stockIssue->transaction_date ?? null,
+            ];
+        });
+
+        return response()->json([
+            'data' => $itemsMapped,
+            'recordsTotal' => $items->total(),
+            'recordsFiltered' => $items->total(),
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
+
 
     public function create()
     {
@@ -297,7 +402,7 @@ class StockIssueController extends Controller
                             'stock_request_item_id' => $item->stock_request_item_id,
                             'product_id' => $item->product_id,
                             'product_code' => $item->productVariant?->item_code ?? '',
-                            'product_name' => trim(
+                            'description' => trim(
                                 ($item->productVariant?->product?->name ?? '') . ' ' . 
                                 ($item->productVariant?->description ?? '')
                             ),
@@ -590,10 +695,70 @@ class StockIssueController extends Controller
     }
     public function getProducts(Request $request)
     {
-        $this->authorize('viewAny', PurchaseRequest::class);
-        $response = $this->productService->getStockManagedVariants($request);
-        return response()->json($response);
+        $draw = (int) $request->input('draw', 1);
+        $start = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+        $searchValue = $request->input('search.value', null);
+        $orderColumnIndex = $request->input('order.0.column', 0);
+        $orderDirection = $request->input('order.0.dir', 'asc');
+
+        $columns = [
+            0 => 'id',
+            1 => 'item_code',
+            2 => 'description',
+            3 => 'estimated_price',
+            4 => 'is_active',
+            5 => 'created_at',
+            6 => 'updated_at',
+        ];
+        $orderColumn = $columns[$orderColumnIndex] ?? 'id';
+
+        // Base query
+        $query = ProductVariant::with('product')
+            ->whereNull('deleted_at');
+
+        // Apply search
+        if ($searchValue) {
+            $query->where(function ($q) use ($searchValue) {
+                $q->where('item_code', 'like', "%{$searchValue}%")
+                ->orWhere('description', 'like', "%{$searchValue}%")
+                ->orWhereHas('product', function ($q2) use ($searchValue) {
+                    $q2->where('name', 'like', "%{$searchValue}%");
+                });
+            });
+        }
+
+        $recordsFiltered = $query->count();
+
+        // Apply order and pagination
+        $variants = $query->orderBy($orderColumn, $orderDirection)
+                        ->skip($start)
+                        ->take($length)
+                        ->get();
+
+        // Map data for DataTable
+        $data = $variants->map(function ($variant) {
+            return [
+                'id' => $variant->id,
+                'item_code' => $variant->item_code,
+                'description' => ($variant->product->name ?? '') . ' ' . $variant->description,
+                'unit_name' => $variant->product->unit->name ?? '',
+                'estimated_price' => number_format($variant->estimated_price, 2),
+                'is_active' => (int) $variant->is_active,
+                // Add stock info if you want
+                'stock_on_hand' => 0, // placeholder, replace with real stock
+                'average_price' => number_format($variant->estimated_price, 2),
+            ];
+        });
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => ProductVariant::whereNull('deleted_at')->count(),
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
     }
+
 
     public function getCampuses(Request $request)
     {
@@ -622,6 +787,16 @@ class StockIssueController extends Controller
         return $departments->map(fn($d) => [
             'id'   => $d->id,
             'text' => $d->short_name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getRequesters(Request $request)
+    {
+        $requesters = User::where('is_active', 1)->get();
+
+        return $requesters->map(fn($r) => [
+            'id'   => $r->id,
+            'text' => $r->name, // Select2 needs "text"
         ]);
     }
 }

@@ -214,6 +214,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-issues.edit')->middleware('can:update,stockIssue');
         Route::get('/stock-issues/{stockIssue}/show', [StockIssueController::class, 'show'])
             ->name('stock-issues.show')->middleware('can:view,stockIssue');
+        Route::get('/stock-issue/items', [StockIssueController::class, 'indexItem'])
+            ->name('stock-issue.items')->middleware('can:viewAny,' . StockIssue::class);
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'index'])

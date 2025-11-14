@@ -51,7 +51,7 @@
                 <label class="font-weight-bold">Requested By <span class="text-danger">*</span></label>
                 <select id="requestedBySelect" v-model="form.requested_by" class="form-control">
                   <option value="">Select User</option>
-                  <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                  <option v-for="user in users" :key="user.id" :value="user.id">{{ user.text }}</option>
                 </select>
               </div>
 
@@ -96,7 +96,7 @@
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="item.id || index">
                     <td>{{ item.product_code }}</td>
-                    <td>{{ item.product_name }} {{ item.description }}</td>
+                    <td>{{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
                     <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0000000001" step="0.0000000001" /></td>
                     <td><input type="number" class="form-control" v-model.number="item.unit_price" min="0" step="0.0000000001" /></td>
@@ -154,6 +154,7 @@
                   <th>Select</th>
                   <th>Code</th>
                   <th>Description</th>
+                  <th>UoM</th>
                   <th>Qty On Hand</th>
                   <th>Unit Price</th>
                 </tr>
@@ -167,7 +168,8 @@
                     </div>
                   </td>
                   <td>{{ item.item_code || item.product_code }}</td>
-                  <td>{{ item.product_name }} {{ item.description }}</td>
+                  <td>{{ item.description }}</td>
+                  <td>{{ item.unit_name }}</td>
                   <td>{{ item.stock_on_hand }}</td>
                   <td>{{ item.average_price }}</td>
                 </tr>
@@ -228,7 +230,6 @@ const mapItem = (item, source = 'product') => ({
   stock_request_item_id: item.id || null,
   product_id: item.product_id || item.id,
   product_code: item.item_code || item.product_code,
-  product_name: item.product_name,
   description: item.description || '',
   unit_name: item.unit_name,
   quantity: parseFloat(item.quantity) || 1,
@@ -250,7 +251,7 @@ const fetchInitialData = async () => {
   try {
     const [{data: sr}, {data: u}, {data: c}, {data: d}, {data: p}, {data: w}] = await Promise.all([
       axios.get('/api/inventory/stock-issues/get-stock-requests'),
-      axios.get('/api/users'),
+      axios.get('/api/inventory/stock-issues/get-requesters'),
       axios.get('/api/inventory/stock-issues/get-campuses'),
       axios.get('/api/inventory/stock-issues/get-departments'),
       axios.get('/api/inventory/stock-issues/get-products'),
@@ -323,21 +324,12 @@ const openStockRequestItemsModal = async () => {
 }
 
 const openProductsModal = async () => {
-  const whId = form.value.warehouse_id
-  modalItems.value = products.value.map(i => {
-    // Find stock for selected warehouse
-    const stockEntry = i.stock_by_campus?.find(s => s.warehouse_id === whId) || {}
-    return {
-      ...i,
-      selected: false,
-      stock_on_hand: stockEntry.stock_on_hand || 0,
-      unit_price: stockEntry.average_price || parseFloat(i.estimated_price || 0)
-    }
-  })
-  modalTitle.value = 'Select Products'
-  await nextTick()
-  initModalDataTable()
+  modalTitle.value = 'Select Products';
+  await nextTick();
+  initModalDataTable();
+  $(itemsModal.value).modal('show');
 }
+
 
 
 // Close modal
@@ -345,14 +337,23 @@ const closeItemsModal = () => $(itemsModal.value).modal('hide')
 
 // Add selected items (allow duplicates)
 const addSelectedItems = async () => {
-  const source = form.value.stock_request_id ? 'stock_request' : 'product'
-  modalItems.value.forEach(item => {
-    if (!item.selected) return
-    form.value.items.push(mapItem(item, source))
-  })
-  await nextTick()
-  initRowSelect2()
-  closeItemsModal()
+  const table = $(itemsModal.value).find('table').DataTable();
+  const selectedRows = [];
+
+  table.rows().every(function () {
+    const rowNode = this.node();
+    const $checkbox = $(rowNode).find('.select-product');
+    if ($checkbox.is(':checked')) {
+      selectedRows.push(this.data());
+    }
+  });
+
+  const source = form.value.stock_request_id ? 'stock_request' : 'product';
+  selectedRows.forEach(item => form.value.items.push(mapItem(item, source)));
+
+  await nextTick();
+  initRowSelect2();
+  closeItemsModal();
 }
 
 // Datepicker
@@ -419,19 +420,63 @@ const submitForm = async () => {
 
 const initModalDataTable = () => {
   nextTick(() => {
-    $(itemsModal.value).find('table').DataTable({
-      destroy: true,          // allows re-initialization
+    const table = $(itemsModal.value).find('table');
+
+    // Destroy previous instance if exists
+    if ($.fn.DataTable.isDataTable(table)) {
+      table.DataTable().destroy();
+    }
+
+    table.DataTable({
+      serverSide: true,
+      processing: true,
+      ajax: {
+        url: '/api/inventory/stock-issues/get-products',
+        type: 'GET',
+        data: function (d) {
+          // Optional: send current warehouse_id to calculate stock
+          d.warehouse_id = form.value.warehouse_id;
+        }
+      },
+      columns: [
+        {
+          data: 'id',
+          render: function (data) {
+            return `<div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="custom-control-input select-product" id="select-item-${data}">
+                      <label class="custom-control-label" for="select-item-${data}"></label>
+                    </div>`;
+          },
+          orderable: false
+        },
+        { data: 'item_code' },
+        {
+          data: null,
+          render: function (data, type, row) {
+            return `${row.description}`;
+          }
+        },
+        { data: 'unit_name' },
+        { data: 'stock_on_hand', render: $.fn.dataTable.render.number(',', '.', 0, '') },
+        { data: 'average_price', render: $.fn.dataTable.render.number(',', '.', 2, '') }
+      ],
       paging: true,
-      searching: true,
-      info: false,
       lengthChange: true,
-      pageLength: 5,
-      columnDefs: [
-        { orderable: false, targets: 0 } // disable sorting on the checkbox column
-      ]
-    })
-  })
+      pageLength: 10,           // default rows
+      searching: true,
+      info: true,               // ✅ show footer info
+      ordering: true,
+      order: [[1, 'asc']],      // default sort
+      language: {
+        info: "Showing _START_ to _END_ of _TOTAL_ entries",
+        infoEmpty: "No entries to show",
+        infoFiltered: "(filtered from _MAX_ total entries)",
+        lengthMenu: "Show _MENU_ entries"
+      }
+    });
+  });
 }
+
 
 // Lifecycle
 onMounted(async () => {

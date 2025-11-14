@@ -288,6 +288,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Stock Issue
         Route::get('/stock-issues', [StockIssueController::class, 'getStockIssues'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.index');
+        Route::get('/stock-issue/items', [StockIssueController::class, 'getAllStockIssueItems'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issue.items');
         Route::post('/stock-issues', [StockIssueController::class, 'store'])->middleware('can:create,' . StockIssue::class)->name('api.stock-issues.store');
         Route::get('/stock-issues/{stockIssue}/edit', [StockIssueController::class, 'edit'])->middleware('can:update,stockIssue')->name('api.stock-issues.edit');
         Route::put('/stock-issues/{stockIssue}', [StockIssueController::class, 'update'])->middleware('can:update,stockIssue')->name('api.stock-issues.update');
@@ -297,6 +298,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-issues/get-campuses', [StockIssueController::class, 'getCampuses'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-campuses');
         Route::get('/stock-issues/get-departments', [StockIssueController::class, 'getDepartments'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-departments');
         Route::get('/stock-issues/get-warehouses', [StockIssueController::class, 'getWarehouses'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-warehouses');
+        Route::get('/stock-issues/get-requesters', [StockIssueController::class, 'getRequesters'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-requesters');
         Route::get('/stock-issues/get-products', [StockIssueController::class, 'getProducts'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-products');
         Route::post('/stock-issues/import', [StockIssueController::class, 'import'])->name('api.stock-issues.import');
 
