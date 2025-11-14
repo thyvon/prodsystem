@@ -14,15 +14,44 @@
       @search-change="handleSearchChange"
     >
       <template #additional-header>
-        <div class="d-flex align-items-center">
+        <div class="d-flex flex-column mb-2">
 
-          <!-- Multi-select Warehouse -->
-          <select ref="warehouseSelect" class="form-control mr-2" multiple></select>
+          <!-- Top Row: Route Button + Filters Toggle -->
+          <div class="d-flex mb-2 align-items-center">
+            <!-- Route to Stock Issue List -->
+            <button class="btn btn-success mr-2" @click="goToStockIssueList">
+              <i class="fal fa-list mr-1"></i> Stock Issue List
+            </button>
 
-          <!-- Apply Filter Button -->
-          <button class="btn btn-primary" @click="applyWarehouseFilter">
-            <i class="fal fa-filter"></i> Apply Filter
-          </button>
+            <!-- Toggle Button for Collapse -->
+            <button 
+              class="btn btn-info"
+              type="button"
+              data-toggle="collapse"
+              data-target="#filterCollapse"
+              aria-expanded="false"
+              aria-controls="filterCollapse"
+            >
+              <i class="fal fa-filter mr-2"></i> Filters
+            </button>
+          </div>
+
+          <!-- Collapsible Filter Section -->
+          <div class="collapse" id="filterCollapse">
+            <!-- Row 1: Filter fields -->
+            <div class="d-flex align-items-center mb-2">
+              <input type="text" ref="startDateRef" class="form-control mr-2" placeholder="Start Date" />
+              <input type="text" ref="endDateRef" class="form-control mr-2" placeholder="End Date" />
+              <select ref="warehouseSelect" class="form-control" multiple></select>
+            </div>
+
+            <!-- Row 2: Apply button aligned right -->
+            <div class="d-flex justify-content-end mb-2">
+              <button class="btn btn-primary d-flex align-items-center" @click="applyFilters">
+                <i class="fal fa-filter mr-2"></i> Apply
+              </button>
+            </div>
+          </div>
 
         </div>
       </template>
@@ -31,59 +60,25 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
+import axios from 'axios'
 import { initSelect2, destroySelect2 } from '@/Utils/select2.js'
 
 const datatableRef = ref(null)
+const warehouseSelect = ref(null)
+const startDateRef = ref(null)
+const endDateRef = ref(null)
+const selectedWarehouses = ref([])
 
 const datatableParams = reactive({
   sortColumn: 'id',
   sortDirection: 'desc',
   search: '',
-  warehouse_ids: [], // Multi WH filter
+  warehouse_ids: [],
+  start_date: null,
+  end_date: null,
 })
 
-const warehouseList = ref([
-  { id: 1, name: 'Main Warehouse' },
-  { id: 2, name: 'Campus Warehouse' },
-  { id: 3, name: 'Book Warehouse' },
-])
-
-const warehouseSelect = ref(null)
-const selectedWarehouses = ref([])
-
-/* Initialize Select2 */
-onMounted(() => {
-  initSelect2(warehouseSelect.value, {
-    placeholder: 'Select Warehouses',
-    width: '20px',
-    allowClear: true,
-    data: warehouseList.value.map(w => ({ id: w.id, text: w.name })),
-  }, (value) => {
-    selectedWarehouses.value = value
-  })
-})
-
-/* Watch warehouseList if dynamic */
-watch(warehouseList, (newList) => {
-  destroySelect2(warehouseSelect.value)
-  initSelect2(warehouseSelect.value, {
-    placeholder: 'Select Warehouses',
-    width: '220px',
-    allowClear: true,
-    data: newList.map(w => ({ id: w.id, text: w.name })),
-  }, (value) => {
-    selectedWarehouses.value = value
-  })
-})
-
-/* Apply Filter */
-const applyWarehouseFilter = () => {
-  datatableParams.warehouse_ids = selectedWarehouses.value
-  datatableRef.value.reload()
-}
-
-/* Datatable configuration */
 const datatableHeaders = [
   { text: 'Date', value: 'transaction_date' },
   { text: 'Issue No', value: 'stock_issue_reference' },
@@ -105,8 +100,62 @@ const datatableHeaders = [
 
 const datatableFetchUrl = '/api/inventory/stock-issue/items'
 const datatableActions = []
-const datatableOptions = { autoWidth: false, responsive: true, scrollX: true, pageLength: 10 }
+const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
 const datatableHandlers = {}
+
+// --- Route to Stock Issue List ---
+const goToStockIssueList = () => {
+  window.location.href = '/inventory/stock-issues'
+}
+
+// --- Fetch warehouses ---
+const fetchWarehouses = async () => {
+  try {
+    const res = await axios.get('/api/inventory/stock-issues/get-warehouses')
+    const warehouses = res.data.map(w => ({ id: w.id, text: w.text }))
+    destroySelect2(warehouseSelect.value)
+    initSelect2(warehouseSelect.value, {
+      placeholder: 'Filter by Warehouse',
+      width: '220px',
+      allowClear: true,
+      data: warehouses,
+    }, (value) => {
+      selectedWarehouses.value = value.map(Number)
+    })
+  } catch (error) {
+    console.error('Failed to fetch warehouses:', error)
+  }
+}
+
+// --- Initialize SmartAdmin datepickers ---
+const initDatepickers = () => {
+  nextTick(() => {
+    if (window.$ && startDateRef.value) {
+      window.$(startDateRef.value).datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
+        .on('changeDate', function(e) { datatableParams.start_date = e.format(0, 'yyyy-mm-dd') })
+    }
+    if (window.$ && endDateRef.value) {
+      window.$(endDateRef.value).datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
+        .on('changeDate', function(e) { datatableParams.end_date = e.format(0, 'yyyy-mm-dd') })
+    }
+  })
+}
+
+// --- Apply filters ---
+const applyFilters = () => {
+  datatableParams.warehouse_ids = selectedWarehouses.value
+  datatableRef.value.reload()
+}
+
+// --- Datatable event handlers ---
 const handleSortChange = ({ column, direction }) => { datatableParams.sortColumn = column; datatableParams.sortDirection = direction }
+const handlePageChange = (page) => { datatableParams.page = page }
+const handleLengthChange = (length) => { datatableParams.limit = length }
 const handleSearchChange = (search) => { datatableParams.search = search }
+
+// --- Mounted ---
+onMounted(() => {
+  fetchWarehouses()
+  initDatepickers()
+})
 </script>

@@ -21,6 +21,9 @@
           <button class="btn btn-primary" @click="openImportModal">
             <i class="fal fa-file-import"></i> Import
           </button>
+          <button class="btn btn-info" @click="goToStockIssueItems">
+            <i class="fal fa-list"></i> Stock Issue Items
+          </button>
         </div>
       </template>
     </datatable>
@@ -74,6 +77,11 @@
 import { ref, reactive } from 'vue'
 import axios from 'axios'
 import { showAlert, confirmAction } from '@/Utils/bootbox'
+
+const goToStockIssueItems = () => {
+  window.location.href = '/inventory/stock-issue/items' // adjust the route if needed
+}
+
 
 // -------------------- DATATABLE --------------------
 const datatableRef = ref(null)

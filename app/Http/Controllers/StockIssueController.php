@@ -157,6 +157,7 @@ class StockIssueController extends Controller
         $isAdmin = $user->hasRole('admin');
         $campusIds = $user->campus->pluck('id')->toArray();
 
+        // Validate request
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string',
@@ -164,37 +165,54 @@ class StockIssueController extends Controller
             'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'page' => 'nullable|integer|min:1',
             'draw' => 'nullable|integer',
-            'warehouse_id' => 'nullable|integer|exists:warehouses,id', // ← NEW
+            'warehouse_ids' => 'nullable|array',               // Multi-warehouse filter
+            'warehouse_ids.*' => 'integer|exists:warehouses,id',
+            'start_date' => 'nullable|date',                  // ← date range start
+            'end_date' => 'nullable|date',                    // ← date range end
         ]);
 
         $sortColumn = $validated['sortColumn'] ?? 'stock_issue_items.id';
         $sortDirection = $validated['sortDirection'] ?? 'desc';
 
-        $query = StockIssueItem::with(['productVariant', 'stockIssue.warehouse.building.campus'])
+        $query = StockIssueItem::with(['productVariant.product.unit', 'stockIssue.warehouse.building.campus', 'campus', 'department', 'department.division', 'stockIssue.requestedBy'])
+            // Restrict by campus if not admin
             ->when(!$isAdmin, fn($q) =>
                 $q->whereHas('stockIssue.warehouse.building.campus', fn($q2) =>
                     $q2->whereIn('id', $campusIds)
                 )
             )
+            // Search filter
             ->when($validated['search'] ?? null, fn($q, $search) =>
                 $q->where(fn($subQ) =>
                     $subQ->where('remarks', 'like', "%{$search}%")
                         ->orWhereHas('productVariant', fn($pvQ) =>
-                            $pvQ->where('name', 'like', "%{$search}%")
+                            $pvQ->where('description', 'like', "%{$search}%")
                                 ->orWhere('item_code', 'like', "%{$search}%")
+                                ->orWhereHas('product', fn($pQ) =>
+                                    $pQ->where('name', 'like', "%{$search}%")
+                                )
                         )
                         ->orWhereHas('stockIssue', fn($siQ) =>
                             $siQ->where('reference_no', 'like', "%{$search}%")
                         )
                 )
             )
-            ->when($validated['warehouse_id'] ?? null, function ($q, $warehouseId) {  // ← NEW
-                $q->whereHas('stockIssue', function ($siQ) use ($warehouseId) {
-                    $siQ->where('warehouse_id', $warehouseId);
+            // Multi-warehouse filter
+            ->when($validated['warehouse_ids'] ?? null, function ($q, $warehouseIds) {
+                $q->whereHas('stockIssue', function ($siQ) use ($warehouseIds) {
+                    $siQ->whereIn('warehouse_id', $warehouseIds);
                 });
-            });
+            })
+            // Date range filter
+            ->when($validated['start_date'] ?? null, fn($q, $start) =>
+                $q->whereHas('stockIssue', fn($siQ) => $siQ->whereDate('transaction_date', '>=', $start))
+            )
+            ->when($validated['end_date'] ?? null, fn($q, $end) =>
+                $q->whereHas('stockIssue', fn($siQ) => $siQ->whereDate('transaction_date', '<=', $end))
+        );
 
-        // Sorting for relational columns
+
+        // Sorting relational columns
         if ($sortColumn === 'product_name') {
             $query->join('product_variants', 'stock_issue_items.product_id', '=', 'product_variants.id')
                 ->orderBy('product_variants.name', $sortDirection)
@@ -207,11 +225,12 @@ class StockIssueController extends Controller
             $query->orderBy($sortColumn, $sortDirection);
         }
 
+        // Pagination
         $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
         $page = $validated['page'] ?? 1;
-
         $items = $query->paginate($limit, ['*'], 'page', $page);
 
+        // Map data for frontend
         $itemsMapped = $items->map(function ($item) {
             $productName = $item->productVariant->product->name ?? '';
             $variantDescription = $item->productVariant->description ?? '';
@@ -228,7 +247,7 @@ class StockIssueController extends Controller
                 'requester_name' => $item->stockIssue->requestedBy->name ?? null,
                 'campus_name' => $item->campus->short_name ?? null,
                 'department_name' => $item->department->short_name ?? null,
-                'division_name' => $item->department->department->short_name ?? null,
+                'division_name' => $item->department->division->short_name ?? null,
                 'purpose' => $item->stockIssue->remarks ?? null,
                 'remarks' => $item->remarks,
                 'warehouse_name' => $item->stockIssue->warehouse->name ?? null,
@@ -244,7 +263,6 @@ class StockIssueController extends Controller
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
     }
-
 
     public function create()
     {

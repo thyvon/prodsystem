@@ -191,6 +191,7 @@
                 || request()->is('inventory/stock-beginnings*')
                 || request()->is('inventory/stock-requests*')
                 || request()->is('inventory/stock-issues*')
+                || request()->is('inventory/stock-issue/items*')
                 || request()->is('inventory/stock-transfers*');
             @endphp
 
@@ -245,7 +246,7 @@
                             </li>
                         @endcan
                         @can('stockIssue.view')
-                            <li class="{{ request()->is('inventory/stock-issues*') ? 'active' : '' }}">
+                            <li class="{{ request()->is('inventory/stock-issues*') || request()->is('inventory/stock-issue/items*') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-issues') }}" title="Stock Issues" data-filter-tags="stock issues">
                                     <span class="nav-link-text">Stock Issues</span>
                                 </a>
