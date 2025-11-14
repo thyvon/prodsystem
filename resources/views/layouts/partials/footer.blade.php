@@ -1,6 +1,6 @@
 <footer class="page-footer" role="contentinfo">
     <div class="d-flex align-items-center flex-1 text-muted">
-        <span class="hidden-md-down fw-700">2025 © PROD System&nbsp;<a href='{{ config('app.url') }}' class='text-primary fw-500' title='{{ config('app.url') }}' target='_blank'>{{ config('app.url') }}</a></span>
+        <span class="hidden-md-down fw-700">2025 © <a href='{{ config('app.url') }}' class='text-primary fw-500' title='Procument System' target='_blank'>{{ config('app.name') }}</a></span>
     </div>
     <!-- <div>
         <ul class="list-table m-0">
