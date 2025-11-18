@@ -92,7 +92,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                 ], [
                     'transaction_date' => ['required', 'date', 'date_format:Y-m-d'],
                     'transaction_type' => ['required', 'string', 'max:50'],
-                    'account_code'     => ['required', 'string', 'max:50'],
+                    'account_code'     => ['required'],
                     'reference_no'     => ['nullable', 'string', 'max:50'],
                     'stock_request_id' => ['nullable', 'integer', 'exists:stock_requests,id'],
                     'warehouse_id'     => ['required', 'integer', 'exists:warehouses,id'],

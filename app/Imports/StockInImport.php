@@ -101,7 +101,7 @@ class StockInImport implements ToCollection, WithHeadingRow
                 ], [
                     'transaction_date' => ['required', 'date', 'date_format:Y-m-d'],
                     'transaction_type' => ['required', 'string', 'max:50'],
-                    'invoice_no'       => ['nullable', 'string', 'max:100'],
+                    'invoice_no'       => ['nullable'],
                     'payment_terms'    => ['nullable', 'string', 'max:100', Rule::in(['NonCredit','Credit1week','Credit2weeks','Credit1month'])],
                     'reference_no'     => ['nullable', 'string', 'max:50'],
                     'supplier_id'      => ['required', 'integer', 'exists:suppliers,id'],
