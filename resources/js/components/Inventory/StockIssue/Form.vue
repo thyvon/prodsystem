@@ -24,7 +24,7 @@
 
               <div class="form-group col-md-3">
                 <label class="font-weight-bold">Transaction Type <span class="text-danger">*</span></label>
-                <input v-model="form.transaction_type" type="text" class="form-control" required />
+                <select ref="transactionTypeSelect" v-model="form.transaction_type" class="form-control"></select>
               </div>
 
               <div class="form-group col-md-3">
@@ -199,6 +199,11 @@ const isEditMode = computed(() => !!props.initialData.id)
 const isSubmitting = ref(false)
 const modalTitle = ref('Select Items')
 
+const transactionTypes = ref([
+  { value: 'Issue', text: 'Issue' },
+  { value: 'Transfer', text: 'Transfer' }
+])
+
 const modalItemsTable = ref(null)
 const stockRequests = ref([])
 const users = ref([])
@@ -207,6 +212,7 @@ const departments = ref([])
 const products = ref([])
 const warehouses = ref([])
 const stockRequestSelect = ref(null)
+const transactionTypeSelect = ref(null)
 const currentWarehouseName = ref('')
 
 const form = ref({
@@ -491,6 +497,16 @@ onMounted(async () => {
       allowClear: true // this enables the clear button
     }, val => {
       form.value.stock_request_id = val || null // clear sets null
+    })
+  }
+    if (transactionTypeSelect.value) {
+    initSelect2(transactionTypeSelect.value, {
+      placeholder: 'Select Transaction Type',
+      width: '100%',
+      allowClear: true,
+      data: transactionTypes.value.map(tt => ({ id: tt.value, text: tt.text }))
+    }, val => {
+      form.value.transaction_type = val || ''
     })
   }
 

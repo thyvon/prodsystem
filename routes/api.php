@@ -86,6 +86,9 @@ use App\Models\PurchaseRequest;
 // Telegram Bot
 use App\Http\Controllers\TelegramController;
 
+// Main Value List
+use App\Http\Controllers\MainValueListController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -374,6 +377,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
     Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
     Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->name('api.purchase-requests.import-items');
+
+    // Main Value List
+    Route::get('/main-value-lists/get-users', [MainValueListController::class, 'getUsers'])->name('api.main-value-lists.get-users');
+    Route::get('/main-value-lists/get-campuses', [MainValueListController::class, 'getCampuses'])->name('api.main-value-lists.get-campuses');
+    Route::get('/main-value-lists/get-departments', [MainValueListController::class, 'getDepartments'])->name('api.main-value-lists.get-departments');
+    Route::get('/main-value-lists/get-divisions', [MainValueListController::class, 'getDivisions'])->name('api.main-value-lists.get-divisions');
+    Route::get('/main-value-lists/get-warehouses', [MainValueListController::class, 'getWarehouses'])->name('api.main-value-lists.get-warehouses');
 });
 
 // Telegram Bot Document Transfer Webhook
