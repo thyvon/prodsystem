@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class StockIssueItem extends Model
 {
-    use HasFactory;
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
+
     protected $table = 'stock_issue_items';
+
     protected $fillable = [
         'stock_issue_id',
         'stock_request_item_id',
@@ -25,6 +27,9 @@ class StockIssueItem extends Model
         'deleted_by',
     ];
 
+    // ----------------------------
+    // Relationships
+    // ----------------------------
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -63,5 +68,68 @@ class StockIssueItem extends Model
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    // ----------------------------
+    // Auto-sync to stock_ledger
+    // ----------------------------
+    protected static function booted()
+    {
+        // Create Stock Out entry
+        static::created(function ($item) {
+            DB::table('stock_ledger')->insert([
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity * -1, // negative for stock out
+                'unit_price' => $item->unit_price,
+                'total_price' => $item->total_price * -1,
+                'transaction_type' => 'Stock Out',
+                'parent_reference' => $item->stockIssue->reference_no ?? null,
+                'parent_warehouse' => null,
+                'parent_department' => $item->stockIssue->department_id ?? null,
+                'created_by' => $item->updated_by,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        // Update Stock Out entry
+        static::updated(function ($item) {
+            DB::table('stock_ledger')
+                ->where('transaction_type', 'Stock Out')
+                ->where('parent_reference', $item->stockIssue->reference_no ?? null)
+                ->where('product_id', $item->product_id)
+                ->update([
+                    'quantity' => $item->quantity * -1,
+                    'unit_price' => $item->unit_price,
+                    'total_price' => $item->total_price * -1,
+                    'updated_at' => now(),
+                ]);
+        });
+
+        // Delete Stock Out entry
+        static::deleted(function ($item) {
+            DB::table('stock_ledger')
+                ->where('transaction_type', 'Stock Out')
+                ->where('parent_reference', $item->stockIssue->reference_no ?? null)
+                ->where('product_id', $item->product_id)
+                ->delete();
+        });
+
+        // Restore (for soft deletes)
+        static::restored(function ($item) {
+            DB::table('stock_ledger')->insert([
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity * -1,
+                'unit_price' => $item->unit_price,
+                'total_price' => $item->total_price * -1,
+                'transaction_type' => 'Stock Out',
+                'parent_reference' => $item->stockIssue->reference_no ?? null,
+                'parent_warehouse' => null,
+                'parent_department' => $item->stockIssue->department_id ?? null,
+                'created_by' => $item->updated_by,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
     }
 }
