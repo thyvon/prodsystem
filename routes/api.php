@@ -62,6 +62,9 @@ use App\Http\Controllers\StockIssueController;
 use App\Models\StockTransfer;
 use App\Http\Controllers\StockTransferController;
 
+use App\Models\StockIn;
+use App\Http\Controllers\StockInController;
+
 use App\Http\Controllers\StockController;
 
 // Approval Management
@@ -315,6 +318,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-transfers/import', [StockTransferController::class, 'import'])->middleware('can:create,' . StockTransfer::class)->name('api.stock-transfers.import');
         Route::post('/stock-transfers/{stockTransfer}/submit-approval', [StockTransferController::class, 'submitApproval'])->name('api.stock-transfers.submit-approval');
         Route::post('/stock-transfers/{stockTransfer}/reassign-approval', [StockTransferController::class, 'reassignResponder'])->middleware('can:reassign,stockTransfer')->name('api.stock-transfers.reassign-approval');
+
+        // Stock In 
+        Route::get('/stock-ins/get-products', [StockInController::class, 'getProducts'])->name('api.stock-ins.get-products');
+        Route::get('/stock-ins/get-suppliers', [StockInController::class, 'getSuppliers'])->name('api.stock-ins.get-suppliers');
+        Route::get('/stock-ins/get-warehouses', [StockInController::class, 'getWarehouses'])->name('api.stock-ins.get-warehouses');
+
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
 

@@ -57,6 +57,10 @@ import StockTransferForm from './components/Inventory/StockTransfer/Form.vue'
 import StockTransferList from './components/Inventory/StockTransfer/StockTransferList.vue'
 import StockTransferShow from './components/Inventory/StockTransfer/Show.vue'
 
+import StockInForm from './components/Inventory/StockIn/Form.vue'
+// import StockInList from './components/Inventory/StockIn/StockInList.vue'
+// import StockInItemList from './components/Inventory/StockIn/StockInItem.vue'
+
 //Approval Management
 import ApprovalList from './components/Approval/Index.vue'
 
@@ -132,6 +136,11 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  app.component('stock-transfer-form', StockTransferForm)
  app.component('stock-transfer-list', StockTransferList)
  app.component('stock-transfer-show', StockTransferShow)
+
+ //=======Stock In
+ app.component('stock-in-form', StockInForm)
+// app.component('stock-in-list', StockInList)
+// app.component('stock-in-item-list', StockInItemList)
 
  //Approval Management
  app.component('approval-list', ApprovalList)

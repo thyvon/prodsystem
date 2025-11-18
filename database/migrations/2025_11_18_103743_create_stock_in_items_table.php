@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('stock_in_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('stock_in_id');
-            $table->unsignedBigInteger('product_id');
+
+            $table->foreignId('stock_in_id')->constrained('stock_ins')->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained('product_variants')->restrictOnDelete();
+
             $table->decimal('quantity', 10, 4);
             $table->decimal('unit_price', 10, 4);
             $table->decimal('vat', 10, 4)->default(0);
@@ -22,19 +24,15 @@ return new class extends Migration
             $table->decimal('delivery_fee', 10, 4)->default(0);
             $table->decimal('total_price', 10, 4);
             $table->string('remarks')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->unsignedBigInteger('deleted_by')->nullable();
 
-            $table->foreign('stock_in_id')->references('id')->on('stock_ins')->onDelete('cascade');
-            $table->foreign('product_id')->references('id')->on('product_variants')->onDelete('restrict');
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('deleted_by')->references('id')->on('users')->onDelete('restrict');
+            $table->foreignId('updated_by')->nullable()->constrained('users')->restrictOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->restrictOnDelete();
+
             $table->timestamps();
             $table->softDeletes();
         });
     }
+
 
     /**
      * Reverse the migrations.

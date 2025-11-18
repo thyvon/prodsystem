@@ -65,6 +65,9 @@ use App\Models\StockIssue;
 use App\Http\Controllers\StockTransferController;
 use App\Models\StockTransfer;
 
+use App\Http\Controllers\StockInController;
+use App\Models\StockIn;
+
 use App\Http\Controllers\StockController;
 
 
@@ -216,6 +219,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-issues.show')->middleware('can:view,stockIssue');
         Route::get('/stock-issue/items', [StockIssueController::class, 'indexItem'])
             ->name('stock-issue.items')->middleware('can:viewAny,' . StockIssue::class);
+
+        // Stock In
+        Route::get('/stock-ins/form', [StockInController::class, 'form'])->name('stock-ins.form');
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'index'])
