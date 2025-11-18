@@ -38,7 +38,7 @@
           </div>
           <div class="modal-body">
             <div class="mb-2">
-              <a href="/sampleExcel/stock_ins_sample.xlsx" class="btn btn-sm btn-info" download>
+              <a href="/sampleExcel/stock_in_sample.xlsx" class="btn btn-sm btn-info" download>
                 <i class="fal fa-download"></i> Export Sample
               </a>
             </div>

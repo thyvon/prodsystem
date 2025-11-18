@@ -90,7 +90,12 @@ const datatableHeaders = [
   { text: 'Unit', value: 'unit_name' },
   { text: 'Unit Price', value: 'unit_price' },
   { text: 'Total Price', value: 'total_price' },
+  { text: 'Campus', value: 'campus_name' },
   { text: 'Supplier', value: 'supplier_name' },
+  { text: 'Payment Term', value: 'payment_terms' },
+  { text: 'Contact', value: 'supplier_contact' },
+  { text: 'Category', value: 'main_category' },
+  { text: 'Sub Category', value: 'sub_category' },
   { text: 'Transaction Type', value: 'transaction_type' },
   { text: 'Remarks', value: 'remarks' },
 ]

@@ -226,10 +226,16 @@ class StockInController extends Controller
                 'unit_price' => number_format($item->unit_price, 4, '.', ''),
                 'total_price' => number_format($item->total_price, 4, '.', ''),
                 'supplier_name' => $item->stockIn->supplier->name ?? null,
+                'supplier_contact' => $item->stockIn->supplier->phone ?? null,
+                'campus_name' => $item->stockIn->warehouse->building->campus->short_name ?? null,
+                'payment_terms' => $item->stockIn->payment_terms ?? null,
+                'invoice_no' => $item->stockIn->invoice_no ?? null,
                 'warehouse_name' => $item->stockIn->warehouse->name ?? null,
                 'transaction_type' => $item->stockIn->transaction_type ?? null,
                 'transaction_date' => $item->stockIn->transaction_date ?? null,
                 'remarks' => $item->remarks,
+                'main_category' => $v->product->category->name ?? null,
+                'sub_category' => $v->product->subCategory->name ?? null,
             ];
         });
 
