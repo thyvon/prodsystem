@@ -56,5 +56,6 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('stockTransfer', \App\Models\StockTransfer::class);
         Route::model('digitalDocsApproval', \App\Models\DigitalDocsApproval::class);
         Route::model('purchaseRequest', \App\Models\PurchaseRequest::class);
+        Route::model('stockIn', \App\Models\StockIn::class);
     }
 }

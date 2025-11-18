@@ -1,14 +1,12 @@
-@php($header = 'Stock In')
+@php($header = 'Stock In Items')
 @extends('layouts.main')
 
 @section('content')
-<stock-in-form
-    :initial-id="{{ $initialId ?? 'null' }}"
-/>
+  <stock-in-item-list :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @vite(['resources/css/app.css','resources/js/app.js'])
 @endpush
 
 @push('styles')

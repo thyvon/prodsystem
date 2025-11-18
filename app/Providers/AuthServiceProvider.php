@@ -49,14 +49,21 @@ use App\Policies\StockRequestPolicy;
 use App\Models\StockIssue;
 use App\Policies\StockIssuePolicy;
 
+use App\Models\StockIn;
+use App\Policies\StockInPolicy;
+
 use App\Models\StockTransfer;
 use App\Policies\StockTransferPolicy;
 
+// Digital Docs Approval
 use App\Models\DigitalDocsApproval;
 use App\Policies\DigitalDocsApprovalPolicy;
 
+// Purchase Request
 use App\Models\PurchaseRequest;
 use App\Policies\PurchaseRequestPolicy;
+
+
 
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -88,6 +95,7 @@ class AuthServiceProvider extends ServiceProvider
         StockTransfer::class => StockTransferPolicy::class,
         DigitalDocsApproval::class => DigitalDocsApprovalPolicy::class,
         PurchaseRequest::class => PurchaseRequestPolicy::class,
+        StockIn::class => StockInPolicy::class,
     ];
 
     /**

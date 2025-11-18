@@ -221,7 +221,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-issue.items')->middleware('can:viewAny,' . StockIssue::class);
 
         // Stock In
-        Route::get('/stock-ins/form', [StockInController::class, 'form'])->name('stock-ins.form');
+        Route::get('/stock-ins', [StockInController::class, 'index'])->middleware('can:viewAny,' . StockIn::class)->name('stock-ins.index');
+        Route::get('/stock-ins/create', [StockInController::class, 'create'])->middleware('can:create,' . StockIn::class)->name('stock-ins.form');
+        Route::get('/stock-ins/{stockIn}/edit', [StockInController::class, 'edit'])->middleware('can:update,stockIn')->name('stock-ins.edit');
+        Route::get('/stock-ins/{stockIn}/show', [StockInController::class, 'show'])->middleware('can:view,stockIn')->name('stock-ins.show');
+        Route::get('/stock-in/items', [StockInController::class, 'indexItem'])
+            ->name('stock-in.items')->middleware('can:viewAny,' . StockIn::class);
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'index'])

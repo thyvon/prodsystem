@@ -322,11 +322,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-transfers/{stockTransfer}/submit-approval', [StockTransferController::class, 'submitApproval'])->name('api.stock-transfers.submit-approval');
         Route::post('/stock-transfers/{stockTransfer}/reassign-approval', [StockTransferController::class, 'reassignResponder'])->middleware('can:reassign,stockTransfer')->name('api.stock-transfers.reassign-approval');
 
-        // Stock In 
-        Route::get('/stock-ins/get-products', [StockInController::class, 'getProducts'])->name('api.stock-ins.get-products');
-        Route::get('/stock-ins/get-suppliers', [StockInController::class, 'getSuppliers'])->name('api.stock-ins.get-suppliers');
-        Route::get('/stock-ins/get-warehouses', [StockInController::class, 'getWarehouses'])->name('api.stock-ins.get-warehouses');
-
+        // Stock In
+        Route::get('/stock-ins', [StockInController::class, 'getStockIns'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.index');
+        Route::post('/stock-ins', [StockInController::class, 'store'])->middleware('can:create,' . StockIn::class)->name('api.stock-ins.store');
+        Route::get('/stock-ins/{stockIn}/edit', [StockInController::class, 'getEditData'])->middleware('can:update,stockIn')->name('api.stock-ins.edit');
+        Route::put('/stock-ins/{stockIn}', [StockInController::class, 'update'])->middleware('can:update,stockIn')->name('api.stock-ins.update');
+        Route::delete('/stock-ins/{stockIn}', [StockInController::class, 'destroy'])->middleware('can:delete,stockIn')->name('api.stock-ins.destroy');
+        Route::get('/stock-ins/get-products', [StockInController::class, 'getProducts'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.get-products');
+        Route::get('/stock-ins/get-suppliers', [StockInController::class, 'getSuppliers'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.get-suppliers');
+        Route::get('/stock-ins/get-warehouses', [StockInController::class, 'getWarehouses'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.get-warehouses');
+        Route::post('/stock-ins/import', [StockInController::class, 'import'])->middleware('can:create,' . StockIn::class)->name('api.stock-ins.import');
+        Route::get('/stock-in/items', [StockInController::class, 'getAllStockInItems'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.items');
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
 

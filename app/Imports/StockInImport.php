@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -30,6 +31,21 @@ class StockInImport implements ToCollection, WithHeadingRow
             foreach ($rows as $index => $row) {
                 $row = collect($row)->map(fn($v) => is_string($v) ? trim($v) : $v)->toArray();
                 if (empty($row['product_code'])) continue;
+                // Normalize payment terms
+                $paymentMap = [
+                    'noncredit'    => 'NonCredit',
+                    'credit1week'  => 'Credit1week',
+                    'credit2weeks' => 'Credit2weeks',
+                    'credit1month' => 'Credit1month',
+                ];
+                if (!empty($row['payment_terms']) && is_string($row['payment_terms'])) {
+                    $norm = strtolower(preg_replace('/[\s\-]+/', '', $row['payment_terms']));
+                    if (isset($paymentMap[$norm])) {
+                        $row['payment_terms'] = $paymentMap[$norm];
+                    } else {
+                        $row['payment_terms'] = trim($row['payment_terms']);
+                    }
+                }
 
                 // Convert Excel date
                 if (!empty($row['transaction_date']) && is_numeric($row['transaction_date'])) {
@@ -64,9 +80,7 @@ class StockInImport implements ToCollection, WithHeadingRow
                 $warehouseId = Warehouse::where('name', $row['warehouse_name'] ?? '')->value('id');
                 $productId   = ProductVariant::where('item_code', $row['product_code'])->value('id');
 
-                // Lookup existing user for created_by
-                $createdByName = $row['created_by_name'] ?? null;
-                $createdById = $createdByName ? User::where('name', $createdByName)->value('id') : $user?->id ?? 1;
+                $createdById = $user?->id ?? 1;
 
                 // Validate
                 $validator = Validator::make([
@@ -88,7 +102,7 @@ class StockInImport implements ToCollection, WithHeadingRow
                     'transaction_date' => ['required', 'date', 'date_format:Y-m-d'],
                     'transaction_type' => ['required', 'string', 'max:50'],
                     'invoice_no'       => ['nullable', 'string', 'max:100'],
-                    'payment_terms'    => ['nullable', 'string', 'max:100'],
+                    'payment_terms'    => ['nullable', 'string', 'max:100', Rule::in(['NonCredit','Credit1week','Credit2weeks','Credit1month'])],
                     'reference_no'     => ['nullable', 'string', 'max:50'],
                     'supplier_id'      => ['required', 'integer', 'exists:suppliers,id'],
                     'warehouse_id'     => ['required', 'integer', 'exists:warehouses,id'],

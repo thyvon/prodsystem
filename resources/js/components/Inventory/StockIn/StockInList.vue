@@ -15,14 +15,14 @@
     >
       <template #additional-header>
         <div class="btn-group" role="group">
-          <button class="btn btn-success" @click="createStockIssue">
-            <i class="fal fa-plus"></i> Create Stock Issue
+          <button class="btn btn-success" @click="createStockIn">
+            <i class="fal fa-plus"></i> Create Stock In
           </button>
           <button class="btn btn-primary" @click="openImportModal">
             <i class="fal fa-file-import"></i> Import
           </button>
-          <button class="btn btn-info" @click="goToStockIssueItems">
-            <i class="fal fa-list"></i> Stock Issue Items
+          <button class="btn btn-info" @click="goToStockInItems">
+            <i class="fal fa-list"></i> Stock In Items
           </button>
         </div>
       </template>
@@ -33,16 +33,15 @@
       <div class="modal-dialog modal-md" role="document">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Import Stock Issues</h5>
+            <h5 class="modal-title">Import Stock Ins</h5>
             <button type="button" class="close" data-dismiss="modal">&times;</button>
           </div>
           <div class="modal-body">
-          <div class="mb-2">
-            <a href="/sampleExcel/stock_issues_sample.xlsx" class="btn btn-sm btn-info" download>
-              <i class="fal fa-download"></i> Export Sample
-            </a>
-          </div>
-
+            <div class="mb-2">
+              <a href="/sampleExcel/stock_ins_sample.xlsx" class="btn btn-sm btn-info" download>
+                <i class="fal fa-download"></i> Export Sample
+              </a>
+            </div>
 
             <div class="form-group">
               <label class="font-weight-bold">Select File</label>
@@ -78,10 +77,9 @@ import { ref, reactive } from 'vue'
 import axios from 'axios'
 import { showAlert, confirmAction } from '@/Utils/bootbox'
 
-const goToStockIssueItems = () => {
-  window.location.href = '/inventory/stock-issue/items' // adjust the route if needed
+const goToStockInItems = () => {
+  window.location.href = '/inventory/stock-in/items' // adjust route if needed
 }
-
 
 // -------------------- DATATABLE --------------------
 const datatableRef = ref(null)
@@ -89,19 +87,18 @@ const pageLength = ref(10)
 const datatableParams = reactive({ sortColumn: 'created_at', sortDirection: 'desc', search: '' })
 
 const datatableHeaders = [
-  { text: 'Issue Date', value: 'transaction_date', width: '11%' },
+  { text: 'In Date', value: 'transaction_date', width: '11%' },
   { text: 'Reference No', value: 'reference_no', width: '9%' },
-  { text: 'Request No', value: 'request_number', width: '9%' },
+  { text: 'Supplier', value: 'supplier_name', width: '19%' },
+  { text: 'Payment Term', value: 'payment_terms', width: '7%' },
   { text: 'Warehouse', value: 'warehouse_name', width: '18%' },
   { text: 'Warehouse Campus', value: 'warehouse_campus_name', width: '7%' },
-  { text: 'Quantity', value: 'quantity', width: '7%' },
   { text: 'Amount', value: 'total_price', width: '7%' },
-  { text: 'Issued By', value: 'created_by', width: '10%' },
-  { text: 'Requester', value: 'requester_name', width: '12%' },
-  { text: 'Campus', value: 'requester_campus_name', width: '10%' },
+  { text: 'Received By', value: 'created_by', width: '10%' },
+  { text: 'Remarks', value: 'remarks', width: '7%' },
 ]
 
-const datatableFetchUrl = '/api/inventory/stock-issues'
+const datatableFetchUrl = '/api/inventory/stock-ins'
 const datatableActions = ['edit', 'delete', 'preview']
 const datatableOptions = {
   responsive: true,
@@ -110,19 +107,19 @@ const datatableOptions = {
 }
 
 // -------------------- DATATABLE ACTIONS --------------------
-const createStockIssue = () => window.location.href = '/inventory/stock-issues/create'
-const handleEdit = (stockIssue) => window.location.href = `/inventory/stock-issues/${stockIssue.id}/edit`
-const handlePreview = (stockIssue) => window.location.href = `/inventory/stock-issues/${stockIssue.id}/show`
+const createStockIn = () => window.location.href = '/inventory/stock-ins/create'
+const handleEdit = (stockIn) => window.location.href = `/inventory/stock-ins/${stockIn.id}/edit`
+const handlePreview = (stockIn) => window.location.href = `/inventory/stock-ins/${stockIn.id}/show`
 
-const handleDelete = async (stockIssue) => {
+const handleDelete = async (stockIn) => {
   const confirmed = await confirmAction(
-    `Delete Stock Issue "${stockIssue.reference_no}"?`,
+    `Delete Stock In "${stockIn.reference_no}"?`,
     '<strong>Warning:</strong> This action cannot be undone!'
   )
   if (!confirmed) return
   try {
-    const response = await axios.delete(`/api/inventory/stock-issues/${stockIssue.id}`)
-    showAlert('Deleted', response.data.message || `"${stockIssue.reference_no}" was deleted successfully.`, 'success')
+    const response = await axios.delete(`/api/inventory/stock-ins/${stockIn.id}`)
+    showAlert('Deleted', response.data.message || `"${stockIn.reference_no}" was deleted successfully.`, 'success')
     datatableRef.value?.reload()
   } catch (e) {
     console.error(e)
@@ -152,6 +149,7 @@ const handleFileChange = (event) => {
   $(importFileInput.value).next('.custom-file-label').html(importFileName.value)
 }
 
+// ...existing code...
 const importFileAction = async () => {
   if (!importFile.value) {
     showAlert('Error', 'Please select a file to import.', 'warning')
@@ -170,7 +168,7 @@ const importFileAction = async () => {
 
   try {
     importing.value = true
-    const res = await axios.post('/api/inventory/stock-issues/import', formData, {
+    const res = await axios.post('/api/inventory/stock-ins/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     showAlert('Success', res.data.message || 'Import completed!', 'success')

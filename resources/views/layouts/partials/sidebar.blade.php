@@ -192,6 +192,8 @@
                 || request()->is('inventory/stock-requests*')
                 || request()->is('inventory/stock-issues*')
                 || request()->is('inventory/stock-issue/items*')
+                || request()->is('inventory/stock-ins*')
+                || request()->is('inventory/stock-in/items*')
                 || request()->is('inventory/stock-transfers*');
             @endphp
 
@@ -231,9 +233,9 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('view stock receipt')
-                            <li class="{{ request()->is('inventory/list') ? 'active' : '' }}">
-                                <a href="{{ url('inventory/list') }}" title="Inventory List" data-filter-tags="inventory list">
+                        @can('stockIn.view')
+                            <li class="{{ request()->is('inventory/stock-ins') || request()->is('inventory/stock-in/items*') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-ins') }}" title="Stock Receipt" data-filter-tags="stock receipt">
                                     <span class="nav-link-text">Stock Receipt</span>
                                 </a>
                             </li>
