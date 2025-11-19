@@ -333,6 +333,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-ins/get-warehouses', [StockInController::class, 'getWarehouses'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.get-warehouses');
         Route::post('/stock-ins/import', [StockInController::class, 'import'])->middleware('can:create,' . StockIn::class)->name('api.stock-ins.import');
         Route::get('/stock-in/items', [StockInController::class, 'getAllStockInItems'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.items');
+
+        //Stock Report
+        Route::get('/stock-reports', [StockController::class, 'stockReport'])->name('api.stock-reports.index');
+        Route::get('/stock-reports/get-warehouses', [StockController::class, 'getWarehouses'])->name('api.stock-reports.get-warehouses');
+
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
 

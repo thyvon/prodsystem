@@ -219,11 +219,23 @@ const loadEditData = async (id) => {
 const initModalDataTable = () => {
   nextTick(() => {
     const tableEl = $(itemsModal.value).find('table')
-    if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().destroy()
+    if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().clear().destroy()
     tableEl.DataTable({
       serverSide: true,
       processing: true,
-      ajax: { url: '/api/inventory/stock-ins/get-products', type: 'GET', data: d => (d.warehouse_id = form.value.warehouse_id) },
+      ajax: {
+        url: '/api/inventory/stock-ins/get-products',
+        type: 'GET',
+        data: function (d) {
+          // attach current warehouse id and return the params object
+          d.warehouse_id = form.value.warehouse_id
+          return d
+        },
+        error: function (xhr, status, err) {
+          console.error('Products DataTable AJAX error:', status, err, xhr)
+          showAlert('Error', 'Failed to load products. Check console/network for details.', 'danger')
+        }
+      },
       columns: [
         { data: 'id', render: id => `<div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input select-product" id="select-item-${id}"><label class="custom-control-label" for="select-item-${id}"></label></div>`, orderable: false },
         { data: 'item_code' },

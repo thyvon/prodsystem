@@ -79,7 +79,7 @@ class StockIssueItem extends Model
         static::created(function ($item) {
             DB::table('stock_ledgers')->insert([
                 'item_id'            => $item->id,
-                'transaction_date'  => $item->stockIssue->issue_date,
+                'transaction_date'  => $item->stockIssue->transaction_date,
                 'product_id'       => $item->product_id,
                 'quantity'         => $item->quantity * -1,
                 'unit_price'       => $item->unit_price,
@@ -108,7 +108,7 @@ class StockIssueItem extends Model
             // Insert new ledger row with updated values
             DB::table('stock_ledgers')->insert([
                 'item_id'            => $item->id,
-                'transaction_date'  => $item->stockIssue->issue_date,
+                'transaction_date'  => $item->stockIssue->transaction_date,
                 'product_id'       => $item->product_id,
                 'quantity'         => $item->quantity * -1,
                 'unit_price'       => $item->unit_price,
@@ -138,7 +138,7 @@ class StockIssueItem extends Model
         static::restored(function ($item) {
             DB::table('stock_ledgers')->insert([
                 'item_id'            => $item->id,
-                'transaction_date'  => $item->stockIssue->issue_date,
+                'transaction_date'  => $item->stockIssue->transaction_date,
                 'product_id'       => $item->product_id,
                 'quantity'         => $item->quantity * -1,
                 'unit_price'       => $item->unit_price,
