@@ -8,55 +8,45 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('stock_ledger', function (Blueprint $table) {
+        Schema::create('stock_ledgers', function (Blueprint $table) {
             $table->id();
 
-            // Product info
-            $table->unsignedBigInteger('product_id')->index();
+            // Product reference
+            $table->foreignId('product_id')
+                  ->constrained('product_variants')
+                  ->cascadeOnDelete();
+
+            $table->unsignedBigInteger('item_id');
+            $table->date('transaction_date');
 
             // Stock movement
-            $table->integer('quantity'); // negative for Stock Out
-            $table->decimal('unit_price', 15, 2);
-            $table->decimal('total_price', 15, 2);
+            $table->integer('quantity'); // negative = stock out
+            $table->decimal('unit_price', 25, 10)->default(0);   // 10 decimal places
+            $table->decimal('total_price', 25, 10)->default(0);  // 10 decimal places
 
-            // Type of transaction
-            $table->enum('transaction_type', ['Stock In', 'Stock Out'])->index();
+            // Transaction type
+            $table->enum('transaction_type', ['Stock_In', 'Stock_Out']);
 
             // Parent info
-            $table->string('parent_reference')->nullable()->index();
-            $table->unsignedBigInteger('parent_warehouse')->nullable()->index();
-            $table->unsignedBigInteger('parent_department')->nullable()->index();
+            $table->string('parent_reference')->nullable();
 
-            // User info
-            $table->unsignedBigInteger('created_by')->index();
+            $table->foreignId('parent_warehouse')
+                  ->nullable()
+                  ->constrained('warehouses')
+                  ->nullOnDelete();
+
+            // User who created entry
+            $table->foreignId('created_by')
+                  ->nullable()
+                  ->constrained('users')
+                  ->nullOnDelete();
 
             $table->timestamps();
-
-            // Foreign keys
-            $table->foreign('product_id')
-                  ->references('id')
-                  ->on('product_variants')
-                  ->onDelete('cascade');
-
-            $table->foreign('parent_warehouse')
-                  ->references('id')
-                  ->on('warehouses')
-                  ->onDelete('set null');
-
-            $table->foreign('parent_department')
-                  ->references('id')
-                  ->on('departments')
-                  ->onDelete('set null');
-
-            $table->foreign('created_by')
-                  ->references('id')
-                  ->on('users')
-                  ->onDelete('set null');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('stock_ledger');
+        Schema::dropIfExists('stock_ledgers');
     }
 };

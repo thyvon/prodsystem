@@ -71,64 +71,84 @@ class StockIssueItem extends Model
     }
 
     // ----------------------------
-    // Auto-sync to stock_ledger
+    // Auto-sync to stock_ledgers (Stock Out)
     // ----------------------------
     protected static function booted()
     {
-        // Create Stock Out entry
+        // CREATE
         static::created(function ($item) {
-            DB::table('stock_ledger')->insert([
-                'product_id' => $item->product_id,
-                'quantity' => $item->quantity * -1, // negative for stock out
-                'unit_price' => $item->unit_price,
-                'total_price' => $item->total_price * -1,
-                'transaction_type' => 'Stock Out',
+            DB::table('stock_ledgers')->insert([
+                'item_id'            => $item->id,
+                'transaction_date'  => $item->stockIssue->issue_date,
+                'product_id'       => $item->product_id,
+                'quantity'         => $item->quantity * -1,
+                'unit_price'       => $item->unit_price,
+                'total_price'      => $item->total_price * -1,
+                'transaction_type' => 'Stock_Out',
                 'parent_reference' => $item->stockIssue->reference_no ?? null,
-                'parent_warehouse' => null,
-                'parent_department' => $item->stockIssue->department_id ?? null,
-                'created_by' => $item->updated_by,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'parent_warehouse' => $item->stockIssue->warehouse_id ?? null,
+                'created_by'       => $item->updated_by ?? $item->created_by,
+                'created_at'       => now(),
+                'updated_at'       => now(),
             ]);
         });
 
-        // Update Stock Out entry
+        // UPDATE
         static::updated(function ($item) {
-            DB::table('stock_ledger')
-                ->where('transaction_type', 'Stock Out')
+            // Delete old ledger row(s) for this item
+            DB::table('stock_ledgers')
+                ->where('transaction_type', 'Stock_Out')
                 ->where('parent_reference', $item->stockIssue->reference_no ?? null)
+                ->where('item_id', $item->id)
                 ->where('product_id', $item->product_id)
-                ->update([
-                    'quantity' => $item->quantity * -1,
-                    'unit_price' => $item->unit_price,
-                    'total_price' => $item->total_price * -1,
-                    'updated_at' => now(),
-                ]);
+                ->where('quantity', $item->getOriginal('quantity') * -1)
+                ->where('unit_price', $item->getOriginal('unit_price'))
+                ->delete();
+
+            // Insert new ledger row with updated values
+            DB::table('stock_ledgers')->insert([
+                'item_id'            => $item->id,
+                'transaction_date'  => $item->stockIssue->issue_date,
+                'product_id'       => $item->product_id,
+                'quantity'         => $item->quantity * -1,
+                'unit_price'       => $item->unit_price,
+                'total_price'      => $item->total_price * -1,
+                'transaction_type' => 'Stock_Out',
+                'parent_reference' => $item->stockIssue->reference_no ?? null,
+                'parent_warehouse' => $item->stockIssue->warehouse_id ?? null,
+                'created_by'       => $item->updated_by ?? $item->created_by,
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]);
         });
 
-        // Delete Stock Out entry
+        // DELETE
         static::deleted(function ($item) {
-            DB::table('stock_ledger')
-                ->where('transaction_type', 'Stock Out')
+            DB::table('stock_ledgers')
+                ->where('transaction_type', 'Stock_Out')
                 ->where('parent_reference', $item->stockIssue->reference_no ?? null)
+                ->where('item_id', $item->id)
                 ->where('product_id', $item->product_id)
+                ->where('quantity', $item->quantity * -1)
+                ->where('unit_price', $item->unit_price)
                 ->delete();
         });
 
-        // Restore (for soft deletes)
+        // RESTORE
         static::restored(function ($item) {
-            DB::table('stock_ledger')->insert([
-                'product_id' => $item->product_id,
-                'quantity' => $item->quantity * -1,
-                'unit_price' => $item->unit_price,
-                'total_price' => $item->total_price * -1,
-                'transaction_type' => 'Stock Out',
+            DB::table('stock_ledgers')->insert([
+                'item_id'            => $item->id,
+                'transaction_date'  => $item->stockIssue->issue_date,
+                'product_id'       => $item->product_id,
+                'quantity'         => $item->quantity * -1,
+                'unit_price'       => $item->unit_price,
+                'total_price'      => $item->total_price * -1,
+                'transaction_type' => 'Stock_Out',
                 'parent_reference' => $item->stockIssue->reference_no ?? null,
-                'parent_warehouse' => null,
-                'parent_department' => $item->stockIssue->department_id ?? null,
-                'created_by' => $item->updated_by,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'parent_warehouse' => $item->stockIssue->warehouse_id ?? null,
+                'created_by'       => $item->updated_by ?? $item->created_by,
+                'created_at'       => now(),
+                'updated_at'       => now(),
             ]);
         });
     }

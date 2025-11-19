@@ -304,7 +304,7 @@ class StockIssueController extends Controller
             $this->stockIssueItemValidationRule()
         ))->validate();
 
-        // Fetch the StockRequest and verify it exists (if provided)
+        // Fetch the StockRequest and its items (if provided)
         $stockRequest = isset($validated['stock_request_id'])
             ? StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id'])
             : null;
@@ -320,8 +320,8 @@ class StockIssueController extends Controller
                     ], 404);
                 }
 
-                // Use provided reference_no or generate a new one
-                $referenceNo = $validated['reference_no'] ?? $this->generateReferenceNo($stockRequest ?? null, $validated['transaction_date']);
+                // Generate reference number if not provided
+                $referenceNo = $validated['reference_no'] ?? $this->generateReferenceNo($stockRequest, $validated['transaction_date']);
 
                 // Create StockIssue
                 $stockIssue = StockIssue::create([
@@ -337,45 +337,52 @@ class StockIssueController extends Controller
                     'updated_by'       => $user?->id ?? 1,
                 ]);
 
-                // Prepare StockIssueItems
-                $items = array_map(function ($item) {
+                $createdItems = [];
+
+                // Create each StockIssueItem via Eloquent to trigger events
+                foreach ($validated['items'] as $item) {
                     $qty = $item['quantity'];
                     $unitPrice = $item['unit_price'];
-                    return [
-                        'stock_issue_id' => $item['stock_issue_id'] ?? null,
-                        'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
-                        'product_id'     => $item['product_id'],
-                        'quantity'       => $qty,
-                        'unit_price'     => $unitPrice,
-                        'total_price'    => bcmul($qty, $unitPrice, 10), // precise 10 decimals
-                        'remarks'        => $item['remarks'] ?? null,
-                        'campus_id'      => $item['campus_id'],
-                        'department_id'  => $item['department_id'],
-                        'updated_by'     => auth()->id() ?? 1,
-                        'deleted_by'     => null,
-                        'created_at'     => now(),
-                        'updated_at'     => now(),
-                    ];
-                }, $validated['items']);
 
-                // Insert items
-                if (!empty($items)) {
-                    foreach ($items as &$item) {
-                        $item['stock_issue_id'] = $stockIssue->id;
+                    // Resolve stock_request_item_id
+                    $stockRequestItemId = $item['stock_request_item_id'] ?? null;
+
+                    if ($stockRequestItemId) {
+                        $exists = DB::table('stock_request_items')->where('id', $stockRequestItemId)->exists();
+                        if (!$exists) $stockRequestItemId = null;
                     }
-                    StockIssueItem::insert($items);
+
+                    if (!$stockRequestItemId && $stockRequest) {
+                        $matched = collect($stockRequest->stockRequestItems)->firstWhere('product_id', $item['product_id']);
+                        $stockRequestItemId = $matched->id ?? null;
+                    }
+
+                    // Create StockIssueItem (triggers booted() -> stock ledger)
+                    $createdItems[] = StockIssueItem::create([
+                        'stock_issue_id'       => $stockIssue->id,
+                        'stock_request_item_id'=> $stockRequestItemId,
+                        'product_id'           => $item['product_id'],
+                        'quantity'             => $qty,
+                        'unit_price'           => $unitPrice,
+                        'total_price'          => bcmul($qty, $unitPrice, 10),
+                        'remarks'              => $item['remarks'] ?? null,
+                        'campus_id'            => $item['campus_id'],
+                        'department_id'        => $item['department_id'],
+                        'updated_by'           => $user?->id ?? 1,
+                        'deleted_by'           => null,
+                    ]);
                 }
 
                 return response()->json([
                     'message' => 'Stock Issue created successfully.',
-                    'data' => $stockIssue->load('stockIssueItems', 'stockRequest'),
+                    'data'    => $stockIssue->load('stockIssueItems', 'stockRequest'),
                 ], 201);
             });
         } catch (\Exception $e) {
             Log::error('Failed to create stock issue.', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to create stock issue',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -464,8 +471,6 @@ class StockIssueController extends Controller
             )
         )->validate();
 
-
-        // Fetch the StockRequest if provided
         $stockRequest = $validated['stock_request_id'] ?? null
             ? StockRequest::with('stockRequestItems')->findOrFail($validated['stock_request_id'])
             : null;
@@ -481,7 +486,7 @@ class StockIssueController extends Controller
                     ], 404);
                 }
 
-                // Update StockIssue main details
+                // Update StockIssue
                 $stockIssue->update([
                     'transaction_date' => $validated['transaction_date'],
                     'transaction_type' => $validated['transaction_type'],
@@ -502,10 +507,21 @@ class StockIssueController extends Controller
                     $qty = $item['quantity'];
                     $unitPrice = $item['unit_price'];
 
+                    // Resolve stock_request_item_id
+                    $stockRequestItemId = $item['stock_request_item_id'] ?? null;
+                    if ($stockRequestItemId) {
+                        $exists = DB::table('stock_request_items')->where('id', $stockRequestItemId)->exists();
+                        if (!$exists) $stockRequestItemId = null;
+                    }
+                    if (!$stockRequestItemId && $stockRequest) {
+                        $matched = collect($stockRequest->stockRequestItems)->firstWhere('product_id', $item['product_id']);
+                        $stockRequestItemId = $matched->id ?? null;
+                    }
+
                     if (!empty($item['id']) && $existingItems->has($item['id'])) {
-                        // Update existing item
+                        // Update existing item (triggers updated event -> stock ledger)
                         $existingItems[$item['id']]->update([
-                            'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
+                            'stock_request_item_id' => $stockRequestItemId,
                             'product_id'            => $item['product_id'],
                             'quantity'              => $qty,
                             'unit_price'            => $unitPrice,
@@ -517,10 +533,10 @@ class StockIssueController extends Controller
                         ]);
                         $submittedItemIds[] = $item['id'];
                     } else {
-                        // Insert new item
+                        // Create new item (triggers created event -> stock ledger)
                         $newItem = StockIssueItem::create([
                             'stock_issue_id'        => $stockIssue->id,
-                            'stock_request_item_id' => $item['stock_request_item_id'] ?? null,
+                            'stock_request_item_id' => $stockRequestItemId,
                             'product_id'            => $item['product_id'],
                             'quantity'              => $qty,
                             'unit_price'            => $unitPrice,
@@ -535,9 +551,10 @@ class StockIssueController extends Controller
                     }
                 }
 
-                // Soft-delete items not submitted
+                // Soft-delete removed items (triggers deleted event -> stock ledger)
                 $stockIssue->stockIssueItems()
                     ->whereNotIn('id', $submittedItemIds)
+                    ->get()
                     ->each(function ($item) use ($user) {
                         $item->deleted_by = $user?->id ?? 1;
                         $item->save();
@@ -594,7 +611,7 @@ class StockIssueController extends Controller
         return [
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:stock_issue_items,id'],
-            'items.*.stock_request_item_id' => ['nullable', 'integer', 'exists:stock_request_items,id'],
+            'items.*.stock_request_item_id' => ['nullable', 'integer'],
             'items.*.product_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.0000000001'], // allow 10 decimals
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],          // allow 10 decimals
@@ -607,10 +624,14 @@ class StockIssueController extends Controller
     /**
      * Generate issue reference number using StockRequest -> Warehouse -> Building -> Campus short_name
      */
-    private function generateReferenceNo(StockRequest $stockRequest, string $requestDate): string
+    private function generateReferenceNo(?StockRequest $stockRequest, string $requestDate): string
     {
-        // Load warehouse by id with building.campus
-        $warehouse = Warehouse::with('building.campus')->findOrFail($stockRequest->warehouse_id);
+        // Determine warehouse shortName; fallback to 'WH' when stockRequest not provided
+        $shortName = 'WH';
+        if ($stockRequest?->warehouse_id) {
+            $warehouse = Warehouse::with('building.campus')->find($stockRequest->warehouse_id);
+            $shortName = $warehouse->building?->campus?->short_name ?? $shortName;
+        }
 
         try {
             $date = \Carbon\Carbon::createFromFormat(self::DATE_FORMAT, $requestDate);
@@ -621,7 +642,6 @@ class StockIssueController extends Controller
             throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.', 0, $e);
         }
 
-        $shortName = $warehouse->building?->campus?->short_name ?? 'WH';
         $monthYear = $date->format('my'); // e.g. 0925
 
         // Sequence number for this shortName + month

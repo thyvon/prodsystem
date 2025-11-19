@@ -234,7 +234,7 @@
                             </li>
                         @endcan
                         @can('stockIn.view')
-                            <li class="{{ request()->is('inventory/stock-ins') || request()->is('inventory/stock-in/items*') ? 'active' : '' }}">
+                            <li class="{{ request()->is('inventory/stock-ins*') || request()->is('inventory/stock-in/items*') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-ins') }}" title="Stock Receipt" data-filter-tags="stock receipt">
                                     <span class="nav-link-text">Stock Receipt</span>
                                 </a>

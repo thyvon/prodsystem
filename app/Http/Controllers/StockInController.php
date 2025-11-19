@@ -349,7 +349,7 @@ class StockInController extends Controller
                 $referenceNo = $validated['reference_no']
                     ?? $this->generateReferenceNo($validated['transaction_date'], $validated['warehouse_id'] ?? null);
 
-                // Create Stock In
+                // Create StockIn
                 $stockIn = StockIn::create([
                     'transaction_date' => $validated['transaction_date'],
                     'reference_no'     => $referenceNo,
@@ -364,36 +364,29 @@ class StockInController extends Controller
                     'deleted_by'       => null,
                 ]);
 
-                // Prepare items
-                $items = array_map(function ($item) use ($stockIn, $userId) {
-
-                    $qty       = $item['quantity'];
-                    $unitPrice = $item['unit_price'];
-
-                    return [
+                // Create StockInItems individually to trigger Eloquent events
+                foreach ($validated['items'] as $item) {
+                    StockInItem::create([
                         'stock_in_id'  => $stockIn->id,
                         'product_id'   => $item['product_id'],
-                        'quantity'     => $qty,
-                        'unit_price'   => $unitPrice,
+                        'quantity'     => $item['quantity'],
+                        'unit_price'   => $item['unit_price'],
                         'vat'          => $item['vat'] ?? 0,
                         'discount'     => $item['discount'] ?? 0,
                         'delivery_fee' => $item['delivery_fee'] ?? 0,
-                        'total_price'  => bcmul($qty, $unitPrice, 10),
+                        'total_price'  => bcmul($item['quantity'], $item['unit_price'], 10),
                         'remarks'      => $item['remarks'] ?? null,
                         'updated_by'   => null,
                         'deleted_by'   => null,
-                    ];
-                }, $validated['items']);
-
-                // Bulk insert items
-                StockInItem::insert($items);
+                    ]);
+                }
 
                 return response()->json([
                     'message' => 'Stock In created successfully.',
                     'data'    => $stockIn->load('Items'),
                 ], 201);
-            });
 
+            });
         } catch (\Exception $e) {
             Log::error('Failed to create Stock In', ['error' => $e->getMessage()]);
 
@@ -422,7 +415,7 @@ class StockInController extends Controller
 
                 $userId = auth()->id() ?? 1;
 
-                // Update Stock In
+                // Update StockIn main data
                 $stockIn->update([
                     'transaction_date' => $validated['transaction_date'],
                     'reference_no'     => $validated['reference_no'] ?? $stockIn->reference_no,
@@ -435,7 +428,7 @@ class StockInController extends Controller
                     'updated_by'       => $userId,
                 ]);
 
-                // Process Items
+                // Handle StockInItems
                 $existingItems = $stockIn->Items->keyBy('id');
                 $submittedItemIds = [];
 
@@ -444,9 +437,8 @@ class StockInController extends Controller
                     $qty       = $item['quantity'];
                     $unitPrice = $item['unit_price'];
 
-                    // UPDATE existing item
                     if (!empty($item['id']) && $existingItems->has($item['id'])) {
-
+                        // Update existing item (triggers updated event)
                         $existingItems[$item['id']]->update([
                             'product_id'   => $item['product_id'],
                             'quantity'     => $qty,
@@ -458,12 +450,9 @@ class StockInController extends Controller
                             'remarks'      => $item['remarks'] ?? null,
                             'updated_by'   => $userId,
                         ]);
-
                         $submittedItemIds[] = $item['id'];
-
                     } else {
-
-                        // CREATE NEW ITEM
+                        // Create new item (triggers created event)
                         $newItem = StockInItem::create([
                             'stock_in_id'  => $stockIn->id,
                             'product_id'   => $item['product_id'],
@@ -477,14 +466,14 @@ class StockInController extends Controller
                             'updated_by'   => $userId,
                             'deleted_by'   => null,
                         ]);
-
                         $submittedItemIds[] = $newItem->id;
                     }
                 }
 
-                // Soft delete removed items
+                // Soft-delete removed items (triggers deleted event)
                 $stockIn->Items()
                     ->whereNotIn('id', $submittedItemIds)
+                    ->get()
                     ->each(function ($item) use ($userId) {
                         $item->deleted_by = $userId;
                         $item->save();
@@ -495,10 +484,9 @@ class StockInController extends Controller
                     'message' => 'Stock In updated successfully.',
                     'data' => $stockIn->load('Items'),
                 ], 200);
+
             });
-
         } catch (\Exception $e) {
-
             Log::error('Failed to update Stock In', [
                 'error' => $e->getMessage(),
                 'stock_in_id' => $stockIn->id,

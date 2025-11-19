@@ -241,6 +241,10 @@ Route::middleware(['auth'])->group(function () {
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])
             ->name('stock-movements.index');
+
+        // Stock Report
+        Route::get('/stock-report', [StockController::class, 'stockReport'])
+            ->name('stock-report.index');
     });
 
     //Approval View Route
