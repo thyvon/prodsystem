@@ -247,6 +247,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-reports.index');
         Route::post('/stock-reports/pdf', [StockController::class, 'stockReport'])
             ->name('stock-reports.pdf');
+        Route::get('/stock-reports/create', [StockController::class, 'create'])
+            ->name('stock-reports.create');
     });
 
     //Approval View Route

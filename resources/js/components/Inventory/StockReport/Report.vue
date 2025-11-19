@@ -91,6 +91,8 @@ const datatableParams = reactive({
 
 const datatableHeaders = [
   { text: 'Item Code', value: 'item_code' },
+  { text: 'Description', value: 'description' },
+  { text: 'Unit', value: 'unit_name' },
   { text: 'Begin Qty', value: 'beginning_quantity' },
   { text: 'Begin Amount', value: 'beginning_total' },
   { text: 'Stock In Qty', value: 'stock_in_quantity' },
@@ -142,7 +144,7 @@ const fetchWarehouses = async () => {
     destroySelect2(warehouseSelect.value)
     initSelect2(
       warehouseSelect.value,
-      { placeholder: 'Filter by Warehouse', width: '220px', allowClear: true, data: warehouses },
+      { placeholder: 'Filter by WH', width: '220px', allowClear: true, data: warehouses },
       (value) => { selectedWarehouses.value = value.map(Number) }
     )
   } catch (error) {

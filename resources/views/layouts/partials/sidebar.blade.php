@@ -280,44 +280,25 @@
             @endif
 
             @php
-                $reportActive = request()->is('reports*');
+                $reportActive = request()->is('inventory/stock-report*');
             @endphp
             <li class="nav-title">Reports</li>
             <li class="{{ $reportActive ? 'active open' : '' }}">
                 <a href="#" title="Reports" data-filter-tags="reports">
                     <i class="fal fa-chart-line"></i>
-                    <span class="nav-link-text">PR Reports</span>
+                    <span class="nav-link-text">Stock Report</span>
                 </a>
                 <ul>
-                    <li class="{{ request()->is('reports/summary') ? 'active' : '' }}">
-                        <a href="{{ url('reports/summary') }}" title="Summary Report" data-filter-tags="summary report">
-                            <span class="nav-link-text">PR Item Report</span>
+                    <li class="{{ request()->is('inventory/stock-reports') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-reports') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
+                            <span class="nav-link-text">Tracking Report</span>
                         </a>
                     </li>
-                    <li class="{{ request()->is('reports/details') ? 'active' : '' }}">
+                    <!-- <li class="{{ request()->is('reports/details') ? 'active' : '' }}">
                         <a href="{{ url('reports/details') }}" title="Detailed Report" data-filter-tags="detailed report">
                             <span class="nav-link-text">PR Summary</span>
                         </a>
-                    </li>
-                    <!-- Add more report links as needed -->
-                </ul>
-            </li>
-            <li class="{{ $reportActive ? 'active open' : '' }}">
-                <a href="#" title="Reports" data-filter-tags="reports">
-                    <i class="fal fa-chart-line"></i>
-                    <span class="nav-link-text">PO Reports</span>
-                </a>
-                <ul>
-                    <li class="{{ request()->is('reports/summary') ? 'active' : '' }}">
-                        <a href="{{ url('reports/summary') }}" title="Summary Report" data-filter-tags="summary report">
-                            <span class="nav-link-text">PO Item Report</span>
-                        </a>
-                    </li>
-                    <li class="{{ request()->is('reports/details') ? 'active' : '' }}">
-                        <a href="{{ url('reports/details') }}" title="Detailed Report" data-filter-tags="detailed report">
-                            <span class="nav-link-text">PO Summary</span>
-                        </a>
-                    </li>
+                    </li> -->
                     <!-- Add more report links as needed -->
                 </ul>
             </li>
