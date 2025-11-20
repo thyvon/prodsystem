@@ -193,7 +193,7 @@ const canSubmit = computed(() => {
   )
 })
 
-const goToList = () => window.location.href = '/inventory/stock-reports'
+const goToList = () => window.location.href = '/inventory/stock-reports/monthly-report'
 
 // Fetch warehouses + approval users
 const fetchMasterData = async () => {

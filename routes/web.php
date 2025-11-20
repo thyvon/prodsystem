@@ -245,10 +245,15 @@ Route::middleware(['auth'])->group(function () {
         // Stock Report
         Route::get('/stock-reports', [StockController::class, 'index'])
             ->name('stock-reports.index');
-        Route::post('/stock-reports/pdf', [StockController::class, 'stockReport'])
+        Route::post('/stock-reports/pdf', [StockController::class, 'generateStockReportPdf'])
             ->name('stock-reports.pdf');
-        Route::get('/stock-reports/create', [StockController::class, 'create'])
-            ->name('stock-reports.create');
+
+        Route::get('/stock-reports/monthly-report/create', [StockController::class, 'create'])
+            ->name('stock-reports.monthly-report.create');
+        Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])
+            ->name('stock-reports.monthly-report');
+        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'show'])
+            ->name('stock-reports.monthly-report.show');
     });
 
     //Approval View Route

@@ -29,12 +29,6 @@ const openModal = async (url, name) => {
   $(modalRef.value).modal('show')
 }
 
-// Open modal with a PDF blob
-const openBlob = async (blob, name) => {
-  const url = URL.createObjectURL(blob)
-  await openModal(url, name)
-}
-
 // Open modal with a custom Vue component
 const openCustom = async (comp, propsData = {}, titleText = 'Preview') => {
   component.value = comp
@@ -51,7 +45,7 @@ const closeModal = () => {
 }
 
 // Expose methods for parent components
-defineExpose({ openModal, openBlob, openCustom, closeModal })
+defineExpose({ openModal, openCustom, closeModal })
 </script>
 
 <template>

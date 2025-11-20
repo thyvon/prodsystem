@@ -99,6 +99,8 @@ const renderColumnData = (key, val) => {
     case 'beginning_date': return formatDate(val);
     case 'updated_at': return formatDateTime(val);
     case 'transaction_date': return formatDate(val);
+    case 'report_date': return formatDate(val);
+    case 'responded_date': return formatDateTime(val);
 
     // Boolean status badges
     case 'is_active':
@@ -109,7 +111,14 @@ const renderColumnData = (key, val) => {
 
     // Request type badge
     case 'request_type': {
-      const map = { review: 'badge-info', check: 'badge-primary', approve: 'badge-success' };
+      const map = { 
+      review: 'badge-info', 
+      check: 'badge-primary', 
+      approve: 'badge-success',
+      reject: 'badge-danger',
+      verify: 'badge-warning',
+      acknowledge: 'badge-secondary', 
+      };
       return badge(map[val?.toLowerCase()] || 'badge-secondary', capitalize(val));
     }
 

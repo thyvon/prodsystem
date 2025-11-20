@@ -280,7 +280,8 @@
             @endif
 
             @php
-                $reportActive = request()->is('inventory/stock-report*');
+                $reportActive = request()->is('inventory/stock-report*')
+                    || request()->is('inventory/stock-reports*');
             @endphp
             <li class="nav-title">Reports</li>
             <li class="{{ $reportActive ? 'active open' : '' }}">
@@ -292,6 +293,11 @@
                     <li class="{{ request()->is('inventory/stock-reports') ? 'active' : '' }}">
                         <a href="{{ url('inventory/stock-reports') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
                             <span class="nav-link-text">Tracking Report</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('inventory/stock-reports/monthly-report') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-reports/monthly-report') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
+                            <span class="nav-link-text">Monthly Report</span>
                         </a>
                     </li>
                     <!-- <li class="{{ request()->is('reports/details') ? 'active' : '' }}">

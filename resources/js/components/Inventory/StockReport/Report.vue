@@ -5,8 +5,6 @@
       :headers="datatableHeaders"
       :fetch-url="datatableFetchUrl"
       :fetch-params="datatableParams"
-      :actions="datatableActions"
-      :handlers="datatableHandlers"
       :options="datatableOptions"
       @sort-change="handleSortChange"
       @page-change="handlePageChange"
@@ -15,34 +13,32 @@
     >
       <template #additional-header>
         <div class="d-flex flex-column mb-2">
-          <!-- Top Row: Print Button + Filters Toggle -->
+          <!-- Top Row: Print + Filters -->
           <div class="d-flex mb-2 align-items-center">
-            <button class="btn btn-success mr-2" @click="openPdfViewer" :disabled="loadingPdf">
-              <i v-if="loadingPdf" class="fas fa-spinner fa-spin mr-1"></i>
-              <i v-else class="fal fa-print mr-1"></i>
-              Print Stock Report
+            <!-- Print Button with Preloader -->
+            <button class="btn btn-success mr-2" :disabled="isGeneratingPdf" @click="openPdfViewer">
+              <i class="fal fa-print mr-1" v-if="!isGeneratingPdf"></i>
+              <span v-if="!isGeneratingPdf">Print Stock Report</span>
+
+              <span v-else class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <span v-else class="ml-1">Generating...</span>
             </button>
-            <button 
-              class="btn btn-info"
-              type="button"
-              data-toggle="collapse"
-              data-target="#filterCollapse"
-              aria-expanded="false"
-              aria-controls="filterCollapse"
-            >
+
+            <!-- Filters Button -->
+            <button class="btn btn-info" type="button" data-toggle="collapse" data-target="#filterCollapse">
               <i class="fal fa-filter mr-2"></i> Filters
             </button>
           </div>
 
-          <!-- Collapsible Filter Section -->
+          <!-- Filter Section -->
           <div class="collapse" id="filterCollapse">
             <div class="d-flex align-items-center mb-2">
               <input type="text" ref="startDateRef" class="form-control mr-2" placeholder="Start Date" />
               <input type="text" ref="endDateRef" class="form-control mr-2" placeholder="End Date" />
               <select ref="warehouseSelect" class="form-control" multiple></select>
             </div>
-            <div class="d-flex justify-content-end mb-2">
-              <button class="btn btn-primary d-flex align-items-center" @click="applyFilters">
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary" @click="applyFilters">
                 <i class="fal fa-filter mr-2"></i> Apply
               </button>
             </div>
@@ -51,33 +47,47 @@
       </template>
     </datatable>
 
-    <!-- File Viewer Modal -->
-    <FileViewerModal ref="fileViewerModal" />
+    <!-- Fullscreen PDF Modal -->
+    <div class="modal fade modal-fullscreen modal-backdrop-transparent" id="pdfModal" tabindex="-1" role="dialog" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Stock Report PDF</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body p-0">
+            <iframe
+              v-if="pdfUrl"
+              :src="pdfUrl"
+              style="width: 100%; height: 100vh;"
+              frameborder="0"
+            ></iframe>
 
-    <!-- Optional overlay spinner while loading PDF -->
-    <div v-if="loadingPdf" class="pdf-loading-overlay">
-      <div class="spinner-border text-primary" role="status">
-        <span class="sr-only">Loading PDF...</span>
+            <div v-else class="text-center p-5">Loading PDF...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import axios from 'axios'
 import { initSelect2, destroySelect2 } from '@/Utils/select2.js'
-import FileViewerModal from '@/components/Reusable/FileViewerModal.vue'
 
+// --- Refs ---
 const datatableRef = ref(null)
 const warehouseSelect = ref(null)
 const startDateRef = ref(null)
 const endDateRef = ref(null)
 const selectedWarehouses = ref([])
-const fileViewerModal = ref(null)
-const loadingPdf = ref(false) // PDF loading state
+const pdfUrl = ref(null)
+const isGeneratingPdf = ref(false)
 
-// --- Datatable config ---
+// --- Datatable reactive params ---
 const datatableParams = reactive({
   sortColumn: 'item_code',
   sortDirection: 'asc',
@@ -89,6 +99,7 @@ const datatableParams = reactive({
   page: 1,
 })
 
+// --- Datatable config ---
 const datatableHeaders = [
   { text: 'Item Code', value: 'item_code' },
   { text: 'Description', value: 'description' },
@@ -103,40 +114,34 @@ const datatableHeaders = [
   { text: 'Average Price', value: 'average_price' },
   { text: 'Ending Amount', value: 'ending_total' },
 ]
-
 const datatableFetchUrl = '/api/inventory/stock-reports'
-const datatableActions = []
 const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
-const datatableHandlers = {}
 
-// --- Open PDF in FileViewerModal (with preloading) ---
+// --- PDF export ---
 const openPdfViewer = async () => {
-  loadingPdf.value = true
   try {
-    const res = await axios.post('/inventory/stock-reports/pdf', {
-      start_date: datatableParams.start_date,
-      end_date: datatableParams.end_date,
-      sortColumn: datatableParams.sortColumn,
-      sortDirection: datatableParams.sortDirection,
-      warehouse_ids: datatableParams.warehouse_ids,
-      forPrint: 1,
-    });
+    isGeneratingPdf.value = true
+    pdfUrl.value = null
 
-    const pdfData = res.data.pdf_base64;
-    const pdfBlob = new Blob([Uint8Array.from(atob(pdfData), c => c.charCodeAt(0))], { type: 'application/pdf' });
+    const res = await axios.post('/inventory/stock-reports/pdf', datatableParams, {
+      responseType: 'blob',
+      headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') }
+    })
 
-    if (fileViewerModal.value) {
-      fileViewerModal.value.openBlob(pdfBlob, res.data.filename);
-    }
-  } catch (error) {
-    console.error(error)
-    alert('Failed to generate PDF');
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    pdfUrl.value = URL.createObjectURL(blob)
+
+    // Show fullscreen modal
+    $('#pdfModal').modal('show')
+  } catch (err) {
+    console.error(err)
+    alert('Failed to generate PDF')
   } finally {
-    loadingPdf.value = false
+    isGeneratingPdf.value = false
   }
-};
+}
 
-// --- Fetch warehouses ---
+// --- Filters ---
 const fetchWarehouses = async () => {
   try {
     const res = await axios.get('/api/inventory/stock-reports/get-warehouses')
@@ -145,30 +150,19 @@ const fetchWarehouses = async () => {
     initSelect2(
       warehouseSelect.value,
       { placeholder: 'Filter by WH', width: '220px', allowClear: true, data: warehouses },
-      (value) => { selectedWarehouses.value = value.map(Number) }
+      value => { selectedWarehouses.value = value.map(Number) }
     )
-  } catch (error) {
-    console.error(error)
-  }
+  } catch (err) { console.error(err) }
 }
 
-// --- Initialize datepickers ---
 const initDatepickers = () => {
-  nextTick(() => {
-    if (window.$ && startDateRef.value) {
-      window.$(startDateRef.value)
-        .datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
-        .on('changeDate', e => { datatableParams.start_date = e.format(0, 'yyyy-mm-dd') })
-    }
-    if (window.$ && endDateRef.value) {
-      window.$(endDateRef.value)
-        .datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
-        .on('changeDate', e => { datatableParams.end_date = e.format(0, 'yyyy-mm-dd') })
-    }
-  })
+  if (!window.$) return
+  $(startDateRef.value).datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
+    .on('changeDate', e => { datatableParams.start_date = e.format(0, 'yyyy-mm-dd') })
+  $(endDateRef.value).datepicker({ format: 'yyyy-mm-dd', autoclose: true, clearBtn: true })
+    .on('changeDate', e => { datatableParams.end_date = e.format(0, 'yyyy-mm-dd') })
 }
 
-// --- Apply filters ---
 const applyFilters = () => {
   datatableParams.warehouse_ids = selectedWarehouses.value
   datatableRef.value.reload()
@@ -180,24 +174,16 @@ const handlePageChange = (page) => { datatableParams.page = page }
 const handleLengthChange = (length) => { datatableParams.limit = length }
 const handleSearchChange = (search) => { datatableParams.search = search }
 
-// --- Mounted ---
+// --- On mounted ---
 onMounted(() => {
   fetchWarehouses()
   initDatepickers()
+
+  $('#pdfModal').on('hidden.bs.modal', () => {
+    if (pdfUrl.value) {
+      URL.revokeObjectURL(pdfUrl.value)
+      pdfUrl.value = null
+    }
+  })
 })
 </script>
-
-<style scoped>
-.pdf-loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(255,255,255,0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-</style>

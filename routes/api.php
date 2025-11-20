@@ -340,6 +340,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-reports/get-approval-users', [StockController::class, 'getApprovalUsers'])->name('api.stock-reports.get-approval-users');
         Route::post('/stock-reports', [StockController::class, 'store'])->name('api.stock-reports.store');
 
+        Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->name('api.stock-reports.monthly-report');
+
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
 

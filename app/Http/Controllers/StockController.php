@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\StockLedger;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
@@ -33,6 +34,88 @@ class StockController extends Controller
     {
         return view('Inventory.stock-report.index');
     }
+
+    public function monthlyReport(Request $request)
+    {
+        return view('Inventory.stock-report.monthly-report');
+    }
+
+    public function getMonthlyStockReport(Request $request)
+    {
+        $validated = $request->validate([
+            'search'        => 'nullable|string|max:255',
+            'page'          => 'nullable|integer|min:1',
+            'limit'         => 'nullable|integer|min:1|max:200',
+            'sortColumn'    => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'start_date'    => 'nullable|date',
+            'end_date'      => 'nullable|date',
+            'warehouse_ids' => 'nullable|array',
+        ]);
+
+        $search        = $validated['search'] ?? '';
+        $sortColumn    = $validated['sortColumn'] ?? 'created_at';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $limit         = $validated['limit'] ?? 10;
+
+        $query = MonthlyStockReport::with('creator:id,name');
+
+        /**
+         * 🔍 Search
+         */
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('reference_no', 'like', "%{$search}%")
+                ->orWhere('warehouse_names', 'like', "%{$search}%")
+                ->orWhere('approval_status', 'like', "%{$search}%");
+            });
+        }
+
+        /**
+         * 📅 Date filter
+         */
+        if (!empty($validated['start_date'])) {
+            $query->whereDate('report_date', '>=', $validated['start_date']);
+        }
+
+        if (!empty($validated['end_date'])) {
+            $query->whereDate('report_date', '<=', $validated['end_date']);
+        }
+
+        /**
+         * 🏬 Warehouse filter
+         */
+        if (!empty($validated['warehouse_ids'])) {
+            $query->whereJsonContains('warehouse_ids', $validated['warehouse_ids']);
+        }
+
+        /**
+         * 🔽 Sorting
+         * To protect from invalid columns, whitelist them.
+         */
+        $allowedSort = [
+            'reference_no', 'report_date', 'created_at', 'approval_status'
+        ];
+
+        if (!in_array($sortColumn, $allowedSort)) {
+            $sortColumn = 'created_at';
+        }
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        /**
+         * 📄 Pagination
+         */
+        $paginated = $query->paginate($limit);
+
+        return response()->json([
+            'data'            => $paginated->items(),
+            'recordsTotal'    => $paginated->total(),
+            'recordsFiltered' => $paginated->total(),
+            'page'            => $paginated->currentPage(),
+        ]);
+    }
+
 
     public function create(Request $request)
     {
@@ -192,27 +275,64 @@ public function store(Request $request): JsonResponse
     // ===================================================================
     public function show(MonthlyStockReport $monthlyStockReport)
     {
-        $this->authorize('view', $monthlyStockReport);
+        // --- Parse parameters from the DB ---
+        $startDate = $monthlyStockReport->start_date?->format('Y-m-d') ?: now()->startOfMonth()->toDateString();
+        $endDate   = $monthlyStockReport->end_date?->format('Y-m-d') ?: now()->endOfMonth()->toDateString();
 
-        $reportData = $this->generateStockReport(
-            $monthlyStockReport->start_date->format('Y-m-d'),
-            $monthlyStockReport->end_date->format('Y-m-d'),
-            $monthlyStockReport->warehouses->pluck('id')->toArray()
+        $warehouseIds = $monthlyStockReport->warehouse_ids ?? [];
+        $warehouseIds = is_array($warehouseIds) ? array_map('intval', $warehouseIds) : [];
+
+        // --- Fetch stock report using the same logic as generateStockReportPdf ---
+        $reportData = $this->calculateStockReport(
+            $startDate,
+            $endDate,
+            $warehouseIds,
+            [],                     // Product filter empty = all products
+            '',                     // No search
+            'item_code',            // Default sort
+            'asc',                  // Sort direction
+            false                   // Do not paginate
         );
 
-        $warehouseNames = $monthlyStockReport->warehouses->pluck('name')->implode(', ');
+        // --- Prepare warehouse names ---
+        $warehouseNames = $monthlyStockReport->warehouse_names ?? [];
+        $warehouseNamesStr = is_array($warehouseNames) ? implode(', ', $warehouseNames) : $warehouseNames;
+        if (empty($warehouseNamesStr) && !empty($warehouseIds)) {
+            $warehouses = Warehouse::whereIn('id', $warehouseIds)->pluck('name')->toArray();
+            $warehouseNamesStr = implode(', ', $warehouses);
+        }
+        if (empty($warehouseNamesStr)) {
+            $warehouseNamesStr = 'All Warehouses';
+        }
 
-        return view('Inventory.stock-report.print-report', [
-            'report'         => $reportData,
-            'start_date'     => $monthlyStockReport->start_date->format('d-m-Y'),
-            'end_date'       => $monthlyStockReport->end_date->format('d-m-Y'),
-            'warehouseNames' => $warehouseNames,
+        // --- Render PDF HTML ---
+        $html = view('Inventory.stock-report.print-report', [
+            'report'         => collect($reportData),
+            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames' => $warehouseNamesStr,
             'reference_no'   => $monthlyStockReport->reference_no,
-            'report_date'    => $monthlyStockReport->end_date->format('d-m-Y'),
+            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
             'msr'            => $monthlyStockReport,
             'created_by'     => $monthlyStockReport->creator?->name ?? 'Unknown',
             'remarks'        => $monthlyStockReport->remarks,
             'status'         => $monthlyStockReport->approval_status,
+        ])->render();
+
+        // --- Generate PDF with Browsershot ---
+        $pdf = Browsershot::html($html)
+            ->noSandbox()
+            ->landscape()
+            ->format('A4')
+            ->margins(10, 10, 10, 10)
+            ->showBackground()
+            ->waitUntilNetworkIdle()
+            ->pdf();
+
+        // --- Return PDF inline for preview ---
+        return response()->make($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf"',
         ]);
     }
 
@@ -243,11 +363,21 @@ public function store(Request $request): JsonResponse
     // ===================================================================
     public function stockReport(Request $request)
     {
-        $forPrint     = $request->boolean('forPrint');
+        // --- Log raw request from frontend ---
+        \Log::info('Stock Report Request Input:', $request->all());
+
         $startDate    = $request->input('start_date');
-        $endDate      = $request->input('end_date') ?? Carbon::today()->toDateString();
+        $endDate      = $request->input('end_date') ?? \Carbon\Carbon::today()->toDateString();
         $warehouseIds = $this->normalizeArray($request->input('warehouse_ids', []));
         $productIds   = $this->normalizeArray($request->input('product_ids', []));
+
+        // --- Log parsed parameters ---
+        \Log::info('Stock Report Parsed Params:', [
+            'start_date'    => $startDate,
+            'end_date'      => $endDate,
+            'warehouse_ids' => $warehouseIds,
+            'product_ids'   => $productIds,
+        ]);
 
         $validated = $request->validate([
             'search'        => 'nullable|string|max:255',
@@ -264,46 +394,17 @@ public function store(Request $request): JsonResponse
         $perPage       = $validated['limit'] ?? 10;
         $page          = $validated['page'] ?? 1;
 
-        // ===================================================================
-        // PRINT MODE — Just generate PDF, NO saving
-        // ===================================================================
-        if ($forPrint) {
-            $report = $this->calculateStockReport($startDate, $endDate, $warehouseIds, $productIds, $search, $sortColumn, $sortDirection);
-
-            $warehouseNames = !empty($warehouseIds)
-                ? Warehouse::whereIn('id', $warehouseIds)->pluck('name')->implode(', ')
-                : 'All Warehouses';
-
-            $html = view('Inventory.stock-report.print-report', [
-                'report'         => $report,
-                'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
-                'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
-                'warehouseNames' => $warehouseNames,
-                'reference_no'   => 'DRAFT-' . now()->format('Ymd-His'), // optional
-                'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-            ])->render();
-
-            $pdf = Browsershot::html($html)
-                ->noSandbox()
-                ->landscape()
-                ->format('A4')
-                ->margins(10, 10, 10, 10)
-                ->showBackground()
-                ->pdf();
-
-            return response()->json([
-                'pdf_base64' => base64_encode($pdf),
-                'filename'   => 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf',
-            ]);
-        }
-
-        // ===================================================================
-        // DATATABLE MODE — Fast + Search + Sort
-        // ===================================================================
         $result = $this->calculateStockReport(
-            $startDate, $endDate, $warehouseIds, $productIds,
-            $search, $sortColumn, $sortDirection,
-            true, $perPage, $page
+            $startDate,
+            $endDate,
+            $warehouseIds,
+            $productIds,
+            $search,
+            $sortColumn,
+            $sortDirection,
+            true, // paginate
+            $perPage,
+            $page
         );
 
         return response()->json([
@@ -311,6 +412,67 @@ public function store(Request $request): JsonResponse
             'recordsTotal'    => $result->total(),
             'recordsFiltered' => $result->total(),
             'draw'            => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
+
+    // ===================================================================
+    // GENERATE STOCK REPORT PDF
+    // ===================================================================
+    public function generateStockReportPdf(Request $request)
+    {
+        // --- Parse filter inputs ---
+        $startDate = $request->input('start_date') ?: now()->startOfMonth()->toDateString();
+        $endDate   = $request->input('end_date') ?: now()->endOfMonth()->toDateString();
+
+        $warehouseIds = $request->input('warehouse_ids', []);
+        $productIds   = $request->input('product_ids', []);
+
+        $warehouseIds = is_array($warehouseIds) ? array_map('intval', $warehouseIds) : [];
+        $productIds   = is_array($productIds) ? array_map('intval', $productIds) : [];
+
+        // --- Fetch stock report using your existing logic ---
+        $report = $this->calculateStockReport(
+            $startDate,
+            $endDate,
+            $warehouseIds,
+            $productIds,
+            $request->input('search', ''),
+            $request->input('sortColumn', 'item_code'),
+            $request->input('sortDirection', 'asc'),
+            false
+        );
+
+        // --- Warehouse names ---
+        $warehouseNames = 'All Warehouses';
+        if (!empty($warehouseIds)) {
+            $warehouses = Warehouse::whereIn('id', $warehouseIds)->pluck('name')->toArray();
+            $warehouseNames = implode(', ', $warehouses);
+        }
+
+        // --- Render HTML for PDF ---
+        $html = view('Inventory.stock-report.print-report', [
+            'report' => collect($report),
+            'start_date' => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date' => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames' => $warehouseNames,
+            'reference_no' => 'DRAFT-' . now()->format('Ymd-His'),
+            'report_date' => Carbon::parse($endDate)->format('d-m-Y'),
+        ])->render();
+
+        // --- Generate PDF with Browsershot ---
+        $pdf = Browsershot::html($html)
+            ->noSandbox()
+            ->landscape()
+            ->format('A4')
+            ->margins(10, 10, 10, 10)
+            ->showBackground()
+            ->waitUntilNetworkIdle()
+            ->pdf();
+
+        // --- Return PDF response ---
+        return response()->make($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf"',
         ]);
     }
 
