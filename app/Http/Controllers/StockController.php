@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 use App\Models\StockLedger;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
@@ -19,7 +20,7 @@ use App\Services\ApprovalService;
 
 class StockController extends Controller
 {
-        protected $approvalService;
+    protected $approvalService;
     protected $productService;
     protected $warehouseService;
 
@@ -33,6 +34,16 @@ class StockController extends Controller
     public function index(Request $request)
     {
         return view('Inventory.stock-report.index');
+    }
+
+    public function showDetails(MonthlyStockReport $monthlyStockReport): View
+    {
+        // $this->authorize('view', $purchaseRequest);
+
+        return view('Inventory.stock-report.show', [
+            'monthlyStockReportId' => $monthlyStockReport->id,
+            'referenceNo' => $monthlyStockReport->reference_no,
+        ]);
     }
 
     public function monthlyReport(Request $request)
@@ -335,6 +346,70 @@ public function store(Request $request): JsonResponse
             'Content-Disposition' => 'inline; filename="Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf"',
         ]);
     }
+
+    /**
+     * Return Monthly Stock Report data for Vue Show Page
+     */
+    /**
+     * Return Monthly Stock Report data for Vue Show Page
+     * Fully supports JSON fields from DB
+     */
+    public function getDetails(MonthlyStockReport $monthlyStockReport)
+    {
+        // --- Parse report parameters ---
+        $startDate = $monthlyStockReport->start_date?->format('Y-m-d') ?: now()->startOfMonth()->toDateString();
+        $endDate   = $monthlyStockReport->end_date?->format('Y-m-d') ?: now()->endOfMonth()->toDateString();
+
+        // --- Ensure warehouse_ids is an array from JSON ---
+        $warehouseIds = $monthlyStockReport->warehouse_ids ?? [];
+        if (is_string($warehouseIds)) {
+            $warehouseIds = json_decode($warehouseIds, true) ?: [];
+        }
+        $warehouseIds = is_array($warehouseIds) ? array_map('intval', $warehouseIds) : [];
+
+        // --- Fetch stock report (without pagination for show page) ---
+        $reportData = $this->calculateStockReport(
+            $startDate,
+            $endDate,
+            $warehouseIds,
+            [],            // All products
+            '',            // No search
+            'item_code',   // Default sort
+            'asc',         // Sort direction
+            false          // Do not paginate
+        );
+
+        // --- Prepare warehouse names from JSON field if exists ---
+        $warehouseNames = $monthlyStockReport->warehouse_names ?? [];
+        if (is_string($warehouseNames)) {
+            $warehouseNames = json_decode($warehouseNames, true) ?: [];
+        }
+
+        $warehouseNamesStr = is_array($warehouseNames) ? implode(', ', $warehouseNames) : $warehouseNames;
+        if (empty($warehouseNamesStr) && !empty($warehouseIds)) {
+            $warehouses = Warehouse::whereIn('id', $warehouseIds)->pluck('name')->toArray();
+            $warehouseNamesStr = implode(', ', $warehouses);
+        }
+        if (empty($warehouseNamesStr)) {
+            $warehouseNamesStr = 'All Warehouses';
+        }
+
+        // --- Return JSON for Vue ---
+        return response()->json([
+            'report'          => $reportData->values(),   // Stock report rows
+            'start_date'      => $startDate,
+            'end_date'        => $endDate,
+            'warehouse_ids'   => $warehouseIds,
+            'warehouse_names' => $warehouseNamesStr,
+            'reference_no'    => $monthlyStockReport->reference_no,
+            'report_date'     => now()->format('Y-m-d'),
+            'created_by'      => $monthlyStockReport->creator?->name ?? 'Unknown',
+            'remarks'         => $monthlyStockReport->remarks,
+            'status'          => $monthlyStockReport->approval_status,
+        ]);
+    }
+
+
 
     // ===================================================================
     // PRINT PDF — From show page

@@ -254,6 +254,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-reports.monthly-report');
         Route::post('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'show'])
             ->name('stock-reports.monthly-report.show');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/details', [StockController::class, 'showDetails'])
+            ->name('stock-reports.monthly-report.show');
     });
 
     //Approval View Route

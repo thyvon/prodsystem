@@ -341,6 +341,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-reports', [StockController::class, 'store'])->name('api.stock-reports.store');
 
         Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->name('api.stock-reports.monthly-report');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/details', [StockController::class, 'getDetails'])->name('api.stock-reports.monthly-report.details');
 
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
