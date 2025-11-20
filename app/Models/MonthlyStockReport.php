@@ -41,9 +41,9 @@ class MonthlyStockReport extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function approver()
+    public function approvals()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
     }
 
     public function position()

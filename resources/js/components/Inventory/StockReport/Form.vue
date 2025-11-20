@@ -88,7 +88,7 @@
                       >
                         <option value="">Select User</option>
                         <option v-for="user in approval.availableUsers" :key="user.id" :value="user.id">
-                          {{ user.name }} <small class="text-muted">({{ user.card_number || user.email }})</small>
+                          {{ user.name }} ({{ user.card_number}})
                         </option>
                       </select>
                     </td>
