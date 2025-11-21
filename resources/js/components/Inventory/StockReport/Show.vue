@@ -26,9 +26,9 @@
       </h6>
 
       <!-- Stock Table -->
-      <div class="table-responsive">
+      <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
         <table class="table table-bordered table-sm">
-          <thead class="table-secondary">
+          <thead class="table-light sticky-header">
             <tr>
               <th>#</th>
               <th>Item Code</th>
@@ -85,23 +85,27 @@
 
       <!-- Requested By & Approval Cards -->
       <div class="mt-5">
-        <h5 class="mb-3 font-weight-bold">Report Approval Summary</h5>
+        <h5 class="mb-3 font-weight-bold">Report Approval</h5>
         <div class="row justify-content-center">
 
           <!-- Requested By -->
           <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
-              <div class="card-body text-center">
+              <div class="card-body">
                 <p class="font-weight-bold mb-1">Requested By</p>
-                <div class="mb-2">
-                  <img :src="reportParams.created_by?.profile_url" class="rounded-circle" width="50" height="50">
-                </div>
+                  <div class="mb-3">
+                    <img 
+                      :src="reportParams.created_by?.profile_url 
+                            ? `/storage/${reportParams.created_by.profile_url}` 
+                            : '/images/default-avatar.png'" 
+                      class="rounded-circle" 
+                      width="50" 
+                      height="50"
+                    >
+                  </div>
                 <p class="font-weight-bold mb-1">{{ reportParams.created_by?.name || 'N/A' }}</p>
-                <div v-if="reportParams.created_by?.signature_url">
-                  <img :src="reportParams.created_by.signature_url" height="50">
-                </div>
-                <p class="mb-1">Position: {{ reportParams.creator_position?.title || 'N/A' }}</p>
-                <p class="mb-0">Date: {{ formatDate(reportParams.created_at) }}</p>
+                <p class="mb-1 text-start">Position: {{ reportParams.created_by?.position_name || 'N/A' }}</p>
+                <p class="mb-0 text-start">Date: {{ formatDate(reportParams.created_at) }}</p>
               </div>
             </div>
           </div>
@@ -109,15 +113,19 @@
           <!-- Approvers -->
           <div v-for="(resp, idx) in responders" :key="idx" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
-              <div class="card-body text-center">
-                <p class="font-weight-bold mb-1">{{ resp.request_type_label || resp.request_type }} By</p>
-                <div class="mb-2">
-                  <img :src="resp.user_profile_url" class="rounded-circle" width="50" height="50">
+              <div class="card-body">
+                <p class="font-weight-bold mb-1">{{ resp.request_type_label || resp.request_type }}</p>
+                <div class="mb-3">
+                  <img 
+                    :src="resp.user_profile_url 
+                          ? `/storage/${resp.user_profile_url}` 
+                          : '/images/default-avatar.png'" 
+                    class="rounded-circle" 
+                    width="50" 
+                    height="50"
+                  >
                 </div>
                 <p class="font-weight-bold mb-1">{{ resp.user_name }}</p>
-                <div v-if="resp.approval_status === 'Approved' && resp.signature_url">
-                  <img :src="resp.signature_url" height="50">
-                </div>
                 <p class="mb-1">
                   Status:
                   <span class="badge"
@@ -131,8 +139,8 @@
                   </span>
                 </p>
                 <p class="mb-1">Position: {{ resp.position_name }}</p>
-                <p class="mb-0">Date: {{ resp.responded_at ? formatDate(resp.responded_at) : '-' }}</p>
-                <p class="mb-0">Comment: {{ resp.remarks || '-' }}</p>
+                <p class="mb-0">Date: {{ resp.responded_date ? formatDate(resp.responded_date) : '-' }}</p>
+                <p class="mb-0">Comment: {{ resp.comment || '-' }}</p>
               </div>
             </div>
           </div>
@@ -145,7 +153,7 @@
         <!-- Approval Buttons -->
         <div class="mt-3 d-flex justify-center gap-2 flex-wrap" v-if="approvalButton">
           <button class="btn btn-success" @click="openConfirmModal('approve')">
-            <i class="fal fa-check"></i> Approve
+            <i class="fal fa-check"></i> {{ reportParams.button_label || 'Approve' }}
           </button>
           <button class="btn btn-danger" @click="openConfirmModal('reject')">
             <i class="fal fa-times"></i> Reject
@@ -191,7 +199,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Reassign Approval</h5>
-            <button type="button" class="close" @click="cleanupReassignModal">&times;</button>
+            <button type="button" class="close" @click="closeReassignModal">&times;</button>
           </div>
           <div class="modal-body">
             <div class="form-group">
@@ -204,12 +212,13 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="cleanupReassignModal">Cancel</button>
+            <button class="btn btn-secondary" @click="closeReassignModal">Cancel</button>
             <button class="btn btn-primary" @click="confirmReassign">Reassign</button>
           </div>
         </div>
       </div>
     </div>
+
 
   </div>
 </template>
@@ -222,8 +231,13 @@ import { showAlert } from '@/Utils/bootbox'
 import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({ monthlyStockReportId: Number })
+// Props
+const props = defineProps({
+  monthlyStockReportId: Number,
+  approvalRequestType: String // 'check', 'verify', 'acknowledge'
+})
 
+// Refs
 const stockItems = ref([])
 const reportParams = ref({})
 const warehouseNames = ref('All Warehouses')
@@ -234,19 +248,15 @@ const loading = ref(false)
 const usersList = ref([])
 const commentInput = ref('')
 const currentAction = ref('approve')
-const usersByType = ref({
-  check: [],
-  verify: [],
-  acknowledge: []
-})
-
+const usersByType = ref({ check: [], verify: [], acknowledge: [] })
+const currentActionRequestType = ref('')
 
 // --- Helper Functions ---
 const format = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 }))
 const formatDate = date => formatDateShort(date)
 const total = key => stockItems.value.reduce((sum, i) => sum + (i[key] || 0), 0)
-const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
-const goBack = () => window.history.back()
+const goBack = () => window.location.href = '/inventory/stock-reports/monthly-report'
+
 const currentActionTitle = computed(() => currentAction.value === 'approve' ? 'Approve Report' :
                                               currentAction.value === 'reject' ? 'Reject Report' : 'Return Report')
 const currentActionClass = computed(() => currentAction.value === 'approve' ? 'btn-success' :
@@ -264,79 +274,135 @@ const fetchStockReport = async () => {
     responders.value = res.data.responders || []
     approvalButton.value = res.data.approvalButton || false
     usersList.value = res.data.usersList || []
-  } catch(err){ showAlert('Error', err.response?.data?.message || 'Failed to load report', 'danger') }
+  } catch(err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to load report', 'danger')
+  }
 }
 
 // --- PDF Modal ---
 const openPdfModal = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/show`)
 
 // --- Approval Handling ---
-const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
-const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
+const openConfirmModal = (action) => {
+  currentAction.value = action
+  commentInput.value = ''
+  $('#confirmModal').modal('show')
+}
+
+const resetConfirmModal = () => {
+  commentInput.value = ''
+  $('#confirmModal').modal('hide')
+}
+
 const submitApproval = async (action) => {
   loading.value = true
   try {
-    const res = await axios.post(`/api/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/${action}`, { comment: commentInput.value })
+    const res = await axios.post(`/api/inventory/stock-reports/${props.monthlyStockReportId}/submit-approval`, {
+      request_type: props.approvalRequestType, // comes from prop
+      action: action,
+      comment: commentInput.value.trim()
+    })
+
     showAlert('success', res.data.message || 'Action successful.')
     $('#confirmModal').modal('hide')
     fetchStockReport()
-  } catch(err){ showAlert('Error', err.response?.data?.message || 'Action failed', 'danger') }
-  finally{ loading.value = false }
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Action failed', 'danger')
+  } finally {
+    loading.value = false
+  }
 }
 
 // --- Reassign Handling ---
 const openReassignModal = async () => {
-  loading.value = true
+
+  // 1. Open modal instantly
+  $('#reassignModal').modal('show')
+
+  // 2. Show temporary loading option
+  await nextTick()
+  const selectEl = document.getElementById('userSelect')
+  selectEl.innerHTML = `<option value="">Loading users...</option>`
+
+  // Destroy old Select2 to avoid duplication
+  if ($(selectEl).hasClass('select2-hidden-accessible')) {
+    $(selectEl).select2('destroy')
+  }
+
+  // Initialize empty Select2 (fast)
+  initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
+
+  // 3. Load user list (async)
   try {
     const res = await axios.get(`/api/inventory/stock-reports/get-approval-users`, {
-      params: { request_type: props.approvalRequestType || 'approve' }
+      params: { request_type: props.approvalRequestType }
     })
 
-    // Save the grouped users
-    usersByType.value = res.data || { check: [], verify: [], acknowledge: [] }
-
-    // Choose current group based on approval type
+    usersByType.value = res.data || {}
     const currentGroup = usersByType.value[props.approvalRequestType] || []
 
-    // Populate Select2
-    await nextTick()
-    const selectEl = document.getElementById('userSelect')
-    selectEl.innerHTML = '<option value="">-- Select a user --</option>' +
-      currentGroup.map(u => `<option value="${u.id}">${u.name} ${u.card_number ? '(' + u.card_number + ')' : ''}</option>`).join('')
-    
-    initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
-    $('#reassignModal').modal('show')
+    if (currentGroup.length === 0) {
+      showAlert('Info', 'No users available for reassign.', 'info')
+      return
+    }
 
-  } catch(err) {
+    // 4. Replace options with actual user data
+    selectEl.innerHTML =
+      '<option value="">-- Select a user --</option>' +
+      currentGroup.map(u =>
+        `<option value="${u.id}">${u.name} ${u.card_number ? '('+u.card_number+')' : ''}</option>`
+      ).join('')
+
+    // 5. Reinitialize Select2 with real data
+    $(selectEl).select2('destroy')
+    initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
+
+  } catch (err) {
     showAlert('Error', 'Failed to load users.', 'danger')
-  } finally { loading.value = false }
+  }
 }
 
 
 const confirmReassign = async () => {
   const newUserId = document.getElementById('userSelect')?.value
   const comment = document.getElementById('reassignComment')?.value.trim()
-  if (!newUserId){ showAlert('Error', 'Please select a user.', 'danger'); return }
+  if (!newUserId) {
+    showAlert('Error', 'Please select a user.', 'danger')
+    return
+  }
+
   loading.value = true
   try {
-    await axios.post(`/api/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/reassign`, { new_user_id: newUserId, comment })
+    await axios.post(`/api/inventory/stock-reports/${props.monthlyStockReportId}/reassign-approval`, {
+      request_type: currentActionRequestType.value,
+      new_user_id: newUserId,
+      comment
+    })
     showAlert('success', 'Approval reassigned successfully.')
     $('#reassignModal').modal('hide')
     destroySelect2(document.getElementById('userSelect'))
     fetchStockReport()
-  } catch(err){ showAlert('Error', err.response?.data?.message || 'Reassign failed.', 'danger') }
-  finally{ loading.value = false }
+  } catch(err) {
+    showAlert('Error', err.response?.data?.message || 'Reassign failed.', 'danger')
+  } finally {
+    loading.value = false
+  }
 }
 
-const cleanupReassignModal = () => { destroySelect2(document.getElementById('userSelect')) }
+const closeReassignModal = () => {
+  destroySelect2(document.getElementById('userSelect'))
+  $('#reassignModal').modal('hide')
+}
 
 onMounted(fetchStockReport)
 </script>
 
+
 <style scoped>
-.table-responsive { max-height:600px; overflow-y:auto; }
-.bg-success-light { background-color:#e6f7e6 !important; }
-.text-center { text-align:center !important; }
-.text-end { text-align:right !important; }
-.select2-container--default .select2-dropdown { z-index: 1060 !important; }
+.sticky-header th {
+  position: sticky;
+  top: 0;
+  background-color: #f8f9fa; /* Bootstrap table-secondary background */
+  z-index: 10;
+}
 </style>

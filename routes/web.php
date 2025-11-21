@@ -250,6 +250,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/stock-reports/monthly-report/create', [StockController::class, 'create'])
             ->name('stock-reports.monthly-report.create');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/edit', [StockController::class, 'edit'])
+            ->name('stock-reports.monthly-report.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])
             ->name('stock-reports.monthly-report');
         Route::post('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'show'])

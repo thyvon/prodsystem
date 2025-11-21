@@ -10,7 +10,8 @@ return new class extends Migration
         Schema::create('monthly_stock_reports', function (Blueprint $table) {
             $table->id();
             $table->string('reference_no')->unique();
-            $table->date('report_date'); // usually end_date or today
+            $table->date('report_date');
+            $table->string('remarks')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('restrict');
             $table->foreignId('position_id')->nullable()->constrained('positions')->onDelete('restrict');
             $table->date('start_date');

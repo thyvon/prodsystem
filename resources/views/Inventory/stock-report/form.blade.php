@@ -3,7 +3,7 @@
 
 @section('content')
   <stock-report-form
-      :stock-report-id="{{ $stockReport->id ?? 'null' }}"
+      :stock-report-id="{{ $monthlyStockReportId ?? 'null' }}"
   />
 @endsection
 

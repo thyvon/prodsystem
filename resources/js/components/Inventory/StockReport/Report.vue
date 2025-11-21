@@ -144,7 +144,7 @@ const openPdfViewer = async () => {
 // --- Filters ---
 const fetchWarehouses = async () => {
   try {
-    const res = await axios.get('/api/inventory/stock-reports/get-warehouses')
+    const res = await axios.get('/api/main-value-lists/get-warehouses')
     const warehouses = res.data.map(w => ({ id: w.id, text: w.text }))
     destroySelect2(warehouseSelect.value)
     initSelect2(

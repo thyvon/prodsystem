@@ -2,17 +2,13 @@
   <div class="container-fluid">
     <form @submit.prevent="submitForm">
       <div class="card border shadow-sm">
-
         <!-- Header -->
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h4 class="mb-0">{{ isEditMode ? 'Edit Monthly Stock Report' : 'Create Monthly Stock Report' }}</h4>
-          <button type="button" class="btn btn-outline-light btn-sm" @click="goToList">
-            Back
-          </button>
+          <button type="button" class="btn btn-outline-light btn-sm" @click="goToList">Back</button>
         </div>
 
         <div class="card-body">
-
           <!-- Dates & Reference -->
           <div class="row mb-4">
             <div class="col-md-3">
@@ -28,31 +24,20 @@
               <input type="text" class="form-control" :value="form.reference_no || 'Auto-generated'" readonly />
             </div>
             <div class="col-md-3">
-              <label class="form-label fw-bold">Status</label>
-              <div>
-                <span class="badge fs-6" :class="statusBadgeClass">
-                  {{ form.approval_status }}
-                </span>
-                <div v-if="form.approver_name" class="small text-muted mt-1">
-                  Approved by {{ form.approver_name }}
-                </div>
-              </div>
+              <label class="form-label fw-bold">Warehouses <span class="text-danger">*</span></label>
+              <select id="warehouseSelect" multiple class="form-control"></select>
             </div>
           </div>
 
           <!-- Warehouses & Remarks -->
           <div class="row mb-4">
-            <div class="col-md-8">
-              <label class="form-label fw-bold">Warehouses <span class="text-danger">*</span></label>
-              <select id="warehouseSelect" multiple class="form-control"></select>
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-12">
               <label class="form-label fw-bold">Remarks</label>
               <textarea v-model="form.remarks" class="form-control" rows="5" placeholder="Optional remarks..."></textarea>
             </div>
           </div>
 
-          <!-- Dynamic Approval Table (LIKE STOCK TRANSFER) -->
+          <!-- Approval Table -->
           <div class="border rounded p-4 bg-light">
             <h5 class="h5 fw-bold text-primary mb-3">Approval Assignments</h5>
 
@@ -88,7 +73,7 @@
                       >
                         <option value="">Select User</option>
                         <option v-for="user in approval.availableUsers" :key="user.id" :value="user.id">
-                          {{ user.name }} ({{ user.card_number}})
+                          {{ user.name }} ({{ user.card_number || user.email }})
                         </option>
                       </select>
                     </td>
@@ -110,25 +95,16 @@
                 </tbody>
               </table>
             </div>
-
-            <!-- <button type="button" class="btn btn-outline-primary btn-sm" @click="addApproval">
-              Add Approval Assignment
-            </button> -->
           </div>
 
           <!-- Submit -->
           <div class="text-end mt-4">
             <button type="button" class="btn btn-secondary me-2" @click="goToList">Cancel</button>
-            <button
-              type="submit"
-              class="btn btn-primary"
-              :disabled="isSubmitting || !canSubmit"
-            >
+            <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !canSubmit">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
               {{ isEditMode ? 'Update Report' : 'Submit for Approval' }}
             </button>
           </div>
-
         </div>
       </div>
     </form>
@@ -147,7 +123,6 @@ const props = defineProps({
 const isEditMode = computed(() => !!props.stockReportId)
 const isSubmitting = ref(false)
 
-// Form data
 const form = reactive({
   id: null,
   start_date: '',
@@ -155,36 +130,24 @@ const form = reactive({
   warehouse_ids: [],
   remarks: '',
   reference_no: '',
-  approval_status: 'Draft',
   approver_name: '',
-  approvals: [] // Dynamic: [{ request_type, user_id, isDefault, availableUsers }]
+  approvals: []
 })
 
-// Select2 refs
 const typeSelectRefs = ref([])
 const userSelectRefs = ref([])
 
 const setTypeSelectRef = (el, index) => { typeSelectRefs.value[index] = el }
 const setUserSelectRef = (el, index) => { userSelectRefs.value[index] = el }
 
-// Master data
 const warehouses = ref([])
 const usersByType = reactive({ check: [], verify: [], acknowledge: [] })
-
-// Computed
-const statusBadgeClass = computed(() => ({
-  'badge-success': form.approval_status === 'Approved',
-  'badge-warning': ['Pending', 'In Progress'].includes(form.approval_status),
-  'badge-secondary': form.approval_status === 'Draft',
-  'badge-danger': form.approval_status === 'Rejected'
-}))
 
 const canSubmit = computed(() => {
   const required = ['check', 'verify', 'acknowledge']
   const assigned = form.approvals
     .filter(a => required.includes(a.request_type) && a.user_id)
     .map(a => a.request_type)
-
   return (
     form.start_date &&
     form.end_date &&
@@ -194,19 +157,18 @@ const canSubmit = computed(() => {
 })
 
 const goToList = () => window.location.href = '/inventory/stock-reports/monthly-report'
+const goToDetails = (id) => window.location.href = `/inventory/stock-reports/monthly-report/${id}/details`
 
-// Fetch warehouses + approval users
 const fetchMasterData = async () => {
   try {
     const [whRes, userRes] = await Promise.all([
-      axios.get('/api/inventory/stock-reports/get-warehouses'),
+      axios.get('/api/main-value-lists/get-warehouses'),
       axios.get('/api/inventory/stock-reports/get-approval-users')
     ])
 
     warehouses.value = whRes.data.data || whRes.data
-    Object.assign(usersByType, userRes.data)
+    Object.assign(usersByType, userRes.data || {})
 
-    // Exclude current logged-in user
     const currentUserId = window.Laravel?.user?.id || null
     if (currentUserId) {
       Object.keys(usersByType).forEach(key => {
@@ -214,16 +176,15 @@ const fetchMasterData = async () => {
       })
     }
   } catch (err) {
+    console.error('Fetch master data error:', err)
     showAlert('Error', 'Failed to load warehouses or users.', 'danger')
   }
 }
 
-// Load report for edit
 const loadReport = async (id) => {
   try {
     const { data } = await axios.get(`/api/inventory/stock-reports/${id}/edit`)
     const r = data.data
-
     Object.assign(form, {
       id: r.id,
       start_date: r.start_date,
@@ -231,36 +192,39 @@ const loadReport = async (id) => {
       warehouse_ids: r.warehouse_ids || [],
       remarks: r.remarks || '',
       reference_no: r.reference_no,
-      approval_status: r.approval_status,
-      approver_name: r.approver_name || ''
+      report_date: r.report_date,
     })
 
-    form.approvals = (r.approvals || []).map(a => ({
+    // Always make approvals an array
+    form.approvals = Array.isArray(r.approvals) ? r.approvals.map(a => ({
       id: a.id || null,
-      request_type: a.request_type,
-      user_id: a.responder_id ? Number(a.responder_id) : null,
+      request_type: a.request_type || '',
+      user_id: a.user_id ? Number(a.user_id) : null,
+      user_name: a.user_name || '',
       isDefault: true,
       availableUsers: usersByType[a.request_type] || []
-    }))
+    })) : []
 
     // Ensure all 3 types exist
-    ;['check', 'verify', 'acknowledge'].forEach(type => {
+    ['check', 'verify', 'acknowledge'].forEach(type => {
       if (!form.approvals.some(a => a.request_type === type)) {
         form.approvals.push({
           id: null,
           request_type: type,
           user_id: null,
+          user_name: '',
           isDefault: true,
           availableUsers: usersByType[type] || []
         })
       }
     })
+
   } catch (err) {
+    console.error('Load report error:', err)
     showAlert('Error', 'Failed to load report.', 'danger')
   }
 }
 
-// Dynamic approvals
 const addApproval = () => {
   form.approvals.push({
     id: null,
@@ -279,29 +243,26 @@ const removeApproval = (index) => {
   form.approvals.splice(index, 1)
 }
 
-// Rebuild user dropdown when type changes
 const refreshUserDropdown = async (index) => {
   const type = form.approvals[index].request_type
   const $select = userSelectRefs.value[index]
 
   if (!$select) return
 
-  // Destroy old
   if ($select.select2) $select.select2('destroy')
 
   if (!type) {
     form.approvals[index].availableUsers = []
     form.approvals[index].user_id = null
-    $( $select ).html('<option value="">Select User</option>')
+    $($select).html('<option value="">Select User</option>')
     return
   }
 
   form.approvals[index].availableUsers = usersByType[type] || []
-  form.approvals[index].user_id = null // reset on type change
 
   await nextTick()
 
-  $( $select ).select2({
+  $($select).select2({
     placeholder: 'Select User',
     allowClear: true,
     width: '100%',
@@ -310,21 +271,14 @@ const refreshUserDropdown = async (index) => {
       text: `${u.name} (${u.card_number || u.email})`
     }))
   })
-  .val(null) // ← Important: ensures nothing is pre-selected
+  .val(form.approvals[index].user_id || null)
   .trigger('change')
-  .on('change', (e) => {
+  .on('change', e => {
     form.approvals[index].user_id = e.target.value ? Number(e.target.value) : null
   })
-
-  // Only pre-select if editing and user was previously saved
-  if (form.approvals[index].user_id) {
-    $( $select ).val(form.approvals[index].user_id).trigger('change')
-  }
 }
 
-// Initialize widgets
 const initWidgets = async () => {
-  // Datepickers
   $('#start_date, #end_date').datepicker({
     format: 'yyyy-mm-dd',
     autoclose: true,
@@ -334,7 +288,6 @@ const initWidgets = async () => {
     form[field === 'start_date' ? 'start_date' : 'end_date'] = e.format()
   })
 
-  // Warehouse multi-select
   $('#warehouseSelect').select2({
     placeholder: 'Select warehouses',
     allowClear: true,
@@ -344,12 +297,10 @@ const initWidgets = async () => {
     form.warehouse_ids = $('#warehouseSelect').val() ? $('#warehouseSelect').val().map(Number) : []
   })
 
-  // Set saved values
   if (form.start_date) $('#start_date').datepicker('setDate', form.start_date)
   if (form.end_date) $('#end_date').datepicker('setDate', form.end_date)
   if (form.warehouse_ids.length) $('#warehouseSelect').val(form.warehouse_ids).trigger('change')
 
-  // Approval Type Selects (v-model handles value)
   typeSelectRefs.value.forEach((el, i) => {
     if (!el) return
     $(el).select2({
@@ -365,14 +316,12 @@ const initWidgets = async () => {
     })
   })
 
-  // Initialize user dropdowns
   form.approvals.forEach((_, i) => refreshUserDropdown(i))
 }
 
-// Submit
 const submitForm = async () => {
   if (!canSubmit.value) {
-    showAlert('Validation Failed', 'Please fill all required fields: dates, warehouses, and one user per approval type (Check, Verify, Acknowledge).', 'warning')
+    showAlert('Validation Failed', 'Please fill all required fields.', 'warning')
     return
   }
 
@@ -393,26 +342,31 @@ const submitForm = async () => {
       ? `/api/inventory/stock-reports/${form.id}`
       : '/api/inventory/stock-reports'
 
-    await axios[isEditMode.value ? 'put' : 'post'](url, payload)
+    const res = await axios[isEditMode.value ? 'put' : 'post'](url, payload)
 
     await showAlert('Success', 'Monthly stock report saved successfully!', 'success')
-    goToList()
+
+    // Get report ID
+    const reportId = isEditMode.value ? form.id : res.data.id
+
+    // Go to detail page
+    goToDetails(reportId)
+
   } catch (err) {
+    console.error('Submit error:', err)
     showAlert('Error', err.response?.data?.message || 'Failed to save report.', 'danger')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Lifecycle
 onMounted(async () => {
   await fetchMasterData()
 
   if (isEditMode.value) {
     await loadReport(props.stockReportId)
   } else {
-    // Create mode: add default 3 rows
-    ;['check', 'verify', 'acknowledge'].forEach(type => {
+    ['check', 'verify', 'acknowledge'].forEach(type => {
       form.approvals.push({
         id: null,
         request_type: type,

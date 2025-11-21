@@ -4,6 +4,7 @@
 @section('content')
   <monthly-stock-report-show
       :monthly-stock-report-id="{{ $monthlyStockReportId }}"
+      approval-request-type="{{ $approvalRequestType }}"
   ></monthly-stock-report-show>
 @endsection
 

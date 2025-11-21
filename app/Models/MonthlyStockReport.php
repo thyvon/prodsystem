@@ -15,6 +15,7 @@ class MonthlyStockReport extends Model
     protected $fillable = [
         'reference_no',
         'report_date',
+        'remarks',
         'created_by',
         'position_id',
         'start_date',
@@ -39,6 +40,11 @@ class MonthlyStockReport extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 
     public function approvals()

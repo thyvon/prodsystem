@@ -94,8 +94,8 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'Stock In',
                 'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete'],
             ],
-            'stockReport' => [
-                'name' => 'Stock Report',
+            'monthlyStockReport' => [
+                'name' => 'Monthly Stock Report',
                 'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', '', 'verify', 'check', 'acknowledge', 'reassign'],
             ],
             'stockTransfer' => [

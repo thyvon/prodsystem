@@ -66,7 +66,7 @@ const handleDelete = async report => {
   if (!confirmed) return
 
   try {
-    const res = await axios.delete(`/api/inventory/stock-reports/monthly-report/${report.id}`)
+    const res = await axios.delete(`/api/inventory/stock-reports/${report.id}`)
     showAlert('Deleted', res.data.message || `"${report.reference_no}" deleted successfully.`, 'success')
     datatableRef.value?.reload()
   } catch (err) {

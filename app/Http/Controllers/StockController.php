@@ -41,6 +41,13 @@ class StockController extends Controller
         return view('Inventory.stock-report.form');
     }
 
+    public function edit(MonthlyStockReport $monthlyStockReport): View
+    {
+        return view('Inventory.stock-report.form', [
+            'monthlyStockReportId' => $monthlyStockReport->id,
+        ]);
+    }
+
     public function monthlyReport(): View
     {
         return view('Inventory.stock-report.monthly-report');
@@ -48,9 +55,11 @@ class StockController extends Controller
 
     public function showDetails(MonthlyStockReport $monthlyStockReport): View
     {
+        $approvalButtonData = $this->canShowApprovalButton($monthlyStockReport->id);
         return view('Inventory.stock-report.show', [
             'monthlyStockReportId' => $monthlyStockReport->id,
             'referenceNo' => $monthlyStockReport->reference_no,
+            'approvalRequestType' => $approvalButtonData['requestType'],
         ]);
     }
 
@@ -124,8 +133,44 @@ class StockController extends Controller
                 'success'      => true,
                 'message'      => 'Monthly Stock Report submitted for approval.',
                 'reference_no' => $report->reference_no,
+                'id'           => $report->id,
             ], 201);
         });
+    }
+
+
+    // ===================================================================
+    // Get Edit Data for Monthly Stock Report
+
+    // ===================================================================
+    public function getEditData(MonthlyStockReport $monthlyStockReport): JsonResponse
+    {
+        $monthlyStockReport->load(['approvals.responder']);
+        $warehouseIds = $monthlyStockReport->warehouse_ids ?? [];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id'              => $monthlyStockReport->id,
+                'warehouse_ids'   => is_array($warehouseIds) ? $warehouseIds : json_decode($warehouseIds, true),
+                'start_date'      => $monthlyStockReport->start_date?->format('Y-m-d'),
+                'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
+                'reference_no'    => $monthlyStockReport->reference_no,
+                'report_date'     => $monthlyStockReport->report_date?->format('Y-m-d'),
+                'warehouse_names' => $monthlyStockReport->warehouse_names ?? [],
+                'approval_status' => $monthlyStockReport->approval_status,
+                'remarks'         => $monthlyStockReport->remarks,
+
+                'approvals' => $monthlyStockReport->approvals->map(function ($approval) {
+                    return [
+                        'id'              => $approval->id,
+                        'user_id'         => $approval->responder_id,
+                        'user_name'       => $approval->responder?->name ?? '',
+                        'request_type'    => $approval->request_type,
+                    ];
+                })->toArray(),
+            ],
+        ]);
     }
 
     // ===================================================================
@@ -133,9 +178,9 @@ class StockController extends Controller
     // ===================================================================
     public function update(Request $request, MonthlyStockReport $monthlyStockReport): JsonResponse
     {
-        $this->authorize('update', $monthlyStockReport);
+        // $this->authorize('update', $monthlyStockReport);
 
-        if (!in_array($monthlyStockReport->approval_status, ['Draft', 'Pending'])) {
+        if (!in_array($monthlyStockReport->approval_status, ['Pending','Returned'])) {
             return response()->json(['success' => false, 'message' => 'Cannot edit approved or rejected reports.'], 403);
         }
 
@@ -150,6 +195,7 @@ class StockController extends Controller
                 'success'      => true,
                 'message'      => 'Report updated and re-submitted for approval.',
                 'reference_no' => $monthlyStockReport->reference_no,
+                'id'           => $monthlyStockReport->id,
             ]);
         });
     }
@@ -159,7 +205,7 @@ class StockController extends Controller
     // ===================================================================
     public function destroy(MonthlyStockReport $monthlyStockReport): JsonResponse
     {
-        $this->authorize('delete', $monthlyStockReport);
+        // $this->authorize('delete', $monthlyStockReport);
 
         if (!in_array($monthlyStockReport->approval_status, ['Draft', 'Pending', 'Rejected'])) {
             return response()->json(['success' => false, 'message' => 'Approved reports cannot be deleted.'], 403);
@@ -198,33 +244,53 @@ class StockController extends Controller
     // ===================================================================
     public function getDetails(MonthlyStockReport $monthlyStockReport): JsonResponse
     {
-        $monthlyStockReport->load(
-            'approvals',
-        );
+        $monthlyStockReport->load('approvals');
+
+        // Map for request types to display labels
+        $mapLabel = [
+            'check'       => 'Checked By',
+            'verify'      => 'Verified By',
+            'acknowledge' => 'Acknowledged By',
+        ];
+
         $data = $this->prepareReportData($monthlyStockReport);
         $approvalInfo = $this->canShowApprovalButton($monthlyStockReport->id);
+
         return response()->json([
             'report'          => $data['report']->values(),
             'start_date'      => $monthlyStockReport->start_date?->format('Y-m-d'),
             'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
             'warehouse_names' => $data['warehouseNames'],
             'reference_no'    => $monthlyStockReport->reference_no,
-            'created_by'      => $monthlyStockReport->creator?->name ?? 'Unknown',
+            'created_by'      => [
+                'name'        => $monthlyStockReport->creator?->name ?? 'Unknown',
+                'profile_url' => $monthlyStockReport->creator?->profile_url ?? null,
+                'position_name'=> $monthlyStockReport->creatorPosition?->title ?? null,
+            ],
             'remarks'         => $monthlyStockReport->remarks,
             'status'          => $monthlyStockReport->approval_status,
-            'approvalButton' => $approvalInfo[ 'showButton' ],
-            'responders'      => $monthlyStockReport->approvals->map(function ($approval) {
+            'approvalButton'  => $approvalInfo['showButton'],
+            'button_label'     => ucfirst($approvalInfo['requestType'] ?? null),
+            'request_type'    => $approvalInfo['requestType'] ?? null,
+            'responders'      => $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+                $typeKey = strtolower($approval->request_type);
+
                 return [
                     'user_id'         => $approval->responder_id,
                     'user_name'       => $approval->responder?->name ?? 'Unknown',
                     'request_type'    => $approval->request_type,
+                    'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
                     'approval_status' => $approval->approval_status,
-                    'remarks'         => $approval->remarks,
-                    'responded_at'    => $approval->responded_at?->format('Y-m-d H:i:s'),
+                    'responded_date'    => $approval->responded_date,
+                    'comment'         => $approval->comment,
+                    'signature_url'   => $approval->responder?->signature_url ?? null,
+                    'position_name'   => $approval->responderPosition?->title ?? null,
+                    'user_profile_url'=> $approval->responder?->profile_url ?? null,
                 ];
             })->toArray() ?? [],
         ]);
     }
+
 
     // ===================================================================
     // Generate Ad-hoc Stock Report (Live Search + PDF)
@@ -332,7 +398,6 @@ class StockController extends Controller
         $warehouseNames = Warehouse::whereIn('id', $data['warehouse_ids'])->pluck('name', 'id')->values()->toArray();
 
         return MonthlyStockReport::create([
-            'reference_no'     => MonthlyStockReport::generateReference(), // Assume you have this method
             'report_date'      => $data['end_date'],
             'start_date'       => $data['start_date'],
             'end_date'         => $data['end_date'],
@@ -396,7 +461,7 @@ class StockController extends Controller
     // Core stock calculation (unchanged logic, just cleaner)
     private function calculateStockReport(
         $startDate, $endDate, array $warehouseIds = [], array $productIds = [],
-        string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
+        ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
         bool $paginate = false, int $perPage = 50, int $page = 1
     ) {
         $query = ProductVariant::with('product.unit')
@@ -622,18 +687,132 @@ class StockController extends Controller
         ];
     }
 
-    // Misc
-    public function getWarehouses()
+    public function submitApproval(Request $request, MonthlyStockReport $monthlyStockReport, ApprovalService $approvalService): JsonResponse 
     {
-        return Warehouse::active()->get(['id', 'name'])->map(fn($w) => ['id' => $w->id, 'text' => $w->name]);
+        // Validate request
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:check,verify,acknowledge',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
+        ]);
+
+        // Check user permission
+        $permission = "monthlyStockReport.{$validated['request_type']}";
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this stock transfer.",
+            ], 403);
+        }
+
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $monthlyStockReport,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
+        );
+
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
+
+        // Update StockTransfer approval_status if successful
+        if ($success) {
+            $statusMap = [
+                'check' => 'Checked',
+                'verify' => 'Verified',
+                'acknowledge' => 'Acknowledged',
+                'reject'  => 'Rejected',
+                'return'  => 'Returned',
+            ];
+
+            $monthlyStockReport->approval_status =
+                $statusMap[$validated['action']] ??
+                ($statusMap[$validated['request_type']] ?? 'Pending');
+
+            $monthlyStockReport->save();
+        }
+
+        return response()->json([
+            'message'      => $result['message'] ?? 'Action failed',
+            'redirect_url' => route('stock-reports.monthly-report.show', $monthlyStockReport->id),
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
+    }
+
+    public function reassignResponder(Request $request, MonthlyStockReport $monthlyStockReport): JsonResponse
+    {
+        // $this->authorize('reassign', $monthlyStockReport);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:check,verify,acknowledge',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("monthlyStockReport.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => MonthlyStockReport::class,
+            'approvable_id'   => $monthlyStockReport->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $monthlyStockReport->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function getApprovalUsers(): JsonResponse
     {
         $users = [
-            'check'       => $this->usersWithPermission('stockReport.check'),
-            'verify'      => $this->usersWithPermission('stockReport.verify'),
-            'acknowledge' => $this->usersWithPermission('stockReport.acknowledge'),
+            'check'       => $this->usersWithPermission('monthlyStockReport.check'),
+            'verify'      => $this->usersWithPermission('monthlyStockReport.verify'),
+            'acknowledge' => $this->usersWithPermission('monthlyStockReport.acknowledge'),
         ];
 
         return response()->json($users);
@@ -643,7 +822,7 @@ class StockController extends Controller
     {
         return User::whereHas('permissions', fn($q) => $q->where('name', $permission))
             ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
-            ->where('id', '!=', Auth::id())
+            // ->where('id', '!=', Auth::id())
             ->select('id', 'name', 'card_number')
             ->orderBy('name')
             ->get();
