@@ -254,6 +254,7 @@ public function show(MonthlyStockReport $monthlyStockReport)
         ->margins(10, 10, 10, 10)
         ->background()
         ->waitUntilNetworkIdle()
+        ->withPageNumbers()
         ->inline('Stock_Report_' . $data['end_date'] . '.pdf');
 }
 
@@ -381,6 +382,7 @@ public function generateStockReportPdf(Request $request)
         ->landscape()
         ->margins(10, 10, 10, 10)
         ->background()
+        ->withPageNumbers()
         ->waitUntilNetworkIdle()
         ->inline('Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf');
 }
