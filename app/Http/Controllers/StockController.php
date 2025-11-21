@@ -207,10 +207,10 @@ class StockController extends Controller
     {
         // $this->authorize('delete', $monthlyStockReport);
 
-        if (!in_array($monthlyStockReport->approval_status, ['Draft', 'Pending', 'Rejected'])) {
+        if (!in_array($monthlyStockReport->approval_status, ['Returned', 'Pending', 'Rejected'])) {
             return response()->json(['success' => false, 'message' => 'Approved reports cannot be deleted.'], 403);
         }
-
+        $monthlyStockReport->approvals()->delete();
         $monthlyStockReport->delete();
 
         return response()->json(['success' => true, 'message' => 'Report deleted successfully.']);
