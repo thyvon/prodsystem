@@ -221,9 +221,41 @@ class StockController extends Controller
     // ===================================================================
     public function show(MonthlyStockReport $monthlyStockReport)
     {
+        // 1. Load approvals with relationships
+        $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+
+        // 2. Map approval labels
+        $mapLabel = [
+            'check'       => 'Checked By',
+            'verify'      => 'Verified By',
+            'acknowledge' => 'Acknowledged By',
+        ];
+
+        // 3. Convert approvals into array for PDF
+        $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+            $typeKey = strtolower($approval->request_type);
+
+            return [
+                'user_name'         => $approval->responder?->name ?? 'Unknown',
+                'position_name'     => $approval->responderPosition?->title ?? null,
+                'request_type_label'=> $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+                'approval_status'   => $approval->approval_status,
+                'responded_date'    => $approval->responded_date,
+                'comment'           => $approval->comment,
+                'signature_url'     => $approval->responder?->signature_url ?? null,
+            ];
+        })->toArray();
+
+        // 4. Existing report data (items, warehouses, header info)
         $data = $this->prepareReportData($monthlyStockReport);
+
+        // 5. Inject approvals into Blade data
+        $data['approvals'] = $approvals;
+
+        // 6. Render HTML
         $html = view('Inventory.stock-report.print-report', $data)->render();
 
+        // 7. Generate PDF
         $pdf = Browsershot::html($html)
             ->noSandbox()
             ->landscape()
@@ -351,6 +383,7 @@ class StockController extends Controller
 
         $html = view('Inventory.stock-report.print-report', [
             'report'         => collect($report),
+            'approvals'      => [],
             'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
             'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
             'warehouseNames' => $warehouseNames,

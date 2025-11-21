@@ -315,30 +315,13 @@ const submitApproval = async (action) => {
 
 // --- Reassign Handling ---
 const openReassignModal = async () => {
-
-  // 1. Open modal instantly
-  $('#reassignModal').modal('show')
-
-  // 2. Show temporary loading option
-  await nextTick()
-  const selectEl = document.getElementById('userSelect')
-  selectEl.innerHTML = `<option value="">Loading users...</option>`
-
-  // Destroy old Select2 to avoid duplication
-  if ($(selectEl).hasClass('select2-hidden-accessible')) {
-    $(selectEl).select2('destroy')
-  }
-
-  // Initialize empty Select2 (fast)
-  initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
-
-  // 3. Load user list (async)
+  loading.value = true
   try {
     const res = await axios.get(`/api/inventory/stock-reports/get-approval-users`, {
       params: { request_type: props.approvalRequestType }
     })
 
-    usersByType.value = res.data || {}
+    usersByType.value = res.data || { check: [], verify: [], acknowledge: [] }
     const currentGroup = usersByType.value[props.approvalRequestType] || []
 
     if (currentGroup.length === 0) {
@@ -346,22 +329,27 @@ const openReassignModal = async () => {
       return
     }
 
-    // 4. Replace options with actual user data
-    selectEl.innerHTML =
-      '<option value="">-- Select a user --</option>' +
-      currentGroup.map(u =>
-        `<option value="${u.id}">${u.name} ${u.card_number ? '('+u.card_number+')' : ''}</option>`
-      ).join('')
+    currentActionRequestType.value = props.approvalRequestType
 
-    // 5. Reinitialize Select2 with real data
-    $(selectEl).select2('destroy')
+    await nextTick()
+    const selectEl = document.getElementById('userSelect')
+    if (!selectEl) return
+
+    selectEl.innerHTML = '<option value="">-- Select a user --</option>' +
+      currentGroup.map(u => `<option value="${u.id}">${u.name} ${u.card_number ? '(' + u.card_number + ')' : ''}</option>`).join('')
+
+    if ($(selectEl).hasClass('select2-hidden-accessible')) {
+      $(selectEl).select2('destroy')
+    }
+
     initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
-
-  } catch (err) {
+    $('#reassignModal').modal('show')
+  } catch(err) {
     showAlert('Error', 'Failed to load users.', 'danger')
+  } finally {
+    loading.value = false
   }
 }
-
 
 const confirmReassign = async () => {
   const newUserId = document.getElementById('userSelect')?.value

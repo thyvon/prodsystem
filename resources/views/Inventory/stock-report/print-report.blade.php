@@ -28,7 +28,6 @@
 
         .page-container {
             width: 100%;
-            max-width: 100%;
             margin: 0 auto;
             box-sizing: border-box;
         }
@@ -52,21 +51,19 @@
         /* Table */
         table.items {
             width: 100% !important;
-            margin: 0 auto 2px auto;
             border-collapse: collapse;
             table-layout: fixed;
             font-size: 12px;
         }
         table.items th, table.items td {
             border: 1px solid #333;
-            /* padding: 1px 1px; */
             font-size: 11px;
             vertical-align: middle;
             word-wrap: break-word;
         }
         table.items th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
 
-        /* Column widths (percentage is safest for print) */
+        /* Column widths */
         .col-no     { width: 4%; }
         .col-code   { width: 8%; }
         .col-desc   { width: 25%; }
@@ -80,7 +77,45 @@
         .highlight-available th, .highlight-available td { background-color: #e6f7e6 !important; }
         .available-cell { background-color: #f8fff8 !important; }
         .total-row td { font-weight: bold; background-color: #f0f0f0 !important; font-size: 12px; min-height: 30px; }
-        .total-row td:first-child { text-align: right; }
+
+        /* Approval (PR Style) */
+        .signature-section {
+            margin-top: 25px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            page-break-inside: avoid;
+        }
+        .signature-box {
+            flex: 1 1 calc((100% / 3) - 20px);
+            max-width: calc((100% / 3) - 20px);
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            height: 150px;
+            box-sizing: border-box;
+        }
+        .signature-image-box {
+            height: 55px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .signature-image {
+            max-width: 100px;
+            max-height: 70px;
+        }
+        .signature-line {
+            height: 1px;
+            background-color: #333;
+            width: 100%;
+            margin: 5px 0;
+        }
+        .signature-info {
+            font-size: 10px;
+            line-height: 1.3;
+        }
+
     </style>
 
     <style media="print">
@@ -92,6 +127,7 @@
 
 @php
     $reportData = $report;
+
     function fmt($value, $decimals = 4) {
         return ($value == 0 || $value === null) ? '-' : number_format($value, $decimals);
     }
@@ -150,6 +186,7 @@
         </thead>
 
         <tbody>
+
             @foreach($reportData as $i => $item)
             <tr>
                 <td class="text-center">{{ $i + 1 }}</td>
@@ -190,8 +227,42 @@
                 <td class="text-right"><strong>{{ fmt($reportData->sum('ending_total'), 2) }}</strong></td>
                 <td></td>
             </tr>
+
         </tbody>
     </table>
+
+    <!-- =============================== -->
+    <!-- NEW APPROVAL SECTION (PR STYLE) -->
+    <!-- =============================== -->
+
+    @if(!empty($approvals))
+
+    <div class="signature-section">
+
+        @foreach($approvals as $appr)
+        <div class="signature-box">
+
+            <div class="signature-image-box">
+                @if(($appr['approval_status'] ?? '') === 'approved' && !empty($appr['signature_url']))
+                    <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                @endif
+            </div>
+
+            <div class="signature-line"></div>
+
+            <div class="signature-info">
+                <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
+                ឈ្មោះ/Name: {{ $appr['user_name'] ?? '-' }}<br>
+                តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
+                កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
+            </div>
+
+        </div>
+        @endforeach
+
+    </div>
+
+    @endif
 
 </div>
 </body>
