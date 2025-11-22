@@ -2,7 +2,7 @@
 FROM php:8.3-fpm-alpine
 
 # ------------------------
-# Install system dependencies, PHP extensions, Node.js, Chromium
+# Install system dependencies + wkhtmltopdf + Khmer fonts
 # ------------------------
 RUN apk add --no-cache \
     bash \
@@ -23,50 +23,49 @@ RUN apk add --no-cache \
     freetype \
     harfbuzz \
     ttf-freefont \
+    # ← wkhtmltopdf + perfect Khmer fonts
+    wkhtmltopdf \
+    fontconfig \
+    ttf-dejavu \
+    ttf-liberation \
+    ttf-droid \
+    msttcorefonts-installer \
+    && update-ms-fonts || true \
+    && fc-cache -f \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install pdo_mysql mbstring intl gd zip opcache \
-    && apk del icu-dev oniguruma-dev
+    && apk del icu-dev oniguruma-dev libpng-dev libjpeg-turbo-dev libwebp-dev libzip-dev
 
 # ------------------------
-# Enable OPcache
+# OPcache
 # ------------------------
 COPY ./docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # ------------------------
-# Install Composer globally
+# Composer
 # ------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # ------------------------
-# Set working directory
+# Working directory
 # ------------------------
 WORKDIR /var/www
 
 # ------------------------
-# Copy composer files and install PHP dependencies (with Wasabi S3 adapter)
+# Copy only composer files first (for better caching)
 # ------------------------
 COPY composer.json composer.lock ./
 
-# Install all dependencies and add Wasabi Flysystem
-RUN composer install --no-dev --optimize-autoloader \
-    && composer require league/flysystem-aws-s3-v3:^3.0 --with-all-dependencies
-
 # ------------------------
-# Copy rest of the application
+# Copy the rest of the app (no composer install here!)
 # ------------------------
 COPY . .
 
 # ------------------------
-# Environment variable for Puppeteer/Chromium
+# Environment (kept for backup, not used anymore)
 # ------------------------
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# ------------------------
-# Expose PHP-FPM port
-# ------------------------
 EXPOSE 9000
 
-# ------------------------
-# Run PHP-FPM
-# ------------------------
 CMD ["php-fpm"]
