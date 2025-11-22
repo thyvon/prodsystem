@@ -8,8 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Carbon\Carbon;
-use Spatie\Browsershot\Browsershot;
-use Spatie\LaravelPdf\Facades\Pdf;
+// use Spatie\Browsershot\Browsershot;
+// use Spatie\LaravelPdf\Facades\Pdf;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 use App\Models\StockLedger;
 use App\Models\ProductVariant;
@@ -220,62 +221,44 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
-// ──────────────────────────────────────────────────────────────
-// 1. Approved Monthly Report PDF (show method)
-// ──────────────────────────────────────────────────────────────
-// ──────────────────────────────────────────────────────────────
-// 1. View Approved Monthly Stock Report as PDF (show method)
-// ──────────────────────────────────────────────────────────────
 public function show(MonthlyStockReport $monthlyStockReport)
-{
-    $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+    {
+        $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
-    $mapLabel = [
-        'check'       => 'Checked By',
-        'verify'      => 'Verified By',
-        'acknowledge' => 'Acknowledged By',
-    ];
-
-    $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-        $typeKey = strtolower($approval->request_type);
-
-        return [
-            'user_name'          => $approval->responder?->name ?? 'Unknown',
-            'position_name'      => $approval->responderPosition?->title ?? null,
-            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
-            'approval_status'    => $approval->approval_status,
-            'responded_date'     => $approval->responded_date,
-            'comment'            => $approval->comment,
-            'signature_url'      => $approval->responder?->signature_url ?? null,
+        $mapLabel = [
+            'check'       => 'Checked By',
+            'verify'      => 'Verified By',
+            'acknowledge' => 'Acknowledged By',
         ];
-    })->toArray();
 
-    $data = $this->prepareReportData($monthlyStockReport);
-    $data['approvals'] = $approvals;
+        $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+            $typeKey = strtolower($approval->request_type);
+            return [
+                'user_name'          => $approval->responder?->name ?? 'Unknown',
+                'position_name'      => $approval->responderPosition?->title ?? null,
+                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
+                'approval_status'    => $approval->approval_status,
+                'responded_date'     => $approval->responded_date,
+                'comment'            => $approval->comment,
+                'signature_url'      => $approval->responder?->signature_url ?? null,
+            ];
+        })->toArray();
 
-    return Pdf::view('Inventory.stock-report.print-report', $data)
-        ->format('a4')
-        ->landscape()
-        ->margins(10, 10, 15, 10)
-        ->withBrowsershot(function (\Spatie\Browsershot\Browsershot $browsershot) {
-            $browsershot
-                ->noSandbox()
-                ->timeout(90000) // 90 seconds max (safe for huge reports)
-                ->setOption('args', [
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage',           // Must-have in Docker
-                    '--disable-setuid-sandbox',
-                    '--no-zygote',
-                    '--disable-software-rasterizer',     // Fixes memory crashes
-                    '--disable-background-timer-throttling',
-                    '--disable-renderer-backgrounding',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-features=TranslateUI',
-                    '--disable-ipc-flooding-protection',
-                ]);
-        })
-        ->inline('Stock_Report_'.$data['end_date'].'.pdf');
-}
+        $data = $this->prepareReportData($monthlyStockReport);
+        $data['approvals'] = $approvals;
+
+        return PDF::loadView('Inventory.stock-report.print-report', $data)
+            ->setPaper('a4')
+            ->setOrientation('landscape')
+            ->setOption('margin-top', 10)
+            ->setOption('margin-right', 10)
+            ->setOption('margin-bottom', 15)
+            ->setOption('margin-left', 10)
+            ->setOption('page-size', 'A4')
+            ->setOption('encoding', 'UTF-8')
+            ->setOption('enable-local-file-access', true)  // Critical for images/signatures in Docker
+            ->inline('Stock_Report_'.$data['end_date'].'.pdf');
+    }
 
     // ===================================================================
     // Get Report Details (for Vue Show Page)
@@ -374,54 +357,41 @@ public function show(MonthlyStockReport $monthlyStockReport)
 // 2. Ad-hoc / Live Stock Report PDF
 // ──────────────────────────────────────────────────────────────
 public function generateStockReportPdf(Request $request)
-{
-    $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
-    $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
-    $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
-    $productIds   = $this->parseIntArray($request->input('product_ids', []));
+    {
+        $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
+        $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
+        $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
+        $productIds   = $this->parseIntArray($request->input('product_ids', []));
 
-    $report = $this->calculateStockReport(
-        $startDate, $endDate, $warehouseIds, $productIds,
-        $request->input('search', ''),
-        $request->input('sortColumn', 'item_code'),
-        $request->input('sortDirection', 'asc'),
-        paginate: false
-    );
+        $report = $this->calculateStockReport(
+            $startDate, $endDate, $warehouseIds, $productIds,
+            $request->input('search', ''),
+            $request->input('sortColumn', 'item_code'),
+            $request->input('sortDirection', 'asc'),
+            paginate: false
+        );
 
-    $warehouseNames = $this->getWarehouseNames($warehouseIds);
+        $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-    return Pdf::view('Inventory.stock-report.print-report', [
-        'report'         => collect($report),
-        'approvals'      => [],
-        'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
-        'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
-        'warehouseNames' => $warehouseNames,
-        'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
-        'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-    ])
-        ->format('a4')
-        ->landscape()
-        ->margins(10, 10, 15, 10)
-        ->withBrowsershot(function (\Spatie\Browsershot\Browsershot $browsershot) {
-            $browsershot
-                ->noSandbox()
-                ->setChromePath('/usr/bin/chromium')  // Docker-safe path
-                ->timeout(60000)  // 60s to prevent early close
-                ->setOption('args', [
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage',
-                    '--disable-setuid-sandbox',
-                    '--disable-software-rasterizer',  // Docker memory fix
-                    '--disable-extensions',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                ])
-                ->windowSize(1024, 768);  // Balanced for tables
-        })
-        ->inline('Stock_Report_'.Carbon::parse($endDate)->format('M-Y').'.pdf');
-}
-
+        return PDF::loadView('Inventory.stock-report.print-report', [
+            'report'         => collect($report),
+            'approvals'      => [],
+            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames' => $warehouseNames,
+            'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
+            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
+        ])
+            ->setPaper('a4')
+            ->setOrientation('landscape')
+            ->setOption('margin-top', 10)
+            ->setOption('margin-right', 10)
+            ->setOption('margin-bottom', 15)
+            ->setOption('margin-left', 10)
+            ->setOption('encoding', 'UTF-8')
+            ->setOption('enable-local-file-access', true)
+            ->inline('Stock_Report_'.Carbon::parse($endDate)->format('M-Y').'.pdf');
+    }
     // ===================================================================
     // Helpers & Core Logic
     // ===================================================================
