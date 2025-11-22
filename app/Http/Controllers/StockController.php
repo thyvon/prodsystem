@@ -223,14 +223,22 @@ class StockController extends Controller
 // ──────────────────────────────────────────────────────────────
 // 1. Approved Monthly Report PDF (show method)
 // ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// 1. View Approved Monthly Stock Report as PDF (show method)
+// ──────────────────────────────────────────────────────────────
 public function show(MonthlyStockReport $monthlyStockReport)
 {
     $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
-    $mapLabel = ['check' => 'Checked By', 'verify' => 'Verified By', 'acknowledge' => 'Acknowledged By'];
+    $mapLabel = [
+        'check'       => 'Checked By',
+        'verify'      => 'Verified By',
+        'acknowledge' => 'Acknowledged By',
+    ];
 
     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
         $typeKey = strtolower($approval->request_type);
+
         return [
             'user_name'          => $approval->responder?->name ?? 'Unknown',
             'position_name'      => $approval->responderPosition?->title ?? null,
@@ -249,15 +257,23 @@ public function show(MonthlyStockReport $monthlyStockReport)
         ->format('a4')
         ->landscape()
         ->margins(10, 10, 15, 10)
-        ->withBrowsershot(fn($browsershot) => $browsershot
-            ->noSandbox()
-            ->setOption('args', [
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--no-zygote',
-                '--single-process',
-            ])
-        )
+        ->withBrowsershot(function (\Spatie\Browsershot\Browsershot $browsershot) {
+            $browsershot
+                ->noSandbox()
+                ->timeout(90000) // 90 seconds max (safe for huge reports)
+                ->setOption('args', [
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage',           // Must-have in Docker
+                    '--disable-setuid-sandbox',
+                    '--no-zygote',
+                    '--disable-software-rasterizer',     // Fixes memory crashes
+                    '--disable-background-timer-throttling',
+                    '--disable-renderer-backgrounding',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
+                ]);
+        })
         ->inline('Stock_Report_'.$data['end_date'].'.pdf');
 }
 
@@ -386,15 +402,23 @@ public function generateStockReportPdf(Request $request)
         ->format('a4')
         ->landscape()
         ->margins(10, 10, 15, 10)
-        ->withBrowsershot(fn($browsershot) => $browsershot
-            ->noSandbox()
-            ->setOption('args', [
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--no-zygote',
-                '--single-process',
-            ])
-        )
+        ->withBrowsershot(function (\Spatie\Browsershot\Browsershot $browsershot) {
+            $browsershot
+                ->noSandbox()
+                ->setChromePath('/usr/bin/chromium')  // Docker-safe path
+                ->timeout(60000)  // 60s to prevent early close
+                ->setOption('args', [
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage',
+                    '--disable-setuid-sandbox',
+                    '--disable-software-rasterizer',  // Docker memory fix
+                    '--disable-extensions',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                ])
+                ->windowSize(1024, 768);  // Balanced for tables
+        })
         ->inline('Stock_Report_'.Carbon::parse($endDate)->format('M-Y').'.pdf');
 }
 
