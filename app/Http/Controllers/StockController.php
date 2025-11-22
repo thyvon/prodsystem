@@ -220,23 +220,21 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
+// ──────────────────────────────────────────────────────────────
+// 1. Approved Monthly Report PDF (show method)
+// ──────────────────────────────────────────────────────────────
 public function show(MonthlyStockReport $monthlyStockReport)
 {
     $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
-    $mapLabel = [
-        'check'       => 'Checked By',
-        'verify'      => 'Verified By',
-        'acknowledge' => 'Acknowledged By',
-    ];
+    $mapLabel = ['check' => 'Checked By', 'verify' => 'Verified By', 'acknowledge' => 'Acknowledged By'];
 
     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
         $typeKey = strtolower($approval->request_type);
-
         return [
             'user_name'          => $approval->responder?->name ?? 'Unknown',
             'position_name'      => $approval->responderPosition?->title ?? null,
-            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
             'approval_status'    => $approval->approval_status,
             'responded_date'     => $approval->responded_date,
             'comment'            => $approval->comment,
@@ -247,12 +245,20 @@ public function show(MonthlyStockReport $monthlyStockReport)
     $data = $this->prepareReportData($monthlyStockReport);
     $data['approvals'] = $approvals;
 
-    // ← THIS IS THE ONLY CHANGE → One beautiful line
     return Pdf::view('Inventory.stock-report.print-report', $data)
         ->format('a4')
         ->landscape()
-        ->margins(10, 10, 10, 10)
-        ->inline('Stock_Report_' . $data['end_date'] . '.pdf');
+        ->margins(10, 10, 15, 10)
+        ->withBrowsershot(fn($browsershot) => $browsershot
+            ->noSandbox()
+            ->setOption('args', [
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--no-zygote',
+                '--single-process',
+            ])
+        )
+        ->inline('Stock_Report_'.$data['end_date'].'.pdf');
 }
 
     // ===================================================================
@@ -348,6 +354,9 @@ public function show(MonthlyStockReport $monthlyStockReport)
         ]);
     }
 
+// ──────────────────────────────────────────────────────────────
+// 2. Ad-hoc / Live Stock Report PDF
+// ──────────────────────────────────────────────────────────────
 public function generateStockReportPdf(Request $request)
 {
     $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
@@ -365,20 +374,28 @@ public function generateStockReportPdf(Request $request)
 
     $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-    // ← AGAIN, ONE LINE ONLY
     return Pdf::view('Inventory.stock-report.print-report', [
         'report'         => collect($report),
         'approvals'      => [],
         'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
         'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
         'warehouseNames' => $warehouseNames,
-        'reference_no'   => 'DRAFT-' . now()->format('YmdHis'),
+        'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
         'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
     ])
         ->format('a4')
         ->landscape()
-        ->margins(10, 10, 10, 10)
-        ->inline('Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf');
+        ->margins(10, 10, 15, 10)
+        ->withBrowsershot(fn($browsershot) => $browsershot
+            ->noSandbox()
+            ->setOption('args', [
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--no-zygote',
+                '--single-process',
+            ])
+        )
+        ->inline('Stock_Report_'.Carbon::parse($endDate)->format('M-Y').'.pdf');
 }
 
     // ===================================================================
