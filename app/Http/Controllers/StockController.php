@@ -219,6 +219,76 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
+    // public function show(MonthlyStockReport $monthlyStockReport)
+    // {
+    //     // Load relationships
+    //     $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+
+    //     // Label mapping
+    //     $mapLabel = [
+    //         'check'       => 'Checked By',
+    //         'verify'      => 'Verified By',
+    //         'acknowledge' => 'Acknowledged By',
+    //     ];
+
+    //     // Transform approvals
+    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+    //         $typeKey = strtolower($approval->request_type);
+
+    //         return [
+    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
+    //             'position_name'      => $approval->responderPosition?->title ?? null,
+    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
+    //             'approval_status'    => $approval->approval_status,
+    //             'responded_date'     => $approval->responded_date,
+    //             'comment'            => $approval->comment,
+    //             'signature_url'      => $approval->responder?->signature_url ?? null,
+    //         ];
+    //     })->toArray();
+
+    //     // Prepare PDF data
+    //     $data = $this->prepareReportData($monthlyStockReport);
+    //     $data['approvals'] = $approvals;
+
+    //     // Render HTML
+    //     $html = view('Inventory.stock-report.print-report', $data)->render();
+
+    //     // Path to output PDF
+    //     $fileName = 'Stock_Report.pdf';
+    //     $filePath = storage_path('app/public/' . $fileName);
+
+    //     // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
+    //     Browsershot::html($html)
+    //         ->noSandbox()
+    //         ->setDelay(40)                  // small delay for tables to render
+    //         ->setTemporaryFolder('/tmp/chromium')
+    //         ->emulateMedia('print')
+    //         ->format('A4')
+    //         ->margins(5, 3, 5, 3) // top, right, bottom, left
+    //         ->landscape()
+    //         ->timeout(40)
+
+    //         // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
+    //         ->addChromiumArguments([
+    //             '--disable-gpu',
+    //             '--disable-dev-shm-usage',
+    //             '--no-zygote',
+    //             '--single-process',           // <-- low memory
+    //             '--no-sandbox',
+    //             '--disable-setuid-sandbox',
+    //             '--disable-software-rasterizer',
+    //             '--disable-extensions',
+    //             '--blink-settings=imagesEnabled=true',
+    //             '--font-render-hinting=none',
+    //             '--no-first-run',
+    //             '--no-default-browser-check',
+    //         ])
+    //         ->save($filePath);
+
+    //     // Return PDF response
+    //     return response()->file($filePath);
+    // }
+
     public function show(MonthlyStockReport $monthlyStockReport)
     {
         // Load relationships
@@ -257,37 +327,23 @@ class StockController extends Controller
         $fileName = 'Stock_Report.pdf';
         $filePath = storage_path('app/public/' . $fileName);
 
-        // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
-        Browsershot::html($html)
-            ->noSandbox()
-            ->setDelay(40)                  // small delay for tables to render
-            ->setTemporaryFolder('/tmp/chromium')
-            ->emulateMedia('print')
-            ->format('A4')
-            ->margins(5, 3, 5, 3) // top, right, bottom, left
-            ->landscape()
-            ->timeout(40)
+        // Generate PDF using Snappy
+        $pdf = \PDF::loadHTML($html)
+            ->setPaper('A4', 'landscape')
+            ->setOption('margin-top', 5)
+            ->setOption('margin-right', 3)
+            ->setOption('margin-bottom', 5)
+            ->setOption('margin-left', 3)
+            ->setOption('no-outline', true)
+            ->setOption('enable-local-file-access', true); // allows access to public fonts/images
 
-            // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
-            ->addChromiumArguments([
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--no-zygote',
-                '--single-process',           // <-- low memory
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-software-rasterizer',
-                '--disable-extensions',
-                '--blink-settings=imagesEnabled=true',
-                '--font-render-hinting=none',
-                '--no-first-run',
-                '--no-default-browser-check',
-            ])
-            ->save($filePath);
+        // Save PDF to storage
+        $pdf->save($filePath);
 
-        // Return PDF response
+        // Return PDF file as response
         return response()->file($filePath);
     }
+
 
     // ===================================================================
     // Get Report Details (for Vue Show Page)
