@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Carbon\Carbon;
 use Spatie\Browsershot\Browsershot;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 use App\Models\StockLedger;
 use App\Models\ProductVariant;
