@@ -329,14 +329,14 @@ class StockController extends Controller
         $filePath = storage_path('app/public/' . $fileName);
 
         // Generate PDF using Snappy
-        $pdf = \PDF::loadHTML($html)
+        $pdf = PDF::loadHTML($html)
             ->setPaper('A4', 'landscape')
             ->setOption('margin-top', 5)
             ->setOption('margin-right', 3)
             ->setOption('margin-bottom', 5)
             ->setOption('margin-left', 3)
             ->setOption('no-outline', true)
-            ->setOption('enable-local-file-access', true); // allows access to public fonts/images
+            ->setOption('enable-local-file-access', true); // allows public fonts/images
 
         // Save PDF to storage
         $pdf->save($filePath);
@@ -344,7 +344,6 @@ class StockController extends Controller
         // Return PDF file as response
         return response()->file($filePath);
     }
-
 
     // ===================================================================
     // Get Report Details (for Vue Show Page)
