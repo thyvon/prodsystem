@@ -8,9 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Carbon\Carbon;
-// use Spatie\Browsershot\Browsershot;
-// use Spatie\LaravelPdf\Facades\Pdf;
-use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
+use Spatie\Browsershot\Browsershot;
 
 use App\Models\StockLedger;
 use App\Models\ProductVariant;
@@ -221,18 +219,22 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
-public function show(MonthlyStockReport $monthlyStockReport)
+    public function show(MonthlyStockReport $monthlyStockReport)
     {
+        // Load relationships
         $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
+        // Label mapping
         $mapLabel = [
             'check'       => 'Checked By',
             'verify'      => 'Verified By',
             'acknowledge' => 'Acknowledged By',
         ];
 
+        // Transform approvals
         $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
             $typeKey = strtolower($approval->request_type);
+
             return [
                 'user_name'          => $approval->responder?->name ?? 'Unknown',
                 'position_name'      => $approval->responderPosition?->title ?? null,
@@ -244,20 +246,47 @@ public function show(MonthlyStockReport $monthlyStockReport)
             ];
         })->toArray();
 
+        // Prepare PDF data
         $data = $this->prepareReportData($monthlyStockReport);
         $data['approvals'] = $approvals;
 
-        return PDF::loadView('Inventory.stock-report.print-report', $data)
-            ->setPaper('a4')
-            ->setOrientation('landscape')
-            ->setOption('margin-top', 10)
-            ->setOption('margin-right', 10)
-            ->setOption('margin-bottom', 15)
-            ->setOption('margin-left', 10)
-            ->setOption('page-size', 'A4')
-            ->setOption('encoding', 'UTF-8')
-            ->setOption('enable-local-file-access', true)  // Critical for images/signatures in Docker
-            ->inline('Stock_Report_'.$data['end_date'].'.pdf');
+        // Render HTML
+        $html = view('Inventory.stock-report.print-report', $data)->render();
+
+        // Path to output PDF
+        $fileName = 'Stock_Report.pdf';
+        $filePath = storage_path('app/public/' . $fileName);
+
+        // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
+        Browsershot::html($html)
+            ->noSandbox()
+            ->setDelay(40)                  // small delay for tables to render
+            ->setTemporaryFolder('/tmp/chromium')
+            ->emulateMedia('print')
+            ->format('A4')
+            ->margins(5, 3, 5, 3) // top, right, bottom, left
+            ->landscape()
+            ->timeout(40)
+
+            // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
+            ->addChromiumArguments([
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--no-zygote',
+                '--single-process',           // <-- low memory
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-software-rasterizer',
+                '--disable-extensions',
+                '--blink-settings=imagesEnabled=true',
+                '--font-render-hinting=none',
+                '--no-first-run',
+                '--no-default-browser-check',
+            ])
+            ->save($filePath);
+
+        // Return PDF response
+        return response()->file($filePath);
     }
 
     // ===================================================================
@@ -353,10 +382,11 @@ public function show(MonthlyStockReport $monthlyStockReport)
         ]);
     }
 
-// ──────────────────────────────────────────────────────────────
-// 2. Ad-hoc / Live Stock Report PDF
-// ──────────────────────────────────────────────────────────────
-public function generateStockReportPdf(Request $request)
+    // ──────────────────────────────────────────────────────────────
+    // 2. Ad-hoc / Live Stock Report PDF
+    // ──────────────────────────────────────────────────────────────
+
+    public function generateStockReportPdf(Request $request)
     {
         $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
         $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
@@ -373,7 +403,8 @@ public function generateStockReportPdf(Request $request)
 
         $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-        return PDF::loadView('Inventory.stock-report.print-report', [
+        // Render HTML from Blade
+        $html = view('Inventory.stock-report.print-report', [
             'report'         => collect($report),
             'approvals'      => [],
             'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
@@ -381,17 +412,45 @@ public function generateStockReportPdf(Request $request)
             'warehouseNames' => $warehouseNames,
             'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
             'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-        ])
-            ->setPaper('a4')
-            ->setOrientation('landscape')
-            ->setOption('margin-top', 10)
-            ->setOption('margin-right', 10)
-            ->setOption('margin-bottom', 15)
-            ->setOption('margin-left', 10)
-            ->setOption('encoding', 'UTF-8')
-            ->setOption('enable-local-file-access', true)
-            ->inline('Stock_Report_'.Carbon::parse($endDate)->format('M-Y').'.pdf');
+            'preparedBy'    => Auth::user()->name,
+            'preparedByPosition' => Auth::user()->defaultPosition()?->title,
+            'preparedDate'  => Carbon::now()->format('d-m-Y'),
+        ])->render();
+
+        $fileName = 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf';
+        $filePath = storage_path('app/public/' . $fileName);
+
+        // ---- Browsershot Ultra Low RAM / Fast Setup ----
+        Browsershot::html($html)
+            ->noSandbox()
+            ->setDelay(80)                  // small delay for table rendering
+            ->setTemporaryFolder('/tmp/chromium')
+            ->emulateMedia('print')
+            ->format('A4')
+            ->landscape()
+            ->timeout(40)
+            ->showBackground()
+            ->addChromiumArguments([
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--no-zygote',
+                '--single-process',           // <-- low memory
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-software-rasterizer',
+                '--disable-extensions',
+                '--blink-settings=imagesEnabled=true',
+                '--font-render-hinting=none',
+                '--no-first-run',
+                '--no-default-browser-check',
+            ])
+            ->save($filePath);
+
+        // Return PDF inline
+        return response()->file($filePath);
     }
+
+
     // ===================================================================
     // Helpers & Core Logic
     // ===================================================================
@@ -464,6 +523,10 @@ public function generateStockReportPdf(Request $request)
             'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
             'msr'            => $report,
             'created_by'     => $report->creator?->name ?? 'Unknown',
+            'creator_position'=> $report->creatorPosition?->title ?? null,
+            'created_at' => $report->report_date
+                ? Carbon::parse($report->report_date)->format('M d, Y')
+                : null,
             'remarks'        => $report->remarks,
             'status'         => $report->approval_status,
         ];
