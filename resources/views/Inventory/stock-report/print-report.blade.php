@@ -168,7 +168,7 @@
             <tr>
                 <td class="text-center">{{ $i + 1 }}</td>
                 <td class="text-center">{{ $item['item_code'] }}</td>
-                <td style="text-align:left;">{{ $item['description'] ?? '-' }}</td>
+                <td style="text-align:left; padding-left: 3px">{{ $item['description'] ?? '-' }}</td>
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
                 <td class="text-center">{{ fmt($item['beginning_quantity'], 2) }}</td>
                 <td class="text-center">{{ fmt($item['beginning_price']) }}</td>
