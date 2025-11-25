@@ -212,9 +212,9 @@
             <div class="signature-line"></div>
             <div class="signature-info">
                 <strong>Prepared by</strong><br>
-                ឈ្មោះ/Name: {{$created_by}}<br>
-                តួនាទី/Position: {{$creator_position}}<br>
-                កាលបរិច្ឆេទ/Date: {{ $created_at }}
+                ឈ្មោះ/Name: {{$created_by ?? '-'}}<br>
+                តួនាទី/Position: {{$creator_position ?? '-'}}<br>
+                កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
             </div>
         </div>
 
