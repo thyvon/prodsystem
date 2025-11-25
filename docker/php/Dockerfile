@@ -34,14 +34,9 @@ RUN apk add --no-cache \
     && apk del icu-dev oniguruma-dev libpng-dev libjpeg-turbo-dev libwebp-dev libzip-dev
 
 # ------------------------
-# Install wkhtmltopdf (static binary)
+# Install wkhtmltopdf (FIXED for Alpine)
 # ------------------------
-RUN curl -L -o /tmp/wkhtmltopdf.tar.xz https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.6/wkhtmltox_0.12.6-1.alpine-amd64.tar.xz \
-    && mkdir -p /usr/local/bin/wkhtmltopdf \
-    && tar -xJf /tmp/wkhtmltopdf.tar.xz -C /usr/local/bin/wkhtmltopdf --strip-components=1 \
-    && chmod +x /usr/local/bin/wkhtmltopdf/bin/wkhtmltopdf \
-    && ln -s /usr/local/bin/wkhtmltopdf/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf \
-    && rm -rf /tmp/wkhtmltopdf.tar.xz
+RUN apk add --no-cache wkhtmltopdf
 
 # ------------------------
 # OPcache
@@ -69,7 +64,7 @@ COPY composer.json composer.lock ./
 COPY . .
 
 # ------------------------
-# Puppeteer fallback (optional, keep for legacy)
+# Puppeteer fallback (optional)
 # ------------------------
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
