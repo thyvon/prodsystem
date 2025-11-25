@@ -160,7 +160,7 @@ class StockController extends Controller
     {
         $this->authorize('update', $monthlyStockReport);
 
-        $monthlyStockReport->load(['approvals.responder']);
+        // $monthlyStockReport->load(['approvals.responder']);
         $warehouseIds = $monthlyStockReport->warehouse_ids ?? [];
 
         return response()->json([
@@ -239,7 +239,7 @@ class StockController extends Controller
         $this->authorize('view', $monthlyStockReport);
 
         // Load relationships
-        $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+        // $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
         // Label mapping
         $mapLabel = [
@@ -314,7 +314,7 @@ class StockController extends Controller
     {   
         $this->authorize('view', $monthlyStockReport);
 
-        $monthlyStockReport->load('approvals');
+        // $monthlyStockReport->load('approvals');
 
         // Map for request types to display labels
         $mapLabel = [
