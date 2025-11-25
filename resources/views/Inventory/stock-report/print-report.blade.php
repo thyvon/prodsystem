@@ -204,39 +204,48 @@
     </table>
 
     <!-- Signature section: 1 Prepared + 3 approvals (fixed 4 boxes) -->
-    <div class="signature-section">
+@if(!empty($created_by) || !empty($approvalBoxes))
+<div class="signature-section">
 
-        <!-- Prepared by -->
-        <div class="signature-box">
-            <div class="signature-image-box"></div>
-            <div class="signature-line"></div>
-            <div class="signature-info">
-                <strong>Prepared by</strong><br>
-                ឈ្មោះ/Name: {{$created_by ?? '-'}}<br>
-                តួនាទី/Position: {{$creator_position ?? '-'}}<br>
-                កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
-            </div>
+    <!-- Prepared by -->
+    @if(!empty($created_by))
+    <div class="signature-box">
+        <div class="signature-image-box"></div>
+        <div class="signature-line"></div>
+        <div class="signature-info">
+            <strong>Prepared by</strong><br>
+            ឈ្មោះ/Name: {{$created_by}}<br>
+            តួនាទី/Position: {{$creator_position ?? '-'}}<br>
+            កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
         </div>
-
-        <!-- 3 Approvals -->
-        @foreach($approvalBoxes as $appr)
-        <div class="signature-box">
-            <div class="signature-image-box">
-                @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'approved' && !empty($appr['signature_url']))
-                    <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
-                @endif
-            </div>
-            <div class="signature-line"></div>
-            <div class="signature-info">
-                <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
-                ឈ្មោះ/Name: {{ $appr['user_name'] ?? '-' }}<br>
-                តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
-                កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
-            </div>
-        </div>
-        @endforeach
-
     </div>
+    @endif
+
+    <!-- 3 Approvals -->
+    @if(!empty($approvalBoxes))
+        @foreach($approvalBoxes as $appr)
+            @if(!empty($appr['user_name']))
+            <div class="signature-box">
+                <div class="signature-image-box">
+                    @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'approved' && !empty($appr['signature_url']))
+                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                    @endif
+                </div>
+                <div class="signature-line"></div>
+                <div class="signature-info">
+                    <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
+                    ឈ្មោះ/Name: {{ $appr['user_name'] }}<br>
+                    តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
+                    កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
+                </div>
+            </div>
+            @endif
+        @endforeach
+    @endif
+
+</div>
+@endif
+
 
 </div>
 </body>
