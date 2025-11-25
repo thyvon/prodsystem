@@ -336,10 +336,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-in/items', [StockInController::class, 'getAllStockInItems'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.items');
 
         //Stock Report
-        Route::get('/stock-reports', [StockController::class, 'stockReport'])->middleware('can:viewAny,' . StockReport::class)->name('api.stock-reports.index');
+        Route::get('/stock-reports', [StockController::class, 'stockReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)->name('api.stock-reports.index');
         // Route::get('/stock-reports/get-warehouses', [StockController::class, 'getWarehouses'])->name('api.stock-reports.get-warehouses');
         Route::get('/stock-reports/get-approval-users', [StockController::class, 'getApprovalUsers'])->name('api.stock-reports.get-approval-users');
-        Route::post('/stock-reports', [StockController::class, 'store'])->middleware('can:create,' . StockReport::class)->name('api.stock-reports.store');
+        Route::post('/stock-reports', [StockController::class, 'store'])->middleware('can:create,' . MonthlyStockReport::class)->name('api.stock-reports.store');
         Route::put('/stock-reports/{monthlyStockReport}', [StockController::class, 'update'])->middleware('can:update,monthlyStockReport')->name('api.stock-reports.update');
         Route::delete('/stock-reports/{monthlyStockReport}', [StockController::class, 'destroy'])->middleware('can:delete,monthlyStockReport')->name('api.stock-reports.destroy');
         Route::post('/stock-reports/{monthlyStockReport}/submit-approval', [StockController::class, 'submitApproval'])->name('api.stock-reports.submit-approval');
