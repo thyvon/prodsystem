@@ -92,7 +92,7 @@
           <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
-                <p class="font-weight-bold mb-1">Requested By</p>
+                <p class="font-weight-bold mb-1">Prepared & Counted By</p>
                   <div class="mb-3">
                     <img 
                       :src="reportParams.created_by?.profile_url 
@@ -104,8 +104,14 @@
                     >
                   </div>
                 <p class="font-weight-bold mb-1">{{ reportParams.created_by?.name || 'N/A' }}</p>
+                  <p class="mb-1">
+                  Status:
+                  <span class="badge badge-success">
+                    <strong>Prepared</strong>
+                  </span>
+                </p>
                 <p class="mb-1 text-start">Position: {{ reportParams.created_by?.position_name || 'N/A' }}</p>
-                <p class="mb-0 text-start">Date: {{ formatDate(reportParams.created_at) }}</p>
+                <p class="mb-0 text-start">Date: {{ formatDate(reportParams.report_date) }}</p>
               </div>
             </div>
           </div>
@@ -257,11 +263,11 @@ const formatDate = date => formatDateShort(date)
 const total = key => stockItems.value.reduce((sum, i) => sum + (i[key] || 0), 0)
 const goBack = () => window.location.href = '/inventory/stock-reports/monthly-report'
 
-const currentActionTitle = computed(() => currentAction.value === 'approve' ? 'Approve Report' :
+const currentActionTitle = computed(() => currentAction.value === 'approve' ? 'Confirm Report' :
                                               currentAction.value === 'reject' ? 'Reject Report' : 'Return Report')
 const currentActionClass = computed(() => currentAction.value === 'approve' ? 'btn-success' :
                                               currentAction.value === 'reject' ? 'btn-danger' : 'btn-warning')
-const currentActionButtonLabel = computed(() => currentAction.value === 'approve' ? 'Approve' :
+const currentActionButtonLabel = computed(() => currentAction.value === 'approve' ? 'Confirm' :
                                                         currentAction.value === 'reject' ? 'Reject' : 'Return')
 
 // --- Fetch Report ---

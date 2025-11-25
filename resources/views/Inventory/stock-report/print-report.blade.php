@@ -101,7 +101,7 @@
             justify-content: center;
             align-items: center;
         }
-        .signature-image { max-width: 100px; max-height: 70px; }
+        .signature-image { max-width: 100px; max-height: 90px; }
         .signature-line { height: 1px; background-color: #333; width: 100%; margin: 5px 0; }
         .signature-info { font-size: 12px; line-height: 1.2; }
     </style>
@@ -217,10 +217,12 @@
         <!-- Prepared by -->
         @if(!empty($created_by))
         <div class="signature-box">
-            <div class="signature-image-box"></div>
+            <div class="signature-image-box">
+                <img src="{{ public_path('storage/' . $signature_url) }}" class="signature-image">
+            </div>
             <div class="signature-line"></div>
             <div class="signature-info">
-                <strong>Prepared by</strong><br>
+                <strong>Prepared & counted by</strong><br>
                 ឈ្មោះ/Name: {{$created_by}}<br>
                 តួនាទី/Position: {{$creator_position ?? '-'}}<br>
                 កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
@@ -234,7 +236,7 @@
                 @if(!empty($appr['user_name']))
                 <div class="signature-box">
                     <div class="signature-image-box">
-                        @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'approved' && !empty($appr['signature_url']))
+                        @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
                             <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
                         @endif
                     </div>

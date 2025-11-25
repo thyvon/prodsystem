@@ -60,8 +60,8 @@
                         v-model="approval.request_type"
                       >
                         <option value="">Select Type</option>
-                        <option value="check">Check</option>
                         <option value="verify">Verify</option>
+                        <option value="check">Check</option>
                         <option value="acknowledge">Acknowledge</option>
                       </select>
                     </td>
@@ -137,14 +137,23 @@ const form = reactive({
 const typeSelectRefs = ref([])
 const userSelectRefs = ref([])
 
+const defaultApprovalTypes = ['verify', 'check', 'acknowledge']
+const sortApprovals = () => {
+  form.approvals.sort((a, b) => {
+    const aIndex = defaultApprovalTypes.indexOf(a.request_type)
+    const bIndex = defaultApprovalTypes.indexOf(b.request_type)
+    return aIndex - bIndex
+  })
+}
+
 const setTypeSelectRef = (el, index) => { typeSelectRefs.value[index] = el }
 const setUserSelectRef = (el, index) => { userSelectRefs.value[index] = el }
 
 const warehouses = ref([])
-const usersByType = reactive({ check: [], verify: [], acknowledge: [] })
+const usersByType = reactive({ verify: [], check: [], acknowledge: [] })
 
 const canSubmit = computed(() => {
-  const required = ['check', 'verify', 'acknowledge']
+  const required = ['verify', 'check', 'acknowledge']
   const assigned = form.approvals
     .filter(a => required.includes(a.request_type) && a.user_id)
     .map(a => a.request_type)
@@ -157,7 +166,7 @@ const canSubmit = computed(() => {
 })
 
 const goToList = () => window.location.href = '/inventory/stock-reports/monthly-report'
-const goToDetails = (id) => window.location.href = `/inventory/stock-reports/monthly-report/${id}/details`
+const goToDetails = (id) => window.location.href = `/inventory/stock-reports/monthly-report/${id}/show`
 
 const fetchMasterData = async () => {
   try {
@@ -206,7 +215,7 @@ const loadReport = async (id) => {
     })) : []
 
     // Ensure all 3 types exist
-    ['check', 'verify', 'acknowledge'].forEach(type => {
+    ['verify', 'check', 'acknowledge'].forEach(type => {
       if (!form.approvals.some(a => a.request_type === type)) {
         form.approvals.push({
           id: null,
@@ -377,6 +386,7 @@ onMounted(async () => {
     })
   }
 
+  sortApprovals()
   await nextTick()
   await initWidgets()
 })

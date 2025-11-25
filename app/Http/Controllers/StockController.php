@@ -226,8 +226,8 @@ class StockController extends Controller
 
         // Label mapping
         $mapLabel = [
-            'check'       => 'Checked By',
-            'verify'      => 'Verified By',
+            'verify'       => 'Verified By',
+            'check'      => 'Checked By',
             'acknowledge' => 'Acknowledged By',
         ];
 
@@ -299,8 +299,8 @@ class StockController extends Controller
 
         // Map for request types to display labels
         $mapLabel = [
-            'check'       => 'Checked By',
-            'verify'      => 'Verified By',
+            'verify'       => 'Verified By',
+            'check'      => 'Checked By',
             'acknowledge' => 'Acknowledged By',
         ];
 
@@ -321,6 +321,7 @@ class StockController extends Controller
             'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
             'warehouse_names' => $data['warehouseNames'],
             'reference_no'    => $monthlyStockReport->reference_no,
+            'report_date'     => $monthlyStockReport->report_date,
             'created_by'      => [
                 'name'        => $monthlyStockReport->creator?->name ?? 'Unknown',
                 'profile_url' => $monthlyStockReport->creator?->profile_url ?? null,
@@ -532,6 +533,7 @@ class StockController extends Controller
             'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
             'msr'            => $report,
             'created_by'     => $report->creator?->name ?? 'Unknown',
+            'signature_url'  => $report->creator?->signature_url ?? null,
             'creator_position'=> $report->creatorPosition?->title ?? null,
             'created_at' => $report->report_date
                 ? Carbon::parse($report->report_date)->format('M d, Y')
@@ -708,7 +710,7 @@ class StockController extends Controller
 
     private function ordinal($type)
     {
-        return ['check' => 1, 'verify' => 2, 'acknowledge' => 3][$type] ?? 1;
+        return ['verify' => 1, 'check' => 2, 'acknowledge' => 3][$type] ?? 1;
     }
 
     private function canShowApprovalButton(int $documentId): array
@@ -883,6 +885,7 @@ class StockController extends Controller
                 'responder_id' => $user->id,
                 'position_id'  => $positionId,
                 'comment'      => $validated['comment'] ?? $approval->comment,
+                'is_seen'      => false,
             ]);
 
             return response()->json([
