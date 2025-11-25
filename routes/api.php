@@ -65,6 +65,7 @@ use App\Http\Controllers\StockTransferController;
 use App\Models\StockIn;
 use App\Http\Controllers\StockInController;
 
+use App\Models\MonthlyStockReport;
 use App\Http\Controllers\StockController;
 
 // Approval Management
@@ -335,17 +336,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-in/items', [StockInController::class, 'getAllStockInItems'])->middleware('can:viewAny,' . StockIn::class)->name('api.stock-ins.items');
 
         //Stock Report
-        Route::get('/stock-reports', [StockController::class, 'stockReport'])->name('api.stock-reports.index');
+        Route::get('/stock-reports', [StockController::class, 'stockReport'])->middleware('can:viewAny,' . StockReport::class)->name('api.stock-reports.index');
         // Route::get('/stock-reports/get-warehouses', [StockController::class, 'getWarehouses'])->name('api.stock-reports.get-warehouses');
         Route::get('/stock-reports/get-approval-users', [StockController::class, 'getApprovalUsers'])->name('api.stock-reports.get-approval-users');
-        Route::post('/stock-reports', [StockController::class, 'store'])->name('api.stock-reports.store');
-        Route::put('/stock-reports/{monthlyStockReport}', [StockController::class, 'update'])->name('api.stock-reports.update');
-        Route::delete('/stock-reports/{monthlyStockReport}', [StockController::class, 'destroy'])->name('api.stock-reports.destroy');
+        Route::post('/stock-reports', [StockController::class, 'store'])->middleware('can:create,' . StockReport::class)->name('api.stock-reports.store');
+        Route::put('/stock-reports/{monthlyStockReport}', [StockController::class, 'update'])->middleware('can:update,monthlyStockReport')->name('api.stock-reports.update');
+        Route::delete('/stock-reports/{monthlyStockReport}', [StockController::class, 'destroy'])->middleware('can:delete,monthlyStockReport')->name('api.stock-reports.destroy');
         Route::post('/stock-reports/{monthlyStockReport}/submit-approval', [StockController::class, 'submitApproval'])->name('api.stock-reports.submit-approval');
-        Route::post('/stock-reports/{monthlyStockReport}/reassign-approval', [StockController::class, 'reassignResponder'])->name('api.stock-reports.reassign-approval');
-        Route::get('/stock-reports/{monthlyStockReport}/edit', [StockController::class, 'getEditData'])->name('api.stock-reports.edit');
-        Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->name('api.stock-reports.monthly-report');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->name('api.stock-reports.monthly-report.details');
+        Route::post('/stock-reports/{monthlyStockReport}/reassign-approval', [StockController::class, 'reassignResponder'])->middleware('can:reassign,monthlyStockReport')->name('api.stock-reports.reassign-approval');
+        Route::get('/stock-reports/{monthlyStockReport}/edit', [StockController::class, 'getEditData'])->middleware('can:update,monthlyStockReport')->name('api.stock-reports.edit');
+        Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)->name('api.stock-reports.monthly-report');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->middleware('can:view,monthlyStockReport')->name('api.stock-reports.monthly-report.details');
 
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');

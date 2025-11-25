@@ -33,16 +33,22 @@ class StockController extends Controller
     // ===================================================================
     public function index(): View
     {
+        $this->authorize('viewAny', MonthlyStockReport::class);
+
         return view('Inventory.stock-report.index');
     }
 
     public function create(): View
     {
+        $this->authorize('create', MonthlyStockReport::class);
+
         return view('Inventory.stock-report.form');
     }
 
     public function edit(MonthlyStockReport $monthlyStockReport): View
     {
+        $this->authorize('update', $monthlyStockReport);
+
         return view('Inventory.stock-report.form', [
             'monthlyStockReportId' => $monthlyStockReport->id,
         ]);
@@ -50,11 +56,14 @@ class StockController extends Controller
 
     public function monthlyReport(): View
     {
+        $this->authorize('viewAny', MonthlyStockReport::class);
         return view('Inventory.stock-report.monthly-report');
     }
 
     public function showDetails(MonthlyStockReport $monthlyStockReport): View
     {
+        $this->authorize('view', $monthlyStockReport);
+
         $approvalButtonData = $this->canShowApprovalButton($monthlyStockReport->id);
         return view('Inventory.stock-report.show', [
             'monthlyStockReportId' => $monthlyStockReport->id,
@@ -68,6 +77,8 @@ class StockController extends Controller
     // ===================================================================
     public function getMonthlyStockReport(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', MonthlyStockReport::class);
+
         $request->validate([
             'search'        => 'nullable|string|max:255',
             'page'          => 'nullable|integer|min:1',
@@ -123,6 +134,8 @@ class StockController extends Controller
     // ===================================================================
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', MonthlyStockReport::class);
+
         $validated = $this->validateReportRequest($request);
 
         return DB::transaction(function () use ($validated) {
@@ -145,6 +158,8 @@ class StockController extends Controller
     // ===================================================================
     public function getEditData(MonthlyStockReport $monthlyStockReport): JsonResponse
     {
+        $this->authorize('update', $monthlyStockReport);
+
         $monthlyStockReport->load(['approvals.responder']);
         $warehouseIds = $monthlyStockReport->warehouse_ids ?? [];
 
@@ -178,7 +193,7 @@ class StockController extends Controller
     // ===================================================================
     public function update(Request $request, MonthlyStockReport $monthlyStockReport): JsonResponse
     {
-        // $this->authorize('update', $monthlyStockReport);
+        $this->authorize('update', $monthlyStockReport);
 
         if (!in_array($monthlyStockReport->approval_status, ['Pending','Returned'])) {
             return response()->json(['success' => false, 'message' => 'Cannot edit approved or rejected reports.'], 403);
@@ -205,7 +220,7 @@ class StockController extends Controller
     // ===================================================================
     public function destroy(MonthlyStockReport $monthlyStockReport): JsonResponse
     {
-        // $this->authorize('delete', $monthlyStockReport);
+        $this->authorize('delete', $monthlyStockReport);
 
         if (!in_array($monthlyStockReport->approval_status, ['Returned', 'Pending', 'Rejected'])) {
             return response()->json(['success' => false, 'message' => 'Approved reports cannot be deleted.'], 403);
@@ -221,6 +236,8 @@ class StockController extends Controller
     // ===================================================================
     public function showpdf(MonthlyStockReport $monthlyStockReport)
     {
+        $this->authorize('view', $monthlyStockReport);
+
         // Load relationships
         $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
 
@@ -294,7 +311,9 @@ class StockController extends Controller
     // Get Report Details (for Vue Show Page)
     // ===================================================================
     public function getDetails(MonthlyStockReport $monthlyStockReport): JsonResponse
-    {
+    {   
+        $this->authorize('view', $monthlyStockReport);
+
         $monthlyStockReport->load('approvals');
 
         // Map for request types to display labels
@@ -357,6 +376,7 @@ class StockController extends Controller
     // ===================================================================
     public function stockReport(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', MonthlyStockReport::class);
         $startDate = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
         $endDate   = $request->input('end_date') ?? now()->toDateString();
         $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
@@ -398,6 +418,8 @@ class StockController extends Controller
 
     public function generateStockReportPdf(Request $request)
     {
+        $this->authorize('viewAny', MonthlyStockReport::class);
+
         $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
         $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
         $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));

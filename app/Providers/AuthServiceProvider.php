@@ -63,6 +63,10 @@ use App\Policies\DigitalDocsApprovalPolicy;
 use App\Models\PurchaseRequest;
 use App\Policies\PurchaseRequestPolicy;
 
+// Monthly Stock Report
+use App\Models\MonthlyStockReport;
+use App\Policies\MonthlyStockReportPolicy;
+
 
 
 // use Illuminate\Support\Facades\Gate;
@@ -96,6 +100,7 @@ class AuthServiceProvider extends ServiceProvider
         DigitalDocsApproval::class => DigitalDocsApprovalPolicy::class,
         PurchaseRequest::class => PurchaseRequestPolicy::class,
         StockIn::class => StockInPolicy::class,
+        MonthlyStockReport::class => MonthlyStockReportPolicy::class,
     ];
 
     /**

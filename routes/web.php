@@ -69,6 +69,7 @@ use App\Http\Controllers\StockInController;
 use App\Models\StockIn;
 
 use App\Http\Controllers\StockController;
+use App\Models\MonthlyStockReport;
 
 
 // Approval Management
@@ -243,20 +244,19 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-movements.index');
 
         // Stock Report
-        Route::get('/stock-reports', [StockController::class, 'index'])
+        Route::get('/stock-reports', [StockController::class, 'index'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.index');
-        Route::post('/stock-reports/pdf', [StockController::class, 'generateStockReportPdf'])
+        Route::post('/stock-reports/pdf', [StockController::class, 'generateStockReportPdf'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.pdf');
-
-        Route::get('/stock-reports/monthly-report/create', [StockController::class, 'create'])
+        Route::get('/stock-reports/monthly-report/create', [StockController::class, 'create'])->middleware('can:create,' . MonthlyStockReport::class)
             ->name('stock-reports.monthly-report.create');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/edit', [StockController::class, 'edit'])
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/edit', [StockController::class, 'edit'])->middleware('can:update,monthlyStockReport')
             ->name('stock-reports.monthly-report.edit');
-        Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])
+        Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.monthly-report');
-        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/showpdf', [StockController::class, 'showpdf'])
+        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/showpdf', [StockController::class, 'showpdf'])->middleware('can:view,monthlyStockReport')
             ->name('stock-reports.monthly-report.showpdf');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'showDetails'])
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'showDetails'])->middleware('can:view,monthlyStockReport')
             ->name('stock-reports.monthly-report.show');
     });
 

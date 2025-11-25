@@ -57,5 +57,6 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('digitalDocsApproval', \App\Models\DigitalDocsApproval::class);
         Route::model('purchaseRequest', \App\Models\PurchaseRequest::class);
         Route::model('stockIn', \App\Models\StockIn::class);
+        Route::model('monthlyStockReport', \App\Models\MonthlyStockReport::class);
     }
 }
