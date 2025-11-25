@@ -47,13 +47,14 @@
         table.items {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;
-            font-size: 11px;
+            font-size: 12px;
+            /* Allow dynamic column width */
         }
         table.items th, table.items td {
             border: 1px solid #333;
             vertical-align: middle;
             word-wrap: break-word;
+            white-space: normal; /* allow text to wrap */
         }
         table.items th {
             background-color: #f2f2f2;
@@ -61,14 +62,10 @@
             font-weight: bold;
         }
 
-        .col-no { width: 2%; }
-        .col-code { width: 8%; }
-        .col-desc { width: 22%; }
-        .col-unit { width: 5%; }
-        .col-qty { width: 7%; }
-        .col-amount { width: 9%; }
-        .col-avg { width: 9%; }
+        /* Optional: max width for descriptions to prevent huge stretching */
+        .col-desc { max-width: 300px; }
 
+        /* Alignment classes */
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .highlight-available { background-color: #e6f7e6 !important; }
@@ -107,7 +104,6 @@
         .signature-image { max-width: 100px; max-height: 70px; }
         .signature-line { height: 1px; background-color: #333; width: 100%; margin: 5px 0; }
         .signature-info { font-size: 12px; line-height: 1.2; }
-
     </style>
 </head>
 <body>
@@ -116,6 +112,9 @@
     $reportData = $report;
     function fmt($value, $decimals = 4) {
         return ($value === null || $value == 0) ? '-' : number_format($value, $decimals);
+    }
+    function fmtDate($dateStr) {
+        return $dateStr ? \Carbon\Carbon::parse($dateStr)->format('M d, Y') : '-';
     }
 
     // Ensure exactly 4 boxes: 1 Prepared + 3 approvals
@@ -130,7 +129,7 @@
             <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
-            <h3>របាយការណ៍ស្តុកទំនិញ</h3>
+            <h3>របាយការណ៍ស្តុក</h3>
             <h3>Stock Report
                 @if($warehouseNames !== 'All Warehouses')
                     <small style="font-weight:normal; color:#555;">({{ $warehouseNames }})</small>
@@ -138,7 +137,7 @@
                     <small style="font-weight:normal; color:#555;">(All Warehouses)</small>
                 @endif
             </h3>
-            <div class="date-range">{{ $start_date }} - {{ $end_date }}</div>
+            <div class="date-range">{{ fmtDate($start_date) }}  -  {{ fmtDate($end_date) }}</div>
         </div>
     </div>
 
@@ -147,22 +146,21 @@
         <thead>
             <tr>
                 <th class="col-no" rowspan="2">ល.រ<br>No</th>
-                <th class="col-code" rowspan="2">លេខកូដ<br>Item Code</th>
-                <th class="col-desc" rowspan="2">បរិយាយ<br>Description</th>
-                <th class="col-unit" rowspan="2">ឯកតា<br>Unit</th>
-                <th colspan="2">ស្តុកដើមគ្រា<br>Beginning</th>
-                <th colspan="2">ស្តុកចូល<br>Stock In</th>
-                <th colspan="2" class="highlight-available">ស្តុកសរុបសម្រាប់លក់<br>Available for Sale</th>
-                <th colspan="2">ស្តុកចេញ<br>Stock Out</th>
-                <th colspan="2">ស្តុកចុងគ្រា<br>Ending</th>
-                <th class="col-avg" rowspan="2">តម្លៃមធ្យម<br>Avg Price</th>
+                <th style="min-width: 70px;" rowspan="2">Item Code</th>
+                <th style="min-width: 200px;" rowspan="2">Description</th>
+                <th class="col-unit" rowspan="2">Unit</th>
+                <th colspan="3">Beginning</th>
+                <th colspan="2">Stock In</th>
+                <th colspan="2" class="highlight-available">Available for Sale</th>
+                <th colspan="2">Stock Out</th>
+                <th colspan="6">Ending</th>
             </tr>
             <tr>
-                <th>Qty</th><th>Amount</th>
+                <th>Qty</th><th>Unit Price</th><th>Amount</th>
                 <th>Qty</th><th>Amount</th>
                 <th class="highlight-available">Qty</th><th class="highlight-available">Amount</th>
                 <th>Qty</th><th>Amount</th>
-                <th>Qty</th><th>Amount</th>
+                <th>Qty</th><th>Physical Count</th><th>Variance</th><th>Carried forward</th><th>Avg Price</th><th>Amount (USD)</th>
             </tr>
         </thead>
         <tbody>
@@ -170,25 +168,31 @@
             <tr>
                 <td class="text-center">{{ $i + 1 }}</td>
                 <td class="text-center">{{ $item['item_code'] }}</td>
-                <td style="text-align:left;padding-left:5px;">{{ $item['description'] ?? '-' }}</td>
+                <td style="text-align:left;">{{ $item['description'] ?? '-' }}</td>
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
-                <td class="text-center">{{ fmt($item['beginning_quantity']) }}</td>
+                <td class="text-center">{{ fmt($item['beginning_quantity'], 2) }}</td>
+                <td class="text-center">{{ fmt($item['beginning_price']) }}</td>
                 <td class="text-right">{{ fmt($item['beginning_total']) }}</td>
-                <td class="text-center">{{ fmt($item['stock_in_quantity']) }}</td>
+                <td class="text-center">{{ fmt($item['stock_in_quantity'], 2) }}</td>
                 <td class="text-right">{{ fmt($item['stock_in_total']) }}</td>
-                <td class="text-center available-cell">{{ fmt($item['available_quantity']) }}</td>
+                <td class="text-center available-cell">{{ fmt($item['available_quantity'], 2) }}</td>
                 <td class="text-right available-cell">{{ fmt($item['available_total']) }}</td>
-                <td class="text-center">{{ fmt($item['stock_out_quantity']) }}</td>
+                <td class="text-center">{{ fmt($item['stock_out_quantity'], 2) }}</td>
                 <td class="text-right">{{ fmt($item['stock_out_total']) }}</td>
-                <td class="text-center">{{ fmt($item['ending_quantity']) }}</td>
-                <td class="text-right">{{ fmt($item['ending_total']) }}</td>
+                <td class="text-center">{{ fmt($item['ending_quantity'], 2) }}</td>
+                <td class="text-right">{{ fmt(0) }}</td>
+                <td class="text-center">{{ fmt(0) }}</td>
+                <td class="text-right">{{ fmt(0) }}</td>
                 <td class="text-right">{{ fmt($item['average_price']) }}</td>
+                <td class="text-right">{{ fmt($item['ending_total']) }}</td>
             </tr>
             @endforeach
+
             <!-- Total row -->
             <tr class="total-row">
                 <td colspan="4" class="text-center">សរុប<br>Total</td>
                 <td class="text-center">{{ fmt($reportData->sum('beginning_quantity'), 2) }}</td>
+                <td class="text-center">-</td>
                 <td class="text-right">{{ fmt($reportData->sum('beginning_total'), 2) }}</td>
                 <td class="text-center">{{ fmt($reportData->sum('stock_in_quantity'), 2) }}</td>
                 <td class="text-right">{{ fmt($reportData->sum('stock_in_total'), 2) }}</td>
@@ -198,54 +202,56 @@
                 <td class="text-right">{{ fmt($reportData->sum('stock_out_total'), 2) }}</td>
                 <td class="text-center">{{ fmt($reportData->sum('ending_quantity'), 2) }}</td>
                 <td class="text-right">{{ fmt($reportData->sum('ending_total'), 2) }}</td>
+                <td class="text-center">{{ fmt($reportData->sum('ending_quantity'), 2) }}</td>
+                <td class="text-right">{{ fmt($reportData->avg('average_price'), 2) }}</td>
+                <td class="text-right">{{ fmt($reportData->avg('average_price'), 2) }}</td>
                 <td></td>
             </tr>
         </tbody>
     </table>
 
-    <!-- Signature section: 1 Prepared + 3 approvals (fixed 4 boxes) -->
-@if(!empty($created_by) || !empty($approvalBoxes))
-<div class="signature-section">
+    <!-- Signature section -->
+    @if(!empty($created_by) || !empty($approvalBoxes))
+    <div class="signature-section">
 
-    <!-- Prepared by -->
-    @if(!empty($created_by))
-    <div class="signature-box">
-        <div class="signature-image-box"></div>
-        <div class="signature-line"></div>
-        <div class="signature-info">
-            <strong>Prepared by</strong><br>
-            ឈ្មោះ/Name: {{$created_by}}<br>
-            តួនាទី/Position: {{$creator_position ?? '-'}}<br>
-            កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
+        <!-- Prepared by -->
+        @if(!empty($created_by))
+        <div class="signature-box">
+            <div class="signature-image-box"></div>
+            <div class="signature-line"></div>
+            <div class="signature-info">
+                <strong>Prepared by</strong><br>
+                ឈ្មោះ/Name: {{$created_by}}<br>
+                តួនាទី/Position: {{$creator_position ?? '-'}}<br>
+                កាលបរិច្ឆេទ/Date: {{ $created_at ?? '-' }}
+            </div>
         </div>
+        @endif
+
+        <!-- Approvals -->
+        @if(!empty($approvalBoxes))
+            @foreach($approvalBoxes as $appr)
+                @if(!empty($appr['user_name']))
+                <div class="signature-box">
+                    <div class="signature-image-box">
+                        @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'approved' && !empty($appr['signature_url']))
+                            <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                        @endif
+                    </div>
+                    <div class="signature-line"></div>
+                    <div class="signature-info">
+                        <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
+                        ឈ្មោះ/Name: {{ $appr['user_name'] }}<br>
+                        តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
+                        កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
+                    </div>
+                </div>
+                @endif
+            @endforeach
+        @endif
+
     </div>
     @endif
-
-    <!-- 3 Approvals -->
-    @if(!empty($approvalBoxes))
-        @foreach($approvalBoxes as $appr)
-            @if(!empty($appr['user_name']))
-            <div class="signature-box">
-                <div class="signature-image-box">
-                    @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'approved' && !empty($appr['signature_url']))
-                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
-                    @endif
-                </div>
-                <div class="signature-line"></div>
-                <div class="signature-info">
-                    <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
-                    ឈ្មោះ/Name: {{ $appr['user_name'] }}<br>
-                    តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
-                    កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
-                </div>
-            </div>
-            @endif
-        @endforeach
-    @endif
-
-</div>
-@endif
-
 
 </div>
 </body>

@@ -267,7 +267,7 @@ const currentActionButtonLabel = computed(() => currentAction.value === 'approve
 // --- Fetch Report ---
 const fetchStockReport = async () => {
   try {
-    const res = await axios.get(`/api/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/details`)
+    const res = await axios.get(`/api/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/show`)
     Object.assign(reportParams.value, res.data)
     warehouseNames.value = res.data.warehouse_names || 'All Warehouses'
     stockItems.value = res.data.report || []
@@ -280,7 +280,7 @@ const fetchStockReport = async () => {
 }
 
 // --- PDF Modal ---
-const openPdfModal = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/show`)
+const openPdfModal = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
 
 // --- Approval Handling ---
 const openConfirmModal = (action) => {

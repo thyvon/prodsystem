@@ -219,7 +219,7 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
-    public function show(MonthlyStockReport $monthlyStockReport)
+    public function showpdf(MonthlyStockReport $monthlyStockReport)
     {
         // Load relationships
         $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
@@ -261,6 +261,7 @@ class StockController extends Controller
         Browsershot::html($html)
             ->noSandbox()
             ->setDelay(40)                  // small delay for tables to render
+            ->showBackground()
             ->setTemporaryFolder('/tmp/chromium')
             ->emulateMedia('print')
             ->format('A4')
@@ -305,6 +306,14 @@ class StockController extends Controller
 
         $data = $this->prepareReportData($monthlyStockReport);
         $approvalInfo = $this->canShowApprovalButton($monthlyStockReport->id);
+
+        if ($approvalInfo['showButton']) {
+            $monthlyStockReport->approvals()
+                ->where('responder_id', auth()->id())
+                ->where('approval_status', 'Pending')
+                ->where('is_seen', false)
+                ->update(['is_seen' => true]);
+        }
 
         return response()->json([
             'report'          => $data['report']->values(),
@@ -603,6 +612,7 @@ class StockController extends Controller
             $outQty   += $out['quantity'];       $outTotal   += $out['total_price'];
         }
 
+        $beginAvgPrice = $beginQty != 0 ? $beginTotal / $beginQty : 0;
         $endingQty = $beginQty + $inQty + $outQty;
         $avgPrice  = $this->avgPrice($productId, $endDate);
         $endingTotal = $endingQty * $avgPrice;
@@ -613,6 +623,7 @@ class StockController extends Controller
             'description'         => trim($variant->product->name . ' ' . $variant->description),
             'unit_name'           => $variant->product->unit->name ?? '',
             'beginning_quantity'  => round($beginQty, 6),
+            'beginning_price'     => round($beginAvgPrice, 6),
             'beginning_total'     => round($beginTotal, 6),
             'stock_in_quantity'   => round($inQty, 6),
             'stock_in_total'      => round($inTotal, 6),

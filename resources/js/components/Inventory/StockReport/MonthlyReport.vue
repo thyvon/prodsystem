@@ -50,12 +50,12 @@ const datatableHeaders = [
 ]
 
 const datatableFetchUrl = '/api/inventory/stock-reports/monthly-report'
-const datatableActions = ['detail', 'edit', 'delete'] // Removed 'preview'
+const datatableActions = ['preview', 'edit', 'delete'] // Removed 'preview'
 const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
 
 // -------------------- DATATABLE HANDLERS --------------------
 const createMonthlyReport = () => window.location.href = '/inventory/stock-reports/monthly-report/create'
-const handleView = report => window.location.href = `/inventory/stock-reports/monthly-report/${report.id}/details`
+const handleView = report => window.location.href = `/inventory/stock-reports/monthly-report/${report.id}/show`
 const handleEdit = report => window.location.href = `/inventory/stock-reports/monthly-report/${report.id}/edit`
 
 const handleDelete = async report => {
@@ -76,7 +76,7 @@ const handleDelete = async report => {
 }
 
 // DATATABLE EVENTS
-const datatableHandlers = { detail: handleView, edit: handleEdit, delete: handleDelete } // Removed 'preview'
+const datatableHandlers = { preview: handleView, edit: handleEdit, delete: handleDelete } // Removed 'preview'
 const handleSortChange = ({ column, direction }) => { datatableParams.sortColumn = column; datatableParams.sortDirection = direction }
 const handlePageChange = page => datatableParams.page = page
 const handleLengthChange = length => datatableParams.limit = length

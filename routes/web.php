@@ -254,9 +254,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-reports.monthly-report.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])
             ->name('stock-reports.monthly-report');
-        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'show'])
-            ->name('stock-reports.monthly-report.show');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/details', [StockController::class, 'showDetails'])
+        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/showpdf', [StockController::class, 'showpdf'])
+            ->name('stock-reports.monthly-report.showpdf');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'showDetails'])
             ->name('stock-reports.monthly-report.show');
     });
 
@@ -276,6 +276,9 @@ Route::middleware(['auth'])->group(function () {
         //Purchase Request View
         Route::get('/approvals/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'show'])
         ->name('approvals-purchase-requests.show');
+        //Monthly Stock Report View
+        Route::get('/approvals/monthly-stock-reports/{monthlyStockReport}/show', [StockController::class, 'showDetails'])
+        ->name('approvals-monthly-stock-reports.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])

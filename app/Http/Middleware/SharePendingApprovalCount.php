@@ -84,6 +84,7 @@ class SharePendingApprovalCount
             'App\\Models\\StockTransfer' => 'stock-transfers',
             'App\\Models\\DigitalDocsApproval' => 'digital-docs-approvals',
             'App\\Models\\PurchaseRequest' => 'purchase-requests',
+            'App\\Models\\MonthlyStockReport' => 'monthly-stock-reports',
         ];
 
         $slug = $typeMap[$approval->approvable_type] ?? null;

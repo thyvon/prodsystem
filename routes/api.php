@@ -345,7 +345,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-reports/{monthlyStockReport}/reassign-approval', [StockController::class, 'reassignResponder'])->name('api.stock-reports.reassign-approval');
         Route::get('/stock-reports/{monthlyStockReport}/edit', [StockController::class, 'getEditData'])->name('api.stock-reports.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->name('api.stock-reports.monthly-report');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/details', [StockController::class, 'getDetails'])->name('api.stock-reports.monthly-report.details');
+        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->name('api.stock-reports.monthly-report.details');
 
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');
