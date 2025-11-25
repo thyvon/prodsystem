@@ -1,16 +1,22 @@
+# -----------------------------------------------------------
 # Dockerfile (Debian, PHP 8.3 FPM) - optimized for low-RAM servers
+# -----------------------------------------------------------
+
 FROM php:8.3-fpm
 
+# -----------------------------------------------------------
 # Non-interactive apt
+# -----------------------------------------------------------
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Puppeteer/Chromium path for Browsershot
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Set working directory
 WORKDIR /var/www
 
 # -----------------------------------------------------------
-# 1) Install system dependencies, fonts, chromium, nodejs
+# 1) Install runtime dependencies, build tools, fonts, chromium, nodejs
 # -----------------------------------------------------------
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -34,7 +40,7 @@ RUN apt-get update \
     fonts-khmeros-core || true \
     fonts-poppins || true \
     \
-    # build tools for PHP extensions
+    # PHP build tools
     libpng-dev \
     libjpeg-dev \
     libwebp-dev \
@@ -46,17 +52,20 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------
-# 2) Install wkhtmltopdf 0.12.6 (Buster .deb)
+# 2) Install wkhtmltopdf 0.12.6 (Debian Buster .deb)
 # -----------------------------------------------------------
-RUN set -eux; \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends xfonts-75dpi xfonts-base \
+ && set -eux; \
     WK_VER="0.12.6"; \
     WK_DEB="wkhtmltox_${WK_VER}-1.buster_amd64.deb"; \
     wget -q "https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/${WK_VER}/${WK_DEB}" -O "/tmp/${WK_DEB}"; \
     dpkg -i "/tmp/${WK_DEB}" || (apt-get update && apt-get install -y -f --no-install-recommends); \
     rm -f "/tmp/${WK_DEB}"; \
+    # create global symlinks
     if [ -f /usr/local/bin/wkhtmltox/bin/wkhtmltopdf ]; then \
-      ln -sf /usr/local/bin/wkhtmltox/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf; \
-      ln -sf /usr/local/bin/wkhtmltox/bin/wkhtmltoimage /usr/local/bin/wkhtmltoimage; \
+        ln -sf /usr/local/bin/wkhtmltox/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf; \
+        ln -sf /usr/local/bin/wkhtmltox/bin/wkhtmltoimage /usr/local/bin/wkhtmltoimage; \
     fi
 
 # -----------------------------------------------------------
@@ -72,21 +81,22 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     opcache
 
 # -----------------------------------------------------------
-# 4) Copy opcache config if you have one (optional)
+# 4) Copy opcache config (optional)
 # -----------------------------------------------------------
 # COPY ./docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # -----------------------------------------------------------
-# 5) Composer (copy from official composer image)
+# 5) Install Composer
 # -----------------------------------------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # -----------------------------------------------------------
-# 6) Copy application files
+# 6) Copy app files (composer first for caching)
 # -----------------------------------------------------------
 COPY composer.json composer.lock ./
-# Uncomment the next line if you want vendor installed at build time
+# Uncomment the next line if you want to install vendor dependencies at build time
 # RUN composer install --no-dev --optimize-autoloader --no-interaction --no-plugins --no-scripts
+
 COPY . .
 
 # -----------------------------------------------------------
@@ -97,12 +107,13 @@ RUN mkdir -p /usr/local/share/fonts/custom \
  && fc-cache -f -v
 
 # -----------------------------------------------------------
-# 8) Clean up (APT caches, temp files)
+# 8) Clean up apt caches and temp files
 # -----------------------------------------------------------
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN apt-get clean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # -----------------------------------------------------------
-# 9) Expose and run
+# 9) Expose and run PHP-FPM
 # -----------------------------------------------------------
 EXPOSE 9000
 CMD ["php-fpm"]
