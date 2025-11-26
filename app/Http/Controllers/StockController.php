@@ -234,17 +234,95 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
+    // public function showpdf(MonthlyStockReport $monthlyStockReport)
+    // {
+    //     $this->authorize('view', $monthlyStockReport);
+
+    //     // Load relationships
+    //     // $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+
+    //     // Label mapping
+    //     $mapLabel = [
+    //         'verify'       => 'Verified By',
+    //         'check'      => 'Checked By',
+    //         'acknowledge' => 'Acknowledged By',
+    //     ];
+
+    //     // Transform approvals
+    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+    //         $typeKey = strtolower($approval->request_type);
+
+    //         return [
+    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
+    //             'position_name'      => $approval->responderPosition?->title ?? null,
+    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
+    //             'approval_status'    => $approval->approval_status,
+    //             'responded_date'     => $approval->responded_date,
+    //             'comment'            => $approval->comment,
+    //             'signature_url'      => $approval->responder?->signature_url ?? null,
+    //         ];
+    //     })->toArray();
+
+    //     // Prepare PDF data
+    //     $data = $this->prepareReportData($monthlyStockReport);
+    //     $data['approvals'] = $approvals;
+
+    //     // Render HTML
+    //     $html = view('Inventory.stock-report.print-report', $data)->render();
+
+    //     // Path to output PDF
+    //     $fileName = 'Stock_Report.pdf';
+    //     $filePath = storage_path('app/public/' . $fileName);
+
+    //     // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
+    //     Browsershot::html($html)
+    //         ->noSandbox()
+    //         ->setDelay(40)                  // small delay for tables to render
+    //         ->showBackground()
+    //         ->setTemporaryFolder('/tmp/chromium')
+    //         ->emulateMedia('print')
+    //         ->format('A4')
+    //         ->margins(5, 3, 5, 3) // top, right, bottom, left
+    //         ->landscape()
+    //         ->timeout(40)
+
+    //         // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
+    //         ->addChromiumArguments([
+    //             '--disable-gpu',
+    //             '--disable-dev-shm-usage',
+    //             '--no-zygote',
+    //             '--single-process',           // <-- low memory
+    //             '--no-sandbox',
+    //             '--disable-setuid-sandbox',
+    //             '--disable-software-rasterizer',
+    //             '--disable-extensions',
+    //             '--blink-settings=imagesEnabled=true',
+    //             '--font-render-hinting=none',
+    //             '--no-first-run',
+    //             '--no-default-browser-check',
+    //         ])
+    //         ->save($filePath);
+
+    //     // Return PDF response
+    //     return response()->file($filePath);
+    // }
+
     public function showpdf(MonthlyStockReport $monthlyStockReport)
     {
         $this->authorize('view', $monthlyStockReport);
 
-        // Load relationships
-        // $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+        // Eager-load all relationships to reduce DB queries
+        $monthlyStockReport->load([
+            'creator',
+            'creatorPosition',
+            'approvals.responder',
+            'approvals.responderPosition',
+        ]);
 
-        // Label mapping
+        // Map approval labels
         $mapLabel = [
-            'verify'       => 'Verified By',
-            'check'      => 'Checked By',
+            'verify'      => 'Verified By',
+            'check'       => 'Checked By',
             'acknowledge' => 'Acknowledged By',
         ];
 
@@ -253,45 +331,46 @@ class StockController extends Controller
             $typeKey = strtolower($approval->request_type);
 
             return [
-                'user_name'          => $approval->responder?->name ?? 'Unknown',
-                'position_name'      => $approval->responderPosition?->title ?? null,
-                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
+                'user_name'          => $approval->responder->name ?? 'Unknown',
+                'position_name'      => $approval->responderPosition->title ?? null,
+                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
                 'approval_status'    => $approval->approval_status,
                 'responded_date'     => $approval->responded_date,
                 'comment'            => $approval->comment,
-                'signature_url'      => $approval->responder?->signature_url ?? null,
+                'signature_url'      => $approval->responder->signature_url ?? null,
             ];
         })->toArray();
 
-        // Prepare PDF data
+        // Prepare report data
         $data = $this->prepareReportData($monthlyStockReport);
         $data['approvals'] = $approvals;
 
-        // Render HTML
+        // Render HTML for PDF
         $html = view('Inventory.stock-report.print-report', $data)->render();
 
-        // Path to output PDF
-        $fileName = 'Stock_Report.pdf';
-        $filePath = storage_path('app/public/' . $fileName);
+        // Temporary file in system temp folder
+        $tempDir = sys_get_temp_dir();
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0777, true);
+        }
+        $filePath = $tempDir . '/Stock_Report_' . now()->timestamp . '.pdf';
 
-        // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
+        // Generate PDF (optimized for low RAM / CPU)
         Browsershot::html($html)
             ->noSandbox()
-            ->setDelay(40)                  // small delay for tables to render
             ->showBackground()
-            ->setTemporaryFolder('/tmp/chromium')
             ->emulateMedia('print')
             ->format('A4')
-            ->margins(5, 3, 5, 3) // top, right, bottom, left
             ->landscape()
-            ->timeout(40)
-
-            // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
+            ->margins(5, 3, 5, 3)
+            ->setDelay(40)
+            ->timeout(60)
+            ->setTemporaryFolder($tempDir)
             ->addChromiumArguments([
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
                 '--no-zygote',
-                '--single-process',           // <-- low memory
+                '--single-process',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-software-rasterizer',
@@ -300,10 +379,17 @@ class StockController extends Controller
                 '--font-render-hinting=none',
                 '--no-first-run',
                 '--no-default-browser-check',
+                '--disable-background-timer-throttling',
+                '--disable-renderer-backgrounding',
             ])
             ->save($filePath);
 
-        // Return PDF response
+        // Auto-delete PDF after response is sent
+        register_shutdown_function(function () use ($filePath) {
+            @unlink($filePath);
+        });
+
+        // Stream PDF to browser (same behavior as before)
         return response()->file($filePath);
     }
 
