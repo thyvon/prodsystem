@@ -254,10 +254,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-reports.monthly-report.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'monthlyReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.monthly-report');
-        Route::get('/stock-reports/monthly-report/{monthlyStockReport}/showpdf', [StockController::class, 'showpdf'])->middleware('can:view,monthlyStockReport')
+        Route::post('/stock-reports/monthly-report/{monthlyStockReport}/showpdf', [StockController::class, 'showpdf'])->middleware('can:view,monthlyStockReport')
             ->name('stock-reports.monthly-report.showpdf');
-        Route::get('/stock-reports/{monthlyStockReport}/pdf-check', [StockController::class, 'checkPdfReady'])
-            ->name('stock-reports.pdf.check');
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'showDetails'])->middleware('can:view,monthlyStockReport')
             ->name('stock-reports.monthly-report.show');
     });
