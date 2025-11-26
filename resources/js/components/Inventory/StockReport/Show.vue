@@ -285,21 +285,25 @@ const fetchStockReport = async () => {
 // --- PDF Modal ---
 const downloadPdf = async () => {
   try {
-    const checkUrl = `/inventory/stock-reports/${props.monthlyStockReportId}/pdf-check`;
+    const startUrl = `/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`;
+    const startRes = await axios.get(startUrl);
+
+    const checkUrl = startRes.data.check_url; // USE THE CORRECT URL
+
     let isReady = false;
     let attempts = 0;
-    const maxAttempts = 15; // max wait cycles
-    const delay = 2000; // 2 seconds between polls
+    const maxAttempts = 15;
+    const delay = 2000;
 
     while (!isReady && attempts < maxAttempts) {
       attempts++;
+
       try {
         const res = await axios.get(checkUrl, { responseType: 'blob' });
-        
-        // If the response is a PDF blob, download it
-        const contentType = res.headers['content-type'];
-        if (contentType === 'application/pdf') {
+
+        if (res.headers['content-type'] === 'application/pdf') {
           isReady = true;
+
           const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
           const link = document.createElement('a');
           link.href = url;
@@ -310,9 +314,7 @@ const downloadPdf = async () => {
           window.URL.revokeObjectURL(url);
           break;
         }
-      } catch (err) {
-        // PDF not ready yet, wait before next attempt
-      }
+      } catch (_) {}
 
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -320,11 +322,11 @@ const downloadPdf = async () => {
     if (!isReady) {
       showAlert('Info', 'PDF is still generating. Please try again later.', 'info');
     }
+
   } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to download PDF', 'danger');
   }
-}
-
+};
 
 
 // --- Approval Handling ---

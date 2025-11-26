@@ -399,7 +399,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'PDF generation started. You can download it when ready.',
-            'check_url' => route('stock-report.pdf.check', $monthlyStockReport->id)
+            'check_url' => route('stock-reports.pdf.check', $monthlyStockReport->id)
         ]);
     }
 

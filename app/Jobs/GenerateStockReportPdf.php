@@ -23,82 +23,107 @@ class GenerateStockReportPdf implements ShouldQueue
         $this->monthlyStockReport = $monthlyStockReport;
     }
 
-public function handle()
-{
-    $report = $this->monthlyStockReport->load([
-        'creator',
-        'creatorPosition',
-        'approvals.responder',
-        'approvals.responderPosition',
-    ]);
+    public function handle()
+    {
+        $report = $this->monthlyStockReport->load([
+            'creator',
+            'creatorPosition',
+            'approvals.responder',
+            'approvals.responderPosition',
+        ]);
 
-    Log::info('GenerateStockReportPdf started', ['report_id' => $report->id]);
+        Log::info('GenerateStockReportPdf started', [
+            'report_id' => $report->id
+        ]);
 
-    $mapLabel = [
-        'verify'      => 'Verified By',
-        'check'       => 'Checked By',
-        'acknowledge' => 'Acknowledged By',
-    ];
+        // ============================
+        // 1. Delete all OLD pdf files
+        // ============================
+        Storage::disk('public')->makeDirectory('pdf'); // ensure folder exists
 
-    $approvals = $report->approvals->map(function ($approval) use ($mapLabel) {
-        $typeKey = strtolower($approval->request_type);
-        return [
-            'user_name'          => $approval->responder->name ?? 'Unknown',
-            'position_name'      => $approval->responderPosition->title ?? null,
-            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-            'approval_status'    => $approval->approval_status,
-            'responded_date'     => $approval->responded_date,
-            'comment'            => $approval->comment,
-            'signature_url'      => $approval->responder->signature_url ?? null,
+        $files = Storage::disk('public')->files('pdf');
+        foreach ($files as $file) {
+            Storage::disk('public')->delete($file);
+        }
+
+        Log::info('Old PDFs deleted', [
+            'report_id' => $report->id,
+            'deleted_files' => $files
+        ]);
+
+        // Map approval labels
+        $mapLabel = [
+            'verify'      => 'Verified By',
+            'check'       => 'Checked By',
+            'acknowledge' => 'Acknowledged By',
         ];
-    })->toArray();
 
-    $data = app(\App\Http\Controllers\StockController::class)
-                ->prepareReportData($report);
-    $data['approvals'] = $approvals;
+        $approvals = $report->approvals->map(function ($approval) use ($mapLabel) {
+            $typeKey = strtolower($approval->request_type);
+            return [
+                'user_name'          => $approval->responder->name ?? 'Unknown',
+                'position_name'      => $approval->responderPosition->title ?? null,
+                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+                'approval_status'    => $approval->approval_status,
+                'responded_date'     => $approval->responded_date,
+                'comment'            => $approval->comment,
+                'signature_url'      => $approval->responder->signature_url ?? null,
+            ];
+        })->toArray();
 
-    $html = view('Inventory.stock-report.print-report', $data)->render();
+        // Prepare report data
+        $data = app(\App\Http\Controllers\StockController::class)
+                    ->prepareReportData($report);
 
-    $fileName = 'Stock_Report_' . $report->id . '_' . now()->timestamp . '.pdf';
+        $data['approvals'] = $approvals;
 
-    Storage::disk('public')->makeDirectory('pdf'); // ensure folder exists
-    $pdfContent = Browsershot::html($html)
-        ->noSandbox()
-        ->showBackground()
-        ->emulateMedia('print')
-        ->format('A4')
-        ->landscape()
-        ->margins(5, 3, 5, 3)
-        ->setDelay(40)
-        ->timeout(60)
-        ->setTemporaryFolder(sys_get_temp_dir())
-        ->addChromiumArguments([
-            '--disable-gpu',
-            '--disable-dev-shm-usage',
-            '--no-zygote',
-            '--single-process',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-software-rasterizer',
-            '--disable-extensions',
-            '--blink-settings=imagesEnabled=true',
-            '--font-render-hinting=none',
-            '--no-first-run',
-            '--no-default-browser-check',
-            '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding',
-        ])
-        ->pdf();
+        $html = view('Inventory.stock-report.print-report', $data)->render();
 
-    Storage::disk('public')->put('pdf/' . $fileName, $pdfContent);
+        // New file name
+        $fileName = 'Stock_Report_' . $report->id . '_' . now()->timestamp . '.pdf';
+        $savePath = 'pdf/' . $fileName;
 
-    $report->pdf_file_path = 'pdf/' . $fileName;
-    $report->save();
+        // ============================
+        // 2. Generate new PDF
+        // ============================
+        $pdfContent = Browsershot::html($html)
+            ->noSandbox()
+            ->showBackground()
+            ->emulateMedia('print')
+            ->format('A4')
+            ->landscape()
+            ->margins(5, 3, 5, 3)
+            ->setDelay(40)
+            ->timeout(60)
+            ->setTemporaryFolder(sys_get_temp_dir())
+            ->addChromiumArguments([
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--no-zygote',
+                '--single-process',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-software-rasterizer',
+                '--disable-extensions',
+                '--blink-settings=imagesEnabled=true',
+                '--font-render-hinting=none',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-background-timer-throttling',
+                '--disable-renderer-backgrounding',
+            ])
+            ->pdf();
 
-    Log::info('GenerateStockReportPdf finished', [
-        'report_id' => $report->id,
-        'path' => $report->pdf_file_path
-    ]);
-}
+        Storage::disk('public')->put($savePath, $pdfContent);
 
+        // Save path to DB
+        $report->update([
+            'pdf_file_path' => $savePath
+        ]);
+
+        Log::info('GenerateStockReportPdf finished', [
+            'report_id' => $report->id,
+            'path'      => $savePath
+        ]);
+    }
 }
