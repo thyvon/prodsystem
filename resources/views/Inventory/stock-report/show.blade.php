@@ -6,7 +6,7 @@
     /* TW Cen MT */
     @font-face {
         font-family: 'TW Cen MT';
-        src: url('/fonts/TWCenMT.ttf') format('truetype');
+        src: url('/fonts/TwCenMT.ttf') format('truetype');
         font-weight: 400;
         font-style: normal;
         font-display: swap;
