@@ -236,79 +236,93 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
-    // public function showpdf(MonthlyStockReport $monthlyStockReport)
-    // {
-    //     $this->authorize('view', $monthlyStockReport);
+public function showpdf(MonthlyStockReport $monthlyStockReport)
+{
+    $this->authorize('view', $monthlyStockReport);
 
-    //     // Load relationships
-    //     // $monthlyStockReport->load(['approvals.responder', 'approvals.responderPosition']);
+    // Label mapping
+    $mapLabel = [
+        'verify'       => 'Verified By',
+        'check'        => 'Checked By',
+        'acknowledge'  => 'Acknowledged By',
+    ];
 
-    //     // Label mapping
-    //     $mapLabel = [
-    //         'verify'       => 'Verified By',
-    //         'check'      => 'Checked By',
-    //         'acknowledge' => 'Acknowledged By',
-    //     ];
+    // Transform approvals
+    $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+        $typeKey = strtolower($approval->request_type);
 
-    //     // Transform approvals
-    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-    //         $typeKey = strtolower($approval->request_type);
+        return [
+            'user_name'          => $approval->responder?->name ?? 'Unknown',
+            'position_name'      => $approval->responderPosition?->title ?? null,
+            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
+            'approval_status'    => $approval->approval_status,
+            'responded_date'     => $approval->responded_date,
+            'comment'            => $approval->comment,
+            'signature_url'      => $approval->responder?->signature_url ?? null,
+        ];
+    })->toArray();
 
-    //         return [
-    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
-    //             'position_name'      => $approval->responderPosition?->title ?? null,
-    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
-    //             'approval_status'    => $approval->approval_status,
-    //             'responded_date'     => $approval->responded_date,
-    //             'comment'            => $approval->comment,
-    //             'signature_url'      => $approval->responder?->signature_url ?? null,
-    //         ];
-    //     })->toArray();
+    // Prepare PDF data
+    $data = $this->prepareReportData($monthlyStockReport);
+    $data['approvals'] = $approvals;
 
-    //     // Prepare PDF data
-    //     $data = $this->prepareReportData($monthlyStockReport);
-    //     $data['approvals'] = $approvals;
+    // Render HTML
+    $html = view('Inventory.stock-report.print-report', $data)->render();
 
-    //     // Render HTML
-    //     $html = view('Inventory.stock-report.print-report', $data)->render();
+    $fileName = 'Stock_Report.pdf';
+    $filePath = storage_path('app/public/' . $fileName);
 
-    //     // Path to output PDF
-    //     $fileName = 'Stock_Report.pdf';
-    //     $filePath = storage_path('app/public/' . $fileName);
+    // ⚡ ULTRA LOW CPU + LOW RAM CONFIG ⚡
+    Browsershot::html($html)
+        ->noSandbox()
 
-    //     // ---- ULTRA LOW RAM + FAST BROWSERSHOT CONFIG ----
-    //     Browsershot::html($html)
-    //         ->noSandbox()
-    //         ->setDelay(40)                  // small delay for tables to render
-    //         ->showBackground()
-    //         ->setTemporaryFolder('/tmp/chromium')
-    //         ->emulateMedia('print')
-    //         ->format('A4')
-    //         ->margins(5, 3, 5, 3) // top, right, bottom, left
-    //         ->landscape()
-    //         ->timeout(40)
+        // ✓ Reduce CPU by skipping heavy rendering
+        ->emulateMedia('print')
+        ->showBackground()
 
-    //         // ⬇ *THE MOST IMPORTANT PART FOR LOW RAM*
-    //         ->addChromiumArguments([
-    //             '--disable-gpu',
-    //             '--disable-dev-shm-usage',
-    //             '--no-zygote',
-    //             '--single-process',           // <-- low memory
-    //             '--no-sandbox',
-    //             '--disable-setuid-sandbox',
-    //             '--disable-software-rasterizer',
-    //             '--disable-extensions',
-    //             '--blink-settings=imagesEnabled=true',
-    //             '--font-render-hinting=none',
-    //             '--no-first-run',
-    //             '--no-default-browser-check',
-    //         ])
-    //         ->save($filePath);
+        // ✓ Reduce CPU & RAM by disabling expensive features
+        ->addChromiumArguments([
+            '--disable-gpu',
+            '--blink-settings=imagesEnabled=true',
+            '--disable-extensions',
+            '--disable-dev-shm-usage',
+            '--disable-software-rasterizer',
+            '--single-process',            // MOST IMPORTANT FOR LOW CPU
+            '--no-zygote',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--no-first-run',
+            '--no-default-browser-check',
 
-    //     // Return PDF response
-    //     return response()->file($filePath);
-    // }
+            // ↓↓↓ These reduce CPU load drastically ↓↓↓
+            '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-breakpad',
+            '--disable-ipc-flooding-protection',
+            '--disable-renderer-backgrounding',
+            '--disable-client-side-phishing-detection',
+            '--disable-hang-monitor',
+            '--disable-popup-blocking',
+            '--disable-sync',
+            '--metrics-recording-only',
+            '--mute-audio',
+        ])
 
+        // ✓ Lower delay (CPU-friendly)
+        ->setDelay(20)
+
+        ->format('A4')
+        ->landscape()
+        ->margins(5, 3, 5, 3)
+        ->timeout(40)
+        ->setTemporaryFolder('/tmp/chromium')
+
+        ->save($filePath);
+
+    return response()->file($filePath);
+}
 
     public function generateStockReportPdf(Request $request)
     {
@@ -374,45 +388,6 @@ class StockController extends Controller
 
         // Return PDF inline
         return response()->file($filePath);
-    }
-
-    public function showpdf(MonthlyStockReport $monthlyStockReport)
-    {
-        $this->authorize('view', $monthlyStockReport);
-
-        // Log that the PDF generation is requested
-        Log::info('PDF generation requested', [
-            'report_id' => $monthlyStockReport->id,
-            'user_id' => auth()->id(),
-            'timestamp' => now()->toDateTimeString(),
-        ]);
-
-        // Dispatch the job
-        \App\Jobs\GenerateStockReportPdf::dispatch($monthlyStockReport);
-
-        // Log that the job was dispatched
-        Log::info('GenerateStockReportPdf job dispatched', [
-            'report_id' => $monthlyStockReport->id,
-            'user_id' => auth()->id(),
-            'timestamp' => now()->toDateTimeString(),
-        ]);
-
-        return response()->json([
-            'message' => 'PDF generation started. You can download it when ready.',
-            'check_url' => route('stock-reports.pdf.check', $monthlyStockReport->id)
-        ]);
-    }
-
-    public function checkPdfReady(MonthlyStockReport $monthlyStockReport)
-    {
-        if ($monthlyStockReport->pdf_file_path && Storage::exists('public/' . $monthlyStockReport->pdf_file_path)) {
-            return response()->download(storage_path('app/public/' . $monthlyStockReport->pdf_file_path));
-        }
-
-        return response()->json([
-            'message' => 'PDF is not ready yet.',
-            'ready' => false
-        ]);
     }
 
 
