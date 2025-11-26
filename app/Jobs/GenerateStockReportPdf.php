@@ -93,26 +93,26 @@ class GenerateStockReportPdf implements ShouldQueue
             ->format('A4')
             ->landscape()
             ->margins(5, 3, 5, 3)
-            ->setDelay(40)
-            ->timeout(60)
-            ->setTemporaryFolder(sys_get_temp_dir())
+            ->setDelay(20) // lower delay
+            ->timeout(120)
+            ->userAgent('Mozilla/5.0 (X11; Linux x86_64)')
+            ->windowSize(1280, 800) // prevent huge rendering area
+            ->disableJavascript() // <- HUGE CPU SAVER
             ->addChromiumArguments([
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
                 '--no-zygote',
                 '--single-process',
                 '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-software-rasterizer',
                 '--disable-extensions',
-                '--blink-settings=imagesEnabled=true',
-                '--font-render-hinting=none',
-                '--no-first-run',
-                '--no-default-browser-check',
+                '--disable-software-rasterizer',
+                '--disable-background-networking',
                 '--disable-background-timer-throttling',
                 '--disable-renderer-backgrounding',
+                '--disable-sync',
+                '--disable-images', // <- MASSIVE CPU & RAM SAVER
             ])
-            ->pdf();
+        ->pdf();
 
         Storage::disk('public')->put($savePath, $pdfContent);
 
