@@ -9,14 +9,14 @@
         /* TW Cen MT */
         @font-face {
             font-family: 'TW Cen MT';
-            src: url('/fonts/TW-Cen-MT-Regular.ttf') format('truetype');
+            src: url('/fonts/TWCenMT-Regular.ttf') format('truetype');
             font-weight: normal;
             font-style: normal;
             font-display: swap;
         }
         @font-face {
             font-family: 'TW Cen MT';
-            src: url('/fonts/TW-Cen-MT-Bold.ttf') format('truetype');
+            src: url('/fonts/TWCenMT-Bold.ttf') format('truetype');
             font-weight: bold;
             font-style: normal;
             font-display: swap;
