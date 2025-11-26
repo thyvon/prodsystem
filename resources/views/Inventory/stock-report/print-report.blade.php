@@ -14,7 +14,6 @@
             src: url("{{ public_path('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
-        /* Page setup */
         @page {
             size: A4 landscape;
             margin: 5mm;
@@ -33,28 +32,24 @@
             padding: 5px;
         }
 
-        /* Container */
         .page-container { width: 100%; box-sizing: border-box; }
 
-        /* Header */
         .header { text-align: center; margin-bottom: 10px; position: relative; }
         .logo-section { position: absolute; left: 10px; top: 0; }
         .logo-section img { width: 100px; height: auto; }
         .title-section h3 { margin: 0; font-size: 15px; font-weight: bold; }
         .date-range { color: red; font-weight: bold; font-size: 11px; }
 
-        /* Table */
         table.items {
             width: 100%;
             border-collapse: collapse;
             font-size: 12px;
-            /* Allow dynamic column width */
         }
         table.items th, table.items td {
             border: 1px solid #333;
             vertical-align: middle;
             word-wrap: break-word;
-            white-space: normal; /* allow text to wrap */
+            white-space: normal;
         }
         table.items th {
             background-color: #f2f2f2;
@@ -62,23 +57,19 @@
             font-weight: bold;
         }
 
-        /* Optional: max width for descriptions to prevent huge stretching */
         .col-desc { max-width: 300px; }
 
-        /* Alignment classes */
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .highlight-available { background-color: #e6f7e6 !important; }
         .available-cell { background-color: #f8fff8; }
         .total-row td { font-weight: bold; background-color: #f0f0f0; font-size: 12px; }
 
-        /* Repeating header fix */
         thead { display: table-header-group; }
         tbody { display: table-row-group; }
         tfoot { display: table-footer-group; }
         tr { page-break-inside: avoid; }
 
-        /* Signature section - 4 fixed boxes */
         .signature-section {
             margin-top: 20px;
             display: flex;
@@ -110,15 +101,17 @@
 
 @php
     $reportData = $report;
-    function fmt($value, $decimals = 4) {
-        return ($value === null || $value == 0) ? '-' : number_format($value, $decimals);
-    }
-    function fmtDate($dateStr) {
-        return $dateStr ? \Carbon\Carbon::parse($dateStr)->format('M d, Y') : '-';
-    }
 
-    // Ensure exactly 4 boxes: 1 Prepared + 3 approvals
+    // Ensure exactly 3 approval boxes
     $approvalBoxes = array_pad($approvals ?? [], 3, null);
+
+    // Helper closures for formatting
+    $fmt = function($value, $decimals = 4) {
+        return ($value === null || $value == 0) ? '-' : number_format($value, $decimals);
+    };
+    $fmtDate = function($dateStr) {
+        return $dateStr ? \Carbon\Carbon::parse($dateStr)->format('M d, Y') : '-';
+    };
 @endphp
 
 <div class="page-container">
@@ -137,7 +130,7 @@
                     <small style="font-weight:normal; color:#555;">(All Warehouses)</small>
                 @endif
             </h3>
-            <div class="date-range">{{ fmtDate($start_date) }}  -  {{ fmtDate($end_date) }}</div>
+            <div class="date-range">{{ $fmtDate($start_date) }}  -  {{ $fmtDate($end_date) }}</div>
         </div>
     </div>
 
@@ -170,41 +163,41 @@
                 <td class="text-center">{{ $item['item_code'] }}</td>
                 <td style="text-align:left; padding-left: 3px">{{ $item['description'] ?? '-' }}</td>
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
-                <td class="text-center">{{ fmt($item['beginning_quantity'], 2) }}</td>
-                <td class="text-center">{{ fmt($item['beginning_price']) }}</td>
-                <td class="text-right">{{ fmt($item['beginning_total']) }}</td>
-                <td class="text-center">{{ fmt($item['stock_in_quantity'], 2) }}</td>
-                <td class="text-right">{{ fmt($item['stock_in_total']) }}</td>
-                <td class="text-center available-cell">{{ fmt($item['available_quantity'], 2) }}</td>
-                <td class="text-right available-cell">{{ fmt($item['available_total']) }}</td>
-                <td class="text-center">{{ fmt($item['stock_out_quantity'], 2) }}</td>
-                <td class="text-right">{{ fmt($item['stock_out_total']) }}</td>
-                <td class="text-center">{{ fmt($item['ending_quantity'], 2) }}</td>
-                <td class="text-right">{{ fmt(0) }}</td>
-                <td class="text-center">{{ fmt(0) }}</td>
-                <td class="text-right">{{ fmt(0) }}</td>
-                <td class="text-right">{{ fmt($item['average_price']) }}</td>
-                <td class="text-right">{{ fmt($item['ending_total']) }}</td>
+                <td class="text-center">{{ $fmt($item['beginning_quantity'], 2) }}</td>
+                <td class="text-center">{{ $fmt($item['beginning_price']) }}</td>
+                <td class="text-right">{{ $fmt($item['beginning_total']) }}</td>
+                <td class="text-center">{{ $fmt($item['stock_in_quantity'], 2) }}</td>
+                <td class="text-right">{{ $fmt($item['stock_in_total']) }}</td>
+                <td class="text-center available-cell">{{ $fmt($item['available_quantity'], 2) }}</td>
+                <td class="text-right available-cell">{{ $fmt($item['available_total']) }}</td>
+                <td class="text-center">{{ $fmt($item['stock_out_quantity'], 2) }}</td>
+                <td class="text-right">{{ $fmt($item['stock_out_total']) }}</td>
+                <td class="text-center">{{ $fmt($item['ending_quantity'], 2) }}</td>
+                <td class="text-right">{{ $fmt(0) }}</td>
+                <td class="text-center">{{ $fmt(0) }}</td>
+                <td class="text-right">{{ $fmt(0) }}</td>
+                <td class="text-right">{{ $fmt($item['average_price']) }}</td>
+                <td class="text-right">{{ $fmt($item['ending_total']) }}</td>
             </tr>
             @endforeach
 
             <!-- Total row -->
             <tr class="total-row">
                 <td colspan="4" class="text-center">សរុប<br>Total</td>
-                <td class="text-center">{{ fmt($reportData->sum('beginning_quantity'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('beginning_quantity'), 2) }}</td>
                 <td class="text-center">-</td>
-                <td class="text-right">{{ fmt($reportData->sum('beginning_total'), 2) }}</td>
-                <td class="text-center">{{ fmt($reportData->sum('stock_in_quantity'), 2) }}</td>
-                <td class="text-right">{{ fmt($reportData->sum('stock_in_total'), 2) }}</td>
-                <td class="text-center available-cell">{{ fmt($reportData->sum('available_quantity'), 2) }}</td>
-                <td class="text-right available-cell">{{ fmt($reportData->sum('available_total'), 2) }}</td>
-                <td class="text-center">{{ fmt($reportData->sum('stock_out_quantity'), 2) }}</td>
-                <td class="text-right">{{ fmt($reportData->sum('stock_out_total'), 2) }}</td>
-                <td class="text-center">{{ fmt($reportData->sum('ending_quantity'), 2) }}</td>
-                <td class="text-right">{{ fmt($reportData->sum('ending_total'), 2) }}</td>
-                <td class="text-center">{{ fmt($reportData->sum('ending_quantity'), 2) }}</td>
-                <td class="text-right">{{ fmt($reportData->avg('average_price'), 2) }}</td>
-                <td class="text-right">{{ fmt($reportData->avg('average_price'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('beginning_total'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('stock_in_quantity'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('stock_in_total'), 2) }}</td>
+                <td class="text-center available-cell">{{ $fmt($reportData->sum('available_quantity'), 2) }}</td>
+                <td class="text-right available-cell">{{ $fmt($reportData->sum('available_total'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('stock_out_quantity'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('stock_out_total'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('ending_quantity'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('ending_total'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('ending_quantity'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->avg('average_price'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->avg('average_price'), 2) }}</td>
                 <td></td>
             </tr>
         </tbody>
@@ -231,26 +224,24 @@
         @endif
 
         <!-- Approvals -->
-        @if(!empty($approvalBoxes))
-            @foreach($approvalBoxes as $appr)
-                @if(!empty($appr['user_name']))
-                <div class="signature-box">
-                    <div class="signature-image-box">
-                        @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
-                            <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
-                        @endif
-                    </div>
-                    <div class="signature-line"></div>
-                    <div class="signature-info">
-                        <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
-                        ឈ្មោះ/Name: {{ $appr['user_name'] }}<br>
-                        តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
-                        កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
-                    </div>
+        @foreach($approvalBoxes as $appr)
+            @if(!empty($appr['user_name']))
+            <div class="signature-box">
+                <div class="signature-image-box">
+                    @if(!empty($appr['approval_status']) && $appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
+                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                    @endif
                 </div>
-                @endif
-            @endforeach
-        @endif
+                <div class="signature-line"></div>
+                <div class="signature-info">
+                    <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
+                    ឈ្មោះ/Name: {{ $appr['user_name'] }}<br>
+                    តួនាទី/Position: {{ $appr['position_name'] ?? '-' }}<br>
+                    កាលបរិច្ឆេទ/Date: {{ $appr['responded_date'] ?? '-' }}
+                </div>
+            </div>
+            @endif
+        @endforeach
 
     </div>
     @endif
