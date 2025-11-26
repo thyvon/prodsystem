@@ -10,8 +10,8 @@
         <button class="btn btn-sm btn-outline-secondary" @click="fetchStockReport">
           <i class="fal fa-sync"></i> Refresh
         </button>
-        <button class="btn btn-sm btn-outline-primary" @click="downloadPdf">
-          <i class="fal fa-download"></i> Download PDF
+        <button class="btn btn-sm btn-outline-primary" @click="printReport">
+          <i class="fal fa-print"></i> Print Reort
         </button>
       </div>
     </div>
@@ -283,50 +283,7 @@ const fetchStockReport = async () => {
 }
 
 // --- PDF Modal ---
-const downloadPdf = async () => {
-  try {
-    const startUrl = `/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`;
-    const startRes = await axios.get(startUrl);
-
-    const checkUrl = startRes.data.check_url; // USE THE CORRECT URL
-
-    let isReady = false;
-    let attempts = 0;
-    const maxAttempts = 15;
-    const delay = 2000;
-
-    while (!isReady && attempts < maxAttempts) {
-      attempts++;
-
-      try {
-        const res = await axios.get(checkUrl, { responseType: 'blob' });
-
-        if (res.headers['content-type'] === 'application/pdf') {
-          isReady = true;
-
-          const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute('download', `Stock_Report_${props.monthlyStockReportId}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.URL.revokeObjectURL(url);
-          break;
-        }
-      } catch (_) {}
-
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-
-    if (!isReady) {
-      showAlert('Info', 'PDF is still generating. Please try again later.', 'info');
-    }
-
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to download PDF', 'danger');
-  }
-};
+const printReport
 
 
 // --- Approval Handling ---
