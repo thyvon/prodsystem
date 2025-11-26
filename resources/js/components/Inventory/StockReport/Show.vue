@@ -175,6 +175,8 @@
       </div>
     </div>
 
+    <StockReportModal ref="pdfViewer" title="Monthly Stock Report PDF" />
+
     <!-- Confirm Approval Modal -->
     <div class="modal fade" id="confirmModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -283,8 +285,7 @@ const fetchStockReport = async () => {
 }
 
 // --- PDF Modal ---
-const printReport
-
+const printReport = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
 
 // --- Approval Handling ---
 const openConfirmModal = (action) => {
