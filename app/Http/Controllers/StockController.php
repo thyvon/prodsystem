@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Carbon\Carbon;
 use Spatie\Browsershot\Browsershot;
@@ -307,70 +309,58 @@ class StockController extends Controller
     //     return response()->file($filePath);
     // }
 
-    public function showpdf(MonthlyStockReport $monthlyStockReport)
+
+    public function generateStockReportPdf(Request $request)
     {
-        $this->authorize('view', $monthlyStockReport);
+        $this->authorize('viewAny', MonthlyStockReport::class);
 
-        // Eager-load all relationships to reduce DB queries
-        $monthlyStockReport->load([
-            'creator',
-            'creatorPosition',
-            'approvals.responder',
-            'approvals.responderPosition',
-        ]);
+        $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
+        $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
+        $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
+        $productIds   = $this->parseIntArray($request->input('product_ids', []));
 
-        // Map approval labels
-        $mapLabel = [
-            'verify'      => 'Verified By',
-            'check'       => 'Checked By',
-            'acknowledge' => 'Acknowledged By',
-        ];
+        $report = $this->calculateStockReport(
+            $startDate, $endDate, $warehouseIds, $productIds,
+            $request->input('search', ''),
+            $request->input('sortColumn', 'item_code'),
+            $request->input('sortDirection', 'asc'),
+            paginate: false
+        );
 
-        // Transform approvals
-        $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-            $typeKey = strtolower($approval->request_type);
+        $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-            return [
-                'user_name'          => $approval->responder->name ?? 'Unknown',
-                'position_name'      => $approval->responderPosition->title ?? null,
-                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-                'approval_status'    => $approval->approval_status,
-                'responded_date'     => $approval->responded_date,
-                'comment'            => $approval->comment,
-                'signature_url'      => $approval->responder->signature_url ?? null,
-            ];
-        })->toArray();
+        // Render HTML from Blade
+        $html = view('Inventory.stock-report.print-report', [
+            'report'         => collect($report),
+            'approvals'      => [],
+            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames' => $warehouseNames,
+            'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
+            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
+            'preparedBy'    => Auth::user()->name,
+            'preparedByPosition' => Auth::user()->defaultPosition()?->title,
+            'preparedDate'  => Carbon::now()->format('d-m-Y'),
+        ])->render();
 
-        // Prepare report data
-        $data = $this->prepareReportData($monthlyStockReport);
-        $data['approvals'] = $approvals;
+        $fileName = 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf';
+        $filePath = storage_path('app/public/' . $fileName);
 
-        // Render HTML for PDF
-        $html = view('Inventory.stock-report.print-report', $data)->render();
-
-        // Temporary file in system temp folder
-        $tempDir = sys_get_temp_dir();
-        if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0777, true);
-        }
-        $filePath = $tempDir . '/Stock_Report_' . now()->timestamp . '.pdf';
-
-        // Generate PDF (optimized for low RAM / CPU)
+        // ---- Browsershot Ultra Low RAM / Fast Setup ----
         Browsershot::html($html)
             ->noSandbox()
-            ->showBackground()
+            ->setDelay(80)                  // small delay for table rendering
+            ->setTemporaryFolder('/tmp/chromium')
             ->emulateMedia('print')
             ->format('A4')
             ->landscape()
-            ->margins(5, 3, 5, 3)
-            ->setDelay(40)
-            ->timeout(60)
-            ->setTemporaryFolder($tempDir)
+            ->timeout(40)
+            ->showBackground()
             ->addChromiumArguments([
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
                 '--no-zygote',
-                '--single-process',
+                '--single-process',           // <-- low memory
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-software-rasterizer',
@@ -379,19 +369,52 @@ class StockController extends Controller
                 '--font-render-hinting=none',
                 '--no-first-run',
                 '--no-default-browser-check',
-                '--disable-background-timer-throttling',
-                '--disable-renderer-backgrounding',
             ])
             ->save($filePath);
 
-        // Auto-delete PDF after response is sent
-        register_shutdown_function(function () use ($filePath) {
-            @unlink($filePath);
-        });
-
-        // Stream PDF to browser (same behavior as before)
+        // Return PDF inline
         return response()->file($filePath);
     }
+
+    public function showpdf(MonthlyStockReport $monthlyStockReport)
+    {
+        $this->authorize('view', $monthlyStockReport);
+
+        // Log that the PDF generation is requested
+        Log::info('PDF generation requested', [
+            'report_id' => $monthlyStockReport->id,
+            'user_id' => auth()->id(),
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+
+        // Dispatch the job
+        \App\Jobs\GenerateStockReportPdf::dispatch($monthlyStockReport);
+
+        // Log that the job was dispatched
+        Log::info('GenerateStockReportPdf job dispatched', [
+            'report_id' => $monthlyStockReport->id,
+            'user_id' => auth()->id(),
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+
+        return response()->json([
+            'message' => 'PDF generation started. You can download it when ready.',
+            'check_url' => route('stock-report.pdf.check', $monthlyStockReport->id)
+        ]);
+    }
+
+    public function checkPdfReady(MonthlyStockReport $monthlyStockReport)
+    {
+        if ($monthlyStockReport->pdf_file_path && Storage::exists('public/' . $monthlyStockReport->pdf_file_path)) {
+            return response()->download(storage_path('app/public/' . $monthlyStockReport->pdf_file_path));
+        }
+
+        return response()->json([
+            'message' => 'PDF is not ready yet.',
+            'ready' => false
+        ]);
+    }
+
 
     // ===================================================================
     // Get Report Details (for Vue Show Page)
@@ -493,6 +516,7 @@ class StockController extends Controller
             'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
             'warehouse_names' => $data['warehouseNames'],
             'reference_no'    => $monthlyStockReport->reference_no,
+            'pdf_file_path'   => $monthlyStockReport->pdf_file_path,
             'report_date'     => $monthlyStockReport->report_date,
             'created_by'      => [
                 'name'           => $monthlyStockReport->creator?->name ?? 'Unknown',
@@ -568,72 +592,6 @@ class StockController extends Controller
     // ──────────────────────────────────────────────────────────────
     // 2. Ad-hoc / Live Stock Report PDF
     // ──────────────────────────────────────────────────────────────
-
-    public function generateStockReportPdf(Request $request)
-    {
-        $this->authorize('viewAny', MonthlyStockReport::class);
-
-        $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
-        $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
-        $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
-        $productIds   = $this->parseIntArray($request->input('product_ids', []));
-
-        $report = $this->calculateStockReport(
-            $startDate, $endDate, $warehouseIds, $productIds,
-            $request->input('search', ''),
-            $request->input('sortColumn', 'item_code'),
-            $request->input('sortDirection', 'asc'),
-            paginate: false
-        );
-
-        $warehouseNames = $this->getWarehouseNames($warehouseIds);
-
-        // Render HTML from Blade
-        $html = view('Inventory.stock-report.print-report', [
-            'report'         => collect($report),
-            'approvals'      => [],
-            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
-            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
-            'warehouseNames' => $warehouseNames,
-            'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
-            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-            'preparedBy'    => Auth::user()->name,
-            'preparedByPosition' => Auth::user()->defaultPosition()?->title,
-            'preparedDate'  => Carbon::now()->format('d-m-Y'),
-        ])->render();
-
-        $fileName = 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf';
-        $filePath = storage_path('app/public/' . $fileName);
-
-        // ---- Browsershot Ultra Low RAM / Fast Setup ----
-        Browsershot::html($html)
-            ->noSandbox()
-            ->setDelay(80)                  // small delay for table rendering
-            ->setTemporaryFolder('/tmp/chromium')
-            ->emulateMedia('print')
-            ->format('A4')
-            ->landscape()
-            ->timeout(40)
-            ->showBackground()
-            ->addChromiumArguments([
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--no-zygote',
-                '--single-process',           // <-- low memory
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-software-rasterizer',
-                '--disable-extensions',
-                '--blink-settings=imagesEnabled=true',
-                '--font-render-hinting=none',
-                '--no-first-run',
-                '--no-default-browser-check',
-            ])
-            ->save($filePath);
-
-        // Return PDF inline
-        return response()->file($filePath);
-    }
 
 
     // ===================================================================
@@ -718,7 +676,7 @@ class StockController extends Controller
     //     ];
     // }
 
-    private function prepareReportData(MonthlyStockReport $report): array
+    public function prepareReportData(MonthlyStockReport $report): array
     {
         $startDate = $report->start_date?->format('Y-m-d') 
             ?? now()->startOfMonth()->toDateString();

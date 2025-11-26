@@ -10,8 +10,8 @@
         <button class="btn btn-sm btn-outline-secondary" @click="fetchStockReport">
           <i class="fal fa-sync"></i> Refresh
         </button>
-        <button class="btn btn-sm btn-outline-primary" @click="openPdfModal">
-          <i class="fal fa-print"></i> Print PDF
+        <button class="btn btn-sm btn-outline-primary" @click="downloadPdf">
+          <i class="fal fa-download"></i> Download PDF
         </button>
       </div>
     </div>
@@ -175,9 +175,6 @@
       </div>
     </div>
 
-    <!-- PDF Modal -->
-    <StockReportModal ref="pdfViewer" title="Monthly Stock Report PDF" />
-
     <!-- Confirm Approval Modal -->
     <div class="modal fade" id="confirmModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -286,7 +283,49 @@ const fetchStockReport = async () => {
 }
 
 // --- PDF Modal ---
-const openPdfModal = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
+const downloadPdf = async () => {
+  try {
+    const checkUrl = `/inventory/stock-reports/${props.monthlyStockReportId}/pdf-check`;
+    let isReady = false;
+    let attempts = 0;
+    const maxAttempts = 15; // max wait cycles
+    const delay = 2000; // 2 seconds between polls
+
+    while (!isReady && attempts < maxAttempts) {
+      attempts++;
+      try {
+        const res = await axios.get(checkUrl, { responseType: 'blob' });
+        
+        // If the response is a PDF blob, download it
+        const contentType = res.headers['content-type'];
+        if (contentType === 'application/pdf') {
+          isReady = true;
+          const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `Stock_Report_${props.monthlyStockReportId}.pdf`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+          break;
+        }
+      } catch (err) {
+        // PDF not ready yet, wait before next attempt
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    if (!isReady) {
+      showAlert('Info', 'PDF is still generating. Please try again later.', 'info');
+    }
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to download PDF', 'danger');
+  }
+}
+
+
 
 // --- Approval Handling ---
 const openConfirmModal = (action) => {

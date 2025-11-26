@@ -23,15 +23,13 @@ class MonthlyStockReport extends Model
         'warehouse_ids',
         'warehouse_names',
         'approval_status',
-        'approved_at',
-        'approved_by',
+        'pdf_file_path',
     ];
 
     protected $casts = [
         'report_date'     => 'date',
         'start_date'      => 'date',
         'end_date'        => 'date',
-        'approved_at'     => 'datetime',
         'warehouse_ids'   => 'array',
         'warehouse_names' => 'array',
     ];
