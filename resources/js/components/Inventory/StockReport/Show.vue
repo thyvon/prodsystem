@@ -11,13 +11,13 @@
           <i class="fal fa-sync"></i> Refresh
         </button>
         <button class="btn btn-sm btn-outline-primary" @click="printReport">
-          <i class="fal fa-print"></i> Print Reort
+          <i class="fal fa-print"></i> Print Report
         </button>
       </div>
     </div>
 
     <!-- Body -->
-    <div class="card-body p-3" style="font-family: 'TW Cen MT', 'Khmer OS Battambang';">
+    <div class="card-body p-3">
 
       <h4 class="text-center font-weight-bold mb-3">Monthly Stock Report</h4>
       <h6 class="text-center text-muted mb-4">
@@ -65,6 +65,8 @@
               <td class="text-end">{{ format(item.ending_total) }}</td>
               <td class="text-end">{{ format(item.average_price) }}</td>
             </tr>
+
+            <!-- Totals Row -->
             <tr class="table-secondary font-weight-bold">
               <td colspan="4" class="text-end">Total</td>
               <td class="text-center">{{ format(total('beginning_quantity')) }}</td>
@@ -83,35 +85,35 @@
         </table>
       </div>
 
-      <!-- Requested By & Approval Cards -->
+      <!-- Requested By & Approvals -->
       <div class="mt-5">
         <h5 class="mb-3 font-weight-bold">Report Approval</h5>
+
         <div class="row justify-content-center">
 
-          <!-- Requested By -->
+          <!-- Prepared By -->
           <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">Prepared & Counted By</p>
-                  <div class="mb-3">
-                    <img 
-                      :src="reportParams.created_by?.profile_url 
-                            ? `/storage/${reportParams.created_by.profile_url}` 
-                            : '/images/default-avatar.png'" 
-                      class="rounded-circle" 
-                      width="50" 
-                      height="50"
-                    >
-                  </div>
+
+                <div class="mb-3">
+                  <img 
+                    :src="reportParams.created_by?.profile_url 
+                      ? `/storage/${reportParams.created_by.profile_url}` 
+                      : '/images/default-avatar.png'"
+                    class="rounded-circle"
+                    width="50"
+                    height="50">
+                </div>
+
                 <p class="font-weight-bold mb-1">{{ reportParams.created_by?.name || 'N/A' }}</p>
-                  <p class="mb-1">
+                <p class="mb-1">
                   Status:
-                  <span class="badge badge-success">
-                    <strong>Prepared</strong>
-                  </span>
+                  <span class="badge badge-success"><strong>Prepared</strong></span>
                 </p>
-                <p class="mb-1 text-start">Position: {{ reportParams.created_by?.position_name || 'N/A' }}</p>
-                <p class="mb-0 text-start">Date: {{ formatDate(reportParams.report_date) }}</p>
+                <p class="mb-1">Position: {{ reportParams.created_by?.position_name || 'N/A' }}</p>
+                <p class="mb-0">Date: {{ formatDate(reportParams.report_date) }}</p>
               </div>
             </div>
           </div>
@@ -121,17 +123,19 @@
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">{{ resp.request_type_label || resp.request_type }}</p>
+
                 <div class="mb-3">
                   <img 
                     :src="resp.user_profile_url 
-                          ? `/storage/${resp.user_profile_url}` 
-                          : '/images/default-avatar.png'" 
-                    class="rounded-circle" 
-                    width="50" 
-                    height="50"
-                  >
+                      ? `/storage/${resp.user_profile_url}` 
+                      : '/images/default-avatar.png'"
+                    class="rounded-circle"
+                    width="50"
+                    height="50">
                 </div>
+
                 <p class="font-weight-bold mb-1">{{ resp.user_name }}</p>
+
                 <p class="mb-1">
                   Status:
                   <span class="badge"
@@ -144,6 +148,7 @@
                     <strong>{{ resp.approval_status === 'Approved' ? 'Signed' : resp.approval_status }}</strong>
                   </span>
                 </p>
+
                 <p class="mb-1">Position: {{ resp.position_name }}</p>
                 <p class="mb-0">Date: {{ resp.responded_date ? formatDate(resp.responded_date) : '-' }}</p>
                 <p class="mb-0">Comment: {{ resp.comment || '-' }}</p>
@@ -171,13 +176,14 @@
             <i class="fal fa-exchange"></i> Reassign
           </button>
         </div>
+
         <p class="text-center text-muted mt-2" v-else>No approval actions available.</p>
       </div>
     </div>
 
     <StockReportModal ref="pdfViewer" title="Monthly Stock Report PDF" />
 
-    <!-- Confirm Approval Modal -->
+    <!-- Confirm Modal -->
     <div class="modal fade" id="confirmModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -224,7 +230,6 @@
       </div>
     </div>
 
-
   </div>
 </template>
 
@@ -239,7 +244,7 @@ import { initSelect2, destroySelect2 } from '@/Utils/select2'
 // Props
 const props = defineProps({
   monthlyStockReportId: Number,
-  approvalRequestType: String // 'check', 'verify', 'acknowledge'
+  approvalRequestType: String
 })
 
 // Refs
@@ -256,20 +261,37 @@ const currentAction = ref('approve')
 const usersByType = ref({ check: [], verify: [], acknowledge: [] })
 const currentActionRequestType = ref('')
 
-// --- Helper Functions ---
+// Helpers
 const format = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 }))
 const formatDate = date => formatDateShort(date)
 const total = key => stockItems.value.reduce((sum, i) => sum + (i[key] || 0), 0)
 const goBack = () => window.location.href = '/inventory/stock-reports/monthly-report'
 
-const currentActionTitle = computed(() => currentAction.value === 'approve' ? 'Confirm Report' :
-                                              currentAction.value === 'reject' ? 'Reject Report' : 'Return Report')
-const currentActionClass = computed(() => currentAction.value === 'approve' ? 'btn-success' :
-                                              currentAction.value === 'reject' ? 'btn-danger' : 'btn-warning')
-const currentActionButtonLabel = computed(() => currentAction.value === 'approve' ? 'Confirm' :
-                                                        currentAction.value === 'reject' ? 'Reject' : 'Return')
+const currentActionTitle = computed(() =>
+  currentAction.value === 'approve'
+    ? 'Confirm Report'
+    : currentAction.value === 'reject'
+      ? 'Reject Report'
+      : 'Return Report'
+)
 
-// --- Fetch Report ---
+const currentActionClass = computed(() =>
+  currentAction.value === 'approve'
+    ? 'btn-success'
+    : currentAction.value === 'reject'
+      ? 'btn-danger'
+      : 'btn-warning'
+)
+
+const currentActionButtonLabel = computed(() =>
+  currentAction.value === 'approve'
+    ? 'Confirm'
+    : currentAction.value === 'reject'
+      ? 'Reject'
+      : 'Return'
+)
+
+// Fetch report
 const fetchStockReport = async () => {
   try {
     const res = await axios.get(`/api/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/show`)
@@ -279,15 +301,16 @@ const fetchStockReport = async () => {
     responders.value = res.data.responders || []
     approvalButton.value = res.data.approvalButton || false
     usersList.value = res.data.usersList || []
-  } catch(err) {
+  } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to load report', 'danger')
   }
 }
 
-// --- PDF Modal ---
-const printReport = () => pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
+// PDF
+const printReport = () =>
+  pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
 
-// --- Approval Handling ---
+// Approval Modal
 const openConfirmModal = (action) => {
   currentAction.value = action
   commentInput.value = ''
@@ -303,12 +326,12 @@ const submitApproval = async (action) => {
   loading.value = true
   try {
     const res = await axios.post(`/api/inventory/stock-reports/${props.monthlyStockReportId}/submit-approval`, {
-      request_type: props.approvalRequestType, // comes from prop
+      request_type: props.approvalRequestType,
       action: action,
       comment: commentInput.value.trim()
     })
 
-    showAlert('success', res.data.message || 'Action successful.')
+    showAlert('success', res.data.message || 'Action successful')
     $('#confirmModal').modal('hide')
     fetchStockReport()
   } catch (err) {
@@ -318,7 +341,7 @@ const submitApproval = async (action) => {
   }
 }
 
-// --- Reassign Handling ---
+// Reassign logic
 const openReassignModal = async () => {
   loading.value = true
   try {
@@ -337,11 +360,14 @@ const openReassignModal = async () => {
     currentActionRequestType.value = props.approvalRequestType
 
     await nextTick()
+
     const selectEl = document.getElementById('userSelect')
     if (!selectEl) return
 
     selectEl.innerHTML = '<option value="">-- Select a user --</option>' +
-      currentGroup.map(u => `<option value="${u.id}">${u.name} ${u.card_number ? '(' + u.card_number + ')' : ''}</option>`).join('')
+      currentGroup.map(u =>
+        `<option value="${u.id}">${u.name} ${u.card_number ? '(' + u.card_number + ')' : ''}</option>`
+      ).join('')
 
     if ($(selectEl).hasClass('select2-hidden-accessible')) {
       $(selectEl).select2('destroy')
@@ -349,7 +375,7 @@ const openReassignModal = async () => {
 
     initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
     $('#reassignModal').modal('show')
-  } catch(err) {
+  } catch (err) {
     showAlert('Error', 'Failed to load users.', 'danger')
   } finally {
     loading.value = false
@@ -359,6 +385,7 @@ const openReassignModal = async () => {
 const confirmReassign = async () => {
   const newUserId = document.getElementById('userSelect')?.value
   const comment = document.getElementById('reassignComment')?.value.trim()
+
   if (!newUserId) {
     showAlert('Error', 'Please select a user.', 'danger')
     return
@@ -371,11 +398,12 @@ const confirmReassign = async () => {
       new_user_id: newUserId,
       comment
     })
+
     showAlert('success', 'Approval reassigned successfully.')
     $('#reassignModal').modal('hide')
     destroySelect2(document.getElementById('userSelect'))
     fetchStockReport()
-  } catch(err) {
+  } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Reassign failed.', 'danger')
   } finally {
     loading.value = false
@@ -390,12 +418,11 @@ const closeReassignModal = () => {
 onMounted(fetchStockReport)
 </script>
 
-
 <style scoped>
 .sticky-header th {
   position: sticky;
   top: 0;
-  background-color: #f8f9fa; /* Bootstrap table-secondary background */
+  background-color: #f8f9fa;
   z-index: 10;
 }
 </style>
