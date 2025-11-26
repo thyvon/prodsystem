@@ -310,20 +310,87 @@ class StockController extends Controller
     // ===================================================================
     // Get Report Details (for Vue Show Page)
     // ===================================================================
+    // public function getDetails(MonthlyStockReport $monthlyStockReport): JsonResponse
+    // {   
+    //     $this->authorize('view', $monthlyStockReport);
+
+    //     // $monthlyStockReport->load('approvals');
+
+    //     // Map for request types to display labels
+    //     $mapLabel = [
+    //         'verify'       => 'Verified By',
+    //         'check'      => 'Checked By',
+    //         'acknowledge' => 'Acknowledged By',
+    //     ];
+
+    //     $data = $this->prepareReportData($monthlyStockReport);
+    //     $approvalInfo = $this->canShowApprovalButton($monthlyStockReport->id);
+
+    //     if ($approvalInfo['showButton']) {
+    //         $monthlyStockReport->approvals()
+    //             ->where('responder_id', auth()->id())
+    //             ->where('approval_status', 'Pending')
+    //             ->where('is_seen', false)
+    //             ->update(['is_seen' => true]);
+    //     }
+
+    //     return response()->json([
+    //         'report'          => $data['report']->values(),
+    //         'start_date'      => $monthlyStockReport->start_date?->format('Y-m-d'),
+    //         'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
+    //         'warehouse_names' => $data['warehouseNames'],
+    //         'reference_no'    => $monthlyStockReport->reference_no,
+    //         'report_date'     => $monthlyStockReport->report_date,
+    //         'created_by'      => [
+    //             'name'        => $monthlyStockReport->creator?->name ?? 'Unknown',
+    //             'profile_url' => $monthlyStockReport->creator?->profile_url ?? null,
+    //             'position_name'=> $monthlyStockReport->creatorPosition?->title ?? null,
+    //         ],
+    //         'remarks'         => $monthlyStockReport->remarks,
+    //         'status'          => $monthlyStockReport->approval_status,
+    //         'approvalButton'  => $approvalInfo['showButton'],
+    //         'button_label'     => ucfirst($approvalInfo['requestType'] ?? null),
+    //         'request_type'    => $approvalInfo['requestType'] ?? null,
+    //         'responders'      => $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+    //             $typeKey = strtolower($approval->request_type);
+
+    //             return [
+    //                 'user_id'         => $approval->responder_id,
+    //                 'user_name'       => $approval->responder?->name ?? 'Unknown',
+    //                 'request_type'    => $approval->request_type,
+    //                 'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+    //                 'approval_status' => $approval->approval_status,
+    //                 'responded_date'    => $approval->responded_date,
+    //                 'comment'         => $approval->comment,
+    //                 'signature_url'   => $approval->responder?->signature_url ?? null,
+    //                 'position_name'   => $approval->responderPosition?->title ?? null,
+    //                 'user_profile_url'=> $approval->responder?->profile_url ?? null,
+    //             ];
+    //         })->toArray() ?? [],
+    //     ]);
+    // }
+
     public function getDetails(MonthlyStockReport $monthlyStockReport): JsonResponse
-    {   
+    {
         $this->authorize('view', $monthlyStockReport);
 
-        // $monthlyStockReport->load('approvals');
+        // Preload relationships ONCE
+        $monthlyStockReport->load([
+            'creator',
+            'creatorPosition',
+            'approvals.responder',
+            'approvals.responderPosition'
+        ]);
 
-        // Map for request types to display labels
-        $mapLabel = [
+        $labelMap = [
             'verify'       => 'Verified By',
-            'check'      => 'Checked By',
-            'acknowledge' => 'Acknowledged By',
+            'check'        => 'Checked By',
+            'acknowledge'  => 'Acknowledged By',
         ];
 
         $data = $this->prepareReportData($monthlyStockReport);
+
+        // Approval button logic
         $approvalInfo = $this->canShowApprovalButton($monthlyStockReport->id);
 
         if ($approvalInfo['showButton']) {
@@ -342,31 +409,31 @@ class StockController extends Controller
             'reference_no'    => $monthlyStockReport->reference_no,
             'report_date'     => $monthlyStockReport->report_date,
             'created_by'      => [
-                'name'        => $monthlyStockReport->creator?->name ?? 'Unknown',
-                'profile_url' => $monthlyStockReport->creator?->profile_url ?? null,
-                'position_name'=> $monthlyStockReport->creatorPosition?->title ?? null,
+                'name'           => $monthlyStockReport->creator?->name ?? 'Unknown',
+                'profile_url'    => $monthlyStockReport->creator?->profile_url ?? null,
+                'position_name'  => $monthlyStockReport->creatorPosition?->title ?? null,
             ],
             'remarks'         => $monthlyStockReport->remarks,
             'status'          => $monthlyStockReport->approval_status,
             'approvalButton'  => $approvalInfo['showButton'],
-            'button_label'     => ucfirst($approvalInfo['requestType'] ?? null),
+            'button_label'    => ucfirst($approvalInfo['requestType'] ?? ''),
             'request_type'    => $approvalInfo['requestType'] ?? null,
-            'responders'      => $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-                $typeKey = strtolower($approval->request_type);
 
+            'responders' => $monthlyStockReport->approvals->map(function ($a) use ($labelMap) {
+                $key = strtolower($a->request_type);
                 return [
-                    'user_id'         => $approval->responder_id,
-                    'user_name'       => $approval->responder?->name ?? 'Unknown',
-                    'request_type'    => $approval->request_type,
-                    'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-                    'approval_status' => $approval->approval_status,
-                    'responded_date'    => $approval->responded_date,
-                    'comment'         => $approval->comment,
-                    'signature_url'   => $approval->responder?->signature_url ?? null,
-                    'position_name'   => $approval->responderPosition?->title ?? null,
-                    'user_profile_url'=> $approval->responder?->profile_url ?? null,
+                    'user_id'            => $a->responder_id,
+                    'user_name'          => $a->responder?->name ?? 'Unknown',
+                    'request_type'       => $a->request_type,
+                    'request_type_label' => $labelMap[$key] ?? ucfirst($key).' By',
+                    'approval_status'    => $a->approval_status,
+                    'responded_date'     => $a->responded_date,
+                    'comment'            => $a->comment,
+                    'signature_url'      => $a->responder?->signature_url ?? null,
+                    'position_name'      => $a->responderPosition?->title ?? null,
+                    'user_profile_url'   => $a->responder?->profile_url ?? null,
                 ];
-            })->toArray() ?? [],
+            })->toArray(),
         ]);
     }
 
@@ -538,30 +605,71 @@ class StockController extends Controller
         ]);
     }
 
+    // private function prepareReportData(MonthlyStockReport $report): array
+    // {
+    //     $startDate = $report->start_date?->format('Y-m-d') ?? now()->startOfMonth()->toDateString();
+    //     $endDate   = $report->end_date?->format('Y-m-d') ?? now()->toDateString();
+    //     $warehouseIds = $this->parseIntArray($report->warehouse_ids);
+
+    //     $reportData = $this->calculateStockReport($startDate, $endDate, $warehouseIds, [], '', 'item_code', 'asc', false);
+
+    //     return [
+    //         'report'         => $reportData,
+    //         'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
+    //         'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
+    //         'warehouseNames' => $this->getWarehouseNames($warehouseIds),
+    //         'reference_no'   => $report->reference_no,
+    //         'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
+    //         'msr'            => $report,
+    //         'created_by'     => $report->creator?->name ?? 'Unknown',
+    //         'signature_url'  => $report->creator?->signature_url ?? null,
+    //         'creator_position'=> $report->creatorPosition?->title ?? null,
+    //         'created_at' => $report->report_date
+    //             ? Carbon::parse($report->report_date)->format('M d, Y')
+    //             : null,
+    //         'remarks'        => $report->remarks,
+    //         'status'         => $report->approval_status,
+    //     ];
+    // }
+
     private function prepareReportData(MonthlyStockReport $report): array
     {
-        $startDate = $report->start_date?->format('Y-m-d') ?? now()->startOfMonth()->toDateString();
-        $endDate   = $report->end_date?->format('Y-m-d') ?? now()->toDateString();
+        $startDate = $report->start_date?->format('Y-m-d') 
+            ?? now()->startOfMonth()->toDateString();
+
+        $endDate = $report->end_date?->format('Y-m-d') 
+            ?? now()->toDateString();
+
         $warehouseIds = $this->parseIntArray($report->warehouse_ids);
 
-        $reportData = $this->calculateStockReport($startDate, $endDate, $warehouseIds, [], '', 'item_code', 'asc', false);
+        // Heavy function only runs once
+        $reportData = $this->calculateStockReport(
+            $startDate,
+            $endDate,
+            $warehouseIds,
+            [],
+            '',
+            'item_code',
+            'asc',
+            false
+        );
 
         return [
-            'report'         => $reportData,
-            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
-            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
-            'warehouseNames' => $this->getWarehouseNames($warehouseIds),
-            'reference_no'   => $report->reference_no,
-            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-            'msr'            => $report,
-            'created_by'     => $report->creator?->name ?? 'Unknown',
-            'signature_url'  => $report->creator?->signature_url ?? null,
+            'report'          => $reportData,
+            'start_date'      => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date'        => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames'  => $this->getWarehouseNames($warehouseIds),
+            'reference_no'    => $report->reference_no,
+            'report_date'     => Carbon::parse($endDate)->format('d-m-Y'),
+            'msr'             => $report,
+            'created_by'      => $report->creator?->name ?? 'Unknown',
+            'signature_url'   => $report->creator?->signature_url ?? null,
             'creator_position'=> $report->creatorPosition?->title ?? null,
-            'created_at' => $report->report_date
-                ? Carbon::parse($report->report_date)->format('M d, Y')
-                : null,
-            'remarks'        => $report->remarks,
-            'status'         => $report->approval_status,
+            'created_at'      => $report->report_date
+                                    ? Carbon::parse($report->report_date)->format('M d, Y')
+                                    : null,
+            'remarks'         => $report->remarks,
+            'status'          => $report->approval_status,
         ];
     }
 
@@ -660,75 +768,77 @@ class StockController extends Controller
     //         'average_price'       => round($avgPrice, 6),
     //     ];
     // }
-private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
-{
-    $productId = $variant->id;
+    private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
+    {
+        $productId = $variant->id;
 
-    // Eager-load product/unit
-    $product = $variant->product;
-    $unitName = $product->unit->name ?? '';
-    $description = trim($product->name . ' ' . $variant->description);
+        $product     = $variant->product;
+        $unitName    = $product->unit->name ?? '';
+        $description = trim($product->name . ' ' . $variant->description);
 
-    // Determine warehouses
-    $warehouses = empty($warehouseIds)
-        ? StockLedger::where('product_id', $productId)
-            ->distinct()
-            ->pluck('parent_warehouse')
-            ->toArray()
-        : $warehouseIds;
+        // Auto-detect warehouses ONLY if user did not select
+        if (empty($warehouseIds)) {
+            $warehouseIds = StockLedger::where('product_id', $productId)
+                ->distinct()
+                ->pluck('parent_warehouse')
+                ->toArray();
+        }
 
-    // Aggregate beginning stock (before start date) in one query
-    $begin = StockLedger::where('product_id', $productId)
-        ->whereIn('parent_warehouse', $warehouses)
-        ->where('transaction_date', '<', $startDate)
-        ->selectRaw("SUM(quantity) as quantity, SUM(total_price) as total_price")
-        ->first();
+        // Pre-filtered base query (so conditions not repeated)
+        $base = StockLedger::where('product_id', $productId)
+            ->whereIn('parent_warehouse', $warehouseIds);
 
-    $beginQty = $begin->quantity ?? 0;
-    $beginTotal = $begin->total_price ?? 0;
-    $beginAvgPrice = $beginQty != 0 ? $beginTotal / $beginQty : 0;
+        // BEGINNING STOCK
+        $begin = (clone $base)
+            ->where('transaction_date', '<', $startDate)
+            ->selectRaw('SUM(quantity) qty, SUM(total_price) total')
+            ->first();
 
-    // Aggregate stock movements in one query
-    $movement = StockLedger::where('product_id', $productId)
-        ->whereIn('parent_warehouse', $warehouses)
-        ->whereBetween('transaction_date', [$startDate, $endDate])
-        ->selectRaw("
-            SUM(CASE WHEN transaction_type = 'Stock_In' THEN quantity ELSE 0 END) as in_qty,
-            SUM(CASE WHEN transaction_type = 'Stock_In' THEN total_price ELSE 0 END) as in_total,
-            SUM(CASE WHEN transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) as out_qty,
-            SUM(CASE WHEN transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) as out_total
-        ")
-        ->first();
+        $beginQty   = $begin->qty ?? 0;
+        $beginTotal = $begin->total ?? 0;
+        $beginAvg   = $beginQty != 0 ? $beginTotal / $beginQty : 0;
 
-    $inQty = $movement->in_qty ?? 0;
-    $inTotal = $movement->in_total ?? 0;
-    $outQty = $movement->out_qty ?? 0;
-    $outTotal = $movement->out_total ?? 0;
+        // MOVEMENTS STOCK
+        $move = (clone $base)
+            ->whereBetween('transaction_date', [$startDate, $endDate])
+            ->selectRaw("
+                SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) in_qty,
+                SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) in_total,
+                SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) out_qty,
+                SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) out_total
+            ")
+            ->first();
 
-    $endingQty = $beginQty + $inQty - $outQty;
-    $avgPrice = $this->avgPrice($productId, $endDate);
-    $endingTotal = $endingQty * $avgPrice;
+        $inQty   = $move->in_qty ?? 0;
+        $inTotal = $move->in_total ?? 0;
+        $outQty  = abs($move->out_qty ?? 0);
+        $outTotal = abs($move->out_total ?? 0);
 
-    return [
-        'product_id'          => $productId,
-        'item_code'           => $variant->item_code,
-        'description'         => $description,
-        'unit_name'           => $unitName,
-        'beginning_quantity'  => round($beginQty, 6),
-        'beginning_price'     => round($beginAvgPrice, 6),
-        'beginning_total'     => round($beginTotal, 6),
-        'stock_in_quantity'   => round($inQty, 6),
-        'stock_in_total'      => round($inTotal, 6),
-        'available_quantity'  => round($beginQty + $inQty, 6),
-        'available_total'     => round($beginTotal + $inTotal, 6),
-        'stock_out_quantity'  => round(abs($outQty), 6),
-        'stock_out_total'     => round(abs($outTotal), 6),
-        'ending_quantity'     => round($endingQty, 6),
-        'ending_total'        => round($endingTotal, 6),
-        'average_price'       => round($avgPrice, 6),
-    ];
-}
+        $endingQty = $beginQty + $inQty - $outQty;
 
+        // Keep your original logic
+        $avgPrice = $this->avgPrice($productId, $endDate);
+        $endingTotal = $endingQty * $avgPrice;
+
+        return [
+            'product_id'         => $productId,
+            'item_code'          => $variant->item_code,
+            'description'        => $description,
+            'unit_name'          => $unitName,
+            'beginning_quantity' => round($beginQty, 6),
+            'beginning_price'    => round($beginAvg, 6),
+            'beginning_total'    => round($beginTotal, 6),
+            'stock_in_quantity'  => round($inQty, 6),
+            'stock_in_total'     => round($inTotal, 6),
+            'available_quantity' => round($beginQty + $inQty, 6),
+            'available_total'    => round($beginTotal + $inTotal, 6),
+            'stock_out_quantity' => round($outQty, 6),
+            'stock_out_total'    => round($outTotal, 6),
+            'ending_quantity'    => round($endingQty, 6),
+            'ending_total'       => round($endingTotal, 6),
+            'average_price'      => round($avgPrice, 6),
+        ];
+    }
 
 
     private function getBeginEnd($productId, $warehouseId, $startDate)
