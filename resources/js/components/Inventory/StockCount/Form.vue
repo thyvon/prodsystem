@@ -2,69 +2,73 @@
   <div class="container-fluid">
     <form @submit.prevent="submitForm">
       <div class="card border mb-0 shadow">
-        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-          <h4 class="mb-0 font-weight-bold">{{ isEditMode ? 'Edit Stock Count' : 'Create Stock Count' }}</h4>
+        <div class="card-header d-flex justify-content-between align-items-center bg-light py-2">
+          <h4 class="mb-0 font-weight-bold">
+            {{ isEditMode ? 'Edit Stock Count' : 'Create Stock Count' }}
+          </h4>
           <button type="button" class="btn btn-outline-primary btn-sm" @click="goToIndex">
             Back
           </button>
         </div>
 
         <div class="card-body">
-          <!-- Stock Count Details -->
-          <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">Stock Count Details</h5>
+          <!-- Header -->
+          <div class="border rounded p-3 mb-4 bg-white">
             <div class="form-row">
               <div class="form-group col-md-4">
-                <label for="transaction_date" class="font-weight-bold">Count Date <span class="text-danger">*</span></label>
-                <input v-model="form.transaction_date" type="text" class="form-control datepicker" id="transaction_date" required />
+                <label class="font-weight-bold">Count Date <span class="text-danger">*</span></label>
+                <input
+                  id="transaction_date"
+                  v-model="form.transaction_date"
+                  type="text"
+                  class="form-control"
+                  placeholder="yyyy-mm-dd"
+                  required
+                />
               </div>
+
               <div class="form-group col-md-4">
-                <label for="warehouse_id" class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
-                <select ref="warehouseSelect" v-model="form.warehouse_id" class="form-control" id="warehouse_id" required>
+                <label class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
+                <select
+                  ref="warehouseSelect"
+                  v-model="form.warehouse_id"
+                  class="form-control"
+                  required
+                >
                   <option value="">Select Warehouse</option>
-                  <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
-                    {{ warehouse.name }}
+                  <option v-for="w in warehouses" :key="w.id" :value="w.id">
+                    {{ w.name }}
                   </option>
                 </select>
               </div>
+
+              <div class="form-group col-md-4">
+                <label class="font-weight-bold">Reference No</label>
+                <input v-model="form.reference_no" type="text" class="form-control" readonly />
+              </div>
             </div>
+
             <div class="form-group">
-              <label for="remarks" class="font-weight-bold">Remarks</label>
-              <textarea v-model="form.remarks" class="form-control" id="remarks" rows="2"></textarea>
+              <label>Remarks</label>
+              <textarea v-model="form.remarks" class="form-control" rows="2"></textarea>
             </div>
           </div>
 
-          <!-- Import & Add Items -->
-          <div class="border rounded p-3 mb-4">
-            <div class="form-row mb-3">
-              <div class="form-group col-md-4">
-                <label for="import_file" class="font-weight-bold">Import Count Sheet</label>
-                <div class="input-group">
-                  <input type="file" class="d-none" id="import_file" accept=".xlsx,.xls,.csv" ref="fileInput" @change="handleFileUpload" />
-                  <button type="button" class="btn btn-outline-secondary" @click="triggerFileInput">
-                    {{ selectedFileName || 'Choose file...' }}
-                  </button>
-                  <button type="button" class="btn btn-outline-primary ml-2" @click="importFile" :disabled="isImporting">
-                    <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
-                    Import
-                  </button>
-                  <a class="btn btn-outline-danger ml-2" href="/sampleExcel/stock_counts_sample.xlsx" download>
-                    Sample Excel
-                  </a>
-                </div>
-              </div>
-              <div class="form-group col-md-8">
-                <label for="product_select" class="font-weight-bold">Add Product Manually</label>
-                <select ref="productSelect" class="form-control" id="product_select">
-                  <option value="">Select Product</option>
-                  <option v-for="product in products" :key="product.id" :value="product.id">
-                    {{ product.item_code }} - {{ product.product_name }} (On Hand: {{ product.stock_on_hand }})
-                  </option>
-                </select>
+          <!-- Items Section -->
+          <div class="border rounded p-3 mb-4 bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0 text-primary">Counted Items</h5>
+              <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mr-2" @click="triggerFileInput">
+                  Import Excel
+                </button>
+                <input type="file" ref="fileInput" class="d-none" accept=".xlsx,.xls,.csv" @change="handleFileUpload" />
+                <button type="button" class="btn btn-sm btn-success" @click="openProductsModal">
+                  Add Items
+                </button>
               </div>
             </div>
 
-            <h5 class="font-weight-bold mb-3 text-primary">Counted Items <span class="text-danger">*</span></h5>
             <div class="table-responsive">
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
@@ -73,46 +77,48 @@
                     <th>Description</th>
                     <th>UoM</th>
                     <th>System Qty</th>
-                    <th>Counted Qty <span class="text-danger">*</span></th>
+                    <th>Counted Qty *</th>
                     <th>Variance</th>
                     <th>Remarks</th>
-                    <th>Actions</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(item, index) in form.items" :key="item.product_id || index">
+                  <tr v-for="(item, i) in form.items" :key="i">
                     <td>{{ item.item_code }}</td>
                     <td>{{ item.product_name }} {{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <td><input type="number" class="form-control" :value="item.ending_quantity.toFixed(4)" readonly /></td>
+                    <td><input type="number" :value="item.ending_quantity.toFixed(4)" class="form-control" readonly /></td>
                     <td>
                       <input
                         type="number"
-                        class="form-control"
                         v-model.number="item.counted_quantity"
+                        class="form-control"
                         min="0"
                         step="0.0001"
                         required
-                        @input="calculateVariance(index)"
                       />
                     </td>
                     <td>
                       <input
                         type="number"
-                        class="form-control"
                         :value="(item.counted_quantity - item.ending_quantity).toFixed(4)"
-                        :class="{ 'text-danger': item.counted_quantity < item.ending_quantity, 'text-success': item.counted_quantity > item.ending_quantity }"
+                        :class="{
+                          'text-danger font-weight-bold': item.counted_quantity < item.ending_quantity,
+                          'text-success font-weight-bold': item.counted_quantity > item.ending_quantity
+                        }"
+                        class="form-control"
                         readonly
                       />
                     </td>
-                    <td><textarea class="form-control" rows="1" v-model="item.remarks"></textarea></td>
+                    <td><textarea v-model="item.remarks" class="form-control" rows="1"></textarea></td>
                     <td>
-                      <button type="button" class="btn btn-danger btn-sm" @click="removeItem(index)">
+                      <button type="button" class="btn btn-sm btn-danger" @click="removeItem(i)">
                         Remove
                       </button>
                     </td>
                   </tr>
-                  <tr v-if="form.items.length === 0">
+                  <tr v-if="!form.items.length">
                     <td colspan="8" class="text-center text-muted">No items added yet</td>
                   </tr>
                 </tbody>
@@ -121,212 +127,373 @@
           </div>
 
           <!-- Approval Assignments -->
-          <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">Approval Assignments</h5>
-            <div class="table-responsive">
-              <table class="table table-bordered table-sm">
-                <thead class="thead-light">
-                  <tr>
-                    <th>Type</th>
-                    <th>Assigned User</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(approval, index) in form.approvals" :key="index">
-                    <td>
-                      <select v-model="approval.request_type" class="form-control" :disabled="approval.isDefault" required>
-                        <option value="initial">Initial</option>
-                        <option value="approve">Approve</option>
-                      </select>
-                    </td>
-                    <td>
-                      <select v-model="approval.user_id" class="form-control user-select" required>
-                        <option value="">Select User</option>
-                        <option v-for="user in approval.availableUsers" :key="user.id" :value="user.id">
-                          {{ user.name }}
-                        </option>
-                      </select>
-                    </td>
-                    <td>
-                      <button type="button" class="btn btn-danger btn-sm" @click="removeApproval(index)" :disabled="approval.isDefault">
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @click="addApproval">Add Approval</button>
+          <div class="border rounded p-3 mb-4 bg-white">
+            <h5 class="mb-3 text-primary">Approval Assignments</h5>
+            <table class="table table-bordered table-sm">
+              <thead class="thead-light">
+                <tr>
+                  <th width="30%">Type</th>
+                  <th width="50%">Assigned User</th>
+                  <th width="20%"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(app, i) in form.approvals" :key="i">
+                  <td>
+                    <select
+                      v-model="app.request_type"
+                      class="form-control approval-type-select"
+                      :data-index="i"
+                      :disabled="app.isDefault"
+                      required
+                    >
+                      <option value="initial">Initial</option>
+                      <option value="approve">Approve</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      v-model="app.user_id"
+                      class="form-control user-select"
+                      :data-index="i"
+                      required
+                    >
+                      <option value="">Select User</option>
+                      <option v-for="u in app.availableUsers" :key="u.id" :value="u.id">
+                        {{ u.name }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-danger"
+                      @click="removeApproval(i)"
+                      :disabled="app.isDefault"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" @click="addApproval">
+              Add Approval
+            </button>
           </div>
 
-          <!-- Submit Buttons -->
+          <!-- Submit -->
           <div class="text-right">
             <button
               type="submit"
-              class="btn btn-primary btn-sm mr-2"
-              :disabled="isSubmitting || form.items.length === 0 || !validateApprovals()"
+              class="btn btn-primary"
+              :disabled="isSubmitting || !form.items.length || !validateApprovals()"
             >
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-2"></span>
               {{ isEditMode ? 'Update' : 'Create Stock Count' }}
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" @click="goToIndex">Cancel</button>
+            <button type="button" class="btn btn-secondary ml-2" @click="goToIndex">Cancel</button>
           </div>
         </div>
       </div>
     </form>
+
+    <!-- Products Modal -->
+    <div ref="itemsModal" class="modal fade" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Select Products to Count</h5>
+            <button type="button" class="close" @click="closeItemsModal">×</button>
+          </div>
+          <div class="modal-body">
+            <table ref="modalTable" class="table table-bordered table-sm">
+              <thead class="thead-light">
+                <tr>
+                  <th><input type="checkbox" @change="toggleAll($event)" /></th>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>UoM</th>
+                  <th>System Qty</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeItemsModal">Cancel</button>
+            <button class="btn btn-success" @click="addSelectedItems">Add Selected</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({
-  initialData: { type: Object, default: () => ({}) },
-})
-
+const props = defineProps({ initialId: [String, Number] })
 const emit = defineEmits(['submitted'])
 
+const isEditMode = ref(false)
 const isSubmitting = ref(false)
-const isImporting = ref(false)
-const selectedFileName = ref('')
-const products = ref([])
-const warehouses = ref([])
-const users = ref({ initial: [], approve: [] })
-
-const warehouseSelect = ref(null)
-const productSelect = ref(null)
-const fileInput = ref(null)
-
-const isEditMode = computed(() => !!props.initialData.id)
 
 const form = ref({
   transaction_date: '',
-  warehouse_id: '',
+  warehouse_id: null,
+  reference_no: '',
   remarks: '',
-  items: [], // { product_id, ending_quantity, counted_quantity, remarks }
-  approvals: [],
+  items: [],
+  approvals: []
 })
 
-const goToIndex = () => {
-  window.location.href = '/inventory/stock-counts'
-}
+const warehouses = ref([])
+const fileInput = ref(null)
+const itemsModal = ref(null)
+const warehouseSelect = ref(null)
 
-const mapItem = (product, existing = {}) => ({
-  product_id: Number(product.id),
-  item_code: product.item_code || 'N/A',
-  product_name: product.product_name || '',
-  description: product.description || '',
-  unit_name: product.unit_name || 'N/A',
-  ending_quantity: parseFloat(product.stock_on_hand) || 0,
-  counted_quantity: existing.counted_quantity !== undefined ? parseFloat(existing.counted_quantity) : parseFloat(product.stock_on_hand) || 0,
-  remarks: existing.remarks || '',
-})
-
-const fetchProducts = async (warehouseId = '', cutoffDate = '') => {
-  if (!warehouseId || !cutoffDate) {
-    products.value = []
-    return
-  }
-  try {
-    const { data } = await axios.get('/api/inventory/stock-counts/get-products', {
-      params: { warehouse_id: warehouseId, cutoff_date: cutoffDate }
-    })
-    products.value = Array.isArray(data) ? data : data.data
-  } catch (err) {
-    showAlert('Error', 'Failed to load products for selected warehouse and date.', 'danger')
-  }
-}
+const goToIndex = () => window.location.href = '/inventory/stock-counts'
 
 const fetchWarehouses = async () => {
-  try {
-    const { data } = await axios.get('/api/inventory/stock-counts/get-warehouses')
-    warehouses.value = Array.isArray(data) ? data : data.data
-  } catch (err) {
-    showAlert('Error', 'Failed to load warehouses.', 'danger')
+  const { data } = await axios.get('/api/inventory/stock-counts/get-warehouses')
+  warehouses.value = data.data || data
+}
+
+const initDatepicker = () => {
+  $('#transaction_date').datepicker({
+    format: 'yyyy-mm-dd',
+    autoclose: true,
+    todayHighlight: true,
+    orientation: 'bottom left'
+  }).on('changeDate', (e) => {
+    form.value.transaction_date = e.format()
+  })
+}
+
+const initWarehouseSelect2 = () => {
+  if (!warehouseSelect.value) return
+  initSelect2(warehouseSelect.value, {
+    placeholder: 'Select Warehouse',
+    width: '100%',
+    allowClear: false
+  }, (val) => {
+    form.value.warehouse_id = val
+    form.value.items = [] // clear items on warehouse change
+  })
+
+  if (form.value.warehouse_id) {
+    $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
   }
 }
 
-const fetchUsersForApproval = async (type) => {
-  if (users.value[type]?.length) return
-  try {
-    const { data } = await axios.get('/api/inventory/stock-counts/get-users-for-approval', { params: { request_type: type } })
-    users.value[type] = data.data || []
-  } catch (err) {
-    showAlert('Error', `Failed to load ${type} users.`, 'danger')
-  }
-}
-
-const addItem = async (productId) => {
-  if (!productId || !form.value.warehouse_id || !form.value.transaction_date) return
-
-  const product = products.value.find(p => p.id == productId)
-  if (!product) return
-
-  if (!form.value.items.some(i => i.product_id === Number(productId))) {
-    form.value.items.push(mapItem(product))
-  }
-  $(productSelect.value).val(null).trigger('change.select2')
-}
-
-const removeItem = (index) => form.value.items.splice(index, 1)
-const calculateVariance = () => {} // Already computed in template
-
-const handleFileUpload = (e) => {
-  const file = e.target.files[0]
-  selectedFileName.value = file?.name || ''
-}
-
-const triggerFileInput = () => fileInput.value?.click()
-
-const importFile = async () => {
-  if (!fileInput.value.files[0] || !form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Error', 'Please select warehouse, date, and file.', 'danger')
-    return
+const initApprovalSelect2 = async () => {
+  const { data } = await axios.get('/api/inventory/stock-counts/get-users-for-approval')
+  const users = {
+    initial: data.initial || [],
+    approve: data.approve || []
   }
 
-  isImporting.value = true
-  const formData = new FormData()
-  formData.append('file', fileInput.value.files[0])
+  await nextTick()
 
-  try {
-    await fetchProducts(form.value.warehouse_id, form.value.transaction_date)
-    const { data } = await axios.post('/api/inventory/stock-counts/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  $('.approval-type-select').each(function () {
+    const index = $(this).data('index')
+    initSelect2(this, {
+      placeholder: 'Select Type',
+      width: '100%',
+      allowClear: false
+    }, (val) => {
+      form.value.approvals[index].request_type = val
+      updateUserSelect(index, users)
+    })
+    $(this).val(form.value.approvals[index].request_type).trigger('change')
+  })
+
+  $('.user-select').each(function () {
+    const index = $(this).data('index')
+    const type = form.value.approvals[index].request_type
+    const userList = users[type] || []
+
+    destroySelect2(this)
+    initSelect2(this, {
+      placeholder: 'Select User',
+      width: '100%',
+      data: userList.map(u => ({ id: u.id, text: u.name }))
+    }, (val) => {
+      form.value.approvals[index].user_id = val ? Number(val) : null
     })
 
-    form.value.items = data.data.items
-      .map(item => {
-        const product = products.value.find(p => p.id == item.product_id)
-        return product ? mapItem(product, item) : null
-      })
-      .filter(Boolean)
+    if (form.value.approvals[index].user_id) {
+      $(this).val(form.value.approvals[index].user_id).trigger('change')
+    }
+  })
+}
 
-    showAlert('Success', 'Stock count items imported successfully.', 'success')
-    fileInput.value.value = ''
-    selectedFileName.value = ''
-  } catch (err) {
-    const msg = err.response?.data?.message || 'Import failed'
-    showAlert('Import Failed', msg, 'danger')
-  } finally {
-    isImporting.value = false
-  }
+const updateUserSelect = (index, users) => {
+  nextTick(() => {
+    const select = document.querySelector(`.user-select[data-index="${index}"]`)
+    if (!select) return
+
+    const type = form.value.approvals[index].request_type
+    const userList = users[type] || []
+
+    destroySelect2(select)
+    initSelect2(select, {
+      placeholder: 'Select User',
+      width: '100%',
+      data: userList.map(u => ({ id: u.id, text: u.name }))
+    }, (val) => {
+      form.value.approvals[index].user_id = val ? Number(val) : null
+    })
+
+    $(select).val(form.value.approvals[index].user_id || '').trigger('change')
+  })
+}
+
+const addApproval = async () => {
+  form.value.approvals.push({
+    request_type: '',
+    user_id: null,
+    isDefault: false,
+    availableUsers: []
+  })
+  await nextTick()
+  const index = form.value.approvals.length - 1
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`)
+  const userEl = document.querySelector(`.user-select[data-index="${index}"]`)
+
+  initSelect2(typeEl, { placeholder: 'Select Type', width: '100%' }, (val) => {
+    form.value.approvals[index].request_type = val
+    updateUserSelect(index, { initial: [], approve: [] })
+  })
+  initSelect2(userEl, { placeholder: 'Select User', width: '100%' })
+}
+
+const removeApproval = (i) => {
+  if (form.value.approvals[i].isDefault) return
+  const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`)
+  const userEl = document.querySelector(`.user-select[data-index="${i}"]`)
+  if (typeEl) destroySelect2(typeEl)
+  if (userEl) destroySelect2(userEl)
+  form.value.approvals.splice(i, 1)
 }
 
 const validateApprovals = () => {
   const types = form.value.approvals.map(a => a.request_type)
-  return types.includes('initial') && types.includes('approve') && new Set(types).size === types.length
+  return types.includes('initial') && types.includes('approve') && new Set(types).size === 2
 }
 
-const submitForm = async () => {
-  if (!form.value.transaction_date || !form.value.warehouse_id || form.value.items.length === 0) {
-    showAlert('Error', 'Please fill all required fields and add at least one item.', 'danger')
+const openProductsModal = async () => {
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
+    return
+  }
+  await nextTick()
+  const table = $(itemsModal.value).find('table')
+  if ($.fn.DataTable.isDataTable(table)) table.DataTable().destroy()
+
+  table.DataTable({
+    serverSide: true,
+    processing: true,
+    ajax: {
+      url: '/api/inventory/stock-counts/get-products',
+      data: d => {
+        d.warehouse_id = form.value.warehouse_id
+        d.cutoff_date = form.value.transaction_date
+      }
+    },
+    columns: [
+      { data: 'id', orderable: false, render: id => `<input type="checkbox" class="select-item" value="${id}">` },
+      { data: 'item_code' },
+      { data: null, render: (d, t, r) => `${r.product_name} ${r.description || ''}` },
+      { data: 'unit_name' },
+      { data: 'stock_on_hand', className: 'text-right' }
+    ]
+  })
+
+  $(itemsModal.value).modal('show')
+}
+
+const addSelectedItems = () => {
+  const table = $(itemsModal.value).find('table').DataTable()
+  const selected = []
+  table.rows().every(function () {
+    if ($(this.node()).find('.select-item').is(':checked')) selected.push(this.data())
+  })
+
+  selected.forEach(p => {
+    if (!form.value.items.find(i => i.product_id === p.id)) {
+      form.value.items.push({
+        product_id: p.id,
+        item_code: p.item_code,
+        product_name: p.product_name,
+        description: p.description || '',
+        unit_name: p.unit_name,
+        ending_quantity: parseFloat(p.stock_on_hand) || 0,
+        counted_quantity: parseFloat(p.stock_on_hand) || 0,
+        remarks: ''
+      })
+    }
+  })
+
+  $(itemsModal.value).find('.select-item').prop('checked', false)
+  $(itemsModal.value).modal('hide')
+}
+
+const removeItem = i => form.value.items.splice(i, 1)
+const closeItemsModal = () => $(itemsModal.value).modal('hide')
+const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
+const triggerFileInput = () => fileInput.value.click()
+const handleFileUpload = e => { if (e.target.files[0]) importFile() }
+
+const importFile = async () => {
+  const file = fileInput.value?.files[0]
+  if (!file || !form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Error', 'Please select file, warehouse, and date.', 'danger')
     return
   }
 
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const { data } = await axios.post('/api/inventory/stock-counts/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    const productsResp = await axios.get('/api/inventory/stock-counts/get-products', {
+      params: { warehouse_id: form.value.warehouse_id, cutoff_date: form.value.transaction_date }
+    })
+    const products = productsResp.data.data || productsResp.data
+
+    form.value.items = data.data.items.map(item => {
+      const p = products.find(x => x.id == item.product_id)
+      return p ? {
+        product_id: p.id,
+        item_code: p.item_code,
+        product_name: p.product_name,
+        description: p.description || '',
+        unit_name: p.unit_name,
+        ending_quantity: parseFloat(p.stock_on_hand),
+        counted_quantity: parseFloat(item.counted_quantity || p.stock_on_hand),
+        remarks: item.remarks || ''
+      } : null
+    }).filter(Boolean)
+
+    showAlert('Success', 'Items imported!', 'success')
+    fileInput.value.value = ''
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Import failed', 'danger')
+  }
+}
+
+const submitForm = async () => {
+  if (!form.value.transaction_date || !form.value.warehouse_id || !form.value.items.length) {
+    showAlert('Error', 'Please complete all required fields.', 'danger')
+    return
+  }
   if (!validateApprovals()) {
     showAlert('Error', 'Must assign exactly one Initial and one Approve user.', 'danger')
     return
@@ -342,66 +509,51 @@ const submitForm = async () => {
         product_id: i.product_id,
         ending_quantity: i.ending_quantity,
         counted_quantity: i.counted_quantity,
-        remarks: i.remarks || null,
+        remarks: i.remarks || null
       })),
       approvals: form.value.approvals.map(a => ({
         user_id: a.user_id,
-        request_type: a.request_type,
-      })),
+        request_type: a.request_type
+      }))
     }
 
     const url = isEditMode.value
-      ? `/api/inventory/stock-counts/${props.initialData.id}`
+      ? `/api/inventory/stock-counts/${props.initialId}`
       : '/api/inventory/stock-counts'
 
     await axios[isEditMode.value ? 'put' : 'post'](url, payload)
-
     showAlert('Success', 'Stock count saved successfully!', 'success')
     emit('submitted')
     goToIndex()
   } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to save stock count.', 'danger')
+    showAlert('Error', err.response?.data?.message || 'Failed to save', 'danger')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Watchers
-watch(() => form.value.warehouse_id, () => { if (form.value.transaction_date) fetchProducts(form.value.warehouse_id, form.value.transaction_date) })
-watch(() => form.value.transaction_date, () => { if (form.value.warehouse_id) fetchProducts(form.value.warehouse_id, form.value.transaction_date) })
-
 onMounted(async () => {
-  await Promise.all([
-    fetchWarehouses(),
-    fetchUsersForApproval('initial'),
-    fetchUsersForApproval('approve'),
-  ])
+  await fetchWarehouses()
 
+  // Default approvals
   form.value.approvals = [
-    { request_type: 'initial', user_id: null, isDefault: true, availableUsers: users.value.initial },
-    { request_type: 'approve', user_id: null, isDefault: true, availableUsers: users.value.approve },
+    { request_type: 'initial', user_id: null, isDefault: true },
+    { request_type: 'approve', user_id: null, isDefault: true }
   ]
 
-  await nextTick()
+  initDatepicker()
+  initWarehouseSelect2()
+  await initApprovalSelect2()
 
-  initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse' }, val => form.value.warehouse_id = val)
-  initSelect2(productSelect.value, { placeholder: 'Search Product...' })
-  $(productSelect.value).on('select2:select', e => addItem(e.params.data.id))
-
-  $('#transaction_date').datepicker({
-    format: 'yyyy-mm-dd',
-    autoclose: true,
-    todayHighlight: true,
-  }).on('changeDate', e => form.value.transaction_date = e.format())
-
-  if (isEditMode.value && props.initialData.id) {
-    // Load edit data if needed (similar to your original fetchEditData)
+  if (props.initialId) {
+    isEditMode.value = true
+    // Add loadEditData() if needed later
   }
 })
 
 onUnmounted(() => {
-  destroySelect2(warehouseSelect.value)
-  destroySelect2(productSelect.value)
   $('#transaction_date').datepicker('destroy')
+  if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
+  $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
 })
 </script>

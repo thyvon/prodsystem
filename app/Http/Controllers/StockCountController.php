@@ -19,6 +19,10 @@ class StockCountController extends Controller
         $this->middleware('auth'); // Ensure authentication for all methods
         $this->approvalService = $approvalService;
     }
+
+    public function create(){
+        return view('Inventory.stock-count.form');
+    }
     public function store(Request $request): JsonResponse
     {
         $validated = Validator::make(

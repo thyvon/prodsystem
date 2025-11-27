@@ -71,6 +71,9 @@ use App\Models\StockIn;
 use App\Http\Controllers\StockController;
 use App\Models\MonthlyStockReport;
 
+use App\Http\Controllers\StockCountController;
+use App\Models\StockCount;
+
 
 // Approval Management
 use App\Http\Controllers\ApprovalController;
@@ -238,6 +241,16 @@ Route::middleware(['auth'])->group(function () {
             ->middleware('can:update,stockTransfer');
         Route::get('/stock-transfers/{stockTransfer}/show', [StockTransferController::class, 'show'])
             ->name('stock-transfers.show')->middleware('can:view,stockTransfer');
+
+        // Stock Count
+        Route::get('/stock-counts', [StockCountController::class, 'index'])
+            ->name('stock-counts.index')->middleware('can:viewAny,' . StockCount::class);
+        Route::get('/stock-counts/create', [StockCountController::class, 'create'])
+            ->name('stock-counts.create');
+        Route::get('/stock-counts/{stockCount}/edit', [StockCountController::class, 'edit'])
+            ->name('stock-counts.edit')->middleware('can:update,stockCount');
+        Route::get('/stock-counts/{stockCount}/show', [StockCountController::class, 'show'])
+            ->name('stock-counts.show')->middleware('can:view,stockCount');
 
         // Stock Movements
         Route::get('/stock-movements', [StockController::class, 'stockMovement'])
