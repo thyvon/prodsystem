@@ -102,18 +102,18 @@ const datatableParams = reactive({
 // --- Datatable config ---
 const datatableHeaders = [
   { text: 'Item Code', value: 'item_code' },
-  { text: 'Description', value: 'description' },
-  { text: 'Unit', value: 'unit_name' },
-  { text: 'Begin Qty', value: 'beginning_quantity' },
-  { text: 'Begin Price', value: 'beginning_price' },
-  { text: 'Begin Amount', value: 'beginning_total' },
-  { text: 'Stock In Qty', value: 'stock_in_quantity' },
-  { text: 'Stock In Amount', value: 'stock_in_total' },
-  { text: 'Stock Out Qty', value: 'stock_out_quantity' },
-  { text: 'Stock Out Amount', value: 'stock_out_total' },
-  { text: 'Ending Qty', value: 'ending_quantity' },
-  { text: 'Average Price', value: 'average_price' },
-  { text: 'Ending Amount', value: 'ending_total' },
+  { text: 'Description', value: 'description', sortable: false },
+  { text: 'Unit', value: 'unit_name', sortable: false },
+  { text: 'Begin Qty', value: 'beginning_quantity', sortable: false },
+  { text: 'Begin Price', value: 'beginning_price', sortable: false },
+  { text: 'Begin Amount', value: 'beginning_total', sortable: false },
+  { text: 'Stock In Qty', value: 'stock_in_quantity', sortable: false },
+  { text: 'Stock In Amount', value: 'stock_in_total', sortable: false  },
+  { text: 'Stock Out Qty', value: 'stock_out_quantity', sortable: false  },
+  { text: 'Stock Out Amount', value: 'stock_out_total', sortable: false  },
+  { text: 'Ending Qty', value: 'ending_quantity', sortable: false  },
+  { text: 'Average Price', value: 'average_price', sortable: false  },
+  { text: 'Ending Amount', value: 'ending_total', sortable: false  },
 ]
 const datatableFetchUrl = '/api/inventory/stock-reports'
 const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }

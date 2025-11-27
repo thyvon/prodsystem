@@ -707,6 +707,45 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
     }
 
     // Core stock calculation (unchanged logic, just cleaner)
+    // private function calculateStockReport(
+    //     $startDate, $endDate, array $warehouseIds = [], array $productIds = [],
+    //     ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
+    //     bool $paginate = false, int $perPage = 50, int $page = 1
+    // ) {
+    //     $query = ProductVariant::with('product.unit')
+    //         ->whereNull('deleted_at')
+    //         ->where('is_active', 1)
+    //         ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
+    //         ->when($productIds, fn($q) => $q->whereIn('id', $productIds))
+    //         ->when($search, fn($q) => $q->where(function ($sq) use ($search) {
+    //             $sq->where('item_code', 'like', "%{$search}%")
+    //                ->orWhere('description', 'like', "%{$search}%")
+    //                ->orWhereHas('product', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
+    //         }));
+
+    //     if (in_array($sortColumn, ['item_code', 'description'])) {
+    //         $query->orderBy($sortColumn === 'description' ? 'product.name' : 'item_code', $sortDirection);
+    //     }
+
+    //     $collection = $paginate ? $query->paginate($perPage, ['*'], 'page', $page)->getCollection()
+    //                             : $query->get();
+
+    //     $report = $collection->map(fn($variant) =>
+    //         $this->calculateRow($variant, $warehouseIds, $startDate, $endDate)
+    //     );
+
+    //     if ($paginate && in_array($sortColumn, ['beginning_quantity', 'ending_quantity', 'average_price'])) {
+    //         $report = $report->sortBy($sortColumn, SORT_REGULAR, $sortDirection === 'desc');
+    //     }
+
+    //     if ($paginate) {
+    //         $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+    //         $paginated->setCollection($report->values());
+    //         return $paginated;
+    //     }
+
+    //     return $report->values();
+    // }
     private function calculateStockReport(
         $startDate, $endDate, array $warehouseIds = [], array $productIds = [],
         ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
@@ -714,29 +753,32 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
     ) {
         $query = ProductVariant::with('product.unit')
             ->whereNull('deleted_at')
+            ->where('is_active', 1)
             ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
             ->when($productIds, fn($q) => $q->whereIn('id', $productIds))
             ->when($search, fn($q) => $q->where(function ($sq) use ($search) {
                 $sq->where('item_code', 'like', "%{$search}%")
-                   ->orWhere('description', 'like', "%{$search}%")
-                   ->orWhereHas('product', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
+                ->orWhere('description', 'like', "%{$search}%")
+                ->orWhereHas('product', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
             }));
 
-        if (in_array($sortColumn, ['item_code', 'description'])) {
-            $query->orderBy($sortColumn === 'description' ? 'description' : 'item_code', $sortDirection);
+        // Sort by item_code at DB level
+        if ($sortColumn === 'item_code') {
+            $query->orderBy('item_code', $sortDirection);
         }
 
+        // Fetch collection (paginated or not)
         $collection = $paginate ? $query->paginate($perPage, ['*'], 'page', $page)->getCollection()
                                 : $query->get();
 
+        // Map each variant to calculated stock row
         $report = $collection->map(fn($variant) =>
             $this->calculateRow($variant, $warehouseIds, $startDate, $endDate)
         );
 
-        if ($paginate && in_array($sortColumn, ['beginning_quantity', 'ending_quantity', 'average_price'])) {
-            $report = $report->sortBy($sortColumn, SORT_REGULAR, $sortDirection === 'desc');
-        }
+        // Sort after mapping if needed
 
+        // Apply pagination
         if ($paginate) {
             $paginated = $query->paginate($perPage, ['*'], 'page', $page);
             $paginated->setCollection($report->values());
@@ -745,6 +787,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
 
         return $report->values();
     }
+
 
     // private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
     // {
