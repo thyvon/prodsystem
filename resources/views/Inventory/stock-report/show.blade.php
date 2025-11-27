@@ -15,7 +15,7 @@
     /* Khmer OS Battambang */
     @font-face {
         font-family: 'Khmer OS Battambang';
-        src: url('/fonts/KhmerOSbattambang-Regular.ttf') format('truetype');
+        src: url('/fonts/KhmerOSBattambang-Regular.ttf') format('truetype');
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -23,7 +23,7 @@
 
     @font-face {
         font-family: 'Khmer OS Battambang';
-        src: url('/fonts/KhmerOSbattambang-Bold.ttf') format('truetype');
+        src: url('/fonts/KhmerOSBattambang-Bold.ttf') format('truetype');
         font-weight: 700;
         font-style: normal;
         font-display: swap;
