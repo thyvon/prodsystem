@@ -15,17 +15,32 @@ return new class extends Migration
             $table->id();
             $table->date('transaction_date');
             $table->string('reference_no')->unique();
-            $table->unsignedBigInteger('warehouse_id');
+
+            $table->foreignId('warehouse_id')
+                ->constrained('warehouses')
+                ->restrictOnDelete();
+
             $table->string('remarks')->nullable();
             $table->string('approval_status')->default('Pending');
-            $table->unsignedBigInteger('created_by');
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->unsignedBigInteger('deleted_by')->nullable();
 
-            $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('restrict');
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('restrict');
-            $table->foreign('deleted_by')->references('id')->on('users')->onDelete('restrict');
+            $table->foreignId('created_by')
+                ->constrained('users')
+                ->restrictOnDelete();
+
+            $table->foreignId('position_id')
+                ->constrained('positions')
+                ->restrictOnDelete();
+
+            $table->foreignId('updated_by')
+                ->nullable()
+                ->constrained('users')
+                ->restrictOnDelete();
+
+            $table->foreignId('deleted_by')
+                ->nullable()
+                ->constrained('users')
+                ->restrictOnDelete();
+
             $table->timestamps();
             $table->softDeletes();
         });
