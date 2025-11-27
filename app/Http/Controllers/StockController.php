@@ -256,7 +256,9 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
             'position_name'      => $approval->responderPosition?->title ?? null,
             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
             'approval_status'    => $approval->approval_status,
-            'responded_date'     => $approval->responded_date,
+            'responded_date' => $approval->responded_date 
+                                ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A') 
+                                : null,
             'comment'            => $approval->comment,
             'signature_url'      => $approval->responder?->signature_url ?? null,
         ];
@@ -787,15 +789,87 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
     //         'average_price'       => round($avgPrice, 6),
     //     ];
     // }
+    // private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
+    // {
+    //     $productId = $variant->id;
+
+    //     $product     = $variant->product;
+    //     $unitName    = $product->unit->name ?? '';
+    //     $description = trim($product->name . ' ' . $variant->description);
+
+    //     // Auto-detect warehouses ONLY if user did not select
+    //     if (empty($warehouseIds)) {
+    //         $warehouseIds = StockLedger::where('product_id', $productId)
+    //             ->distinct()
+    //             ->pluck('parent_warehouse')
+    //             ->toArray();
+    //     }
+
+    //     // Pre-filtered base query (so conditions not repeated)
+    //     $base = StockLedger::where('product_id', $productId)
+    //         ->whereIn('parent_warehouse', $warehouseIds);
+
+    //     // BEGINNING STOCK
+    //     $begin = (clone $base)
+    //         ->where('transaction_date', '<', $startDate)
+    //         ->selectRaw('SUM(quantity) qty, SUM(total_price) total')
+    //         ->first();
+
+    //     $beginQty   = $begin->qty ?? 0;
+    //     $beginAvg   = $this->beginAvg($productId, $startDate);
+    //     $beginTotal = bcmul($beginQty * $beginAvg) ?? 0;
+
+    //     // MOVEMENTS STOCK
+    //     $move = (clone $base)
+    //         ->whereBetween('transaction_date', [$startDate, $endDate])
+    //         ->selectRaw("
+    //             SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) in_qty,
+    //             SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) in_total,
+    //             SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) out_qty,
+    //             SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) out_total
+    //         ")
+    //         ->first();
+
+    //     $avgPrice = $this->avgPrice($productId, $endDate);
+            
+    //     $inQty   = $move->in_qty ?? 0;
+    //     $inTotal = $move->in_total ?? 0;
+    //     $outQty  = abs($move->out_qty ?? 0);
+    //     $outTotal = abs($outQty * $avgPrice ?? 0);
+
+    //     $endingQty = $beginQty + $inQty - $outQty;
+
+    //     // Keep your original logic
+    //     $endingTotal = $endingQty * $avgPrice;
+
+    //     return [
+    //         'product_id'         => $productId,
+    //         'item_code'          => $variant->item_code,
+    //         'description'        => $description,
+    //         'unit_name'          => $unitName,
+    //         'beginning_quantity' => round($beginQty, 4),
+    //         'beginning_price'    => round($beginAvg, 4),
+    //         'beginning_total'    => round($beginTotal, 4),
+    //         'stock_in_quantity'  => round($inQty, 4),
+    //         'stock_in_total'     => round($inTotal, 4),
+    //         'available_quantity' => round($beginQty + $inQty, 4),
+    //         'available_total'    => round($beginTotal + $inTotal, 4),
+    //         'stock_out_quantity' => round($outQty, 4),
+    //         'stock_out_total'    => round($outTotal, 4),
+    //         'ending_quantity'    => round($endingQty, 4),
+    //         'ending_total'       => round($endingTotal, 4),
+    //         'average_price'      => round($avgPrice, 4),
+    //     ];
+    // }
+
     private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
     {
-        $productId = $variant->id;
-
+        $productId   = $variant->id;
         $product     = $variant->product;
         $unitName    = $product->unit->name ?? '';
         $description = trim($product->name . ' ' . $variant->description);
 
-        // Auto-detect warehouses ONLY if user did not select
+        // Auto-detect warehouses if not provided
         if (empty($warehouseIds)) {
             $warehouseIds = StockLedger::where('product_id', $productId)
                 ->distinct()
@@ -803,59 +877,52 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
                 ->toArray();
         }
 
-        // Pre-filtered base query (so conditions not repeated)
-        $base = StockLedger::where('product_id', $productId)
-            ->whereIn('parent_warehouse', $warehouseIds);
-
-        // BEGINNING STOCK
-        $begin = (clone $base)
-            ->where('transaction_date', '<', $startDate)
-            ->selectRaw('SUM(quantity) qty, SUM(total_price) total')
-            ->first();
-
-        $beginQty   = $begin->qty ?? 0;
-        $beginTotal = $begin->total ?? 0;
-        $beginAvg   = $beginQty != 0 ? $beginTotal / $beginQty : 0;
-
-        // MOVEMENTS STOCK
-        $move = (clone $base)
-            ->whereBetween('transaction_date', [$startDate, $endDate])
+        // Single query: conditional aggregation for all sums
+        $totals = StockLedger::where('product_id', $productId)
+            ->whereIn('parent_warehouse', $warehouseIds)
             ->selectRaw("
-                SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) in_qty,
-                SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) in_total,
-                SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) out_qty,
-                SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) out_total
-            ")
+                SUM(CASE WHEN transaction_date < ? THEN quantity ELSE 0 END) AS begin_qty,
+                SUM(CASE WHEN transaction_date < ? THEN total_price ELSE 0 END) AS begin_total,
+                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
+                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty
+            ", [$startDate, $startDate, $startDate, $endDate, $startDate, $endDate])
             ->first();
 
-        $inQty   = $move->in_qty ?? 0;
-        $inTotal = $move->in_total ?? 0;
-        $outQty  = abs($move->out_qty ?? 0);
-        $outTotal = abs($move->out_total ?? 0);
+        // Cast to numeric floats
+        $beginQty = (float)($totals->begin_qty ?? 0);
+        $inQty    = (float)($totals->in_qty ?? 0);
+        $outQty   = (float)(abs($totals->out_qty ?? 0));
+        $beginAvg = (float)$this->beginAvg($productId, $startDate);
+        $avgPrice = (float)$this->avgPrice($productId, $endDate);
 
-        $endingQty = $beginQty + $inQty - $outQty;
+        // Totals using bcmul for precision, cast to float for numeric
+        $beginTotal      = (float)bcmul((string)$beginQty, (string)$beginAvg, 4);
+        $inTotal         = (float)bcmul((string)$inQty, (string)$avgPrice, 4);
+        $outTotal        = (float)bcmul((string)$outQty, (string)$avgPrice, 4);
 
-        // Keep your original logic
-        $avgPrice = $this->avgPrice($productId, $endDate);
-        $endingTotal = $endingQty * $avgPrice;
+        $availableQty    = $beginQty + $inQty;
+        $availableTotal  = (float)bcmul((string)$availableQty, (string)$avgPrice, 4);
+
+        $endingQty       = $availableQty - $outQty;
+        $endingTotal     = (float)bcmul((string)$endingQty, (string)$avgPrice, 4);
 
         return [
             'product_id'         => $productId,
             'item_code'          => $variant->item_code,
             'description'        => $description,
             'unit_name'          => $unitName,
-            'beginning_quantity' => round($beginQty, 6),
-            'beginning_price'    => round($beginAvg, 6),
-            'beginning_total'    => round($beginTotal, 6),
-            'stock_in_quantity'  => round($inQty, 6),
-            'stock_in_total'     => round($inTotal, 6),
-            'available_quantity' => round($beginQty + $inQty, 6),
-            'available_total'    => round($beginTotal + $inTotal, 6),
-            'stock_out_quantity' => round($outQty, 6),
-            'stock_out_total'    => round($outTotal, 6),
-            'ending_quantity'    => round($endingQty, 6),
-            'ending_total'       => round($endingTotal, 6),
-            'average_price'      => round($avgPrice, 6),
+            'beginning_quantity' => $beginQty,
+            'beginning_price'    => $beginAvg,
+            'beginning_total'    => $beginTotal,
+            'stock_in_quantity'  => $inQty,
+            'stock_in_total'     => $inTotal,
+            'available_quantity' => $availableQty,
+            'available_total'    => $availableTotal,
+            'stock_out_quantity' => $outQty,
+            'stock_out_total'    => $outTotal,
+            'ending_quantity'    => $endingQty,
+            'ending_total'       => $endingTotal,
+            'average_price'      => $avgPrice,
         ];
     }
 
@@ -907,7 +974,23 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         $balanceQty   = $totalQty + abs($outQty);
         $balancePrice = $totalPrice + abs($outPrice);
 
-        return $balanceQty > 0 ? round($balancePrice / $balanceQty, 6) : 0;
+        return $balanceQty > 0 ? round($balancePrice / $balanceQty, 4) : 0;
+    }
+
+    private function beginAvg($productId, $startDate = null)
+    {
+        $query = StockLedger::where('product_id', $productId);
+        if ($startDate) $query->whereDate('transaction_date', '<', $startDate);
+
+        $totalQty   = $query->sum('quantity');
+        $totalPrice = $query->sum('total_price');
+        $outQty     = $query->clone()->where('quantity', '<', 0)->sum('quantity');
+        $outPrice   = $query->clone()->where('quantity', '<', 0)->sum('total_price');
+
+        $balanceQty   = $totalQty + abs($outQty);
+        $balancePrice = $totalPrice + abs($outPrice);
+
+        return $balanceQty > 0 ? round($balancePrice / $balanceQty, 4) : 0;
     }
 
     // Approval Helpers

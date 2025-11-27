@@ -105,6 +105,7 @@ const datatableHeaders = [
   { text: 'Description', value: 'description' },
   { text: 'Unit', value: 'unit_name' },
   { text: 'Begin Qty', value: 'beginning_quantity' },
+  { text: 'Begin Price', value: 'beginning_price' },
   { text: 'Begin Amount', value: 'beginning_total' },
   { text: 'Stock In Qty', value: 'stock_in_quantity' },
   { text: 'Stock In Amount', value: 'stock_in_total' },

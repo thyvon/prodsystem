@@ -19,15 +19,34 @@
     <!-- Body -->
     <div class="card-body p-3">
 
-      <h4 class="text-center font-weight-bold mb-3">Monthly Stock Report</h4>
-      <h6 class="text-center text-muted mb-4">
-        {{ formatDate(reportParams.start_date) }} - {{ formatDate(reportParams.end_date) }}
-        ({{ warehouseNames }})
-      </h6>
+      <!-- Header: Logo + Title -->
+      <div class="row align-items-center mb-3">
+        
+        <!-- Left Column: Logo -->
+        <div class="col-3 d-flex align-items-center">
+          <img src="@public/img/logo/logo-dark.png" alt="Logo" style="height:50px;">
+        </div>
+        
+        <!-- Center Column: Title -->
+        <div class="col-6 text-center">
+          <h4 class="font-weight-bold mb-0">Monthly Stock Report</h4>
+          <h6 class="text-muted">
+            {{ formatDate(reportParams.start_date) }} - {{ formatDate(reportParams.end_date) }}
+            ({{ warehouseNames }})
+          </h6>
+        </div>
+        
+        <!-- Right Column: Blank -->
+        <div class="col-3">
+          <!-- Blank or future content -->
+        </div>
+        
+      </div>
+      <div class="dropdown-divider mb-1"></div>
 
       <!-- Stock Table -->
       <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-        <table class="table table-bordered table-sm">
+        <table class="table table-bordered table-hover table-striped align-middle table-sm">
           <thead class="table-light sticky-header">
             <tr>
               <th>#</th>
@@ -35,6 +54,7 @@
               <th>Description</th>
               <th>Unit</th>
               <th>Beginning Qty</th>
+              <th>Beginning Price</th>
               <th>Beginning Amount</th>
               <th>Stock In Qty</th>
               <th>Stock In Amount</th>
@@ -43,8 +63,8 @@
               <th>Stock Out Qty</th>
               <th>Stock Out Amount</th>
               <th>Ending Qty</th>
-              <th>Ending Amount</th>
               <th>Avg Price</th>
+              <th>Ending Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -53,37 +73,41 @@
               <td>{{ item.item_code }}</td>
               <td>{{ item.description || item.product_name || '-' }}</td>
               <td>{{ item.unit_name }}</td>
-              <td class="text-center">{{ format(item.beginning_quantity) }}</td>
-              <td class="text-end">{{ format(item.beginning_total) }}</td>
-              <td class="text-center">{{ format(item.stock_in_quantity) }}</td>
-              <td class="text-end">{{ format(item.stock_in_total) }}</td>
-              <td class="text-center bg-success-light">{{ format(item.available_quantity) }}</td>
-              <td class="text-end bg-success-light">{{ format(item.available_total) }}</td>
-              <td class="text-center">{{ format(item.stock_out_quantity) }}</td>
-              <td class="text-end">{{ format(item.stock_out_total) }}</td>
-              <td class="text-center">{{ format(item.ending_quantity) }}</td>
-              <td class="text-end">{{ format(item.ending_total) }}</td>
-              <td class="text-end">{{ format(item.average_price) }}</td>
+              <td class="text-center">{{ formatQty(item.beginning_quantity) }}</td>
+              <td class="text-end">{{ formatAmount(item.beginning_price) }}</td>
+              <td class="text-end">{{ formatAmount(item.beginning_total) }}</td>
+              <td class="text-center">{{ formatQty(item.stock_in_quantity) }}</td>
+              <td class="text-end">{{ formatAmount(item.stock_in_total) }}</td>
+              <td class="text-center bg-success-light">{{ formatQty(item.available_quantity) }}</td>
+              <td class="text-end bg-success-light">{{ formatAmount(item.available_total) }}</td>
+              <td class="text-center">{{ formatQty(item.stock_out_quantity) }}</td>
+              <td class="text-end">{{ formatAmount(item.stock_out_total) }}</td>
+              <td class="text-center">{{ formatQty(item.ending_quantity) }}</td>
+              <td class="text-end">{{ formatAmount(item.average_price) }}</td>
+              <td class="text-end">{{ formatAmount(item.ending_total) }}</td>
             </tr>
 
             <!-- Totals Row -->
             <tr class="table-secondary font-weight-bold">
               <td colspan="4" class="text-end">Total</td>
-              <td class="text-center">{{ format(total('beginning_quantity')) }}</td>
-              <td class="text-end">{{ format(total('beginning_total')) }}</td>
-              <td class="text-center">{{ format(total('stock_in_quantity')) }}</td>
-              <td class="text-end">{{ format(total('stock_in_total')) }}</td>
-              <td class="text-center bg-success-light">{{ format(total('available_quantity')) }}</td>
-              <td class="text-end bg-success-light">{{ format(total('available_total')) }}</td>
-              <td class="text-center">{{ format(total('stock_out_quantity')) }}</td>
-              <td class="text-end">{{ format(total('stock_out_total')) }}</td>
-              <td class="text-center">{{ format(total('ending_quantity')) }}</td>
-              <td class="text-end">{{ format(total('ending_total')) }}</td>
-              <td></td>
+              <td class="text-center">{{ formatQty(total('beginning_quantity')) }}</td>
+              <td class="text-end">-</td>
+              <td class="text-end">{{ formatAmount(total('beginning_total')) }}</td>
+              <td class="text-center">{{ formatQty(total('stock_in_quantity')) }}</td>
+              <td class="text-end">{{ formatAmount(total('stock_in_total')) }}</td>
+              <td class="text-center bg-success-light">{{ formatQty(total('available_quantity')) }}</td>
+              <td class="text-end bg-success-light">{{ formatAmount(total('available_total')) }}</td>
+              <td class="text-center">{{ formatQty(total('stock_out_quantity')) }}</td>
+              <td class="text-end">{{ formatAmount(total('stock_out_total')) }}</td>
+              <td class="text-center">{{ formatQty(total('ending_quantity')) }}</td>
+              <td class="text-end">-</td>
+              <td class="text-end">{{ formatAmount(total('ending_total')) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <div class="dropdown-divider mb-1"></div>
 
       <!-- Requested By & Approvals -->
       <div class="mt-5">
@@ -262,7 +286,8 @@ const usersByType = ref({ check: [], verify: [], acknowledge: [] })
 const currentActionRequestType = ref('')
 
 // Helpers
-const format = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 }))
+const formatAmount = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 4 , maximumFractionDigits: 4 }))
+const formatQty = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 , maximumFractionDigits: 2 }))
 const formatDate = date => formatDateShort(date)
 const total = key => stockItems.value.reduce((sum, i) => sum + (i[key] || 0), 0)
 const goBack = () => window.location.href = '/inventory/stock-reports/monthly-report'

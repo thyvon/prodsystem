@@ -2,7 +2,7 @@
 @extends('layouts.main')
 
 @push('styles')
-<style>
+<!-- <style>
     /* TW Cen MT */
     @font-face {
         font-family: 'TW Cen MT';
@@ -34,7 +34,7 @@
     .monthly-stock-report-page * {
         font-family: 'Khmer OS Battambang', 'TW Cen MT', Arial, sans-serif !important;
     }
-</style>
+</style> -->
 
 <link rel="stylesheet" media="screen, print" href="{{ asset('template/css/formplugins/select2/select2.bundle.css') }}">
 @endpush
