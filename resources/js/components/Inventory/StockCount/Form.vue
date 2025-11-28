@@ -107,7 +107,7 @@
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th>Code</th>
+                    <th style="min-width: 90px;">Code</th>
                     <th>Description</th>
                     <th>UoM</th>
                     <th>Stock Ending</th>
