@@ -18,8 +18,15 @@
 
             <div class="form-row">
               <div class="form-group col-md-3">
-                <label class="font-weight-bold">Issue Date <span class="text-danger">*</span></label>
-                <input id="transaction_date" v-model="form.transaction_date" type="text" class="form-control datepicker" required />
+                <label class="font-weight-bold">Count Date <span class="text-danger">*</span></label>
+                <input
+                  id="transaction_date"
+                  v-model="form.transaction_date"
+                  type="text"
+                  class="form-control"
+                  placeholder="yyyy-mm-dd"
+                  required
+                />
               </div>
 
               <div class="form-group col-md-3">
@@ -84,6 +91,8 @@
                     <th style="min-width: 80px;">Code</th>
                     <th style="min-width: 150px;">Description</th>
                     <th style="min-width: 60px;">UoM</th>
+                    <th style="min-width: 100px;">Qty On Hand</th>
+                    <th style="min-width: 100px;">Avg Price</th>
                     <th style="min-width: 100px;">Issue Qty</th>
                     <th style="min-width: 120px;">Unit Price</th>
                     <th style="min-width: 130px;">Total Price</th>
@@ -98,6 +107,8 @@
                     <td>{{ item.product_code }}</td>
                     <td>{{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
+                    <td>{{ item.stock_on_hand }}</td>
+                    <td>{{ item.average_price }}</td>
                     <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0000000001" step="0.0000000001" /></td>
                     <td><input type="number" class="form-control" v-model.number="item.unit_price" min="0" step="0.0000000001" /></td>
                     <td><input type="number" class="form-control" :value="(item.quantity * item.unit_price).toFixed(10)" readonly /></td>
@@ -141,40 +152,42 @@
 
     <!-- Items Modal -->
     <div ref="itemsModal" class="modal fade" tabindex="-1" role="dialog">
-      <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">{{ modalTitle }}</h5>
             <button type="button" class="close" @click="closeItemsModal">&times;</button>
           </div>
           <div class="modal-body">
-            <table ref="modalItemsTable" class="table table-bordered table-sm">
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>UoM</th>
-                  <th>Qty On Hand</th>
-                  <th>Unit Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in modalItems" :key="item.id">
-                  <td>
-                    <div class="custom-control custom-checkbox">
-                      <input type="checkbox" class="custom-control-input" :id="'select-item-' + item.id" v-model="item.selected" />
-                      <label class="custom-control-label" :for="'select-item-' + item.id"></label>
-                    </div>
-                  </td>
-                  <td>{{ item.item_code || item.product_code }}</td>
-                  <td>{{ item.description }}</td>
-                  <td>{{ item.unit_name }}</td>
-                  <td>{{ item.stock_on_hand }}</td>
-                  <td>{{ item.average_price }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table ref="modalItemsTable" class="table table-bordered table-sm">
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Qty On Hand</th>
+                    <th>Unit Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in modalItems" :key="item.id">
+                    <td>
+                      <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" :id="'select-item-' + item.id" v-model="item.selected" />
+                        <label class="custom-control-label" :for="'select-item-' + item.id"></label>
+                      </div>
+                    </td>
+                    <td>{{ item.item_code || item.product_code }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.unit_name }}</td>
+                    <td>{{ item.stock_on_hand }}</td>
+                    <td>{{ item.average_price }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary btn-sm" @click="closeItemsModal">Cancel</button>
@@ -241,6 +254,7 @@ const mapItem = (item, source = 'product') => ({
   quantity: parseFloat(item.quantity) || 1,
   unit_price: parseFloat(item.unit_price) || 0,
   stock_on_hand: parseFloat(item.stock_on_hand) || 0,
+  average_price: parseFloat(item.average_price) || 0,
   total_price: parseFloat(((item.quantity || 1) * (item.unit_price || 0)).toFixed(10)),
   remarks: '',
   campus_id: item.campus_id || null,
@@ -318,8 +332,19 @@ const openItemsSelection = async () => {
 
 const openStockRequestItemsModal = async () => {
   try {
-    if (!form.value.stock_request_id) return showAlert('Error', 'Please select a Stock Request.', 'danger')
-    const { data } = await axios.get(`/api/inventory/stock-issues/get-stock-request-items/${form.value.stock_request_id}`, { params: { cutoff_date: form.value.transaction_date } })
+    if (!form.value.stock_request_id) 
+      return showAlert('Error', 'Please select a Stock Request.', 'danger')
+
+    const { data } = await axios.get(
+      `/api/inventory/stock-issues/get-stock-request-items/${form.value.stock_request_id}`,
+      { 
+        params: { 
+          cutoff_date: form.value.transaction_date, 
+          warehouse_id: form.value.warehouse_id // pass warehouse_id
+        } 
+      }
+    )
+
     modalItems.value = (data.items ?? []).map(i => ({ ...i, selected: false }))
     modalTitle.value = 'Select Stock Request Items'
     await nextTick()
@@ -332,9 +357,13 @@ const openStockRequestItemsModal = async () => {
 const openProductsModal = async () => {
   modalTitle.value = 'Select Products';
   await nextTick();
-  initModalDataTable();
-  $(itemsModal.value).modal('show');
+  
+  // Re-initialize DataTable to send warehouse_id and transaction_date
+  initModalDataTable()
+
+  $(itemsModal.value).modal('show')
 }
+
 
 
 
@@ -363,10 +392,15 @@ const addSelectedItems = async () => {
 }
 
 // Datepicker
-const initDatepicker = async () => {
-  await nextTick()
-  $('#transaction_date').datepicker({ format: 'yyyy-mm-dd', autoclose: true, todayHighlight: true, orientation: 'bottom left' })
-    .on('changeDate', () => form.value.transaction_date = $('#transaction_date').val())
+const initDatepicker = () => {
+  $('#transaction_date').datepicker({
+    format: 'yyyy-mm-dd',
+    autoclose: true,
+    todayHighlight: true,
+    orientation: 'bottom left'
+  }).on('changeDate', (e) => {
+    form.value.transaction_date = e.format()
+  })
 }
 
 // Initialize Select2 for table rows
@@ -436,12 +470,14 @@ const initModalDataTable = () => {
     table.DataTable({
       serverSide: true,
       processing: true,
+      responsive: true,
+      autoWidth: false,
       ajax: {
         url: '/api/inventory/stock-issues/get-products',
         type: 'GET',
         data: function (d) {
-          // Optional: send current warehouse_id to calculate stock
-          d.warehouse_id = form.value.warehouse_id;
+        d.warehouse_id = form.value.warehouse_id
+        d.cutoff_date = form.value.transaction_date // pass transaction date
         }
       },
       columns: [

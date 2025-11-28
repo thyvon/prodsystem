@@ -19,13 +19,14 @@ class StockCount extends Model
         'remarks',
         'approval_status',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
 
     public function items()
     {
-        return $this->hasMany(StockCountItem::class);
+        return $this->hasMany(StockCountItems::class);
     }
     public function warehouse()
     {

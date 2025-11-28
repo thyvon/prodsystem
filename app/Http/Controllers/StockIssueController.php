@@ -400,6 +400,9 @@ class StockIssueController extends Controller
                 'requestedBy'
             ]);
 
+            $warehouseId = $stockIssue->warehouse_id;
+            $cutoffDate = $stockIssue->transaction_date;
+
             $stockIssueData = [
                 'id' => $stockIssue->id,
                 'stock_request_id' => $stockIssue->stock_request_id,
@@ -412,35 +415,42 @@ class StockIssueController extends Controller
                 'requested_by' => $stockIssue->requested_by,
                 'created_by' => $stockIssue->created_by,
                 'position_id' => $stockIssue->position_id,
-                'items' => $stockIssue->stockIssueItems->map(function ($item) use ($stockIssue) {
-                        $productName = $item->productVariant?->product?->name ?? $item->product?->name ?? null;
-                        $unitName = $item->productVariant?->product?->unit?->name ?? $item->product?->unit?->name ?? null;
+                'items' => $stockIssue->stockIssueItems->map(function ($item) use ($warehouseId, $cutoffDate) {
+                    
+                    $productVariant = $item->productVariant;
+                    $productName = $productVariant?->product?->name ?? $item->product?->name ?? null;
+                    $unitName = $productVariant?->product?->unit?->name ?? $item->product?->unit?->name ?? null;
 
-                        $warehouseId = $stockIssue->warehouse_id;
-                        $cutoffDate = $stockIssue->transaction_date;
-                        $stockMovements = $this->stockLedgerService->recalcProduct($item->product_id, $warehouseId, $cutoffDate);
-                        $stockOnHand = $stockMovements->last()->running_qty ?? 0;
-                        $averagePrice = $this->stockLedgerService->getGlobalAvgPrice($item->product_id, $cutoffDate);
+                    // Get stock on hand using StockLedgerService
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $item->product_id,
+                        $warehouseId,
+                        $cutoffDate
+                    );
 
-                        return [
-                            'id' => $item->id,
-                            'stock_request_item_id' => $item->stock_request_item_id,
-                            'product_id' => $item->product_id,
-                            'product_code' => $item->productVariant?->item_code ?? '',
-                            'description' => trim(
-                                ($item->productVariant?->product?->name ?? '') . ' ' . 
-                                ($item->productVariant?->description ?? '')
-                            ),
-                            'variant' => $item->productVariant?->variant_name ?? null,
-                            'unit_name' => $unitName,
-                            'quantity' => $item->quantity,
-                            'unit_price' => $item->unit_price,
-                            'total_price' => round($item->quantity * $averagePrice, 4),
-                            'remarks' => $item->remarks,
-                            'stock_on_hand' => $stockOnHand,
-                            'campus_id' => $item->campus_id,
-                            'department_id' => $item->department_id
-                        ];
+                    // Get average price using StockLedgerService
+                    $averagePrice = $this->stockLedgerService->getAvgPrice(
+                        $item->product_id,
+                        $cutoffDate
+                    );
+
+                    return [
+                        'id' => $item->id,
+                        'stock_request_item_id' => $item->stock_request_item_id,
+                        'product_id' => $item->product_id,
+                        'product_code' => $productVariant?->item_code ?? '',
+                        'description' => trim(($productVariant?->product?->name ?? '') . ' ' . ($productVariant?->description ?? '')),
+                        'variant' => $productVariant?->variant_name ?? null,
+                        'unit_name' => $unitName,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                        'total_price' => round($item->quantity * $averagePrice, 4),
+                        'remarks' => $item->remarks,
+                        'average_price' => $averagePrice,
+                        'stock_on_hand' => $stockOnHand,
+                        'campus_id' => $item->campus_id,
+                        'department_id' => $item->department_id
+                    ];
                 })->toArray(),
             ];
 
@@ -731,70 +741,10 @@ class StockIssueController extends Controller
             ->firstWhere('id', $stockRequest->id)['items'] ?? [];
         return response()->json(['items' => $items]);
     }
-    public function getProducts(Request $request)
+    public function getProducts(Request $request): JsonResponse
     {
-        $draw = (int) $request->input('draw', 1);
-        $start = (int) $request->input('start', 0);
-        $length = (int) $request->input('length', 10);
-        $searchValue = $request->input('search.value', null);
-        $orderColumnIndex = $request->input('order.0.column', 0);
-        $orderDirection = $request->input('order.0.dir', 'asc');
-
-        $columns = [
-            0 => 'id',
-            1 => 'item_code',
-            2 => 'description',
-            3 => 'estimated_price',
-            4 => 'is_active',
-            5 => 'created_at',
-            6 => 'updated_at',
-        ];
-        $orderColumn = $columns[$orderColumnIndex] ?? 'id';
-
-        // Base query
-        $query = ProductVariant::with('product')
-            ->whereNull('deleted_at');
-
-        // Apply search
-        if ($searchValue) {
-            $query->where(function ($q) use ($searchValue) {
-                $q->where('item_code', 'like', "%{$searchValue}%")
-                ->orWhere('description', 'like', "%{$searchValue}%")
-                ->orWhereHas('product', function ($q2) use ($searchValue) {
-                    $q2->where('name', 'like', "%{$searchValue}%");
-                });
-            });
-        }
-
-        $recordsFiltered = $query->count();
-
-        // Apply order and pagination
-        $variants = $query->orderBy($orderColumn, $orderDirection)
-                        ->skip($start)
-                        ->take($length)
-                        ->get();
-
-        // Map data for DataTable
-        $data = $variants->map(function ($variant) {
-            return [
-                'id' => $variant->id,
-                'item_code' => $variant->item_code,
-                'description' => ($variant->product->name ?? '') . ' ' . $variant->description,
-                'unit_name' => $variant->product->unit->name ?? '',
-                'estimated_price' => number_format($variant->estimated_price, 2),
-                'is_active' => (int) $variant->is_active,
-                // Add stock info if you want
-                'stock_on_hand' => 0, // placeholder, replace with real stock
-                'average_price' => number_format($variant->estimated_price, 2),
-            ];
-        });
-
-        return response()->json([
-            'draw' => $draw,
-            'recordsTotal' => ProductVariant::whereNull('deleted_at')->count(),
-            'recordsFiltered' => $recordsFiltered,
-            'data' => $data,
-        ]);
+        $result = $this->productService->getStockProducts($request->all());
+        return response()->json($result);
     }
 
 

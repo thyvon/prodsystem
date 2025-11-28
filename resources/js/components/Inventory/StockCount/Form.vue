@@ -37,14 +37,14 @@
                 >
                   <option value="">Select Warehouse</option>
                   <option v-for="w in warehouses" :key="w.id" :value="w.id">
-                    {{ w.name }}
+                    {{ w.text }}
                   </option>
                 </select>
               </div>
 
               <div class="form-group col-md-4">
                 <label class="font-weight-bold">Reference No</label>
-                <input v-model="form.reference_no" type="text" class="form-control" readonly />
+                <input v-model="form.reference_no" type="text" class="form-control" readonly placeholder="Auto-generated"/>
               </div>
             </div>
 
@@ -76,7 +76,7 @@
                     <th>Code</th>
                     <th>Description</th>
                     <th>UoM</th>
-                    <th>System Qty</th>
+                    <th>Stock Ending</th>
                     <th>Counted Qty *</th>
                     <th>Variance</th>
                     <th>Remarks</th>
@@ -177,9 +177,9 @@
                 </tr>
               </tbody>
             </table>
-            <button type="button" class="btn btn-sm btn-outline-primary mt-2" @click="addApproval">
+            <!-- <button type="button" class="btn btn-sm btn-outline-primary mt-2" @click="addApproval">
               Add Approval
-            </button>
+            </button> -->
           </div>
 
           <!-- Submit -->
@@ -207,17 +207,29 @@
             <button type="button" class="close" @click="closeItemsModal">×</button>
           </div>
           <div class="modal-body">
-            <table ref="modalTable" class="table table-bordered table-sm">
-              <thead class="thead-light">
-                <tr>
-                  <th><input type="checkbox" @change="toggleAll($event)" /></th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>UoM</th>
-                  <th>System Qty</th>
-                </tr>
-              </thead>
-            </table>
+            <div class="table-responsive">
+              <table ref="modalTable" class="table table-bordered table-sm table-hover table-striped">
+                <thead class="thead-light">
+                  <tr>
+                    <th>
+                      <div class="custom-control custom-checkbox">
+                        <input 
+                          type="checkbox" 
+                          class="custom-control-input" 
+                          id="select-all" 
+                          @change="toggleAll($event)"
+                        />
+                        <label class="custom-control-label" for="select-all"></label>
+                      </div>
+                    </th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Stock Ending</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeItemsModal">Cancel</button>
@@ -235,7 +247,7 @@ import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({ initialId: [String, Number] })
+const props = defineProps({ stockCountId: [String, Number] })
 const emit = defineEmits(['submitted'])
 
 const isEditMode = ref(false)
@@ -258,7 +270,7 @@ const warehouseSelect = ref(null)
 const goToIndex = () => window.location.href = '/inventory/stock-counts'
 
 const fetchWarehouses = async () => {
-  const { data } = await axios.get('/api/inventory/stock-counts/get-warehouses')
+  const { data } = await axios.get('/api/main-value-lists/get-warehouses')
   warehouses.value = data.data || data
 }
 
@@ -281,7 +293,6 @@ const initWarehouseSelect2 = () => {
     allowClear: false
   }, (val) => {
     form.value.warehouse_id = val
-    form.value.items = [] // clear items on warehouse change
   })
 
   if (form.value.warehouse_id) {
@@ -290,7 +301,7 @@ const initWarehouseSelect2 = () => {
 }
 
 const initApprovalSelect2 = async () => {
-  const { data } = await axios.get('/api/inventory/stock-counts/get-users-for-approval')
+  const { data } = await axios.get('/api/inventory/stock-counts/get-approval-users')
   const users = {
     initial: data.initial || [],
     approve: data.approve || []
@@ -390,6 +401,7 @@ const openProductsModal = async () => {
     showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
     return
   }
+
   await nextTick()
   const table = $(itemsModal.value).find('table')
   if ($.fn.DataTable.isDataTable(table)) table.DataTable().destroy()
@@ -397,17 +409,36 @@ const openProductsModal = async () => {
   table.DataTable({
     serverSide: true,
     processing: true,
+    responsive: true,
+    autoWidth: false,
     ajax: {
       url: '/api/inventory/stock-counts/get-products',
-      data: d => {
-        d.warehouse_id = form.value.warehouse_id
-        d.cutoff_date = form.value.transaction_date
+      type: 'GET',
+      data: function(d) {
+        return $.extend({}, d, {
+          warehouse_id: form.value.warehouse_id,
+          cutoff_date: form.value.transaction_date
+        });
       }
     },
     columns: [
-      { data: 'id', orderable: false, render: id => `<input type="checkbox" class="select-item" value="${id}">` },
+      { 
+        data: 'id',
+        orderable: false,
+        render: id => `
+            <div class="custom-control custom-checkbox">
+                <input 
+                    type="checkbox" 
+                    class="custom-control-input select-item" 
+                    id="chk-${id}" 
+                    value="${id}"
+                >
+                <label class="custom-control-label" for="chk-${id}"></label>
+            </div>
+        `
+      },
       { data: 'item_code' },
-      { data: null, render: (d, t, r) => `${r.product_name} ${r.description || ''}` },
+      { data: null, render: (d, t, r) => `${r.description || ''}` },
       { data: 'unit_name' },
       { data: 'stock_on_hand', className: 'text-right' }
     ]
@@ -442,6 +473,47 @@ const addSelectedItems = () => {
   $(itemsModal.value).modal('hide')
 }
 
+// Watch warehouse or transaction_date changes
+watch(
+  () => [form.value.warehouse_id, form.value.transaction_date],
+  async ([whId, date]) => {
+    if (!whId || !date || !form.value.items.length) return
+
+    try {
+      // Collect product IDs from current items
+      const productIds = form.value.items.map(i => i.product_id)
+
+      // Call refresh-stock endpoint with warehouse, date, and product_ids
+      const { data } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
+        warehouse_id: whId,
+        transaction_date: date,
+        product_ids: productIds
+      })
+
+      const updatedItems = data.data || []
+
+      // Update stock_on_hand and average_price
+      form.value.items = form.value.items.map(item => {
+        const updated = updatedItems.find(u => u.product_id === item.product_id)
+        if (updated) {
+          return {
+            ...item,
+            ending_quantity: parseFloat(updated.stock_on_hand || 0),
+            stock_on_hand: parseFloat(updated.stock_on_hand || 0),
+            average_price: parseFloat(updated.average_price || 0),
+            // Keep counted_quantity & remarks unchanged
+          }
+        }
+        return item
+      })
+    } catch (err) {
+      showAlert('Error', 'Failed to refresh stock data', 'danger')
+    }
+  }
+)
+
+
+
 const removeItem = i => form.value.items.splice(i, 1)
 const closeItemsModal = () => $(itemsModal.value).modal('hide')
 const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
@@ -449,45 +521,42 @@ const triggerFileInput = () => fileInput.value.click()
 const handleFileUpload = e => { if (e.target.files[0]) importFile() }
 
 const importFile = async () => {
-  const file = fileInput.value?.files[0]
-  if (!file || !form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Error', 'Please select file, warehouse, and date.', 'danger')
-    return
-  }
+  const file = fileInput.value.files[0];
+  if (!file) return;
 
-  const formData = new FormData()
-  formData.append('file', file)
+  const formData = new FormData();
+  formData.append("file", file);
 
-  try {
-    const { data } = await axios.post('/api/inventory/stock-counts/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+  // Call backend to parse Excel (only product_code, counted_quantity, remark)
+  const { data } = await axios.post(
+    "/api/inventory/stock-counts/import",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
 
-    const productsResp = await axios.get('/api/inventory/stock-counts/get-products', {
-      params: { warehouse_id: form.value.warehouse_id, cutoff_date: form.value.transaction_date }
-    })
-    const products = productsResp.data.data || productsResp.data
+  const rows = data.data || [];
 
-    form.value.items = data.data.items.map(item => {
-      const p = products.find(x => x.id == item.product_id)
-      return p ? {
-        product_id: p.id,
-        item_code: p.item_code,
-        product_name: p.product_name,
-        description: p.description || '',
-        unit_name: p.unit_name,
-        ending_quantity: parseFloat(p.stock_on_hand),
-        counted_quantity: parseFloat(item.counted_quantity || p.stock_on_hand),
-        remarks: item.remarks || ''
-      } : null
-    }).filter(Boolean)
+  rows.forEach(r => {
+    // Avoid duplicate items
+    if (!form.value.items.find(i => i.item_code === r.product_code)) {
 
-    showAlert('Success', 'Items imported!', 'success')
-    fileInput.value.value = ''
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Import failed', 'danger')
-  }
-}
+      form.value.items.push({
+        product_id: r.product_id,           // backend returns mapped ID
+        item_code: r.product_code,
+        product_name: r.product_name || "",
+        description: r.description || "",
+        unit_name: r.unit_name || "",
+        ending_quantity: Number(r.stock_on_hand || 0),
+        counted_quantity: Number(r.counted_quantity || 0), // Excel counted_quantity
+        remarks: r.remark || ""
+      });
+    }
+  });
+
+  fileInput.value.value = "";
+  showAlert("Success", "Items imported successfully", "success");
+};
+
 
 const submitForm = async () => {
   if (!form.value.transaction_date || !form.value.warehouse_id || !form.value.items.length) {
@@ -518,15 +587,15 @@ const submitForm = async () => {
     }
 
     const url = isEditMode.value
-      ? `/api/inventory/stock-counts/${props.initialId}`
+      ? `/api/inventory/stock-counts/${props.stockCountId}`
       : '/api/inventory/stock-counts'
 
     await axios[isEditMode.value ? 'put' : 'post'](url, payload)
-    showAlert('Success', 'Stock count saved successfully!', 'success')
+    await showAlert('Success', 'Stock count saved successfully!', 'success')
     emit('submitted')
     goToIndex()
   } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to save', 'danger')
+    await showAlert('Error', err.response?.data?.message || 'Failed to save', 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -537,19 +606,68 @@ onMounted(async () => {
 
   // Default approvals
   form.value.approvals = [
-    { request_type: 'initial', user_id: null, isDefault: true },
-    { request_type: 'approve', user_id: null, isDefault: true }
+    { request_type: 'initial', user_id: null, isDefault: true, availableUsers: [] },
+    { request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] }
   ]
 
   initDatepicker()
   initWarehouseSelect2()
   await initApprovalSelect2()
 
-  if (props.initialId) {
+  if (props.stockCountId) {
     isEditMode.value = true
-    // Add loadEditData() if needed later
+    await loadEditData(props.stockCountId) // load existing data
   }
 })
+
+const loadEditData = async (id) => {
+  try {
+    const { data } = await axios.get(`/api/inventory/stock-counts/${id}/edit`)
+    const d = data.data
+
+    // Header
+    form.value.transaction_date = d.transaction_date
+    form.value.warehouse_id = d.warehouse_id
+    form.value.reference_no = d.reference_no
+    form.value.remarks = d.remarks
+
+    // Items
+    form.value.items = d.items.map(i => ({
+      id: i.id,
+      product_id: i.product_id,
+      item_code: i.product_code,
+      product_name: (i.description || '').split(' ')[0] || '', // fallback if product_name not returned
+      description: i.description || '',
+      unit_name: i.unit_name || '',
+      ending_quantity: parseFloat(i.ending_quantity ?? 0),
+      counted_quantity: parseFloat(i.counted_quantity ?? 0),
+      remarks: i.remarks || '',
+      stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
+      average_price: parseFloat(i.average_price ?? 0),
+    }))
+
+    // Approvals
+    form.value.approvals = d.approvals.map(a => ({
+      id: a.id,
+      request_type: a.request_type,
+      user_id: a.user_id || a.responder_id,
+      isDefault: true,
+      availableUsers: [] // will be set in initApprovalSelect2
+    }))
+
+    // Trigger approval Select2 only, do NOT call initWarehouseSelect2()
+    await nextTick()
+    initWarehouseSelect2()
+    await initApprovalSelect2()
+
+    form.value.approvals.forEach((a, index) => {
+      const selectEl = document.querySelector(`.user-select[data-index="${index}"]`)
+      if (selectEl) $(selectEl).val(a.user_id).trigger('change')
+    })
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to load stock count data', 'danger')
+  }
+}
 
 onUnmounted(() => {
   $('#transaction_date').datepicker('destroy')
@@ -557,3 +675,7 @@ onUnmounted(() => {
   $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
 })
 </script>
+
+<style scoped>
+  .table td, .table th { vertical-align: middle; }
+</style>

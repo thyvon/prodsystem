@@ -68,6 +68,9 @@ use App\Http\Controllers\StockInController;
 use App\Models\MonthlyStockReport;
 use App\Http\Controllers\StockController;
 
+use App\Models\StockCount;
+use App\Http\Controllers\StockCountController;
+
 // Approval Management
 use App\Models\Approval;
 use App\Http\Controllers\ApprovalController;
@@ -347,6 +350,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-reports/{monthlyStockReport}/edit', [StockController::class, 'getEditData'])->middleware('can:update,monthlyStockReport')->name('api.stock-reports.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)->name('api.stock-reports.monthly-report');
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->middleware('can:view,monthlyStockReport')->name('api.stock-reports.monthly-report.details');
+
+        // Stock Count
+        Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index');
+        Route::post('/stock-counts/import', [StockCountController::class, 'import'])->name('api.stock-counts.import');
+        Route::post('/stock-counts', [StockCountController::class, 'store'])->name('api.stock-counts.store');
+        Route::delete('/stock-counts/{stockCount}', [StockCountController::class, 'destroy'])->name('api.stock-counts.destroy');
+        Route::get('/stock-counts/{stockCount}/edit', [StockCountController::class, 'getEditData'])->name('api.stock-counts.edit');
+        Route::put('/stock-counts/{stockCount}', [StockCountController::class, 'update'])->name('api.stock-counts.update');
+        Route::get('/stock-counts/get-approval-users', [StockCountController::class, 'getApprovalUsers'])->name('api.stock-counts.get-approval-users');
+        Route::get('/stock-counts/get-products', [StockCountController::class, 'getProducts'])->name('api.stock-counts.get-products');
+        Route::patch('/stock-counts/refresh-stock', [StockCountController::class, 'refreshStockData'])->name('api.stock-counts.refresh-stock');
+
 
         // // Stock Movement
         Route::get('/stock-movements', [StockController::class, 'getStockMovements'])->name('api.stock-movement.index');

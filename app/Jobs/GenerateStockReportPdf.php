@@ -40,15 +40,6 @@ class GenerateStockReportPdf implements ShouldQueue
         Storage::disk('public')->makeDirectory('pdf');
 
         // -------------------------
-        // 2. Delete old PDFs
-        // -------------------------
-        $oldFiles = Storage::disk('public')->files('pdf');
-        if (!empty($oldFiles)) {
-            Storage::disk('public')->delete($oldFiles);
-            Log::info('Old PDFs deleted', ['report_id' => $report->id, 'deleted_files' => $oldFiles]);
-        }
-
-        // -------------------------
         // 3. Map approvals
         // -------------------------
         $approvalLabels = [

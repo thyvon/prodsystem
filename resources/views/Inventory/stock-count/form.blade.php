@@ -3,7 +3,7 @@
 
 @section('content')
 <stock-count-form
-    :initial-id="{{ $initialId ?? 'null' }}"
+    :stock-count-id="{{ $stockCountId ?? 'null' }}"
 />
 @endsection
 

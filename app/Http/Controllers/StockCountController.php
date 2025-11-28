@@ -3,26 +3,135 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
+use App\Imports\StockCountImport;
+use Maatwebsite\Excel\Facades\Excel;
 use App\Services\ApprovalService;
+use App\Services\ProductService;
+use App\Services\StockLedgerService;
 
 use App\Models\StockCount;
-use App\Models\StockCountItem;
+use App\Models\StockCountItems;
+use App\Models\ProductVariant;
+use App\Models\Warehouse;
+use App\Models\User;
 
 class StockCountController extends Controller
 {
-
     protected $approvalService;
+    protected $productService;
+    protected $stockLedgerService;
 
     public function __construct(
         ApprovalService $approvalService,
+        ProductService $productService,
+        StockLedgerService $stockLedgerService
     ) {
         $this->middleware('auth'); // Ensure authentication for all methods
         $this->approvalService = $approvalService;
+        $this->productService = $productService;
+        $this->stockLedgerService = $stockLedgerService;
     }
+    private const ALLOWED_SORT_COLUMNS = [
+        'transaction_date',
+        'reference_no',
+    ];
+    private const DEFAULT_SORT_DIRECTION = 'desc';
+    private const DEFAULT_LIMIT = 10;
+    private const MAX_LIMIT = 1000;
+    private const DATE_FORMAT = 'Y-m-d';
 
+    public function index(): View
+    {
+        return view('Inventory.stock-count.index');
+    }
     public function create(){
         return view('Inventory.stock-count.form');
     }
+
+    public function edit(StockCount $stockCount): View
+    {
+        // $this->authorize('update', $stockCount);
+
+        return view('Inventory.stock-count.form', [
+            'stockCountId' => $stockCount->id,
+        ]);
+    }
+
+    public function getStockCountList(Request $request): JsonResponse
+    {
+        // $this->authorize('viewAny', StockCount::class);
+
+        $user = auth()->user();
+        $isAdmin = $user->hasRole('admin');
+        $campusIds = $user->campus->pluck('id')->toArray();
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+        ]);
+
+        $sortColumn = $validated['sortColumn'] ?? 'id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $limit = $validated['limit'] ?? self::DEFAULT_LIMIT;
+        $page = $validated['page'] ?? 1;
+
+        $query = StockCount::with(['warehouse', 'creator'])
+            ->when(!$isAdmin, fn($q) => $q->whereHas('warehouse.building.campus', fn($q2) => $q2->whereIn('id', $campusIds)))
+            ->when($validated['search'] ?? null, fn($q, $search) => $q->where(function ($subQ) use ($search) {
+                $subQ->where('reference_no', 'like', "%{$search}%")
+                    ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('creator', fn($cQ) => $cQ->where('name', 'like', "%{$search}%"));
+            }));
+
+        // Simple relational sorting
+        if ($sortColumn === 'warehouse') {
+            $query->join('warehouses', 'stock_counts.warehouse_id', '=', 'warehouses.id')
+                ->orderBy('warehouses.name', $sortDirection)
+                ->select('stock_counts.*');
+        } elseif ($sortColumn === 'created_by') {
+            $query->join('users', 'stock_counts.created_by', '=', 'users.id')
+                ->orderBy('users.name', $sortDirection)
+                ->select('stock_counts.*');
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
+
+        $stockCounts = $query->paginate($limit, ['*'], 'page', $page);
+
+        $data = $stockCounts->map(fn($sc) => [
+            'id' => $sc->id,
+            'reference_no' => $sc->reference_no,
+            'transaction_date' => $sc->transaction_date,
+            'warehouse' => $sc->warehouse->name ?? null,
+            'warehouse_campus' => $sc->warehouse->building->campus->short_name ?? null,
+            'remarks' => $sc->remarks,
+            'total_items' => $sc->items->count(),
+            'total_counted' => $sc->items->sum('counted_quantity'),
+            'created_by' => $sc->creator->name ?? null,
+            'created_at' => $sc->created_at,
+            'updated_at' => $sc->updated_at,
+            'approval_status' => $sc->approval_status,
+        ]);
+
+        return response()->json([
+            'data' => $data,
+            'recordsTotal' => $stockCounts->total(),
+            'recordsFiltered' => $stockCounts->total(),
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
+
+
+
     public function store(Request $request): JsonResponse
     {
         $validated = Validator::make(
@@ -72,6 +181,7 @@ class StockCountController extends Controller
                     'remarks' => $validated['remarks'] ?? null,
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
+                    'position_id' => $userPosition->id
                 ]);
 
                 // Create each stock count item using Eloquent create()
@@ -101,6 +211,303 @@ class StockCountController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+    public function import(Request $request): JsonResponse
+    {
+        // $this->authorize('create', StockCount::class);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            $import = new StockCountImport();
+            Excel::import($import, $request->file('file'));
+
+            $data = $import->getData();
+
+            if (!empty($data['errors'])) {
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
+            }
+
+            if (empty($data['items'])) {
+                return response()->json([
+                    'message' => 'No valid data found in the Excel file.',
+                    'errors' => ['No valid rows found.'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Stock count items imported successfully.',
+                'data' => [
+                    'items' => $data['items'],
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to import stock count items.',
+                'errors' => [$e->getMessage()],
+            ], 500);
+        }
+    }
+
+
+    public function getEditData(StockCount $stockCount): JsonResponse
+    {
+        // Eager load only what's needed
+        $stockCount->load([
+            'items.product.product.unit',
+            'approvals.responder'
+        ]);
+
+        $items = $stockCount->items->map(function ($item) use ($stockCount) {
+            $product = $item->product?->product;
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_code' => $item->product?->item_code ?? '',
+                'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
+                'unit_name' => $product?->unit?->name ?? '',
+                'ending_quantity' => $item->ending_quantity,
+                'counted_quantity' => $item->counted_quantity,
+                'remarks' => $item->remarks,
+                'stock_on_hand' => $this->stockLedgerService->getStockOnHand(
+                    $item->product_id,
+                    $stockCount->warehouse_id,
+                    $stockCount->transaction_date
+                ),
+                'average_price' => $this->stockLedgerService->getAvgPrice(
+                    $item->product_id,
+                    $stockCount->transaction_date
+                ),
+            ];
+        });
+
+        $approvals = $stockCount->approvals->map(fn($a) => [
+            'id' => $a->id,
+            'responder_id' => $a->responder_id,
+            'request_type' => $a->request_type,
+            'approval_status' => $a->approval_status,
+            'responder_name' => $a->responder?->name ?? '',
+        ]);
+
+        return response()->json([
+            'message' => 'Stock count edit data retrieved successfully.',
+            'data' => [
+                'id' => $stockCount->id,
+                'transaction_date' => $stockCount->transaction_date,
+                'warehouse_id' => $stockCount->warehouse_id,
+                'remarks' => $stockCount->remarks,
+                'reference_no' => $stockCount->reference_no,
+                'items' => $items,
+                'approvals' => $approvals,
+            ],
+        ]);
+    }
+
+    public function update(Request $request, StockCount $stockCount): JsonResponse
+    {
+        $validated = Validator::make(
+            $request->all(),
+            array_merge(
+                $this->stockCountValidationRules(),
+                $this->stockCountItemValidationRules(),
+                [
+                    'approvals' => 'required|array|min:1',
+                    'approvals.*.user_id' => 'required|exists:users,id',
+                    'approvals.*.request_type' => 'required|string|in:approve,initial',
+                ]
+            )
+        )->validate();
+
+        // Validate approval permissions
+        foreach ($validated['approvals'] as $approval) {
+            $user = User::find($approval['user_id']);
+            $permission = "stockCount.{$approval['request_type']}";
+            if (!$user->hasPermissionTo($permission)) {
+                return response()->json([
+                    'message' => "User ID {$approval['user_id']} does not have permission for {$approval['request_type']}.",
+                ], 403);
+            }
+        }
+
+        try {
+            return DB::transaction(function () use ($validated, $stockCount) {
+
+                // Update stock count header
+                $stockCount->update([
+                    'transaction_date' => $validated['transaction_date'],
+                    'warehouse_id' => $validated['warehouse_id'],
+                    'remarks' => $validated['remarks'] ?? null,
+                    'updated_by' => auth()->id(),
+                    'position_id' => auth()->user()->defaultPosition()->id
+                ]);
+
+                // Update or create items
+                $existingItemIds = $stockCount->items()->pluck('id')->toArray();
+                $incomingItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
+
+                // Delete removed items
+                $toDelete = array_diff($existingItemIds, $incomingItemIds);
+                if ($toDelete) {
+                    $stockCount->items()->whereIn('id', $toDelete)->delete();
+                }
+
+                foreach ($validated['items'] as $item) {
+                    if (!empty($item['id'])) {
+                        // Update existing item
+                        $stockCount->items()->where('id', $item['id'])->update([
+                            'product_id' => $item['product_id'],
+                            'ending_quantity' => $item['ending_quantity'],
+                            'counted_quantity' => $item['counted_quantity'],
+                            'remarks' => $item['remarks'] ?? null,
+                            'updated_by' => auth()->id(),
+                        ]);
+                    } else {
+                        // Create new item
+                        $stockCount->items()->create([
+                            'product_id' => $item['product_id'],
+                            'ending_quantity' => $item['ending_quantity'],
+                            'counted_quantity' => $item['counted_quantity'],
+                            'remarks' => $item['remarks'] ?? null,
+                            'created_by' => auth()->id(),
+                        ]);
+                    }
+                }
+
+                // Remove all previous approvals
+                $stockCount->approvals()->delete();
+                $this->storeApprovals($stockCount, $validated['approvals']);
+
+                return response()->json([
+                    'message' => 'Stock count updated successfully.',
+                    'data' => $stockCount->load('items.product', 'approvals.responder'),
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update stock count', ['error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'Failed to update stock count.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function destroy(StockCount $stockCount): JsonResponse
+    {
+        try {
+            return DB::transaction(function () use ($stockCount) {
+
+                // Delete related items
+                $stockCount->items()->delete();
+
+                // Delete related approvals
+                $stockCount->approvals()->delete();
+
+                // Delete the stock count itself (soft delete if using SoftDeletes)
+                $stockCount->delete();
+
+                return response()->json([
+                    'message' => 'Stock count deleted successfully.'
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Failed to delete stock count', ['error' => $e->getMessage(), 'stock_count_id' => $stockCount->id]);
+            return response()->json([
+                'message' => 'Failed to delete stock count.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function getProducts(Request $request): JsonResponse
+    {
+        $result = $this->productService->getStockProducts($request->all());
+        return response()->json($result);
+    }
+
+    public function refreshStockData(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'transaction_date' => 'required|date',
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'required|exists:product_variants,id',
+        ]);
+
+        $warehouseId = $validated['warehouse_id'];
+        $transactionDate = $validated['transaction_date'];
+        $productIds = $validated['product_ids'];
+
+        try {
+            $items = DB::transaction(function () use ($warehouseId, $transactionDate, $productIds) {
+                return collect($productIds)->map(function ($productId) use ($warehouseId, $transactionDate) {
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $productId,
+                        $warehouseId,
+                        $transactionDate
+                    );
+
+                    $avgPrice = $this->stockLedgerService->getAvgPrice(
+                        $productId,
+                        $transactionDate
+                    );
+
+                    // Return updated stock data for frontend, no DB update needed here
+                    return [
+                        'product_id' => $productId,
+                        'stock_on_hand' => $stockOnHand,
+                        'average_price' => $avgPrice,
+                    ];
+                });
+            });
+
+            return response()->json([
+                'message' => 'Stock data refreshed successfully.',
+                'data' => $items,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to refresh stock data', [
+                'error' => $e->getMessage(),
+                'warehouse_id' => $warehouseId,
+                'transaction_date' => $transactionDate,
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to refresh stock data.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function getApprovalUsers(): JsonResponse
+    {
+        $users = [
+            'initial'       => $this->usersWithPermission('stockCount.initial'),
+            'approve'      => $this->usersWithPermission('stockCount.approve'),
+        ];
+
+        return response()->json($users);
+    }
+
+    private function usersWithPermission(string $permission)
+    {
+        return User::whereHas('permissions', fn($q) => $q->where('name', $permission))
+            ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
+            // ->where('id', '!=', Auth::id())
+            ->select('id', 'name', 'card_number')
+            ->orderBy('name')
+            ->get();
     }
 
 
@@ -143,6 +550,17 @@ class StockCountController extends Controller
         return "STC-{$shortName}-{$monthYear}-{$sequence}";
     }
 
+    private function getSequenceNumber(string $shortName, string $monthYear): string
+    {
+        $prefix = "SIN-{$shortName}-{$monthYear}-";
+
+        $count = StockCount::withTrashed()
+            ->where('reference_no', 'like', "{$prefix}%")
+            ->count();
+
+        return str_pad($count + 1, 2, '0', STR_PAD_LEFT);
+    }
+
     protected function storeApprovals(StockCount $stockCount, array $approvals)
     {
         foreach ($approvals as $approval) {
@@ -160,5 +578,14 @@ class StockCountController extends Controller
             ];
             $this->approvalService->storeApproval($approvalData);
         }
+    }
+
+    protected function getOrdinalForRequestType($requestType)
+    {
+        $ordinals = [
+            'approve' => 2,
+            'initial' => 1,
+        ];
+        return $ordinals[$requestType] ?? 1;
     }
 }

@@ -244,11 +244,11 @@ Route::middleware(['auth'])->group(function () {
 
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'index'])
-            ->name('stock-counts.index')->middleware('can:viewAny,' . StockCount::class);
+            ->name('stock-counts.index');
         Route::get('/stock-counts/create', [StockCountController::class, 'create'])
             ->name('stock-counts.create');
         Route::get('/stock-counts/{stockCount}/edit', [StockCountController::class, 'edit'])
-            ->name('stock-counts.edit')->middleware('can:update,stockCount');
+            ->name('stock-counts.edit');
         Route::get('/stock-counts/{stockCount}/show', [StockCountController::class, 'show'])
             ->name('stock-counts.show')->middleware('can:view,stockCount');
 
