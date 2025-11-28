@@ -552,7 +552,7 @@ class StockCountController extends Controller
 
     private function getSequenceNumber(string $shortName, string $monthYear): string
     {
-        $prefix = "SIN-{$shortName}-{$monthYear}-";
+        $prefix = "STC-{$shortName}-{$monthYear}-";
 
         $count = StockCount::withTrashed()
             ->where('reference_no', 'like', "{$prefix}%")

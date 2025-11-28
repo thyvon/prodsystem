@@ -59,7 +59,8 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0 text-primary">Counted Items</h5>
               <div>
-                <button type="button" class="btn btn-sm btn-outline-secondary mr-2" @click="triggerFileInput">
+                <button type="button" class="btn btn-sm btn-outline-secondary mr-2" @click="triggerFileInput" :disabled="isImporting">
+                  <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
                   Import Excel
                 </button>
                 <input type="file" ref="fileInput" class="d-none" accept=".xlsx,.xls,.csv" @change="handleFileUpload" />
@@ -252,6 +253,7 @@ const emit = defineEmits(['submitted'])
 
 const isEditMode = ref(false)
 const isSubmitting = ref(false)
+const isImporting = ref(false);
 
 const form = ref({
   transaction_date: '',
@@ -524,37 +526,68 @@ const importFile = async () => {
   const file = fileInput.value.files[0];
   if (!file) return;
 
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning');
+    return;
+  }
+
+  isImporting.value = true; // show spinner or disable buttons
+
   const formData = new FormData();
   formData.append("file", file);
 
-  // Call backend to parse Excel (only product_code, counted_quantity, remark)
-  const { data } = await axios.post(
-    "/api/inventory/stock-counts/import",
-    formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
-  );
+  try {
+    // 1️⃣ Upload Excel
+    const { data } = await axios.post("/api/inventory/stock-counts/import", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
 
-  const rows = data.data || [];
-
-  rows.forEach(r => {
-    // Avoid duplicate items
-    if (!form.value.items.find(i => i.item_code === r.product_code)) {
-
-      form.value.items.push({
-        product_id: r.product_id,           // backend returns mapped ID
-        item_code: r.product_code,
-        product_name: r.product_name || "",
-        description: r.description || "",
-        unit_name: r.unit_name || "",
-        ending_quantity: Number(r.stock_on_hand || 0),
-        counted_quantity: Number(r.counted_quantity || 0), // Excel counted_quantity
-        remarks: r.remark || ""
-      });
+    const rows = data.data?.items || [];
+    if (!rows.length) {
+      showAlert("Warning", "No valid rows found in Excel.", "warning");
+      return;
     }
-  });
 
-  fileInput.value.value = "";
-  showAlert("Success", "Items imported successfully", "success");
+    // 2️⃣ Fetch product info in batches to avoid huge GET params
+    const batchSize = 200;
+    const products = [];
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batchIds = rows.slice(i, i + batchSize).map(r => r.product_id);
+      const { data: batchData } = await axios.get("/api/inventory/stock-counts/get-products", {
+        params: {
+          ids: batchIds.join(','),
+          warehouse_id: form.value.warehouse_id,
+          cutoff_date: form.value.transaction_date
+        }
+      });
+      products.push(...(batchData.data || []));
+    }
+
+    // 3️⃣ Merge imported rows with product info
+    rows.forEach(r => {
+      if (!form.value.items.find(i => i.product_id === r.product_id)) {
+        const product = products.find(p => p.id === r.product_id);
+        form.value.items.push({
+          product_id: r.product_id,
+          item_code: r.product_code,
+          product_name: product?.product_name || "",
+          description: product?.description || "",
+          unit_name: product?.unit_name || "",
+          ending_quantity: parseFloat(product?.stock_on_hand || 0),
+          counted_quantity: parseFloat(r.counted_quantity || 0),
+          remarks: r.remark || ""
+        });
+      }
+    });
+
+    fileInput.value.value = "";
+    showAlert("Success", `Imported ${rows.length} items successfully`, "success");
+
+  } catch (err) {
+    showAlert("Error", err.response?.data?.message || "Failed to import", "danger");
+  } finally {
+    isImporting.value = false; // hide spinner
+  }
 };
 
 
