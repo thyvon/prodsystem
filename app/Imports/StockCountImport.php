@@ -73,6 +73,9 @@ class StockCountImport implements ToCollection, WithHeadingRow
                 $this->data['items'][] = [
                     'product_id'   => $product->id,
                     'product_code' => $product->item_code,
+                    'product_name'     => $product->product_name,
+                    'description'      => $product->product->name . ' ' . $product->description,
+                    'unit_name'        => $product->product->unit->name,
                     'counted_quantity'    => $rowData['counted_quantity'],
                     'remark'       => $rowData['remark'] ?? null,
                 ];

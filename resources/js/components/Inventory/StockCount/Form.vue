@@ -58,18 +58,51 @@
           <div class="border rounded p-3 mb-4 bg-white">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0 text-primary">Counted Items</h5>
-              <div>
-                <button type="button" class="btn btn-sm btn-outline-secondary mr-2" @click="triggerFileInput" :disabled="isImporting">
+              <div class="d-flex align-items-center gap-2">
+                
+                <!-- Download Sample Excel Button -->
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary d-flex align-items-center"
+                  @click="downloadSampleExcel"
+                >
+                  <i class="fal fa-file-excel mr-1"></i>
+                  Download Sample Excel
+                </button>
+
+                <!-- Import Excel Button -->
+                <button 
+                  type="button" 
+                  class="btn btn-sm btn-outline-secondary d-flex align-items-center"
+                  @click="triggerFileInput" 
+                  :disabled="isImporting"
+                >
                   <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
+                  <i v-else class="fal fa-file-excel mr-1"></i>
                   Import Excel
                 </button>
-                <input type="file" ref="fileInput" class="d-none" accept=".xlsx,.xls,.csv" @change="handleFileUpload" />
-                <button type="button" class="btn btn-sm btn-success" @click="openProductsModal">
+
+                <!-- Hidden File Input -->
+                <input 
+                  type="file" 
+                  ref="fileInput" 
+                  class="d-none" 
+                  accept=".xlsx,.xls,.csv" 
+                  @change="handleFileUpload" 
+                />
+
+                <!-- Add Items Button -->
+                <button 
+                  type="button" 
+                  class="btn btn-sm btn-success d-flex align-items-center" 
+                  @click="openProductsModal"
+                >
+                  <i class="fal fa-plus mr-1"></i>
                   Add Items
                 </button>
+
               </div>
             </div>
-
             <div class="table-responsive">
               <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
@@ -522,6 +555,15 @@ const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', 
 const triggerFileInput = () => fileInput.value.click()
 const handleFileUpload = e => { if (e.target.files[0]) importFile() }
 
+const downloadSampleExcel = () => {
+  const link = document.createElement('a')
+  link.href = '/sampleExcel/stock_transfers_sample.xlsx'
+  link.download = 'stock_transfers_sample.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 const importFile = async () => {
   const file = fileInput.value.files[0];
   if (!file) return;
@@ -531,7 +573,7 @@ const importFile = async () => {
     return;
   }
 
-  isImporting.value = true; // show spinner or disable buttons
+  isImporting.value = true;
 
   const formData = new FormData();
   formData.append("file", file);
@@ -542,53 +584,68 @@ const importFile = async () => {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
+    if (data.errors && data.errors.length) {
+      showAlert("Error", `Errors found in Excel file:<br>${data.errors.join('<br>')}`, "danger", { html: true });
+      return;
+    }
+
     const rows = data.data?.items || [];
     if (!rows.length) {
       showAlert("Warning", "No valid rows found in Excel.", "warning");
       return;
     }
 
-    // 2️⃣ Fetch product info in batches to avoid huge GET params
-    const batchSize = 200;
-    const products = [];
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batchIds = rows.slice(i, i + batchSize).map(r => r.product_id);
-      const { data: batchData } = await axios.get("/api/inventory/stock-counts/get-products", {
-        params: {
-          ids: batchIds.join(','),
-          warehouse_id: form.value.warehouse_id,
-          cutoff_date: form.value.transaction_date
-        }
-      });
-      products.push(...(batchData.data || []));
-    }
-
-    // 3️⃣ Merge imported rows with product info
+    // 2️⃣ Add imported items
     rows.forEach(r => {
       if (!form.value.items.find(i => i.product_id === r.product_id)) {
-        const product = products.find(p => p.id === r.product_id);
         form.value.items.push({
           product_id: r.product_id,
           item_code: r.product_code,
-          product_name: product?.product_name || "",
-          description: product?.description || "",
-          unit_name: product?.unit_name || "",
-          ending_quantity: parseFloat(product?.stock_on_hand || 0),
-          counted_quantity: parseFloat(r.counted_quantity || 0),
+          product_name: r.product_name || "",
+          description: r.description || "",
+          unit_name: r.unit_name || "",
+          ending_quantity: 0,      // will be updated next
+          stock_on_hand: 0,        // will be updated next
+          average_price: 0,        // will be updated next
+          counted_quantity: parseFloat(r.counted_quantity ?? 0),
           remarks: r.remark || ""
         });
       }
     });
 
+    // 3️⃣ Immediately call refresh-stock for newly imported items
+    const productIds = rows.map(r => r.product_id);
+    const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
+      warehouse_id: form.value.warehouse_id,
+      transaction_date: form.value.transaction_date,
+      product_ids: productIds
+    });
+
+    const updatedItems = refreshed.data || [];
+    form.value.items = form.value.items.map(item => {
+      const updated = updatedItems.find(u => u.product_id === item.product_id);
+      if (updated) {
+        return {
+          ...item,
+          ending_quantity: parseFloat(updated.stock_on_hand || 0),
+          stock_on_hand: parseFloat(updated.stock_on_hand || 0),
+          average_price: parseFloat(updated.average_price || 0)
+        };
+      }
+      return item;
+    });
+
     fileInput.value.value = "";
-    showAlert("Success", `Imported ${rows.length} items successfully`, "success");
+    showAlert("Success", `Imported ${rows.length} items and refreshed stock successfully`, "success");
 
   } catch (err) {
     showAlert("Error", err.response?.data?.message || "Failed to import", "danger");
   } finally {
-    isImporting.value = false; // hide spinner
+    isImporting.value = false;
+    if (fileInput.value) fileInput.value.value = "";
   }
 };
+
 
 
 const submitForm = async () => {
