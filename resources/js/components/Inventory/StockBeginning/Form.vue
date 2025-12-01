@@ -127,7 +127,7 @@
                         v-model.number="item.unit_price"
                         class="form-control"
                         min="0"
-                        step="0.01"
+                        step="0.0001"
                         required
                       />
                     </td>
@@ -468,6 +468,15 @@ const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', 
 const triggerFileInput = () => fileInput.value.click()
 const handleFileUpload = e => { if (e.target.files[0]) importFile() }
 
+
+const downloadSampleExcel = () => {
+  const link = document.createElement('a')
+  link.href = '/sampleExcel/stock_beginnings_sample.xlsx'
+  link.download = 'stock_beginnings_sample.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 /* -------------------- File Import -------------------- */
 const importFile = async () => {
   const file = fileInput.value.files[0]
