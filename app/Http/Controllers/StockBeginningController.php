@@ -16,6 +16,7 @@ use App\Exports\StockBeginningsExport;
 use App\Imports\StockBeginningsImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 use App\Services\WarehouseService;
 use App\Services\ProductService;
 use App\Services\ApprovalService;
@@ -79,7 +80,7 @@ class StockBeginningController extends Controller
         try {
             // Load related data including approvals
             $mainStockBeginning->load([
-                'stockBeginnings.productVariant.product.unit',
+                'items.productVariant.product.unit',
                 'warehouse.building.campus',
                 'createdBy',
                 'updatedBy',
@@ -147,8 +148,8 @@ class StockBeginningController extends Controller
 
             return view('Inventory.stockBeginning.show', [
                 'mainStockBeginning' => $mainStockBeginning,
-                'totalQuantity' => round($mainStockBeginning->stockBeginnings->sum('quantity'), 4),
-                'totalValue' => round($mainStockBeginning->stockBeginnings->sum('total_value'), 4),
+                'totalQuantity' => round($mainStockBeginning->items->sum('quantity'), 4),
+                'totalValue' => round($mainStockBeginning->items->sum('total_value'), 4),
                 'approvals' => $approvals,
                 'responders' => $responders,
                 'showApprovalButton' => $approvalButtonData['showButton'],
@@ -220,9 +221,9 @@ class StockBeginningController extends Controller
                 ]);
 
                 // Create Stock Beginning items via Eloquent to trigger booted() events
-                $stockBeginnings = [];
+                $items = [];
                 foreach ($validated['items'] as $item) {
-                    $stockBeginnings[] = StockBeginning::create([
+                    $items[] = StockBeginning::create([
                         'main_form_id' => $mainStockBeginning->id,
                         'product_id'   => $item['product_id'],
                         'quantity'     => $item['quantity'],
@@ -239,7 +240,7 @@ class StockBeginningController extends Controller
 
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
-                    'data'    => $mainStockBeginning->load('stockBeginnings', 'approvals.responder'),
+                    'data'    => $mainStockBeginning->load('items', 'approvals.responder'),
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -258,77 +259,64 @@ class StockBeginningController extends Controller
      * @param MainStockBeginning $mainStockBeginning
      * @return \Illuminate\View\View
      */
-    public function edit(MainStockBeginning $mainStockBeginning)
+
+    public function edit(MainStockBeginning $mainStockBeginning): View
     {
         $this->authorize('update', $mainStockBeginning);
 
-        try {
-            // Load related data including approvals
-            $mainStockBeginning->load([
-                'stockBeginnings.productVariant.product.unit',
-                'warehouse.building.campus',
-                'approvals.responder',
-            ]);
-
-            // Prepare data for the Vue form
-            $stockBeginningData = [
-                'id' => $mainStockBeginning->id,
-                'reference_no' => $mainStockBeginning->reference_no,
-                'warehouse_id' => $mainStockBeginning->warehouse_id,
-                'position_id' => $mainStockBeginning->position_id,
-                'beginning_date' => $mainStockBeginning->beginning_date,
-                'approval_status' => $mainStockBeginning->approval_status,
-                'items' => $mainStockBeginning->stockBeginnings->map(function ($item) {
-                    return [
-                        'id' => $item->id,
-                        'product_id' => $item->product_id,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $item->unit_price,
-                        'total_value' => $item->total_value,
-                        'remarks' => $item->remarks,
-                        'item_code' => $item->productVariant->item_code ?? null,
-                        'product_name' => $item->productVariant->product->name ?? null,
-                        'product_khmer_name' => $item->productVariant->product->khmer_name ?? null,
-                        'unit_name' => $item->productVariant->product->unit->name ?? null,
-                    ];
-                })->toArray(),
-                'warehouse' => $mainStockBeginning->warehouse ? [
-                    'id' => $mainStockBeginning->warehouse->id,
-                    'name' => $mainStockBeginning->warehouse->name,
-                    'building' => $mainStockBeginning->warehouse->building ? [
-                        'id' => $mainStockBeginning->warehouse->building->id,
-                        'short_name' => $mainStockBeginning->warehouse->building->short_name,
-                        'campus' => $mainStockBeginning->warehouse->building->campus ? [
-                            'id' => $mainStockBeginning->warehouse->building->campus->id,
-                            'short_name' => $mainStockBeginning->warehouse->building->campus->short_name,
-                        ] : null,
-                    ] : null,
-                ] : null,
-                'approvals' => $mainStockBeginning->approvals->map(function ($approval) {
-                    return [
-                        'id' => $approval->id,
-                        'user_id' => $approval->responder_id,
-                        'position_id' => $approval->position_id,
-                        'request_type' => $approval->request_type,
-                    ];
-                })->toArray(),
-            ];
-
-            return view('Inventory.stockBeginning.form', [
-                'mainStockBeginning' => $mainStockBeginning,
-                'stockBeginningData' => $stockBeginningData,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching stock beginning for editing', [
-                'error_message' => $e->getMessage(),
-                'stock_beginning_id' => $mainStockBeginning->id,
-            ]);
-            return response()->view('errors.500', [
-                'message' => 'Failed to fetch stock beginning',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return view('Inventory.stockBeginning.form', [
+            'stockBeginningId' => $mainStockBeginning->id,
+        ]);
     }
+
+    public function getEditData(MainStockBeginning $mainStockBeginning): JsonResponse
+    {
+        $this->authorize('update', $mainStockBeginning);
+
+        // Eager load only what's needed
+        $mainStockBeginning->load([
+            'items.productVariant.product.unit',
+            'approvals.responder'
+        ]);
+
+        $items = $mainStockBeginning->items->map(function ($item) {
+            $product = $item->productVariant?->product;
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'item_code' => $item->productVariant?->item_code ?? '',
+                'description' => trim(($item->productVariant?->product?->name ?? '') . ' ' . ($item->productVariant?->description ?? '')),
+                'unit_name' => $product?->unit?->name ?? '',
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'total' => $item->quantity * $item->unit_price,
+                'remarks' => $item->remarks,
+            ];
+        });
+
+        $approvals = $mainStockBeginning->approvals->map(fn($a) => [
+            'id' => $a->id,
+            'user_id' => $a->responder_id,
+            'request_type' => $a->request_type, // review, check, approve
+            'approval_status' => $a->approval_status,
+            'user_name' => $a->responder?->name ?? '',
+        ]);
+
+        return response()->json([
+            'message' => 'Stock beginning edit data retrieved successfully.',
+            'data' => [
+                'id' => $mainStockBeginning->id,
+                'beginning_date' => $mainStockBeginning->beginning_date,
+                'warehouse_id' => $mainStockBeginning->warehouse_id,
+                'remarks' => $mainStockBeginning->remarks,
+                'reference_no' => $mainStockBeginning->reference_no,
+                'items' => $items,
+                'approvals' => $approvals,
+            ],
+        ]);
+    }
+
 
     /**
      * Update an existing main stock beginning and its line items.
@@ -381,7 +369,7 @@ class StockBeginningController extends Controller
                 ]);
 
                 // 4️⃣ Sync Line Items
-                $existingItems = $mainStockBeginning->stockBeginnings()->get()->keyBy('id');
+                $existingItems = $mainStockBeginning->items()->get()->keyBy('id');
                 $submittedItemIds = [];
 
                 foreach ($validated['items'] as $item) {
@@ -402,13 +390,12 @@ class StockBeginningController extends Controller
 
                     } else {
                         // INSERT new item (fires boot event)
-                        $new = $mainStockBeginning->stockBeginnings()->create([
+                        $new = $mainStockBeginning->items()->create([
                             'product_id'  => $item['product_id'],
                             'quantity'    => $item['quantity'],
                             'unit_price'  => $item['unit_price'],
                             'total_value' => $item['quantity'] * $item['unit_price'],
                             'remarks'     => $item['remarks'] ?? null,
-                            'warehouse_id'=> $mainStockBeginning->warehouse_id,
                             'created_by'  => $userId,
                             'updated_by'  => $userId,
                         ]);
@@ -418,7 +405,7 @@ class StockBeginningController extends Controller
                 }
 
                 // 5️⃣ Soft delete removed items
-                $mainStockBeginning->stockBeginnings()
+                $mainStockBeginning->items()
                     ->whereNotIn('id', $submittedItemIds)
                     ->get()
                     ->each(function ($item) use ($userId) {
@@ -451,7 +438,7 @@ class StockBeginningController extends Controller
                 // 7️⃣ Response
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings.productVariant', 'approvals.responder'),
+                    'data' => $mainStockBeginning->load('items.productVariant', 'approvals.responder'),
                 ]);
 
             });
@@ -475,48 +462,25 @@ class StockBeginningController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function getUsersForApproval(Request $request): JsonResponse
+    public function getApprovalUsers(): JsonResponse
     {
-        // Validate request type
-        $validated = $request->validate([
-            'request_type' => ['required', 'string', 'in:review,check,approve'],
-        ]);
+        $users = [
+            'review'       => $this->usersWithPermission('mainStockBeginning.review'),
+            'check'      => $this->usersWithPermission('mainStockBeginning.check'),
+            'approve'      => $this->usersWithPermission('mainStockBeginning.approve'),
+        ];
 
-        $permission = "mainStockBeginning.{$validated['request_type']}";
-        $authUser = $request->user();
-        $isAdmin = $authUser->hasRole('admin');
+        return response()->json($users);
+    }
 
-        try {
-            $usersQuery = User::query()
-                ->where(function ($query) use ($permission) {
-                    $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
-                        ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
-                });
-
-            // Apply department filter only for non-admin users
-            if (!$isAdmin) {
-                $authDepartmentIds = $authUser->departments()->pluck('departments.id')->toArray();
-                $usersQuery->whereHas('departments', fn($q) => $q->whereIn('departments.id', $authDepartmentIds));
-            }
-
-            $users = $usersQuery->select('id', 'name')->get();
-
-            return response()->json([
-                'message' => 'Users fetched successfully.',
-                'data' => $users,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch users for approval', [
-                'request_type' => $validated['request_type'],
-                'auth_user_id' => $authUser->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to fetch users for approval.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+    private function usersWithPermission(string $permission)
+    {
+        return User::whereHas('permissions', fn($q) => $q->where('name', $permission))
+            ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
+            // ->where('id', '!=', Auth::id())
+            ->select('id', 'name', 'card_number')
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -554,7 +518,7 @@ class StockBeginningController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->where('reference_no', 'like', "%{$search}%")
                         ->orWhereHas('warehouse', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('stockBeginnings.productVariant.product', function ($q) use ($search) {
+                        ->orWhereHas('items.productVariant.product', function ($q) use ($search) {
                             $q->where(function ($q2) use ($search) {
                                 $q2->where('name', 'like', "%{$search}%")
                                     ->orWhere('khmer_name', 'like', "%{$search}%")
@@ -588,8 +552,8 @@ class StockBeginningController extends Controller
                 'warehouse_name' => $beginning->warehouse->name ?? null,
                 'campus_name' => $beginning->warehouse->building->campus->short_name ?? null,
                 'building_name' => $beginning->warehouse->building->short_name ?? null,
-                'quantity' => round($beginning->stockBeginnings->sum('quantity'), 4),
-                'total_value' => round($beginning->stockBeginnings->sum('total_value'), 4),
+                'quantity' => round($beginning->items->sum('quantity'), 4),
+                'total_value' => round($beginning->items->sum('total_value'), 4),
                 'created_at' => optional($beginning->created_at)->toDateTimeString(),
                 'updated_at' => optional($beginning->updated_at)->toDateTimeString(),
                 'created_by' => $beginning->createdBy->name ?? 'System',
@@ -681,13 +645,13 @@ class StockBeginningController extends Controller
             'sortDirection' => 'nullable|string|in:asc,desc',
         ]);
 
-        $query = MainStockBeginning::with(['warehouse', 'stockBeginnings.productVariant.product'])
+        $query = MainStockBeginning::with(['warehouse', 'items.productVariant.product'])
             ->when($validated['search'] ?? null, function ($query, $search) {
                 $query->where('reference_no', 'like', "%{$search}%")
                     ->orWhereHas('warehouse', function ($q) use ($search) {
                         $q->where('name', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('stockBeginnings.productVariant.product', function ($q) use ($search) {
+                    ->orWhereHas('items.productVariant.product', function ($q) use ($search) {
                         $q->where(function ($q2) use ($search) {
                             $q2->where('name', 'like', "%{$search}%")
                                 ->orWhere('khmer_name', 'like', "%{$search}%")
@@ -819,7 +783,7 @@ class StockBeginningController extends Controller
                 /**
                  * 2️⃣ Soft delete StockBeginning items (model events fire)
                  */
-                foreach ($mainStockBeginning->stockBeginnings as $stockBeginning) {
+                foreach ($mainStockBeginning->items as $stockBeginning) {
                     $stockBeginning->deleted_by = $userId;
                     $stockBeginning->save();
 
@@ -1101,25 +1065,6 @@ class StockBeginningController extends Controller
     {
         $ordinals = ['review' => 1, 'check' => 2, 'approve' => 3];
         return $ordinals[$requestType] ?? 1;
-    }
-
-
-    // Other Services
-    public function fetchWarehousesForStockBeginning(Request $request)
-    {
-        $this->authorize('viewAny', MainStockBeginning::class);
-        $user = $request->user();
-        if($user->hasRole('admin')) {
-            $response = $this->warehouseService->getWarehouses($request);
-            return response()->json($response);
-        }
-        $response = $user->defaultWarehouse($request);
-        if (!$response) {
-            return response()->json([
-                'message' => 'No default warehouse assigned to this user.',
-            ], 404);
-        }
-        return response()->json([$response]);
     }
 
     public function getProducts(Request $request): JsonResponse

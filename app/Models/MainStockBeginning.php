@@ -28,7 +28,7 @@ class MainStockBeginning extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function stockBeginnings()
+    public function items()
     {
         return $this->hasMany(StockBeginning::class, 'main_form_id');
     }

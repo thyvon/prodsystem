@@ -259,7 +259,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Stock Beginning
         Route::get('/stock-beginnings', [StockBeginningController::class, 'getStockBeginnings'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.index');
         Route::post('/stock-beginnings', [StockBeginningController::class, 'store'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.store');
-        Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'edit'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.edit');
+        Route::get('/stock-beginnings/{mainStockBeginning}/edit', [StockBeginningController::class, 'getEditData'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.edit');
         Route::put('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'update'])->middleware('can:update,mainStockBeginning')->name('api.stock-beginnings.update');
         Route::delete('/stock-beginnings/{mainStockBeginning}', [StockBeginningController::class, 'destroy'])->middleware('can:delete,mainStockBeginning')->name('api.stock-beginnings.destroy');
         Route::get('/stock-beginnings/trashed', [StockBeginningController::class, 'getTrashed'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.trashed');
@@ -267,14 +267,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/stock-beginnings/{mainStockBeginning}/force', [StockBeginningController::class, 'forceDelete'])->middleware('can:forceDelete,mainStockBeginning')->name('api.stock-beginnings.forceDelete');
         Route::post('/stock-beginnings/import', [StockBeginningController::class, 'import'])->middleware('can:create,' . MainStockBeginning::class)->name('api.stock-beginnings.import');
         Route::get('/stock-beginnings/export', [StockBeginningController::class, 'export'])->middleware('can:viewAny,' . MainStockBeginning::class)->name('api.stock-beginnings.export');
-        Route::get('/stock-beginnings/users', [StockBeginningController::class, 'getUsersForApproval'])->name('api.stock-beginnings.approval-users');
+        Route::get('/stock-beginnings/users', [StockBeginningController::class, 'getApprovalUsers'])->name('api.stock-beginnings.approval-users');
         Route::post('/stock-beginnings/{mainStockBeginning}/submit-approval', [StockBeginningController::class, 'submitApproval'])->name('api.stock-beginnings.submit-approval');
         Route::post('/stock-beginnings/{mainStockBeginning}/reassign-approval', [StockBeginningController::class, 'reassignResponder'])
             ->middleware('can:reassign,mainStockBeginning')
             ->name('api.stock-beginnings.reassign-approval');
-        Route::get('/stock-beginnings/get-warehouses', [StockBeginningController::class, 'fetchWarehousesForStockBeginning'])
-            ->middleware('can:viewAny,' . MainStockBeginning::class)
-            ->name('api.stock-beginnings.get-warehouses');
         Route::get('/stock-beginnings/get-products', [StockBeginningController::class, 'getProducts'])
             ->middleware('can:viewAny,' . MainStockBeginning::class)
             ->name('api.stock-beginnings.get-products');

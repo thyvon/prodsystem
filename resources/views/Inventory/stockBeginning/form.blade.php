@@ -2,9 +2,9 @@
 @extends('layouts.main')
 
 @section('content')
-  <stock-beginning-form
-    :initial-data="{{ json_encode($stockBeginningData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) }}"
-  />
+<stock-beginning-form
+    :stock-beginning-id="{{ $stockBeginningId ?? 'null' }}"
+/>
 @endsection
 
 @push('vite')
