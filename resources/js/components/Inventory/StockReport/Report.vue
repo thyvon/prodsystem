@@ -112,7 +112,10 @@ const datatableHeaders = [
   { text: 'Stock Out Qty', value: 'stock_out_quantity', sortable: false  },
   { text: 'Stock Out Amount', value: 'stock_out_total', sortable: false  },
   { text: 'Ending Qty', value: 'ending_quantity', sortable: false  },
-  { text: 'Average Price', value: 'average_price', sortable: false  },
+  { text: 'Count Qty', value: 'counted_quantity', sortable: false  },
+  { text: 'Variance', value: 'variance_quantity', sortable: false  },
+  { text: 'Carried Qty', value: 'counted_quantity', sortable: false  },
+  { text: 'Avg Price', value: 'average_price', sortable: false  },
   { text: 'Ending Amount', value: 'ending_total', sortable: false  },
 ]
 const datatableFetchUrl = '/api/inventory/stock-reports'

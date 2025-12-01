@@ -3,147 +3,125 @@
     <form @submit.prevent="submitForm">
       <div class="card border mb-0 shadow">
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-          <h4 class="mb-0 font-weight-bold">{{ isEditMode ? 'Edit Stock Beginning' : 'Create Stock Beginning' }}</h4>
+          <h4 class="mb-0 font-weight-bold">
+            {{ isEditMode ? 'Edit Stock Beginning' : 'Create Stock Beginning' }}
+          </h4>
           <button type="button" class="btn btn-outline-primary btn-sm" @click="goToIndex">
-            <i class="fal fa-backward"></i>
+            Back
           </button>
         </div>
 
         <div class="card-body">
-          <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">🏷️ Stock Beginning Details</h5>
-            <div class="form-row">
-              <div class="form-group col-md-3">
-                <label for="beginning_date" class="font-weight-bold">Beginning Date</label>
+          <!-- Header: Warehouse + Date -->
+          <div class="border rounded p-3 mb-4 bg-white">
+            <h5 class="font-weight-bold mb-3 text-primary">Stock Beginning Details</h5>
+            <div class="row">
+              <div class="col-md-4">
+                <label class="font-weight-bold">Beginning Date <span class="text-danger">*</span></label>
                 <input
-                  v-model="form.beginning_date_display"
-                  type="text"
-                  class="form-control datepicker"
                   id="beginning_date"
+                  type="text"
+                  class="form-control"
+                  readonly
+                  placeholder="Select date"
                   required
-                  placeholder="MMM DD, YYYY (e.g., Jul 25, 2025)"
                 />
               </div>
-              <div class="form-group col-md-3">
-                <label for="warehouse_id" class="font-weight-bold">Warehouse</label>
-                <select
-                  ref="warehouseSelect"
-                  v-model="form.warehouse_id"
-                  class="form-control"
-                  id="warehouse_id"
-                  required
-                >
-                  <option value="">Select Warehouse</option>
-                  <option
-                    v-for="warehouse in warehouses"
-                    :key="warehouse.id"
-                    :value="warehouse.id"
-                  >
-                    {{ warehouse.name }}
-                  </option>
-                </select>
+              <div class="col-md-4">
+                <label class="font-weight-bold">Warehouse <span class="text-danger">*</span></label>
+                <select ref="warehouseSelect" class="form-control" required></select>
               </div>
             </div>
           </div>
 
-          <div class="border rounded p-3 mb-4">
-            <div class="form-row">
-              <div class="form-group col-md-4">
-                <label for="import_file" class="font-weight-bold">Import Stock Items</label>
-                <div class="input-group">
-                  <input
-                    type="file"
-                    class="d-none"
-                    id="import_file"
-                    accept=".xlsx,.xls,.csv"
-                    ref="fileInput"
-                    @change="handleFileUpload"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    @click="triggerFileInput"
-                  >
-                    <i class="fal fa-file-upload"></i>
-                    {{ selectedFileName || 'Choose file...' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-outline-primary btn-lg btn-icon rounded-circle hover-effect-dot ml-2"
-                    @click="importFile"
-                    :disabled="isImporting"
-                  >
-                    <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
-                    <i class="fal fa-upload"></i>
-                  </button>
-                  <a
-                    class="btn btn-outline-danger btn-lg btn-icon rounded-circle hover-effect-dot ml-2"
-                    href="/sampleExcel/stock_beginnings_sample.xlsx"
-                    download="stock_beginnings_sample.xlsx"
-                  >
-                    <i class="fal fa-file-excel"></i>
-                  </a>
-                </div>
-              </div>
-              <div class="form-group col-md-8">
-                <label for="product_select" class="font-weight-bold">Add Product</label>
-                <select
-                  ref="productSelect"
-                  class="form-control"
-                  id="product_select"
-                >
-                  <option value="">Select Product</option>
-                  <option
-                    v-for="product in products"
-                    :key="product.id"
-                    :value="product.id"
-                  >
-                    {{ product.item_code }} - {{ product.product_name }} {{ product.description }}
-                  </option>
-                </select>
+          <!-- Items Section -->
+          <div class="border rounded p-3 mb-4 bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="font-weight-bold text-primary mb-0">Stock Items</h5>
+              <div>
+                <button type="button" class="btn btn-primary btn-sm" @click="openProductsModal">
+                  Add Products
+                </button>
+                <button type="button" class="btn btn-success btn-sm ml-2" @click="triggerFileInput">
+                  Import Excel
+                </button>
+                <a href="/sampleExcel/stock_beginnings_sample.xlsx" download class="ml-2 text-info">
+                  Sample
+                </a>
               </div>
             </div>
-            <h5 class="font-weight-bold mb-3 text-primary">📦 Stock Items</h5>
-            <div class="table-responsive">
-              <table id="stockItemsTable" class="table table-bordered table-sm table-hover">
+
+            <input type="file" ref="fileInput" @change="handleFileUpload" accept=".xlsx,.xls,.csv" class="d-none" />
+
+            <div class="table-responsive mt-3">
+              <table class="table table-bordered table-sm table-hover">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 100px;">Code</th>
-                    <th style="min-width: 300px;">Description</th>
-                    <th style="min-width: 30px;">UoM</th>
-                    <th style="min-width: 100px;">Quantity</th>
-                    <th style="min-width: 120px;">Unit Price</th>
-                    <th style="min-width: 120px;">Total Value</th>
-                    <th style="min-width: 200px;">Remarks</th>
-                    <th style="min-width: 100px;">Actions</th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Value</th>
+                    <th>Remarks</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                  <tr v-for="(item, i) in form.items" :key="i">
+                    <td>{{ item.item_code }}</td>
+                    <td>{{ item.product_name }} {{ item.description }}</td>
+                    <td>{{ item.unit_name }}</td>
+                    <td>
+                      <input v-model.number="item.quantity" type="number" step="0.0001" min="0" class="form-control form-control-sm" required />
+                    </td>
+                    <td>
+                      <input v-model.number="item.unit_price" type="number" step="0.0001" min="0" class="form-control form-control-sm" required />
+                    </td>
+                    <td>{{ (item.quantity * item.unit_price).toFixed(4) }}</td>
+                    <td>
+                      <input v-model="item.remarks" class="form-control form-control-sm" />
+                    </td>
+                    <td>
+                      <button @click="removeItem(i)" type="button" class="btn btn-danger btn-sm">
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="!form.items.length">
+                    <td colspan="8" class="text-center text-muted">No items added yet.</td>
+                  </tr>
+                </tbody>
               </table>
             </div>
           </div>
 
-          <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">👥 Approval Assignments</h5>
+          <!-- Approvals -->
+          <div class="border rounded p-3 mb-4 bg-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="font-weight-bold text-primary mb-0">Approval Assignments</h5>
+              <button type="button" class="btn btn-outline-primary btn-sm" @click="addApproval">
+                + Add Approval
+              </button>
+            </div>
+
             <div class="table-responsive">
-              <table class="table table-bordered table-sm table-hover">
+              <table class="table table-bordered table-sm">
                 <thead class="thead-light">
                   <tr>
-                    <th style="min-width: 200px;">Approval Type</th>
-                    <th style="min-width: 200px;">Assigned User</th>
-                    <th style="min-width: 100px;">Actions</th>
+                    <th>Type</th>
+                    <th>Assigned User</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(approval, index) in form.approvals" :key="index">
+                  <tr v-for="(approval, i) in form.approvals" :key="i">
                     <td>
                       <select
-                        v-model="approval.request_type"
+                        :data-index="i"
                         class="form-control approval-type-select"
-                        :data-row="index"
-                        required
                         :disabled="approval.isDefault"
-                        @change="updateUsersForRow(index)"
+                        required
                       >
                         <option value="">Select Type</option>
                         <option value="review">Review</option>
@@ -152,841 +130,302 @@
                       </select>
                     </td>
                     <td>
-                      <select
-                        v-model="approval.user_id"
-                        class="form-control user-select"
-                        :data-row="index"
-                        required
-                      >
-                        <option value="">Select User</option>
-                        <option
-                          v-for="user in approval.availableUsers"
-                          :key="user.id"
-                          :value="user.id"
-                        >
-                          {{ user.name }}
-                        </option>
-                      </select>
+                      <select :data-index="i" class="form-control user-select" required></select>
                     </td>
                     <td>
                       <button
+                        v-if="!approval.isDefault"
+                        @click="removeApproval(i)"
                         type="button"
                         class="btn btn-danger btn-sm"
-                        @click="removeApproval(index)"
-                        :disabled="approval.isDefault"
                       >
-                        <i class="fal fa-trash-alt"></i> Remove
+                        Remove
                       </button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm mt-2"
-              @click="addApproval"
-            >
-              <i class="fal fa-plus"></i> Add Approval
-            </button>
           </div>
 
+          <!-- Submit -->
           <div class="text-right">
             <button
               type="submit"
-              class="btn btn-primary btn-sm mr-2"
-              :disabled="isSubmitting || form.items.length === 0 || form.approvals.length === 0"
+              class="btn btn-primary"
+              :disabled="isSubmitting || !form.items.length"
             >
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
-              {{
-                isEditMode
-                  ? (initialData.approval_status === 'Returned' ? 'Re-Submit' : 'Update')
-                  : 'Create'
-              }}
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-2"></span>
+              {{ isEditMode ? 'Update' : 'Create' }}
             </button>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              @click="goToIndex"
-            >
+            <button type="button" class="btn btn-secondary ml-2" @click="goToIndex">
               Cancel
             </button>
           </div>
         </div>
       </div>
     </form>
+
+    <!-- Product Modal -->
+    <div ref="itemsModal" class="modal fade" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Select Products</h5>
+            <button type="button" class="close" @click="closeItemsModal">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3 text-right">
+              <input type="checkbox" @change="toggleAll" /> Select All
+            </div>
+            <table class="table table-bordered table-hover">
+              <!-- DataTable will inject here -->
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button @click="addSelectedItems" class="btn btn-primary">Add Selected</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({
-  initialData: {
-    type: Object,
-    default: () => ({}),
-  },
-})
-
+// -------------------- Props & Emits --------------------
+const props = defineProps({ initialData: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['submitted'])
+
+// -------------------- Reactive State --------------------
+const isEditMode = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
-const products = ref([])
-const warehouses = ref([])
-const users = ref({ review: [], check: [], approve: [] })
-const warehouseSelect = ref(null)
-const productSelect = ref(null)
-const fileInput = ref(null)
-const selectedFileName = ref('')
-const isEditMode = ref(!!props.initialData?.id)
-const stockBeginningId = ref(props.initialData?.id || null)
-const table = ref(null)
-let isAddingItem = false
-let isAddingApproval = false
 
 const form = ref({
   warehouse_id: null,
   beginning_date: '',
-  beginning_date_display: '',
   items: [],
-  approvals: [],
+  approvals: []
 })
 
-const goToIndex = () => { window.location.href = `/inventory/stock-beginnings` }
+const fileInput = ref(null)
+const itemsModal = ref(null)
+const warehouseSelect = ref(null)
+let approvalUsers = { review: [], check: [], approve: [] }
 
-const fetchUsersForApproval = async (requestType) => {
-  try {
-    const response = await axios.get('/api/inventory/stock-beginnings/users', {
-      params: { request_type: requestType },
-    })
-    users.value[requestType] = Array.isArray(response.data.data) ? response.data.data : []
-  } catch (err) {
-    console.error(`Failed to load users for ${requestType}:`, err)
-    showAlert('Error', `Failed to load users for ${requestType} approval.`, 'danger')
-  }
-}
+// -------------------- Helpers --------------------
+const goToIndex = () => window.location.href = '/inventory/stock-beginnings'
 
-const fetchProducts = async () => {
+// -------------------- Fetch Data --------------------
+const fetchApprovalUsers = async () => {
   try {
-    const response = await axios.get(`/api/inventory/stock-beginnings/get-products`)
-    products.value = Array.isArray(response.data) ? response.data : response.data.data
-  } catch (err) {
-    console.error('Failed to load products:', err)
-    showAlert('Error', 'Failed to load products.', 'danger')
+    const { data } = await axios.get('/api/inventory/stock-beginnings/users')
+    approvalUsers = {
+      review: data.review || [],
+      check: data.check || [],
+      approve: data.approve || []
+    }
+  } catch {
+    showAlert('Error', 'Failed to load approval users', 'danger')
   }
 }
 
 const fetchWarehouses = async () => {
-  try {
-    const response = await axios.get(`/api/inventory/stock-beginnings/get-warehouses`)
-    warehouses.value = Array.isArray(response.data) ? response.data : response.data.data
-  } catch (err) {
-    console.error('Failed to load warehouses:', err)
-    showAlert('Error', 'Failed to load warehouses.', 'danger')
-  }
+  const { data } = await axios.get('/api/main-value-lists/get-warehouses')
+  return (data.data || data).map(w => ({ id: w.id, text: w.name || w.text }))
 }
 
-const itemUnitName = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product?.unit_name || '-'
-  }
-})
+// -------------------- DatePicker --------------------
+const initDatepicker = () => {
+  $('#beginning_date').datepicker({
+    format: 'yyyy-mm-dd',
+    autoclose: true,
+    todayHighlight: true
+  }).on('changeDate', e => { form.value.beginning_date = e.format() })
+}
 
-const ProductDescription = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.product_name} ${product.description}` : '-'
-  }
-})
+// -------------------- Select2 --------------------
+const initWarehouseSelect2 = async () => {
+  const warehouses = await fetchWarehouses()
+  initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse', width: '100%', data: warehouses }, val => {
+    form.value.warehouse_id = val ? Number(val) : null
+  })
+  if (form.value.warehouse_id) $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
+}
 
-const ProductCode = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.item_code}` : '-'
-  }
-})
+const initApprovalSelect2 = async () => {
+  await nextTick()
+  $('.approval-type-select').each(function () {
+    const i = $(this).data('index')
+    const approval = form.value.approvals[i]
 
-const addApproval = async () => {
-  if (isAddingApproval) return
-  isAddingApproval = true
-
-  try {
-    form.value.approvals.push({
-      id: null,
-      request_type: '',
-      user_id: null,
-      isDefault: false,
-      availableUsers: [],
-    })
-
-    await nextTick()
-    const index = form.value.approvals.length - 1
-    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
-    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
-
-    if (!approvalSelect || !userSelect) {
-      console.warn(`DOM elements for row ${index} not found`)
-      showAlert('Error', 'Failed to initialize approval dropdowns.', 'danger')
-      return
-    }
-
-    initSelect2(approvalSelect, {
+    initSelect2(this, {
       placeholder: 'Select Type',
       width: '100%',
-      allowClear: true,
-    }, (value) => {
-      form.value.approvals[index].request_type = value || ''
-      updateUsersForRow(index)
-    })
-    $(approvalSelect).val(form.value.approvals[index].request_type || '').trigger('change.select2')
+      data: [
+        { id: 'review', text: 'Review' },
+        { id: 'check', text: 'Check' },
+        { id: 'approve', text: 'Approve' }
+      ],
+      allowClear: !approval.isDefault
+    }, val => { form.value.approvals[i].request_type = val || ''; updateUserSelect(i) })
 
-    initSelect2(userSelect, {
-      placeholder: 'Select User',
-      width: '100%',
-      allowClear: true,
-    }, (value) => {
-      form.value.approvals[index].user_id = value ? Number(value) : null
-    })
-    $(userSelect).val(form.value.approvals[index].user_id || '').trigger('change.select2')
-  } catch (err) {
-    console.error('Error adding approval:', err)
-    showAlert('Error', 'Failed to add approval assignment.', 'danger')
-  } finally {
-    isAddingApproval = false
-  }
+    $(this).val(approval.request_type).trigger('change')
+  })
+  updateAllUserSelects()
 }
 
-const removeApproval = async (index) => {
-  try {
-    if (form.value.approvals[index].isDefault) {
-      showAlert('Error', 'Default approval types cannot be removed.', 'danger')
-      return
-    }
-    const approvalSelect = document.querySelector(`.approval-type-select[data-row="${index}"]`)
-    const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
-    if (approvalSelect) destroySelect2(approvalSelect)
-    if (userSelect) destroySelect2(userSelect)
-    form.value.approvals.splice(index, 1)
-  } catch (err) {
-    console.error('Error removing approval:', err)
-    showAlert('Error', 'Failed to remove approval assignment.', 'danger')
-  }
-}
+const updateAllUserSelects = () => $('.user-select').each(function () { updateUserSelect($(this).data('index')) })
 
-const updateUsersForRow = async (index) => {
-  try {
-    const requestType = form.value.approvals[index].request_type
-    if (requestType && ['review', 'check', 'approve'].includes(requestType)) {
-      if (!users.value[requestType].length) {
-        await fetchUsersForApproval(requestType)
-      }
-      form.value.approvals[index].availableUsers = users.value[requestType]
-      await nextTick()
-      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
-      if (userSelect) {
-        destroySelect2(userSelect)
-        initSelect2(userSelect, {
-          placeholder: 'Select User',
-          width: '100%',
-          allowClear: true,
-        }, (value) => {
-          form.value.approvals[index].user_id = value ? Number(value) : null
-        })
-        // Only set user_id if it exists in the new availableUsers list
-        const currentUserId = form.value.approvals[index].user_id
-        const validUser = users.value[requestType].find(user => user.id === currentUserId)
-        $(userSelect).val(validUser ? currentUserId : '').trigger('change.select2')
-        if (!validUser && currentUserId) {
-          form.value.approvals[index].user_id = null
-          showAlert('Warning', `Previous user for ${requestType} is no longer valid. Please select a new user.`, 'warning')
-        }
-      }
-    } else {
-      form.value.approvals[index].availableUsers = []
-      form.value.approvals[index].user_id = null
-      await nextTick()
-      const userSelect = document.querySelector(`.user-select[data-row="${index}"]`)
-      if (userSelect) {
-        destroySelect2(userSelect)
-        initSelect2(userSelect, {
-          placeholder: 'Select User',
-          width: '100%',
-          allowClear: true,
-        }, (value) => {
-          form.value.approvals[index].user_id = value ? Number(value) : null
-        })
-        $(userSelect).val('').trigger('change.select2')
-      }
-    }
-  } catch (err) {
-    console.error(`Error updating users for row ${index}:`, err)
-    showAlert('Error', 'Failed to update user dropdown.', 'danger')
-  }
-}
+const updateUserSelect = i => nextTick(() => {
+  const el = document.querySelector(`.user-select[data-index="${i}"]`)
+  if (!el) return
+  const users = approvalUsers[form.value.approvals[i].request_type] || []
+  destroySelect2(el)
+  initSelect2(el, { placeholder: 'Select User', width: '100%', data: users.map(u => ({ id: u.id, text: u.name })) },
+    val => form.value.approvals[i].user_id = val ? Number(val) : null
+  )
+  $(el).val(form.value.approvals[i].user_id || '').trigger('change')
+})
 
+// -------------------- Approvals --------------------
+const addApproval = () => { form.value.approvals.push({ request_type: '', user_id: null, isDefault: false }); nextTick(initApprovalSelect2) }
+const removeApproval = i => {
+  if (form.value.approvals[i].isDefault) return
+  destroySelect2(document.querySelector(`.approval-type-select[data-index="${i}"]`))
+  destroySelect2(document.querySelector(`.user-select[data-index="${i}"]`))
+  form.value.approvals.splice(i, 1)
+}
 const validateApprovals = () => {
-  if (form.value.approvals.length < 3) {
-    showAlert('Error', 'At least three approval assignments (Review, Check, Approve) are required.', 'danger')
-    return false
-  }
-
-  const defaultTypes = ['review', 'check', 'approve']
-  const presentTypes = form.value.approvals
-    .map(approval => approval.request_type)
-    .filter(type => defaultTypes.includes(type))
-
-  if (presentTypes.length < 3 || !defaultTypes.every(type => presentTypes.includes(type))) {
-    showAlert('Error', 'All default approval types (Review, Check, Approve) must be present.', 'danger')
-    return false
-  }
-
-  for (const approval of form.value.approvals) {
-    if (!approval.request_type) {
-      showAlert('Error', 'All approval types must be specified.', 'danger')
-      return false
-    }
-    if (!approval.user_id) {
-      showAlert('Error', 'All approval assignments must have a user selected.', 'danger')
-      return false
-    }
-  }
-
+  const types = form.value.approvals.map(a => a.request_type)
+  const hasAll = ['review', 'check', 'approve'].every(t => types.includes(t))
+  const hasUsers = form.value.approvals.every(a => a.user_id)
+  if (!hasAll || !hasUsers) { showAlert('Error', 'Please assign Review, Check, and Approve users.', 'danger'); return false }
   return true
 }
 
-const addItem = (productId) => {
-  try {
-    if (isAddingItem) {
-      return
-    }
-    isAddingItem = true
+// -------------------- Products Modal --------------------
+const openProductsModal = async () => {
+  await nextTick()
+  if (!form.value.warehouse_id || !form.value.beginning_date) { showAlert('Warning', 'Please select Warehouse and Beginning Date first.', 'warning'); return }
 
-    if (!productId) {
-      console.warn('No product ID provided')
-      showAlert('Warning', 'Please select a product.', 'warning')
-      return
-    }
-    const product = products.value.find(p => p.id === Number(productId))
-    if (!product) {
-      console.error('Product not found for ID:', productId)
-      showAlert('Error', 'Selected product not found.', 'danger')
-      return
-    }
+  nextTick(() => {
+    const tableEl = $(itemsModal.value).find('table')
+    if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().destroy()
 
-    const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId))
-    if (existingItemIndex !== -1) {
-      form.value.items[existingItemIndex].quantity += 1
-      if (table.value) {
-        table.value.row(existingItemIndex).invalidate().draw()
-      }
-      showAlert('Info', `Quantity increased for ${product.item_code}`, 'info')
-    } else {
-      const newItem = {
-        product_id: Number(productId),
-        quantity: 1,
-        unit_price: 0,
-        remarks: '',
-      }
-      form.value.items.push(newItem)
-      if (table.value) {
-        table.value.rows.add([newItem]).draw()
-      } else {
-        console.warn('DataTable not initialized')
-        showAlert('Error', 'Table not initialized.', 'danger')
-      }
-    }
-
-    if (productSelect.value) {
-      $(productSelect.value).val(null).trigger('select2:unselect')
-    }
-  } catch (err) {
-    console.error('Error adding item:', err)
-    showAlert('Error', 'Failed to add product to table.', 'danger')
-  } finally {
-    isAddingItem = false
-  }
-}
-
-const removeItem = (index) => {
-  try {
-    form.value.items.splice(index, 1)
-    if (table.value) {
-      table.value.clear().rows.add(form.value.items).draw()
-    }
-  } catch (err) {
-    console.error('Error removing item:', err)
-    showAlert('Error', 'Failed to remove item.', 'danger')
-  }
-}
-
-const handleFileUpload = (event) => {
-  try {
-    const file = event.target.files[0]
-    const validMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-      'application/csv',
-      'text/plain',
-    ]
-    if (file) {
-      selectedFileName.value = file.name
-      if (!validMimeTypes.includes(file.type)) {
-        showAlert('Error', 'Please upload a valid Excel or CSV file (.xlsx, .xls, or .csv).', 'danger')
-        fileInput.value.value = ''
-        selectedFileName.value = ''
-      }
-    }
-  } catch (err) {
-    console.error('Error handling file upload:', err)
-    showAlert('Error', 'Failed to process file upload.', 'danger')
-  }
-}
-
-const triggerFileInput = () => {
-  try {
-    if (fileInput.value && typeof fileInput.value.click === 'function') {
-      fileInput.value.click()
-    }
-  } catch (err) {
-    console.error('Error triggering file input:', err)
-    showAlert('Error', 'Failed to open file picker.', 'danger')
-  }
-}
-
-const importFile = async () => {
-  if (!fileInput.value.files[0]) {
-    showAlert('Error', 'Please select a file to import.', 'danger')
-    return
-  }
-
-  if (isImporting.value) return
-  isImporting.value = true
-
-  const formData = new FormData()
-  formData.append('file', fileInput.value.files[0])
-
-  try {
-    const response = await axios.post(`/api/inventory/stock-beginnings/import`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-
-    if (response.status === 200 && response.data.data) {
-      const importedData = response.data.data
-      form.value.items = importedData.items.map(item => ({
-        id: item.id || null,
-        product_id: Number(item.product_id),
-        quantity: parseFloat(item.quantity) || 1,
-        unit_price: parseFloat(item.unit_price) || 0,
-        remarks: item.remarks || '',
-      }))
-
-      if (importedData.beginning_date) {
-        const [year, month, day] = importedData.beginning_date.split('-')
-        if (year && month && day) {
-          const date = new Date(year, month - 1, day)
-          const formattedDate = date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: '2-digit',
-            year: 'numeric',
-          })
-          form.value.beginning_date_display = formattedDate
-          $('#beginning_date').datepicker('setDate', formattedDate)
+    tableEl.DataTable({
+      serverSide: true,
+      processing: true,
+      ajax: {
+        url: '/api/inventory/stock-beginnings/get-products',
+        type: 'GET',
+        data: function (d) {
+          // Add reactive Vue values dynamically
+          d.warehouse_id = form.value.warehouse_id
+          d.cutoff_date = form.value.beginning_date
         }
-      }
-
-      await nextTick()
-      if (table.value) {
-        table.value.clear().rows.add(form.value.items).draw()
-      }
-
-      if (warehouseSelect.value) {
-        destroySelect2(warehouseSelect.value)
-        initSelect2(warehouseSelect.value, {
-          placeholder: 'Select Warehouse',
-          width: '100%',
-          allowClear: true,
-        }, (v) => (form.value.warehouse_id = v))
-        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
-      }
-
-      showAlert('Success', 'Stock beginnings data loaded into the form.', 'success')
-      fileInput.value.value = ''
-      selectedFileName.value = ''
-      return
-    }
-
-    const errors = response.data.errors || [response.data.message || 'Unknown error occurred']
-    if (errors.length > 0) {
-      const errorList = errors.map((error, index) => `${index + 1}. ${error}`).join('<br>')
-      showAlert('Import Errors', `The following errors were found in the Excel file:<br><br>${errorList}`, 'danger')
-      return
-    }
-
-    showAlert('Error', 'Unexpected response from server.', 'danger')
-  } catch (err) {
-    console.error('Import error:', err.response?.data || err)
-    const errors = err.response?.data?.errors || [err.response?.data?.message || 'Failed to import stock beginning.']
-    const errorList = errors.map((error, index) => `${index + 1}. ${error}`).join('<br>')
-    showAlert('Error', `Import failed:<br><br>${errorList}`, 'danger')
-  } finally {
-    isImporting.value = false
-  }
-}
-
-const submitForm = async () => {
-  if (isSubmitting.value) return
-  if (form.value.items.length === 0) {
-    await showAlert('Error', 'At least one item is required to submit.', 'danger')
-    return
-  }
-  if (form.value.items.some(item => !item.product_id)) {
-    await showAlert('Error', 'All items must have a valid product selected.', 'danger')
-    return
-  }
-  if (!validateApprovals()) {
-    return
-  }
-
-  isSubmitting.value = true
-  try {
-    const payload = {
-      warehouse_id: form.value.warehouse_id,
-      beginning_date: form.value.beginning_date,
-      items: form.value.items.map(item => ({
-        id: item.id || null,
-        product_id: item.product_id,
-        quantity: parseFloat(item.quantity),
-        unit_price: parseFloat(item.unit_price),
-        remarks: item.remarks?.toString().trim() || null,
-      })),
-      approvals: form.value.approvals.map(approval => ({
-        id: approval.id || null,
-        user_id: approval.user_id,
-        request_type: approval.request_type,
-      })),
-    }
-
-    const url = isEditMode.value
-      ? `/api/inventory/stock-beginnings/${stockBeginningId.value}`
-      : `/api/inventory/stock-beginnings`
-    const method = isEditMode.value ? 'put' : 'post'
-
-    await axios[method](url, payload)
-    await showAlert('Success', isEditMode.value ? 'Stock beginning updated successfully.' : 'Stock beginning created successfully.', 'success')
-    emit('submitted')
-    goToIndex()
-  } catch (err) {
-    console.error('Submit error:', err.response?.data || err)
-    await showAlert('Error', err.response?.data?.message || err.message || 'Failed to save stock beginning.', 'danger')
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-const initDatepicker = async () => {
-  try {
-    await nextTick()
-    $('#beginning_date').datepicker({
-      format: 'M dd, yyyy',
-      autoclose: true,
-      todayHighlight: true,
-      orientation: 'bottom left',
-    }).on('changeDate', (e) => {
-      if (e.date) {
-        const date = new Date(e.date)
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        form.value.beginning_date = `${year}-${month}-${day}`
-        form.value.beginning_date_display = date.toLocaleDateString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-        })
-      } else {
-        form.value.beginning_date = ''
-        form.value.beginning_date_display = ''
-      }
-    })
-  } catch (err) {
-    console.error('Error initializing datepicker:', err)
-    showAlert('Error', 'Failed to initialize date picker.', 'danger')
-  }
-}
-
-watch(() => form.value.beginning_date_display, (newDisplayDate) => {
-  try {
-    if (newDisplayDate) {
-      const date = new Date(newDisplayDate)
-      if (!isNaN(date.getTime())) {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        form.value.beginning_date = `${year}-${month}-${day}`
-        $('#beginning_date').datepicker('setDate', newDisplayDate)
-      } else {
-        form.value.beginning_date = ''
-        $('#beginning_date').datepicker('setDate', null)
-      }
-    } else {
-      form.value.beginning_date = ''
-      $('#beginning_date').datepicker('setDate', null)
-    }
-  } catch (err) {
-    console.error('Error watching beginning_date_display:', err)
-    showAlert('Error', 'Failed to process date change.', 'danger')
-  }
-})
-
-onMounted(async () => {
-  try {
-    // Group incoming approvals and flag only the first one of each type as default
-    const defaultTypes = ['review', 'check', 'approve']
-    const seenTypes = new Set()
-
-    if (props.initialData?.id) {
-      form.value.warehouse_id = props.initialData.warehouse_id
-      form.value.beginning_date = props.initialData.beginning_date
-
-      if (props.initialData.beginning_date) {
-        const [year, month, day] = props.initialData.beginning_date.split('-')
-        const date = new Date(year, month - 1, day)
-        form.value.beginning_date_display = date.toLocaleDateString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-        })
-      }
-
-      // Prepare stock items
-      form.value.items = props.initialData.items?.map(item => ({
-        id: item.id || null,
-        product_id: Number(item.product_id),
-        quantity: parseFloat(item.quantity) || 1,
-        unit_price: parseFloat(item.unit_price) || 0,
-        remarks: item.remarks || '',
-      })) || []
-
-      // Approvals: flag first of each type as isDefault, allow duplicates
-      form.value.approvals = props.initialData.approvals?.map((approval, i, arr) => {
-        const isFirstOfType = !seenTypes.has(approval.request_type)
-        if (isFirstOfType && defaultTypes.includes(approval.request_type)) {
-          seenTypes.add(approval.request_type)
-        }
-
-        return {
-          id: approval.id || null,
-          user_id: Number(approval.user_id),
-          request_type: approval.request_type || 'approve',
-          isDefault: isFirstOfType && defaultTypes.includes(approval.request_type),
-          availableUsers: [],
-        }
-      }) || []
-    } else {
-      // If new entry, push one default of each type
-      form.value.approvals = defaultTypes.map(type => ({
-        id: null,
-        request_type: type,
-        user_id: null,
-        isDefault: true,
-        availableUsers: [],
-      }))
-    }
-
-    // Load all necessary data
-    await Promise.all([
-      fetchProducts(),
-      fetchWarehouses(),
-      Promise.all(defaultTypes.map(fetchUsersForApproval))
-    ])
-
-    // Load availableUsers per approval row
-    for (let i = 0; i < form.value.approvals.length; i++) {
-      await updateUsersForRow(i)
-    }
-
-    // Initialize DataTable
-    table.value = $('#stockItemsTable').DataTable({
-      data: form.value.items,
-      responsive: true,
+      },
       columns: [
-        {
-          data: 'product_id',
-          render: (data) => ProductCode.value(data)
-        },
-        {
-          data: 'product_id',
-          render: (data) => ProductDescription.value(data)
-        },
-        {
-          data: 'product_id',
-          render: (data) => itemUnitName.value(data)
-        },
-        {
-          data: 'quantity',
-          render: (data, type, row, meta) => `
-            <input type="number" class="form-control quantity-input" value="${data}" min="0.0001" step="0.0001" required data-row="${meta.row}"/>
-          `
-        },
-        {
-          data: 'unit_price',
-          render: (data, type, row, meta) => `
-            <input type="number" class="form-control unit-price-input" value="${data}" min="0" step="0.0001" required data-row="${meta.row}"/>
-          `
-        },
-        {
-          data: null,
-          render: (data) => (data.quantity * data.unit_price).toFixed(4)
-        },
-        {
-          data: 'remarks',
-          render: (data, type, row, meta) => `
-            <textarea class="form-control remarks-input" rows="1" maxlength="1000" data-row="${meta.row}">${data || ''}</textarea>
-          `
-        },
-        {
-          data: null,
-          orderable: false,
-          searchable: false,
-          render: (data, type, row, meta) => `
-            <button type="button" class="btn btn-danger btn-sm remove-btn" data-row="${meta.row}">
-              <i class="fal fa-trash-alt"></i> Remove
-            </button>
-          `
-        }
+        { data: 'id', orderable: false, render: id => `<input type="checkbox" class="select-item" value="${id}">` },
+        { data: 'item_code' },
+        { data: 'product_name' },
+        { data: 'description' },
+        { data: 'unit_name' }
       ]
     })
 
-    // Table input bindings
-    $('#stockItemsTable').on('change', '.quantity-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].quantity = parseFloat($(this).val()) || 1
-      table.value.row(index).invalidate().draw()
-    })
-
-    $('#stockItemsTable').on('change', '.unit-price-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].unit_price = parseFloat($(this).val()) || 0
-      table.value.row(index).invalidate().draw()
-    })
-
-    $('#stockItemsTable').on('input', '.remarks-input', function () {
-      const index = $(this).data('row')
-      form.value.items[index].remarks = $(this).val()
-    })
-
-    $('#stockItemsTable').on('click', '.remove-btn', function () {
-      const index = $(this).data('row')
-      removeItem(index)
-    })
-
-    // Init warehouse select
-    await nextTick()
-    if (warehouseSelect.value) {
-      initSelect2(warehouseSelect.value, {
-        placeholder: 'Select Warehouse',
-        width: '100%',
-        allowClear: true,
-      }, (v) => (form.value.warehouse_id = v))
-
-      if (form.value.warehouse_id) {
-        $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
-      }
+    $(itemsModal.value).modal('show')
+  })
+}
+const addSelectedItems = () => {
+  const table = $(itemsModal.value).find('table').DataTable()
+  table.rows().every(function () {
+    if ($(this.node()).find('.select-item').is(':checked')) {
+      const p = this.data()
+      if (!form.value.items.find(i => i.product_id === p.id)) form.value.items.push({ product_id: p.id, item_code: p.item_code, product_name: p.product_name || '', description: p.description || '', unit_name: p.unit_name || '', quantity: 0, unit_price: 0, remarks: '' })
     }
+  })
+  $(itemsModal.value).find('.select-item').prop('checked', false)
+  $(itemsModal.value).modal('hide')
+}
+const removeItem = i => form.value.items.splice(i, 1)
+const closeItemsModal = () => $(itemsModal.value).modal('hide')
+const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
 
-    // Init product select
-    if (productSelect.value) {
-      initSelect2(productSelect.value, {
-        placeholder: 'Select Product',
-        width: '100%',
-        allowClear: true,
+// -------------------- File Import --------------------
+const triggerFileInput = () => fileInput.value.click()
+const handleFileUpload = e => { if (e.target.files[0]) importFile() }
+const importFile = async () => {
+  const file = fileInput.value.files[0]
+  if (!file || !form.value.warehouse_id || !form.value.beginning_date) { showAlert('Warning', 'Please select Warehouse and Date first.', 'warning'); return }
+
+  isImporting.value = true
+  const fd = new FormData(); fd.append('file', file)
+
+  try {
+    const { data } = await axios.post('/api/inventory/stock-beginnings/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    if (data.errors?.length) { showAlert('Error', data.errors.join('<br>'), 'danger', { html: true }); return }
+
+    (data.data?.items || []).forEach(r => {
+      if (!form.value.items.find(x => x.product_id === r.product_id)) form.value.items.push({
+        product_id: r.product_id, item_code: r.item_code, product_name: r.product_name || '', description: r.description || '',
+        unit_name: r.unit_name || '', quantity: parseFloat(r.quantity) || 0, unit_price: parseFloat(r.unit_price) || 0, remarks: r.remarks || ''
       })
-      $(productSelect.value).on('select2:select', (e) => {
-        const productId = e.params.data.id
-        addItem(productId)
-      })
+    })
+    showAlert('Success', `Imported ${(data.data?.items || []).length} items`, 'success')
+    fileInput.value.value = ''
+  } catch (err) { showAlert('Error', err.response?.data?.message || 'Import failed', 'danger') }
+  finally { isImporting.value = false }
+}
+
+// -------------------- Submit --------------------
+const submitForm = async () => {
+  if (!form.value.warehouse_id || !form.value.beginning_date || !form.value.items.length) { showAlert('Error', 'Please fill all required fields and add items.', 'danger'); return }
+  if (!validateApprovals()) return
+
+  isSubmitting.value = true
+  try {
+    const payload = { warehouse_id: form.value.warehouse_id, beginning_date: form.value.beginning_date,
+      items: form.value.items.map(i => ({ product_id: i.product_id, quantity: parseFloat(i.quantity), unit_price: parseFloat(i.unit_price), remarks: i.remarks || null })),
+      approvals: form.value.approvals.map(a => ({ user_id: a.user_id, request_type: a.request_type }))
     }
+    const url = isEditMode.value ? `/api/inventory/stock-beginnings/${props.initialData.id}` : '/api/inventory/stock-beginnings'
+    await axios[isEditMode.value ? 'put' : 'post'](url, payload)
+    showAlert('Success', 'Stock beginning saved successfully!', 'success')
+    emit('submitted'); goToIndex()
+  } catch (err) { showAlert('Error', err.response?.data?.message || 'Failed to save', 'danger') }
+  finally { isSubmitting.value = false }
+}
 
-    // Approval Type Select2
-    $('.approval-type-select').each(function () {
-      const index = $(this).data('row')
-      const approval = form.value.approvals[index]
-      initSelect2(this, {
-        placeholder: 'Select Type',
-        width: '100%',
-        allowClear: !approval.isDefault,
-        disabled: approval.isDefault,
-      }, (value) => {
-        form.value.approvals[index].request_type = value || ''
-        updateUsersForRow(index)
-      })
-      $(this).val(approval.request_type || '').trigger('change.select2')
-    })
+// -------------------- Edit Mode --------------------
+const loadEditData = async () => {
+  const d = props.initialData
+  form.value.warehouse_id = Number(d.warehouse_id)
+  form.value.beginning_date = d.beginning_date
+  $('#beginning_date').datepicker('setDate', d.beginning_date)
+  form.value.items = d.items.map(i => ({ product_id: i.product_id, item_code: i.item_code, product_name: i.product_name || '', description: i.description || '', unit_name: i.unit_name || '', quantity: parseFloat(i.quantity), unit_price: parseFloat(i.unit_price), remarks: i.remarks || '' }))
+  form.value.approvals = d.approvals.map(a => ({ request_type: a.request_type, user_id: a.user_id, isDefault: true }))
+  await nextTick(); await initWarehouseSelect2(); await initApprovalSelect2()
+}
 
-    // User Select2
-    $('.user-select').each(function () {
-      const index = $(this).data('row')
-      initSelect2(this, {
-        placeholder: 'Select User',
-        width: '100%',
-        allowClear: true,
-      }, (value) => {
-        form.value.approvals[index].user_id = value ? Number(value) : null
-      })
-      $(this).val(form.value.approvals[index].user_id || '').trigger('change.select2')
-    })
-
-    await initDatepicker()
-
-  } catch (err) {
-    console.error('Error in onMounted:', err)
-    showAlert('Error', 'Failed to initialize form.', 'danger')
-  }
+// -------------------- Mounted & Unmounted --------------------
+onMounted(async () => {
+  await fetchApprovalUsers()
+  if (!isEditMode.value) form.value.approvals = [{ request_type: 'review', user_id: null, isDefault: true }, { request_type: 'check', user_id: null, isDefault: true }, { request_type: 'approve', user_id: null, isDefault: true }]
+  initDatepicker()
+  await initWarehouseSelect2(); await initApprovalSelect2()
+  if (isEditMode.value) await loadEditData()
 })
 
 onUnmounted(() => {
-  try {
-    if (table.value) {
-      table.value.destroy()
-      table.value = null
-    }
-    if (warehouseSelect.value) {
-      destroySelect2(warehouseSelect.value)
-    }
-    if (productSelect.value) {
-      destroySelect2(productSelect.value)
-    }
-    $('.approval-type-select').each(function () {
-      destroySelect2(this)
-    })
-    $('.user-select').each(function () {
-      destroySelect2(this)
-    })
-    $('#beginning_date').datepicker('destroy')
-  } catch (err) {
-    console.error('Error in onUnmounted:', err)
-  }
+  $('#beginning_date').datepicker('destroy')
+  if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
+  $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
 })
 </script>
 
-<style scoped>
-.card-header {
-  border-bottom: 1px solid #e3e6f0;
-}
-
-.btn-icon {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-</style>

@@ -187,7 +187,7 @@ class StockBeginningController extends Controller
             ]
         ))->validate();
 
-        // Validate that each approver has the appropriate permission
+        // Validate each approver's permission
         foreach ($validated['approvals'] as $approval) {
             $user = User::findOrFail($approval['user_id']);
             $permission = "mainStockBeginning.{$approval['request_type']}";
@@ -201,7 +201,7 @@ class StockBeginningController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
-                $userPosition = auth()->user()->defaultPosition(); // returns model or null
+                $userPosition = auth()->user()->defaultPosition();
 
                 if (!$userPosition) {
                     return response()->json([
@@ -209,36 +209,37 @@ class StockBeginningController extends Controller
                     ], 404);
                 }
 
+                // Create Main Stock Beginning
                 $mainStockBeginning = MainStockBeginning::create([
-                    'reference_no' => $referenceNo,
-                    'warehouse_id' => $validated['warehouse_id'],
-                    'position_id' => $userPosition->id,
-                    'beginning_date' => $validated['beginning_date'],
-                    'created_by' => auth()->id() ?? 1,
+                    'reference_no'    => $referenceNo,
+                    'warehouse_id'    => $validated['warehouse_id'],
+                    'position_id'     => $userPosition->id,
+                    'beginning_date'  => $validated['beginning_date'],
+                    'created_by'      => auth()->id() ?? 1,
                     'approval_status' => 'Pending',
                 ]);
 
-                $items = array_map(function ($item) use ($mainStockBeginning) {
-                    return [
+                // Create Stock Beginning items via Eloquent to trigger booted() events
+                $stockBeginnings = [];
+                foreach ($validated['items'] as $item) {
+                    $stockBeginnings[] = StockBeginning::create([
                         'main_form_id' => $mainStockBeginning->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'unit_price' => $item['unit_price'],
-                        'total_value' => $item['quantity'] * $item['unit_price'],
-                        'remarks' => $item['remarks'] ?? null,
-                        'created_by' => auth()->id() ?? 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }, $validated['items']);
+                        'product_id'   => $item['product_id'],
+                        'quantity'     => $item['quantity'],
+                        'unit_price'   => $item['unit_price'],
+                        'total_value'  => $item['quantity'] * $item['unit_price'],
+                        'remarks'      => $item['remarks'] ?? null,
+                        // 'warehouse_id' => $validated['warehouse_id'],
+                        'created_by'   => auth()->id() ?? 1,
+                    ]);
+                }
 
-                StockBeginning::insert($items);
-
+                // Store approvals
                 $this->storeApprovals($mainStockBeginning, $validated['approvals']);
 
                 return response()->json([
                     'message' => 'Stock beginning created successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings', 'approvals.responder'),
+                    'data'    => $mainStockBeginning->load('stockBeginnings', 'approvals.responder'),
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -246,7 +247,7 @@ class StockBeginningController extends Controller
             Log::error('Failed to create stock beginning', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to create stock beginning',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -340,19 +341,23 @@ class StockBeginningController extends Controller
     {
         $this->authorize('update', $mainStockBeginning);
 
-        $validated = Validator::make($request->all(), array_merge(
-            $this->mainStockBeginningValidationRules($mainStockBeginning->id),
-            $this->stockBeginningValidationRules(),
-            [
-                'approvals' => 'required|array|min:1',
-                'approvals.*.user_id' => 'required|exists:users,id',
-                'approvals.*.request_type' => 'required|string|in:review,check,approve',
-            ]
-        ))->validate();
+        // 1️⃣ Validate request
+        $validated = Validator::make(
+            $request->all(),
+            array_merge(
+                $this->mainStockBeginningValidationRules($mainStockBeginning->id),
+                $this->stockBeginningValidationRules(),
+                [
+                    'approvals' => 'required|array|min:1',
+                    'approvals.*.user_id' => 'required|exists:users,id',
+                    'approvals.*.request_type' => 'required|string|in:review,check,approve',
+                ]
+            )
+        )->validate();
 
-        // Validate that each approver has the appropriate permission
+        // 2️⃣ Validate approval permissions
         foreach ($validated['approvals'] as $approval) {
-            $user = User::findOrFail($approval['user_id']);
+            $user = User::find($approval['user_id']);
             $permission = "mainStockBeginning.{$approval['request_type']}";
             if (!$user->hasPermissionTo($permission)) {
                 return response()->json([
@@ -363,140 +368,100 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
-                // Update main stock beginning header
-                $userPosition = auth()->user()->defaultPosition();
-                if(!$userPosition) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
-                
+
+                $userId = auth()->id() ?? 1;
+
+                // 3️⃣ Update Main Stock Beginning Header
                 $mainStockBeginning->update([
-                    'warehouse_id' => $validated['warehouse_id'],
+                    'warehouse_id'   => $validated['warehouse_id'],
                     'beginning_date' => $validated['beginning_date'],
-                    'updated_by' => auth()->id() ?? 1,
-                    'position_id' => $userPosition?->id,
+                    'remarks'        => $validated['remarks'] ?? null,
+                    'updated_by'     => $userId,
+                    'position_id'    => auth()->user()->defaultPosition()->id,
                 ]);
 
-                // ---------------- Reset Returned status ----------------
-                if ($mainStockBeginning->approval_status === 'Returned') {
-                    // Reset the stock request status
-                    $mainStockBeginning->update([
-                        'approval_status' => 'Pending',
-                    ]);
+                // 4️⃣ Sync Line Items
+                $existingItems = $mainStockBeginning->stockBeginnings()->get()->keyBy('id');
+                $submittedItemIds = [];
 
-                    // Reset all approvals related to this stock request
-                    Approval::where([
-                        'approvable_type' => MainStockBeginning::class,
-                        'approvable_id'   => $mainStockBeginning->id,
-                    ])->update([
-                        'approval_status' => 'Pending',
-                        'responded_date'  => null,
-                        'comment'         => null,
-                    ]);
-                }
-
-                // Build existing and new composite approval keys
-                $existingApprovalKeys = $mainStockBeginning->approvals->map(
-                    fn($a) => "{$a->responder_id}|{$a->position_id}|{$a->request_type}"
-                )->toArray();
-
-                $newApprovalKeys = collect($validated['approvals'])->map(function ($a) {
-                    $user = User::find($a['user_id']);
-                    $positionId = $user?->defaultPosition()?->id;
-                    return "{$a['user_id']}|{$positionId}|{$a['request_type']}";
-                })->toArray();
-
-                // Determine approvals to remove
-                $approvalsToRemove = array_diff($existingApprovalKeys, $newApprovalKeys);
-                foreach ($approvalsToRemove as $approvalKey) {
-                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
-                    Approval::where([
-                        'approvable_type' => MainStockBeginning::class,
-                        'approvable_id' => $mainStockBeginning->id,
-                        'responder_id' => $userId,
-                        'position_id' => $positionId,
-                        'request_type' => $requestType,
-                    ])->delete();
-                }
-
-                // Determine approvals to add
-                $approvalsToAdd = array_diff($newApprovalKeys, $existingApprovalKeys);
-                foreach ($approvalsToAdd as $approvalKey) {
-                    [$userId, $positionId, $requestType] = explode('|', $approvalKey);
-                    $approvalData = [
-                        'approvable_type' => MainStockBeginning::class,
-                        'approvable_id' => $mainStockBeginning->id,
-                        'document_name' => 'Stock Beginning',
-                        'document_reference' => $mainStockBeginning->reference_no,
-                        'request_type' => $requestType,
-                        'approval_status' => 'Pending',
-                        'ordinal' => $this->getOrdinalForRequestType($requestType),
-                        'requester_id' => $mainStockBeginning->created_by,
-                        'responder_id' => $userId,
-                        'position_id'  => $positionId,
-                    ];
-                    $this->approvalService->storeApproval($approvalData);
-                }
-
-                // Handle stock beginning line items
-                $existingItemIds = $mainStockBeginning->stockBeginnings->pluck('id')->toArray();
-                $submittedItemIds = array_filter(array_column($validated['items'], 'id'), fn($id) => !is_null($id));
-
-                // Delete removed items
-                StockBeginning::where('main_form_id', $mainStockBeginning->id)
-                    ->whereNotIn('id', $submittedItemIds)
-                    ->each(function ($stockBeginning) {
-                        $stockBeginning->deleted_by = auth()->id() ?? 1;
-                        $stockBeginning->save();
-                        $stockBeginning->delete();
-                    });
-
-                // Process items: update or insert
-                $itemsToInsert = [];
                 foreach ($validated['items'] as $item) {
-                    if (!empty($item['id']) && in_array($item['id'], $existingItemIds)) {
-                        // Update existing
-                        $stockBeginning = StockBeginning::find($item['id']);
-                        if ($stockBeginning) {
-                            $stockBeginning->update([
-                                'product_id' => $item['product_id'],
-                                'quantity' => $item['quantity'],
-                                'unit_price' => $item['unit_price'],
-                                'total_value' => $item['quantity'] * $item['unit_price'],
-                                'remarks' => $item['remarks'] ?? null,
-                                'updated_by' => auth()->id() ?? 1,
-                            ]);
-                        }
-                    } else {
-                        // Prepare for insert
-                        $itemsToInsert[] = [
-                            'main_form_id' => $mainStockBeginning->id,
-                            'product_id' => $item['product_id'],
-                            'quantity' => $item['quantity'],
-                            'unit_price' => $item['unit_price'],
+                    if (!empty($item['id']) && $existingItems->has($item['id'])) {
+
+                        // UPDATE existing item
+                        $existing = $existingItems[$item['id']];
+                        $existing->update([
+                            'product_id'  => $item['product_id'],
+                            'quantity'    => $item['quantity'],
+                            'unit_price'  => $item['unit_price'],
                             'total_value' => $item['quantity'] * $item['unit_price'],
-                            'remarks' => $item['remarks'] ?? null,
-                            'created_by' => auth()->id() ?? 1,
-                            'updated_by' => auth()->id() ?? 1,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ];
+                            'remarks'     => $item['remarks'] ?? null,
+                            'updated_by'  => $userId,
+                        ]);
+
+                        $submittedItemIds[] = $item['id'];
+
+                    } else {
+                        // INSERT new item (fires boot event)
+                        $new = $mainStockBeginning->stockBeginnings()->create([
+                            'product_id'  => $item['product_id'],
+                            'quantity'    => $item['quantity'],
+                            'unit_price'  => $item['unit_price'],
+                            'total_value' => $item['quantity'] * $item['unit_price'],
+                            'remarks'     => $item['remarks'] ?? null,
+                            'warehouse_id'=> $mainStockBeginning->warehouse_id,
+                            'created_by'  => $userId,
+                            'updated_by'  => $userId,
+                        ]);
+
+                        $submittedItemIds[] = $new->id;
                     }
                 }
 
-                if (!empty($itemsToInsert)) {
-                    StockBeginning::insert($itemsToInsert);
+                // 5️⃣ Soft delete removed items
+                $mainStockBeginning->stockBeginnings()
+                    ->whereNotIn('id', $submittedItemIds)
+                    ->get()
+                    ->each(function ($item) use ($userId) {
+                        $item->deleted_by = $userId;
+                        $item->save();
+                        $item->delete(); // triggers booted deleted()
+                    });
+
+                // 6️⃣ Sync Approvals (delete and recreate)
+                $mainStockBeginning->approvals()->delete();
+
+                foreach ($validated['approvals'] as $approval) {
+                    $user = User::find($approval['user_id']);
+                    $position = $user->defaultPosition();
+
+                    $this->approvalService->storeApproval([
+                        'approvable_type'    => MainStockBeginning::class,
+                        'approvable_id'      => $mainStockBeginning->id,
+                        'document_name'      => 'Stock Beginning',
+                        'document_reference' => $mainStockBeginning->reference_no,
+                        'request_type'       => $approval['request_type'],
+                        'approval_status'    => 'Pending',
+                        'ordinal'            => $this->getOrdinalForRequestType($approval['request_type']),
+                        'requester_id'       => $mainStockBeginning->created_by,
+                        'responder_id'       => $approval['user_id'],
+                        'position_id'        => $position?->id,
+                    ]);
                 }
 
+                // 7️⃣ Response
                 return response()->json([
                     'message' => 'Stock beginning updated successfully.',
-                    'data' => $mainStockBeginning->load('stockBeginnings', 'approvals.responder'),
+                    'data' => $mainStockBeginning->load('stockBeginnings.productVariant', 'approvals.responder'),
                 ]);
+
             });
+
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Failed to update stock beginning', ['error' => $e->getMessage()]);
+            Log::error('Failed to update Main Stock Beginning', [
+                'error' => $e->getMessage(),
+                'id'    => $mainStockBeginning->id,
+            ]);
+
             return response()->json([
                 'message' => 'Failed to update stock beginning',
                 'error' => $e->getMessage(),
@@ -842,31 +807,45 @@ class StockBeginningController extends Controller
             DB::transaction(function () use ($mainStockBeginning) {
                 $userId = auth()->id() ?? 1;
 
-                // Hard delete related approvals
-                Approval::where([
-                    'approvable_type' => MainStockBeginning::class,
-                    'approvable_id' => $mainStockBeginning->id,
-                ])->delete();
+                /** 
+                 * 1️⃣ Delete approvals (INDIVIDUALLY so model events fire)
+                 */
+                $approvals = $mainStockBeginning->approvals;
 
-                // Soft delete related stock beginnings
+                foreach ($approvals as $approval) {
+                    $approval->delete(); // fires deleting + deleted
+                }
+
+                /**
+                 * 2️⃣ Soft delete StockBeginning items (model events fire)
+                 */
                 foreach ($mainStockBeginning->stockBeginnings as $stockBeginning) {
                     $stockBeginning->deleted_by = $userId;
                     $stockBeginning->save();
-                    $stockBeginning->delete();
+
+                    $stockBeginning->delete(); // fires deleting + deleted
                 }
 
-                // Soft delete the main stock beginning
+                /**
+                 * 3️⃣ Soft delete MainStockBeginning (model events fire)
+                 */
                 $mainStockBeginning->deleted_by = $userId;
                 $mainStockBeginning->save();
-                $mainStockBeginning->delete();
+
+                $mainStockBeginning->delete(); // fires deleting + deleted
             });
 
             return response()->json([
                 'message' => 'Stock beginning and related approvals deleted successfully.',
             ], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Failed to delete stock beginning', ['error' => $e->getMessage(), 'id' => $mainStockBeginning->id]);
+            Log::error(
+                'Failed to delete stock beginning',
+                ['error' => $e->getMessage(), 'id' => $mainStockBeginning->id]
+            );
+
             return response()->json([
                 'message' => 'Failed to delete stock beginning',
                 'error' => $e->getMessage(),
@@ -1143,29 +1122,9 @@ class StockBeginningController extends Controller
         return response()->json([$response]);
     }
 
-
-    // public function fetProductsForStockBeginning(Request $request)
-    // {
-    //     $this->authorize('viewAny', MainStockBeginning::class);
-    //     $response = $this->productService->getStockManagedVariants($request);
-    //     return response()->json($response);
-    // }
-
-    public function fetProductsForStockBeginning(Request $request)
+    public function getProducts(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', MainStockBeginning::class);
-        $response = $this->productService->getStockManagedVariants($request);
-        
-        // Filter response to include only items where is_active = 1
-        $filteredResponse = [
-            'data' => collect($response['data'])->filter(function ($item) {
-                return $item['is_active'] == 1;
-            })->values()->all(),
-            'recordsTotal' => $response['recordsTotal'],
-            'recordsFiltered' => count($response['data']), // Update recordsFiltered to reflect filtered count
-            'draw' => $response['draw'],
-        ];
-        
-        return response()->json($filteredResponse);
+        $result = $this->productService->getStockProducts($request->all());
+        return response()->json($result);
     }
 }

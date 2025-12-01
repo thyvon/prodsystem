@@ -47,15 +47,19 @@ class StockCountController extends Controller
 
     public function index(): View
     {
+        $this->authorize('viewAny', StockCount::class);
+
         return view('Inventory.stock-count.index');
     }
     public function create(){
+        $this ->authorize('create', StockCount::class);
+
         return view('Inventory.stock-count.form');
     }
 
     public function edit(StockCount $stockCount): View
     {
-        // $this->authorize('update', $stockCount);
+        $this->authorize('update', $stockCount);
 
         return view('Inventory.stock-count.form', [
             'stockCountId' => $stockCount->id,
@@ -64,7 +68,7 @@ class StockCountController extends Controller
 
     public function getStockCountList(Request $request): JsonResponse
     {
-        // $this->authorize('viewAny', StockCount::class);
+        $this->authorize('viewAny', StockCount::class);
 
         $user = auth()->user();
         $isAdmin = $user->hasRole('admin');
@@ -134,6 +138,7 @@ class StockCountController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this ->authorize('create', StockCount::class);
         $validated = Validator::make(
             $request->all(),
             array_merge(
@@ -214,7 +219,7 @@ class StockCountController extends Controller
     }
     public function import(Request $request): JsonResponse
     {
-        // $this->authorize('create', StockCount::class);
+        $this->authorize('create', StockCount::class);
 
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
@@ -258,6 +263,7 @@ class StockCountController extends Controller
 
     public function getEditData(StockCount $stockCount): JsonResponse
     {
+        $this->authorize('update', $stockCount);
         // Eager load only what's needed
         $stockCount->load([
             'items.product.product.unit',
@@ -312,6 +318,9 @@ class StockCountController extends Controller
 
     public function update(Request $request, StockCount $stockCount): JsonResponse
     {
+        $this->authorize('update', $stockCount);
+
+        // 1️⃣ Validate request
         $validated = Validator::make(
             $request->all(),
             array_merge(
@@ -325,7 +334,7 @@ class StockCountController extends Controller
             )
         )->validate();
 
-        // Validate approval permissions
+        // 2️⃣ Validate approval permissions
         foreach ($validated['approvals'] as $approval) {
             $user = User::find($approval['user_id']);
             $permission = "stockCount.{$approval['request_type']}";
@@ -339,61 +348,75 @@ class StockCountController extends Controller
         try {
             return DB::transaction(function () use ($validated, $stockCount) {
 
-                // Update stock count header
+                $userId = auth()->id() ?? 1;
+
+                // 3️⃣ Update Stock Count header
                 $stockCount->update([
                     'transaction_date' => $validated['transaction_date'],
-                    'warehouse_id' => $validated['warehouse_id'],
-                    'remarks' => $validated['remarks'] ?? null,
-                    'updated_by' => auth()->id(),
-                    'position_id' => auth()->user()->defaultPosition()->id
+                    'warehouse_id'     => $validated['warehouse_id'],
+                    'remarks'          => $validated['remarks'] ?? null,
+                    'updated_by'       => $userId,
+                    'position_id'      => auth()->user()->defaultPosition()->id,
                 ]);
 
-                // Update or create items
-                $existingItemIds = $stockCount->items()->pluck('id')->toArray();
-                $incomingItemIds = collect($validated['items'])->pluck('id')->filter()->toArray();
-
-                // Delete removed items
-                $toDelete = array_diff($existingItemIds, $incomingItemIds);
-                if ($toDelete) {
-                    $stockCount->items()->whereIn('id', $toDelete)->delete();
-                }
+                // 4️⃣ Sync Stock Count Items
+                $existingItems = $stockCount->items()->get()->keyBy('id');
+                $submittedItemIds = [];
 
                 foreach ($validated['items'] as $item) {
-                    if (!empty($item['id'])) {
+                    if (!empty($item['id']) && $existingItems->has($item['id'])) {
                         // Update existing item
-                        $stockCount->items()->where('id', $item['id'])->update([
-                            'product_id' => $item['product_id'],
-                            'ending_quantity' => $item['ending_quantity'],
+                        $existing = $existingItems[$item['id']];
+                        $existing->update([
+                            'product_id'       => $item['product_id'],
+                            'ending_quantity'  => $item['ending_quantity'],
                             'counted_quantity' => $item['counted_quantity'],
-                            'remarks' => $item['remarks'] ?? null,
-                            'updated_by' => auth()->id(),
+                            'remarks'          => $item['remarks'] ?? null,
+                            'updated_by'       => $userId,
                         ]);
+                        $submittedItemIds[] = $item['id'];
                     } else {
                         // Create new item
-                        $stockCount->items()->create([
-                            'product_id' => $item['product_id'],
-                            'ending_quantity' => $item['ending_quantity'],
+                        $newItem = $stockCount->items()->create([
+                            'product_id'       => $item['product_id'],
+                            'ending_quantity'  => $item['ending_quantity'],
                             'counted_quantity' => $item['counted_quantity'],
-                            'remarks' => $item['remarks'] ?? null,
-                            'created_by' => auth()->id(),
+                            'remarks'          => $item['remarks'] ?? null,
+                            'created_by'       => $userId,
                         ]);
+                        $submittedItemIds[] = $newItem->id;
                     }
                 }
 
-                // Remove all previous approvals
+                // 5️⃣ Soft-delete removed items
+                $stockCount->items()
+                    ->whereNotIn('id', $submittedItemIds)
+                    ->get()
+                    ->each(function ($item) use ($userId) {
+                        $item->deleted_by = $userId;
+                        $item->save();
+                        $item->delete();
+                    });
+
+                // 6️⃣ Sync approvals
                 $stockCount->approvals()->delete();
                 $this->storeApprovals($stockCount, $validated['approvals']);
 
+                // 7️⃣ Return response
                 return response()->json([
                     'message' => 'Stock count updated successfully.',
                     'data' => $stockCount->load('items.product', 'approvals.responder'),
-                ]);
-            });
+                ], 200);
 
+            });
         } catch (\Exception $e) {
-            Log::error('Failed to update stock count', ['error' => $e->getMessage()]);
+            Log::error('Failed to update Stock Count', [
+                'error' => $e->getMessage(),
+                'stock_count_id' => $stockCount->id,
+            ]);
+
             return response()->json([
-                'message' => 'Failed to update stock count.',
+                'message' => 'Failed to update Stock Count',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -401,25 +424,38 @@ class StockCountController extends Controller
 
     public function destroy(StockCount $stockCount): JsonResponse
     {
+        $this->authorize('delete', $stockCount);
+
         try {
             return DB::transaction(function () use ($stockCount) {
+                $userId = auth()->id() ?? 1;
 
-                // Delete related items
-                $stockCount->items()->delete();
+                // 1️⃣ Soft-delete related items (sets deleted_by and triggers deleted event in model boot)
+                foreach ($stockCount->items as $item) {
+                    $item->deleted_by = $userId;
+                    $item->save();
+                    $item->delete(); // triggers booted()->deleted()
+                }
 
-                // Delete related approvals
+                // 2️⃣ Delete related approvals
                 $stockCount->approvals()->delete();
 
-                // Delete the stock count itself (soft delete if using SoftDeletes)
+                // 3️⃣ Soft-delete stock count itself (triggers deleted event)
+                $stockCount->deleted_by = $userId;
+                $stockCount->save();
                 $stockCount->delete();
 
                 return response()->json([
                     'message' => 'Stock count deleted successfully.'
-                ]);
+                ], 200);
             });
 
         } catch (\Exception $e) {
-            Log::error('Failed to delete stock count', ['error' => $e->getMessage(), 'stock_count_id' => $stockCount->id]);
+            Log::error('Failed to delete stock count', [
+                'error' => $e->getMessage(),
+                'stock_count_id' => $stockCount->id
+            ]);
+
             return response()->json([
                 'message' => 'Failed to delete stock count.',
                 'error' => $e->getMessage(),

@@ -50,8 +50,8 @@
           <thead class="table-light sticky-header">
             <tr>
               <th>#</th>
-              <th>Item Code</th>
-              <th>Description</th>
+              <th style="min-width: 100px;">Item Code</th>
+              <th style ="min-width: 300px;">Description</th>
               <th>Unit</th>
               <th>Beginning Qty</th>
               <th>Beginning Price</th>
@@ -63,6 +63,9 @@
               <th>Stock Out Qty</th>
               <th>Stock Out Amount</th>
               <th>Ending Qty</th>
+              <th>Counted Qty</th>
+              <th>Variance</th>
+              <th>Carried Forward</th>
               <th>Avg Price</th>
               <th>Ending Amount</th>
             </tr>
@@ -83,6 +86,9 @@
               <td class="text-center">{{ formatQty(item.stock_out_quantity) }}</td>
               <td class="text-end">{{ formatAmount(item.stock_out_total) }}</td>
               <td class="text-center">{{ formatQty(item.ending_quantity) }}</td>
+              <td class="text-center">{{ formatQty(item.counted_quantity) }}</td>
+              <td class="text-center">{{ formatQty(item.variance_quantity) }}</td>
+              <td class="text-center">{{ formatQty(item.counted_quantity) }}</td>
               <td class="text-end">{{ formatAmount(item.average_price) }}</td>
               <td class="text-end">{{ formatAmount(item.ending_total) }}</td>
             </tr>
@@ -100,6 +106,9 @@
               <td class="text-center">{{ formatQty(total('stock_out_quantity')) }}</td>
               <td class="text-end">{{ formatAmount(total('stock_out_total')) }}</td>
               <td class="text-center">{{ formatQty(total('ending_quantity')) }}</td>
+              <td class="text-center">{{ formatQty(total('counted_quantity')) }}</td>
+              <td class="text-center">{{ formatQty(total('variance_quantity')) }}</td>
+              <td class="text-center">{{ formatQty(total('counted_quantity')) }}</td>
               <td class="text-end">-</td>
               <td class="text-end">{{ formatAmount(total('ending_total')) }}</td>
             </tr>

@@ -25,7 +25,7 @@ return new class extends Migration
             $table->decimal('total_price', 25, 4)->default(0);  // 10 decimal places
 
             // Transaction type
-            $table->enum('transaction_type', ['Stock_In', 'Stock_Out']);
+            $table->enum('transaction_type', ['Stock_In', 'Stock_Out','Stock_Count','Stock_Begin']);
 
             // Parent info
             $table->string('parent_reference')->nullable();

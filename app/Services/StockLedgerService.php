@@ -167,12 +167,14 @@ class StockLedgerService
             WHERE product_id = ?
             AND parent_warehouse = ?
             AND transaction_date <= ?
+            AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
         ";
 
         $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
 
         return (float) $result->stock_on_hand;
     }
+
 
     public function getAvgPrice(int $productId, ?string $endDate = null): float
     {
@@ -186,21 +188,23 @@ class StockLedgerService
 
         $sql = "
             SELECT
-                COALESCE(SUM(CASE WHEN quantity >= 0 THEN quantity ELSE 0 END), 0) AS in_qty,
-                COALESCE(SUM(CASE WHEN quantity >= 0 THEN total_price ELSE 0 END), 0) AS in_total,
+                COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) AS in_qty,
+                COALESCE(SUM(CASE WHEN quantity > 0 THEN total_price ELSE 0 END), 0) AS in_total,
                 COALESCE(SUM(CASE WHEN quantity < 0 THEN quantity ELSE 0 END), 0) AS out_qty,
                 COALESCE(SUM(CASE WHEN quantity < 0 THEN total_price ELSE 0 END), 0) AS out_total
             FROM stock_ledgers
             WHERE product_id = ?
+            AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
             $dateCondition
         ";
 
         $totals = DB::selectOne($sql, $bindings);
 
-        $balanceQty   = (float)$totals->in_qty + (float)$totals->out_qty;      // in + out (out is negative)
-        $balanceTotal = (float)$totals->in_total + (float)$totals->out_total;  // in_total + out_total
+        $balanceQty   = (float) $totals->in_qty + (float) $totals->out_qty;
+        $balanceTotal = (float) $totals->in_total + (float) $totals->out_total;
 
         return $balanceQty > 0 ? round($balanceTotal / $balanceQty, 4) : 0;
     }
+
 
 }

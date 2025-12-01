@@ -275,7 +275,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-beginnings/get-warehouses', [StockBeginningController::class, 'fetchWarehousesForStockBeginning'])
             ->middleware('can:viewAny,' . MainStockBeginning::class)
             ->name('api.stock-beginnings.get-warehouses');
-        Route::get('/stock-beginnings/get-products', [StockBeginningController::class, 'fetProductsForStockBeginning'])
+        Route::get('/stock-beginnings/get-products', [StockBeginningController::class, 'getProducts'])
             ->middleware('can:viewAny,' . MainStockBeginning::class)
             ->name('api.stock-beginnings.get-products');
 
@@ -352,12 +352,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->middleware('can:view,monthlyStockReport')->name('api.stock-reports.monthly-report.details');
 
         // Stock Count
-        Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index');
-        Route::post('/stock-counts/import', [StockCountController::class, 'import'])->name('api.stock-counts.import');
-        Route::post('/stock-counts', [StockCountController::class, 'store'])->name('api.stock-counts.store');
-        Route::delete('/stock-counts/{stockCount}', [StockCountController::class, 'destroy'])->name('api.stock-counts.destroy');
-        Route::get('/stock-counts/{stockCount}/edit', [StockCountController::class, 'getEditData'])->name('api.stock-counts.edit');
-        Route::put('/stock-counts/{stockCount}', [StockCountController::class, 'update'])->name('api.stock-counts.update');
+        Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);
+        Route::post('/stock-counts/import', [StockCountController::class, 'import'])->name('api.stock-counts.import')->middleware('can:create,' . StockCount::class);
+        Route::post('/stock-counts', [StockCountController::class, 'store'])->name('api.stock-counts.store')->middleware('can:create,' . StockCount::class);
+        Route::delete('/stock-counts/{stockCount}', [StockCountController::class, 'destroy'])->name('api.stock-counts.destroy')->middleware('can:delete,stockCount');
+        Route::get('/stock-counts/{stockCount}/edit', [StockCountController::class, 'getEditData'])->name('api.stock-counts.edit')->middleware('can:update,stockCount');
+        Route::put('/stock-counts/{stockCount}', [StockCountController::class, 'update'])->name('api.stock-counts.update')->middleware('can:update,stockCount');
         Route::get('/stock-counts/get-approval-users', [StockCountController::class, 'getApprovalUsers'])->name('api.stock-counts.get-approval-users');
         Route::get('/stock-counts/get-products', [StockCountController::class, 'getProducts'])->name('api.stock-counts.get-products');
         Route::patch('/stock-counts/refresh-stock', [StockCountController::class, 'refreshStockData'])->name('api.stock-counts.refresh-stock');

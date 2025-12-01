@@ -557,8 +557,8 @@ const handleFileUpload = e => { if (e.target.files[0]) importFile() }
 
 const downloadSampleExcel = () => {
   const link = document.createElement('a')
-  link.href = '/sampleExcel/stock_transfers_sample.xlsx'
-  link.download = 'stock_transfers_sample.xlsx'
+  link.href = '/sampleExcel/stock_count_sample.xlsx'
+  link.download = 'stock_count_sample.xlsx'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

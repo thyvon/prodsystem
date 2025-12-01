@@ -58,5 +58,6 @@ class RouteServiceProvider extends ServiceProvider
         Route::model('purchaseRequest', \App\Models\PurchaseRequest::class);
         Route::model('stockIn', \App\Models\StockIn::class);
         Route::model('monthlyStockReport', \App\Models\MonthlyStockReport::class);
+        Route::model('stockCount', \App\Models\StockCount::class);
     }
 }

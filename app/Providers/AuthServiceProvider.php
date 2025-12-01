@@ -55,6 +55,9 @@ use App\Policies\StockInPolicy;
 use App\Models\StockTransfer;
 use App\Policies\StockTransferPolicy;
 
+use App\Models\StockCount;
+use App\Policies\StockCountPolicy;
+
 // Digital Docs Approval
 use App\Models\DigitalDocsApproval;
 use App\Policies\DigitalDocsApprovalPolicy;
@@ -101,6 +104,7 @@ class AuthServiceProvider extends ServiceProvider
         PurchaseRequest::class => PurchaseRequestPolicy::class,
         StockIn::class => StockInPolicy::class,
         MonthlyStockReport::class => MonthlyStockReportPolicy::class,
+        StockCount::class => StockCountPolicy::class
     ];
 
     /**

@@ -173,9 +173,9 @@
                 <td class="text-center">{{ $fmt($item['stock_out_quantity'], 2) }}</td>
                 <td class="text-right">{{ $fmt($item['stock_out_total']) }}</td>
                 <td class="text-center">{{ $fmt($item['ending_quantity'], 2) }}</td>
-                <td class="text-right">{{ $fmt(0) }}</td>
-                <td class="text-center">{{ $fmt(0) }}</td>
-                <td class="text-right">{{ $fmt(0) }}</td>
+                <td class="text-right">{{ $fmt($item['counted_quantity'], 2) }}</td> <!-- Physical Count column is intentionally left blank -->
+                <td class="text-center">{{ $fmt($item['variance_quantity'], 2) }}</td> <!-- Variance column is intentionally left blank -->
+                <td class="text-right">{{ $fmt($item['counted_quantity'], 2) }}</td> <!-- Carried forward column is intentionally left blank -->
                 <td class="text-right">{{ $fmt($item['average_price']) }}</td>
                 <td class="text-right">{{ $fmt($item['ending_total']) }}</td>
             </tr>

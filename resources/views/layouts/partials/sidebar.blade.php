@@ -194,7 +194,8 @@
                 || request()->is('inventory/stock-issue/items*')
                 || request()->is('inventory/stock-ins*')
                 || request()->is('inventory/stock-in/items*')
-                || request()->is('inventory/stock-transfers*');
+                || request()->is('inventory/stock-transfers*')
+                || request()->is('inventory/stock-counts*');
             @endphp
 
             @if (auth()->user()->hasAnyRole(['admin', 'stock']) || auth()->user()->hasPermissionTo('product.view'))
@@ -261,16 +262,9 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('view stock adjustment')
-                            <li class="{{ request()->is('stock/adjustment') ? 'active' : '' }}">
-                                <a href="{{ url('stock/adjustment') }}" title="Stock Adjustment" data-filter-tags="stock adjustment">
-                                    <span class="nav-link-text">Stock Adjustment</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('view stock take')
-                            <li class="{{ request()->is('inventory/stock-take') ? 'active' : '' }}">
-                                <a href="{{ url('inventory/stock-take') }}" title="Stock Take" data-filter-tags="stock take">
+                        @can('stockCount.view')
+                            <li class="{{ request()->is('inventory/stock-counts*') ? 'active' : '' }}">
+                                <a href="{{ url('inventory/stock-counts') }}" title="Physical Count" data-filter-tags="physical count">
                                     <span class="nav-link-text">Physical Count</span>
                                 </a>
                             </li>
