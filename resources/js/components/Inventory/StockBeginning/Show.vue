@@ -110,11 +110,14 @@
               <div class="card-body">
                 <label class="font-weight-bold text-center d-block w-100">{{ approval.request_type_label }} By</label>
                 <div class="d-flex align-items-center mb-2 justify-content-center">
-                  <img :src="approval.responder_profile_url" class="rounded-circle" width="50" height="50">
+                  <img :src="`/storage/${approval.responder_profile_url}`"
+                    class="rounded-circle"
+                    width="50"
+                    height="50">
                 </div>
                 <div class="font-weight-bold text-center mb-2">{{ approval.responder_name }}</div>
                 <div v-if="approval.approval_status === 'Approved'" class="d-flex justify-content-center mb-2">
-                  <img :src="approval.responder_signature_url" height="50">
+                  <img :src="`/storage/${approval.responder_signature_url}`" height="50">
                 </div>
                 <p class="mb-1">
                   Status:
