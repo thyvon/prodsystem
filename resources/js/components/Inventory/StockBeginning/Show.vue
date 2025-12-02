@@ -90,13 +90,25 @@
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <label class="font-weight-bold text-center d-block w-100">Requested By</label>
-                <div class="d-flex align-items-center mb-2 justify-content-center">
-                  <img :src="stock.created_by?.profile_url" class="rounded-circle" width="50" height="50">
-                </div>
-                <div class="font-weight-bold text-center mb-2">{{ stock.created_by?.name ?? 'N/A' }}</div>
-                <div v-if="stock.created_by?.signature_url" class="d-flex justify-content-center mb-2">
-                  <img :src="stock.created_by.signature_url" height="50">
-                </div>
+                  <div class="d-flex align-items-center mb-2 justify-content-center">
+                    <img
+                      :src="stock.created_by?.profile_url ? `/storage/${stock.created_by.profile_url}` : null"
+                      class="rounded-circle"
+                      width="50"
+                      height="50"
+                    >
+                  </div>
+
+                  <div class="font-weight-bold text-center mb-2">
+                    {{ stock.created_by?.name ?? 'N/A' }}
+                  </div>
+
+                  <div v-if="stock.created_by?.signature_url" class="d-flex justify-content-center mb-2">
+                    <img
+                      :src="`/storage/${stock.created_by.signature_url}`"
+                      height="50"
+                    >
+                  </div>
                 <p class="mb-1">Status: <span class="badge badge-primary"><strong>Requested</strong></span></p>
                 <p class="mb-1">Position: {{ stock.creator_position?.title ?? 'N/A' }}</p>
                 <p class="mb-0">Date: {{ formatDateTime(stock.created_at) || 'N/A' }}</p>
