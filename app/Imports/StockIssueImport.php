@@ -139,11 +139,9 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     $validated['transaction_date']
                 );
 
-                // Throw exception if no unit price found
+                // Set to 0 if no unit price found
                 if ($unitPrice <= 0) {
-                    throw new \Exception(
-                        "Row " . ($index + 2) . " error: Unit price not found for product {$row['product_code']} on {$validated['transaction_date']}"
-                    );
+                    $unitPrice = 0;
                 }
 
                 // Group StockIssue by reference_no
