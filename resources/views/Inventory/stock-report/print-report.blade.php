@@ -169,6 +169,7 @@
                 <td class="text-start">{{ $fmt($item['stock_in_quantity'], 2) }}</td>
                 <td class="text-start">{{ $fmt($item['stock_in_total']) }}</td>
                 <td class="text-start available-cell">{{ $fmt($item['available_quantity'], 2) }}</td>
+                <td class="text-start available-cell">{{ $fmt($item['available_price']) }}</td>
                 <td class="text-start available-cell">{{ $fmt($item['available_total']) }}</td>
                 <td class="text-start">{{ $fmt($item['stock_out_quantity'], 2) }}</td>
                 <td class="text-start">{{ $fmt($item['stock_out_total']) }}</td>
@@ -190,6 +191,7 @@
                 <td class="text-center">{{ $fmt($reportData->sum('stock_in_quantity'), 2) }}</td>
                 <td class="text-right">{{ $fmt($reportData->sum('stock_in_total'), 4) }}</td>
                 <td class="text-center available-cell">{{ $fmt($reportData->sum('available_quantity'), 2) }}</td>
+                <td class="text-center available-cell">-</td>
                 <td class="text-right available-cell">{{ $fmt($reportData->sum('available_total'), 4) }}</td>
                 <td class="text-center">{{ $fmt($reportData->sum('stock_out_quantity'), 2) }}</td>
                 <td class="text-right">{{ $fmt($reportData->sum('stock_out_total'), 4) }}</td>

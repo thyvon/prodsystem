@@ -59,6 +59,7 @@
               <th>Stock In Qty</th>
               <th>Stock In Amount</th>
               <th>Available Qty</th>
+              <th>Available Price</th>
               <th>Available Amount</th>
               <th>Stock Out Qty</th>
               <th>Stock Out Amount</th>
@@ -82,6 +83,7 @@
               <td class="text-center">{{ formatQty(item.stock_in_quantity) }}</td>
               <td class="text-end">{{ formatAmount(item.stock_in_total) }}</td>
               <td class="text-center bg-success-light">{{ formatQty(item.available_quantity) }}</td>
+              <td class="text-end bg-success-light">{{ formatAmount(item.available_price) }}</td>
               <td class="text-end bg-success-light">{{ formatAmount(item.available_total) }}</td>
               <td class="text-center">{{ formatQty(item.stock_out_quantity) }}</td>
               <td class="text-end">{{ formatAmount(item.stock_out_total) }}</td>
@@ -102,6 +104,7 @@
               <td class="text-center">{{ formatQty(total('stock_in_quantity')) }}</td>
               <td class="text-end">{{ formatAmount(total('stock_in_total')) }}</td>
               <td class="text-center bg-success-light">{{ formatQty(total('available_quantity')) }}</td>
+              <td class="text-end bg-success-light">-</td>
               <td class="text-end bg-success-light">{{ formatAmount(total('available_total')) }}</td>
               <td class="text-center">{{ formatQty(total('stock_out_quantity')) }}</td>
               <td class="text-end">{{ formatAmount(total('stock_out_total')) }}</td>

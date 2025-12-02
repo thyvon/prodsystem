@@ -713,6 +713,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         $outTotal       = round($outTotal, 6);
         $availableQty   = $beginQty + $inQty;
         $availableTotal = round($beginTotal + $inTotal, 6);
+        $availablePrice = ($availableQty != 0) ? round($availableTotal / $availableQty, 6) : 0;
         $endingQty      = $availableQty - abs($outQty);
         $endingTotal    = round($endingQty * $avgPrice, 6);
 
@@ -727,6 +728,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
             'stock_in_quantity'  => $inQty,
             'stock_in_total'     => $inTotal,
             'available_quantity' => $availableQty,
+            'available_price'    => $availablePrice,
             'available_total'    => $availableTotal,
             'stock_out_quantity' => abs($outQty),
             'stock_out_total'    => abs($outTotal),
