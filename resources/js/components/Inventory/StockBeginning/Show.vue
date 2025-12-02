@@ -54,7 +54,6 @@
               <th class="text-center">#</th>
               <th>Item Code</th>
               <th>Product Description</th>
-              <th>Khmer Name</th>
               <th>Unit</th>
               <th class="text-end">Unit Price</th>
               <th class="text-center">Quantity</th>
@@ -67,16 +66,15 @@
               <td class="text-center">{{ i + 1 }}</td>
               <td>{{ item.product_variant?.item_code ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.name ?? 'N/A' }} {{ item.product_variant?.description ?? '' }}</td>
-              <td>{{ item.product_variant?.product?.khmer_name ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.unit?.name ?? 'N/A' }}</td>
               <td class="text-end">{{ format(item.unit_price) }}</td>
-              <td class="text-center">{{ format(item.quantity) }}</td>
+              <td class="text-end">{{ formatQty(item.quantity) }}</td>
               <td class="text-end">{{ format(item.total_value) }}</td>
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
             <tr class="table-secondary">
               <td colspan="6" class="text-end font-weight-bold">Total</td>
-              <td class="text-center font-weight-bold">{{ format(totalQuantity) }}</td>
+              <td class="text-center font-weight-bold">{{ formatQty(totalQuantity) }}</td>
               <td class="text-end font-weight-bold">{{ format(totalValue) }}</td>
               <td></td>
             </tr>
@@ -259,7 +257,8 @@ const usersList = ref([])
 const currentAction = ref('approve')
 const commentInput = ref('')
 
-const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 4 })
+const formatQty = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => s?.charAt(0).toUpperCase() + s.slice(1)
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
