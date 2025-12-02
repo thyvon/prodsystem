@@ -213,13 +213,13 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('product.view')
+                        <!-- @can('product.view')
                             <li class="{{ request()->is('inventory/items') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/items') }}" title="Inventory List" data-filter-tags="inventory list">
                                     <span class="nav-link-text">Item List</span>
                                 </a>
                             </li>
-                        @endcan
+                        @endcan -->
                         @can('product.view')
                             <li class="{{ request()->is('inventory/stock-movements') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-movements') }}" title="Stock Movements" data-filter-tags="stock movements">

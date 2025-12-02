@@ -308,6 +308,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-issues/get-requesters', [StockIssueController::class, 'getRequesters'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-requesters');
         Route::get('/stock-issues/get-products', [StockIssueController::class, 'getProducts'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-products');
         Route::post('/stock-issues/import', [StockIssueController::class, 'import'])->name('api.stock-issues.import');
+        Route::post('/stock-issues/export-items', [StockIssueController::class, 'exportItems'])->name('api.stock-issues.export');
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'getStockTransfers'])->middleware('can:viewAny,' . StockTransfer::class)->name('api.stock-transfers.index');

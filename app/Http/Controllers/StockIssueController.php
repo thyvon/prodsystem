@@ -19,6 +19,7 @@ use App\Services\StockRequestService;
 use App\Services\StockLedgerService;
 use App\Services\ProductService;
 use App\Imports\StockIssueImport;
+use App\Exports\StockIssueItemsExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 class StockIssueController extends Controller
@@ -149,6 +150,7 @@ class StockIssueController extends Controller
         $this->authorize('viewAny', StockIssue::class);
         return view('Inventory.stockIssue.item-list');
     }
+
     public function getAllStockIssueItems(Request $request): JsonResponse
     {
         $this->authorize('viewAny', StockIssue::class);
@@ -165,16 +167,28 @@ class StockIssueController extends Controller
             'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'page' => 'nullable|integer|min:1',
             'draw' => 'nullable|integer',
-            'warehouse_ids' => 'nullable|array',               // Multi-warehouse filter
+            'warehouse_ids' => 'nullable|array',
             'warehouse_ids.*' => 'integer|exists:warehouses,id',
-            'start_date' => 'nullable|date',                  // ← date range start
-            'end_date' => 'nullable|date',                    // ← date range end
+            'campus_ids' => 'nullable|array',
+            'campus_ids.*' => 'integer|exists:campus,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'integer|exists:departments,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'transaction_type' => 'nullable',
         ]);
 
         $sortColumn = $validated['sortColumn'] ?? 'stock_issue_items.id';
         $sortDirection = $validated['sortDirection'] ?? 'desc';
 
-        $query = StockIssueItem::with(['productVariant.product.unit', 'stockIssue.warehouse.building.campus', 'campus', 'department', 'department.division', 'stockIssue.requestedBy'])
+        $query = StockIssueItem::with([
+            'productVariant.product.unit',
+            'stockIssue.warehouse.building.campus',
+            'campus',
+            'department',
+            'department.division',
+            'stockIssue.requestedBy'
+        ])
             // Restrict by campus if not admin
             ->when(!$isAdmin, fn($q) =>
                 $q->whereHas('stockIssue.warehouse.building.campus', fn($q2) =>
@@ -203,14 +217,32 @@ class StockIssueController extends Controller
                     $siQ->whereIn('warehouse_id', $warehouseIds);
                 });
             })
+            // Trasaction Type Multi filter
+            ->when(!empty($validated['transaction_type'] ?? []), function ($q) use ($validated) {
+                $q->whereHas('stockIssue', function ($transQ) use ($validated) {
+                    $transQ->whereIn('transaction_type', $validated['transaction_type']);
+                });
+            })
+
+            // Multi-campus filter
+            ->when($validated['campus_ids'] ?? null, function ($q, $campusIds) {
+                $q->whereHas('campus', function ($campusQ) use ($campusIds) {
+                    $campusQ->whereIn('id', $campusIds);
+                });
+            })
+            // Multi-department filter
+            ->when($validated['department_ids'] ?? null, function ($q, $departmentIds) {
+                $q->whereHas('department', function ($depQ) use ($departmentIds) {
+                    $depQ->whereIn('id', $departmentIds);
+                });
+            })
             // Date range filter
             ->when($validated['start_date'] ?? null, fn($q, $start) =>
                 $q->whereHas('stockIssue', fn($siQ) => $siQ->whereDate('transaction_date', '>=', $start))
             )
             ->when($validated['end_date'] ?? null, fn($q, $end) =>
                 $q->whereHas('stockIssue', fn($siQ) => $siQ->whereDate('transaction_date', '<=', $end))
-        );
-
+            );
 
         // Sorting relational columns
         if ($sortColumn === 'product_name') {
@@ -292,6 +324,34 @@ class StockIssueController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function exportItems(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date'      => 'nullable|date',
+            'end_date'        => 'nullable|date',
+            'warehouse_ids'   => 'nullable|array',
+            'warehouse_ids.*' => 'integer|exists:warehouses,id',
+            'department_ids'  => 'nullable|array',
+            'department_ids.*'=> 'integer|exists:departments,id',
+            'campus_ids'      => 'nullable|array',
+            'campus_ids.*'    => 'integer|exists:campus,id',
+            'transaction_type' => 'nullable',
+        ]);
+
+        $filters = [
+            'start_date'      => $validated['start_date'] ?? null,
+            'end_date'        => $validated['end_date'] ?? null,
+            'warehouse_ids'   => $validated['warehouse_ids'] ?? [],
+            'department_ids'  => $validated['department_ids'] ?? [],
+            'campus_ids'      => $validated['campus_ids'] ?? [],
+            'transaction_type' => $validated['transaction_type'] ?? [],
+        ];
+
+        $query = StockIssueItem::query();
+
+        return Excel::download(new StockIssueItemsExport($query, $filters), 'stock_issue_items.xlsx');
     }
 
     public function store(Request $request): JsonResponse
