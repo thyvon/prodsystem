@@ -43,7 +43,7 @@
                 >
                   <option value="">Select Division</option>
                   <option v-for="division in divisions" :key="division.id" :value="division.id">
-                    {{ division.name }} ({{ division.short_name }})
+                    {{ division.text }}
                   </option>
                 </select>
               </div>
@@ -107,7 +107,7 @@ const form = ref({
 
 const fetchDivisions = async () => {
   try {
-    const response = await axios.get('/api/divisions')
+    const response = await axios.get('/api/main-value-lists/get-divisions')
     divisions.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load divisions:', err)

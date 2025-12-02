@@ -10,18 +10,48 @@ use App\Models\StockLedger;
 class StockLedgerService
 {
 
-    public function getStockOnHand(int $productId, int $warehouseId, string $transactionDate): float
-    {
-        $sql = "
-            SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
-            FROM stock_ledgers
-            WHERE product_id = ?
-            AND parent_warehouse = ?
-            AND transaction_date <= ?
-            AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
-        ";
+    // public function getStockOnHand(int $productId, int $warehouseId, string $transactionDate): float
+    // {
+    //     $sql = "
+    //         SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+    //         FROM stock_ledgers
+    //         WHERE product_id = ?
+    //         AND parent_warehouse = ?
+    //         AND transaction_date <= ?
+    //         AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //     ";
 
-        $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
+    //     $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
+
+    //     return (float) $result->stock_on_hand;
+    // }
+
+    public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
+    {
+        if ($warehouseId !== null) {
+            // Filter by specific warehouse
+            $sql = "
+                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+                FROM stock_ledgers
+                WHERE product_id = ?
+                AND parent_warehouse = ?
+                AND transaction_date <= ?
+                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+            ";
+
+            $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
+        } else {
+            // Sum across all warehouses
+            $sql = "
+                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+                FROM stock_ledgers
+                WHERE product_id = ?
+                AND transaction_date <= ?
+                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+            ";
+
+            $result = DB::selectOne($sql, [$productId, $transactionDate]);
+        }
 
         return (float) $result->stock_on_hand;
     }

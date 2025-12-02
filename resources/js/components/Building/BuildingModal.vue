@@ -52,7 +52,7 @@
                 >
                   <option value="">Select Campus</option>
                   <option v-for="campus in campuses" :key="campus.id" :value="campus.id">
-                    {{ campus.name }}
+                    {{ campus.text }}
                   </option>
                 </select>
               </div>
@@ -117,7 +117,7 @@ const form = ref({
 
 const fetchCampuses = async () => {
   try {
-    const response = await axios.get('/api/campuses')
+    const response = await axios.get('/api/main-value-lists/get-campuses')
     campuses.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load campuses:', err)

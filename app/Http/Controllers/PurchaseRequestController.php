@@ -778,11 +778,11 @@ class PurchaseRequestController extends Controller
     // ====================
     // Get Products
     // ====================
-    public function getProducts(Request $request)
+
+    public function getProducts(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', PurchaseRequest::class);
-        $response = $this->productService->getStockManagedVariants($request);
-        return response()->json($response);
+        $result = $this->productService->getAllProducts($request->all());
+        return response()->json($result);
     }
 
 

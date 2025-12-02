@@ -588,29 +588,58 @@ const addApproval = async () => { form.value.approvals.push({ user_id: '', reque
 const removeApproval = async (i) => { form.value.approvals.splice(i, 1); await nextTick(initApprovalSelects); };
 
 // -------------------- Product Table --------------------
-const initProductTable = () => {
-  const tableEl = $('#productTable');
-  if (!tableEl.length) return;
-  if ($.fn.DataTable.isDataTable(tableEl)) tableEl.DataTable().destroy();
-
-  tableEl.DataTable({
-    processing: true, serverSide: true, responsive: true, paging: false, lengthChange: false, ordering: false,
-    ajax: { url: '/api/purchase-requests/get-products', type: 'GET', dataSrc: (json) => { products.value = json.data || []; return json.data; }, error: () => showAlert('Error', 'Failed to load products', 'danger') },
-    columns: [
-      { data: 'item_code' }, { data: 'description' }, { data: 'unit_name' },
-      { data: 'estimated_price', render: d => d ? parseFloat(d).toLocaleString() : '-' },
-      { data: null, orderable: false, render: (_, __, row) => `<button class="btn btn-primary btn-sm select-product-btn" data-id="${row.id}">Select</button>` }
-    ]
-  });
-
-  tableEl.off('click.select-product').on('click.select-product', '.select-product-btn', e => addItem($(e.currentTarget).data('id')));
-};
-
 const showProductModal = async () => {
-  isLoadingProducts.value = true;
-  $('#productModal').modal('show');
-  await nextTick(() => { initProductTable(); isLoadingProducts.value = false; });
-};
+  // if (!form.value.warehouse_id || !form.value.transaction_date) {
+  //   showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
+  //   return
+  // }
+
+  await nextTick()
+  const table = $('#productModal').find('table') // Make sure this table exists in the modal
+  if ($.fn.DataTable.isDataTable(table)) table.DataTable().destroy()
+
+  table.DataTable({
+    serverSide: true,
+    processing: true,
+    responsive: true,
+    autoWidth: false,
+    ajax: {
+      url: '/api/purchase-requests/get-products',
+      type: 'GET',
+      data: function(d) {
+        return $.extend({}, d, {
+          warehouse_id: form.value.warehouse_id,
+          cutoff_date: form.value.transaction_date
+        });
+      }
+    },
+    columns: [
+      { 
+        data: 'id',
+        orderable: false,
+        render: id => `
+          <div class="custom-control custom-checkbox">
+            <input 
+              type="checkbox" 
+              class="custom-control-input select-item" 
+              id="chk-${id}" 
+              value="${id}"
+            >
+            <label class="custom-control-label" for="chk-${id}"></label>
+          </div>
+        `
+      },
+      { data: 'item_code' },
+      { data: null, render: (d, t, r) => `${r.description || ''}` },
+      { data: 'unit_name' },
+      { data: 'stock_on_hand', className: 'text-right', render: d => d != null ? d : '-' }
+    ]
+  })
+
+  // Use correct modal selector
+  $('#productModal').modal('show') 
+}
+
 
 // -------------------- Datepicker --------------------
 const initDatepicker = () => {

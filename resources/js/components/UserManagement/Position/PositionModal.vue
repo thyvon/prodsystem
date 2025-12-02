@@ -47,7 +47,7 @@
                     :key="department.id"
                     :value="department.id"
                   >
-                    {{ department.name }} ({{ department.short_name }})
+                    {{ department.text }}
                   </option>
                 </select>
               </div>
@@ -111,7 +111,7 @@ const form = ref({
 
 const fetchDepartments = async () => {
   try {
-    const response = await axios.get('/api/departments')
+    const response = await axios.get('/api/main-value-lists/get-departments')
     departments.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load departments:', err)
