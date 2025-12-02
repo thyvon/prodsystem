@@ -117,7 +117,7 @@
                         v-model.number="item.quantity"
                         class="form-control"
                         min="0"
-                        step="0.0001"
+                        step="0.000001"
                         required
                       />
                     </td>
@@ -127,7 +127,7 @@
                         v-model.number="item.unit_price"
                         class="form-control"
                         min="0"
-                        step="0.0001"
+                        step="0.000001"
                         required
                       />
                     </td>
