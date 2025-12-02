@@ -144,14 +144,14 @@
                 <th class="col-unit" rowspan="2">Unit</th>
                 <th colspan="3">Beginning</th>
                 <th colspan="2">Stock In</th>
-                <th colspan="2" class="highlight-available">Available for Sale</th>
+                <th colspan="3" class="highlight-available">Available for Sale</th>
                 <th colspan="2">Stock Out</th>
                 <th colspan="6">Ending</th>
             </tr>
             <tr>
                 <th>Qty</th><th>Unit Price</th><th>Amount</th>
                 <th>Qty</th><th>Amount</th>
-                <th class="highlight-available">Qty</th><th class="highlight-available">Amount</th>
+                <th class="highlight-available">Qty</th><th class="highlight-available">Avg Price</th><th class="highlight-available">Amount</th>
                 <th>Qty</th><th>Amount</th>
                 <th>Qty</th><th>Physical Count</th><th>Variance</th><th>Carried forward</th><th>Avg Price</th><th>Amount (USD)</th>
             </tr>
