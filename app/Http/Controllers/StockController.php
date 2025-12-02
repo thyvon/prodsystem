@@ -685,9 +685,13 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
                 SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN total_price ELSE 0 END) AS begin_total,
                 SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
                 SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty
+                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
+                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
+                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) AS out_total
             ", [
                 $startDate, $startDate,
+                $startDate, $endDate,
+                $startDate, $endDate,
                 $startDate, $endDate,
                 $startDate, $endDate, 
                 $startDate, $endDate
@@ -696,17 +700,19 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
 
         $beginQty = (float)($totals->begin_qty ?? 0);
         $inQty    = (float)($totals->in_qty ?? 0);
+        $inTotal  = (float)($totals->in_total ?? 0);
         $outQty   = (float)($totals->out_qty ?? 0);
+        $outTotal = (float)($totals->out_total ?? 0);
         $countedQty = (float)($totals->counted_quantity ?? 0);
 
         $beginAvg = (float)$this->beginAvg($productId, $startDate);
         $avgPrice = (float)$this->avgPrice($productId, $endDate);
 
         $beginTotal     = round($beginQty * $beginAvg, 6);
-        $inTotal        = round($inQty * $avgPrice, 6);
-        $outTotal       = round($outQty * $avgPrice, 6);
+        $inTotal        = round($inTotal, 6);
+        $outTotal       = round($outTotal, 6);
         $availableQty   = $beginQty + $inQty;
-        $availableTotal = round($availableQty * $avgPrice, 6);
+        $availableTotal = round($beginTotal + $inTotal, 6);
         $endingQty      = $availableQty - abs($outQty);
         $endingTotal    = round($endingQty * $avgPrice, 6);
 
