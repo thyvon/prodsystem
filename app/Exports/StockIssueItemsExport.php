@@ -27,17 +27,18 @@ use App\Models\Department;
 
 class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithColumnWidths, WithColumnFormatting, WithDrawings, WithCustomStartCell, WithEvents
 {
-    protected $query;
-    protected $filters;
+    protected Builder $query;
+    protected array $filters;
 
     public function __construct(Builder $query, array $filters = [])
     {
         $this->query = $query;
 
+        // Set default filters
         $filters['start_date'] = $filters['start_date'] ?? Carbon::now()->startOfMonth()->format('Y-m-d');
         $filters['end_date']   = $filters['end_date'] ?? Carbon::now()->endOfMonth()->format('Y-m-d');
-        $filters['transaction_type'] = $filters['transaction_type'] ?? 'Issue';
-        
+        $filters['transaction_type'] = $filters['transaction_type'] ?? ['Issue'];
+
         $this->filters = $filters;
     }
 
@@ -69,7 +70,7 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
             $q->whereIn('department_id', $this->filters['department_ids']);
         }
         if (!empty($this->filters['transaction_type'])) {
-            $q->whereHas('stockIssue', fn($sub) => $sub->where('transaction_type', $this->filters['transaction_type']));
+            $q->whereHas('stockIssue', fn($sub) => $sub->whereIn('transaction_type', $this->filters['transaction_type']));
         }
 
         return $q;
@@ -78,21 +79,21 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
     public function headings(): array
     {
         return [
-            'Reference Number',
             'Transaction Date',
-            'Transaction Type',
-            'Warehouse',
-            'Campus',
-            'Department',
-            'Division',
-            'Requester',
+            'Reference Number',
             'Product Code',
             'Description',
-            'Unit',
             'Quantity',
+            'Unit',
             'Unit Price',
             'Total Amount',
+            'Requester',
+            'Campus',
+            'Division',
+            'Department',
             'Purpose',
+            'Transaction Type',
+            'Warehouse',
             'Remarks',
         ];
     }
@@ -104,28 +105,28 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
         $description = trim($productName . ' ' . $variantDescription);
 
         return [
-            $item->stockIssue->reference_no ?? null,
-            $item->stockIssue->transaction_date ?? null,
-            $item->stockIssue->transaction_type ?? null,
-            $item->stockIssue->warehouse->name ?? null,
-            $item->campus->short_name ?? null,
-            $item->department->short_name ?? null,
-            $item->department->division->short_name ?? null,
-            $item->stockIssue->requestedBy->name ?? null,
-            $item->productVariant->item_code ?? null,
-            $description,
-            $item->productVariant->product->unit->name ?? null,
-            $item->quantity,
-            $item->unit_price,
-            $item->total_price,
-            $item->stockIssue->remarks ?? null,
-            $item->remarks,
+            $item->stockIssue->transaction_date ?? null,          // Transaction Date
+            $item->stockIssue->reference_no ?? null,             // Reference Number
+            $item->productVariant->item_code ?? null,            // Product Code
+            $description,                                        // Description
+            $item->quantity,                                     // Quantity
+            $item->productVariant->product->unit->name ?? null,  // Unit
+            $item->unit_price,                                   // Unit Price
+            $item->total_price,                                  // Total Amount
+            $item->stockIssue->requestedBy->name ?? null,       // Requester
+            $item->campus->short_name ?? null,                  // Campus
+            $item->department->division->short_name ?? null,    // Division
+            $item->department->short_name ?? null,              // Department
+            $item->stockIssue->remarks ?? null,                 // Purpose
+            $item->stockIssue->transaction_type ?? null,        // Transaction Type
+            $item->stockIssue->warehouse->name ?? null,         // Warehouse
+            $item->remarks,                                     // Remarks
         ];
     }
 
     public function startCell(): string
     {
-        return 'A5'; // Table header starts at row 5
+        return 'A5';
     }
 
     public function drawings()
@@ -141,14 +142,22 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
 
     public function styles(Worksheet $sheet)
     {
-        // Header row style
+        // Header row
         $sheet->getStyle('A5:P5')->applyFromArray([
-            'font' => ['bold' => true],
-            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFD700']],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '0B3D91'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+            ],
         ]);
 
-        $sheet->freezePane('A6'); // Freeze header row
+        $sheet->freezePane('A6'); // Freeze header
 
         return $sheet;
     }
@@ -156,19 +165,19 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
     public function columnWidths(): array
     {
         return [
-            'A' => 20, 'B' => 15, 'C' => 15, 'D' => 20, 'E' => 15,
-            'F' => 15, 'G' => 15, 'H' => 20, 'I' => 15, 'J' => 40,
-            'K' => 12, 'L' => 12, 'M' => 15, 'N' => 18, 'O' => 30, 'P' => 30,
+            'A' => 20, 'B' => 20, 'C' => 15, 'D' => 40, 'E' => 15,
+            'F' => 12, 'G' => 15, 'H' => 18, 'I' => 20, 'J' => 20,
+            'K' => 20, 'L' => 20, 'M' => 30, 'N' => 18, 'O' => 20, 'P' => 30,
         ];
     }
 
     public function columnFormats(): array
     {
         return [
-            'B' => NumberFormat::FORMAT_DATE_YYYYMMDD,
-            'L' => NumberFormat::FORMAT_NUMBER_00,
-            'M' => '0.0000',
-            'N' => '0.0000',
+            'A' => NumberFormat::FORMAT_DATE_YYYYMMDD,
+            'E' => NumberFormat::FORMAT_NUMBER_00,
+            'G' => '0.0000',
+            'H' => '0.0000',
         ];
     }
 
@@ -178,51 +187,48 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
 
-                // Title row
+                // Title
                 $sheet->setCellValue('A2', 'Stock Issue Items Report');
                 $sheet->mergeCells('A2:P2');
                 $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(14);
                 $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Filter parameters row (convert IDs to names here)
+                // Filter parameters
                 $filterText = 'Filters: ';
                 if (!empty($this->filters['start_date'])) $filterText .= "Start: {$this->filters['start_date']} ";
                 if (!empty($this->filters['end_date'])) $filterText .= "End: {$this->filters['end_date']} ";
-
-                // Convert IDs to names automatically
                 if (!empty($this->filters['warehouse_ids'])) {
-                    $warehouseNames = Warehouse::whereIn('id', $this->filters['warehouse_ids'])
-                        ->pluck('name')->toArray();
-                    $filterText .= "Warehouses: " . implode(', ', $warehouseNames) . ' ';
+                    $filterText .= "Warehouses: " . implode(', ', Warehouse::whereIn('id', $this->filters['warehouse_ids'])->pluck('name')->toArray()) . ' ';
                 }
-
                 if (!empty($this->filters['campus_ids'])) {
-                    $campusNames = Campus::whereIn('id', $this->filters['campus_ids'])
-                        ->pluck('short_name')->toArray();
-                    $filterText .= "Campuses: " . implode(', ', $campusNames) . ' ';
+                    $filterText .= "Campuses: " . implode(', ', Campus::whereIn('id', $this->filters['campus_ids'])->pluck('short_name')->toArray()) . ' ';
                 }
-
                 if (!empty($this->filters['department_ids'])) {
-                    $departmentNames = Department::whereIn('id', $this->filters['department_ids'])
-                        ->pluck('short_name')->toArray();
-                    $filterText .= "Departments: " . implode(', ', $departmentNames) . ' ';
+                    $filterText .= "Departments: " . implode(', ', Department::whereIn('id', $this->filters['department_ids'])->pluck('short_name')->toArray()) . ' ';
                 }
 
                 $sheet->setCellValue('A3', $filterText);
                 $sheet->mergeCells('A3:P3');
                 $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Add total row at the bottom
+                // Add total row
                 $highestRow = $sheet->getHighestRow();
-                $sheet->setCellValue("K" . ($highestRow + 1), 'TOTAL');
-                $sheet->mergeCells("K" . ($highestRow + 1) . ":K" . ($highestRow + 1));
-                $sheet->getStyle("K" . ($highestRow + 1))->getFont()->setBold(true);
-                $sheet->getStyle("K" . ($highestRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $totalRow = $highestRow + 1;
 
-                $sheet->setCellValue("L" . ($highestRow + 1), "=SUM(L6:L{$highestRow})");
-                $sheet->setCellValue("M" . ($highestRow + 1), "=SUM(M6:M{$highestRow})");
-                $sheet->setCellValue("N" . ($highestRow + 1), "=SUM(N6:N{$highestRow})");
-            }
+                $sheet->setCellValue("E{$totalRow}", 'TOTAL');
+                $sheet->mergeCells("E{$totalRow}:E{$totalRow}");
+                $sheet->getStyle("E{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("E{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                // Sum numeric columns
+                $sheet->setCellValue("E{$totalRow}", 'TOTAL');
+                $sheet->setCellValue("H{$totalRow}", "=SUM(H6:H{$highestRow})"); // Total Amount
+                $sheet->setCellValue("E{$totalRow}", "=SUM(E6:E{$highestRow})"); // Quantity
+
+                // Bold sums
+                $sheet->getStyle("E{$totalRow}:H{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("E{$totalRow}:H{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            },
         ];
     }
 }

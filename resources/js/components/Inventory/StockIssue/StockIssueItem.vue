@@ -36,32 +36,45 @@
 
           <!-- COLLAPSIBLE FILTER SECTION -->
           <div class="collapse" id="filterCollapse">
+            <div class="card card-body shadow-sm">
+              
+              <!-- Row 1: Date Range + Warehouse -->
+              <div class="row g-2 mb-3">
+                <div class="col-md-3">
+                  <input type="text" ref="startDateRef" class="form-control" placeholder="Start Date" />
+                </div>
+                <div class="col-md-3">
+                  <input type="text" ref="endDateRef" class="form-control" placeholder="End Date" />
+                </div>
+                <div class="col-md-6">
+                  <select ref="warehouseSelect" class="form-select" multiple></select>
+                </div>
+              </div>
 
-            <!-- Row 1: Date Range + Warehouse -->
-            <div class="d-flex align-items-center mb-2">
-              <input type="text" ref="startDateRef" class="form-control mr-2" placeholder="Start Date" />
-              <input type="text" ref="endDateRef" class="form-control mr-2" placeholder="End Date" />
-              <select ref="warehouseSelect" class="form-control mr-2" multiple></select>
+              <!-- Row 2: Campus + Department + Transaction Type Multi-Select -->
+              <div class="row g-2 mb-3">
+                <div class="col-md-4">
+                  <select ref="campusSelect" class="form-select" multiple></select>
+                </div>
+                <div class="col-md-4">
+                  <select ref="departmentSelect" class="form-select" multiple></select>
+                </div>
+                <div class="col-md-4">
+                  <select ref="transactionTypeSelectRef" class="form-select" multiple></select>
+                </div>
+              </div>
+
+              <!-- Row 3: Apply + Export -->
+              <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-primary d-flex align-items-center" @click="applyFilters">
+                  <i class="fal fa-filter mr-2"></i> Apply
+                </button>
+                <button class="btn btn-success d-flex align-items-center" @click="exportData">
+                  <i class="fal fa-file-excel mr-2"></i> Export
+                </button>
+              </div>
+
             </div>
-
-            <!-- Row 2: Campus + Department + Transaction Type Multi-Select -->
-            <div class="d-flex align-items-center mb-2">
-              <select ref="campusSelect" class="form-control mr-2" multiple></select>
-              <select ref="departmentSelect" class="form-control" multiple></select>
-              <select ref="transactionTypeSelectRef" class="form-control" multiple></select>
-            </div>
-
-            <!-- Row 3: Apply + Export -->
-            <div class="d-flex justify-content-end mb-2">
-              <button class="btn btn-primary d-flex align-items-center mr-2" @click="applyFilters">
-                <i class="fal fa-filter mr-2"></i> Apply
-              </button>
-
-              <button class="btn btn-success d-flex align-items-center" @click="exportData">
-                <i class="fal fa-file-excel mr-2"></i> Export
-              </button>
-            </div>
-
           </div>
 
         </div>
@@ -255,7 +268,7 @@ const exportData = async () => {
     transaction_type: selectedTransactionTypes.value,
   }
   if(!payload.start_date && !payload.end_date) {
-    showAlert('Error', 'Please select a date range to export.', 'danger')
+    showAlert('Error', 'Please select a date range to export.', 'warning')
     return
   }
   try {
