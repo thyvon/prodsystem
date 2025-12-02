@@ -63,7 +63,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, i) in stock.stock_beginnings" :key="i">
+            <tr v-for="(item, i) in stock.items" :key="i">
               <td class="text-center">{{ i + 1 }}</td>
               <td>{{ item.product_variant?.item_code ?? 'N/A' }}</td>
               <td>{{ item.product_variant?.product?.name ?? 'N/A' }} {{ item.product_variant?.description ?? '' }}</td>
