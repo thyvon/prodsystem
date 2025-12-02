@@ -54,7 +54,7 @@ class StockLedgerService
         $balanceQty   = (float) $totals->in_qty + (float) $totals->out_qty;
         $balanceTotal = (float) $totals->in_total + (float) $totals->out_total;
 
-        return $balanceQty > 0 ? round($balanceTotal / $balanceQty, 4) : 0;
+        return $balanceQty > 0 ? round($balanceTotal / $balanceQty, 6) : 0;
     }
 
 }

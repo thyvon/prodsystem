@@ -702,13 +702,13 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         $beginAvg = (float)$this->beginAvg($productId, $startDate);
         $avgPrice = (float)$this->avgPrice($productId, $endDate);
 
-        $beginTotal     = round($beginQty * $beginAvg, 4);
-        $inTotal        = round($inQty * $avgPrice, 4);
-        $outTotal       = round($outQty * $avgPrice, 4);
+        $beginTotal     = round($beginQty * $beginAvg, 6);
+        $inTotal        = round($inQty * $avgPrice, 6);
+        $outTotal       = round($outQty * $avgPrice, 6);
         $availableQty   = $beginQty + $inQty;
-        $availableTotal = round($availableQty * $avgPrice, 4);
+        $availableTotal = round($availableQty * $avgPrice, 6);
         $endingQty      = $availableQty - abs($outQty);
-        $endingTotal    = round($endingQty * $avgPrice, 4);
+        $endingTotal    = round($endingQty * $avgPrice, 6);
 
         return [
             'product_id'         => $productId,
@@ -740,7 +740,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         $totalQty   = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('quantity');
         $totalPrice = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('total_price');
 
-        return $totalQty != 0 ? round($totalPrice / $totalQty, 4) : 0;
+        return $totalQty != 0 ? round($totalPrice / $totalQty, 6) : 0;
     }
 
     private function beginAvg($productId, $startDate = null)
@@ -751,7 +751,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         $totalQty   = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('quantity');
         $totalPrice = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('total_price');
 
-        return $totalQty != 0 ? round($totalPrice / $totalQty, 4) : 0;
+        return $totalQty != 0 ? round($totalPrice / $totalQty, 6) : 0;
     }
 
 
