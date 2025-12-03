@@ -37,14 +37,14 @@
                 <div class="form-row">
                   <!-- Deadline -->
                   <div class="form-group col-md-6">
-                    <label for="deadline_date" class="font-weight-bold">📅 Deadline</label>
-                    <input 
-                      id="deadline_date"
-                      name="deadline_date"
-                      v-model="form.deadline_date"
-                      class="form-control datepicker" 
-                      type="date"
-                    />
+                  <label class="font-weight-bold">Deadline <span class="text-danger">*</span></label>
+                  <input
+                    id="deadline_date"
+                    v-model="form.deadline_date"
+                    type="text"
+                    class="form-control"
+                    placeholder="yyyy-mm-dd"
+                  />
                   </div>
 
                   <!-- Urgent -->
@@ -257,9 +257,19 @@
     </form>
 
     <!-- Product Modal -->
-    <div class="modal fade" id="productModal" tabindex="-1">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-labelledby="productModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
+          
+          <!-- Modal Header -->
+          <div class="modal-header">
+            <h5 class="modal-title" id="productModalLabel">Select Product</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          
+          <!-- Modal Body -->
           <div class="modal-body">
             <div v-if="isLoadingProducts" class="text-center py-4">
               <div class="spinner-border text-primary"></div>
@@ -270,13 +280,15 @@
                   <th style="width: 20%;">Code</th>
                   <th style="width: 40%;">Description</th>
                   <th style="width: 10%;">UoM</th>
-                  <th style="width: 20%;">Unit Price</th>
+                  <th style="width: 20%;">Avg Price</th>
+                  <th style="width: 10%;">Stock Onhand</th>
                   <th style="width: 10%;">Select</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
           </div>
+          
         </div>
       </div>
     </div>
@@ -490,25 +502,6 @@ const importItems = async () => {
   } finally { isImporting.value = false; }
 };
 
-// -------------------- Items --------------------
-const addItem = (productId) => {
-  const product = products.value.find(p => p.id === Number(productId));
-  if (!product) return showAlert('Error', 'Product not found', 'danger');
-
-  form.value.items.push(createItem({
-    product_id: product.id,
-    product_code: product.item_code,
-    product_description: product.description,
-    unit_name: product.unit_name,
-    currency: 'USD',
-    exchange_rate: 4000,
-    quantity: 1,
-    unit_price: 0
-  }));
-
-  nextTick(initItemSelects);
-  showAlert('Success', 'Product added to Iteam List.', 'success');
-};
 
 const removeItem = (index) => {
   ['campus', 'department', 'budget'].forEach(type => {
@@ -588,64 +581,117 @@ const addApproval = async () => { form.value.approvals.push({ user_id: '', reque
 const removeApproval = async (i) => { form.value.approvals.splice(i, 1); await nextTick(initApprovalSelects); };
 
 // -------------------- Product Table --------------------
+let productsTable = null;
+
+// -------------------- Product Modal --------------------
 const showProductModal = async () => {
+  // Check warehouse and date
   // if (!form.value.warehouse_id || !form.value.transaction_date) {
-  //   showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
-  //   return
+  //   showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning');
+  //   return;
   // }
 
-  await nextTick()
-  const table = $('#productModal').find('table') // Make sure this table exists in the modal
-  if ($.fn.DataTable.isDataTable(table)) table.DataTable().destroy()
+  await nextTick();
+  const table = $('#productModal').find('table');
 
-  table.DataTable({
-    serverSide: true,
-    processing: true,
-    responsive: true,
-    autoWidth: false,
-    ajax: {
-      url: '/api/purchase-requests/get-products',
-      type: 'GET',
-      data: function(d) {
-        return $.extend({}, d, {
-          warehouse_id: form.value.warehouse_id,
-          cutoff_date: form.value.transaction_date
-        });
-      }
-    },
-    columns: [
-      { 
-        data: 'id',
-        orderable: false,
-        render: id => `
-          <div class="custom-control custom-checkbox">
-            <input 
-              type="checkbox" 
-              class="custom-control-input select-item" 
-              id="chk-${id}" 
-              value="${id}"
-            >
-            <label class="custom-control-label" for="chk-${id}"></label>
-          </div>
-        `
+  // Initialize DataTable only once
+  if (!productsTable) {
+    productsTable = table.DataTable({
+      serverSide: true,
+      processing: true,
+      responsive: true,
+      autoWidth: false,
+      ajax: {
+        url: '/api/purchase-requests/get-products',
+        type: 'GET',
+        data: function(d) {
+          return $.extend({}, d, {
+            warehouse_id: form.value.warehouse_id,
+            cutoff_date: form.value.transaction_date
+          });
+        }
       },
-      { data: 'item_code' },
-      { data: null, render: (d, t, r) => `${r.description || ''}` },
-      { data: 'unit_name' },
-      { data: 'stock_on_hand', className: 'text-right', render: d => d != null ? d : '-' }
-    ]
-  })
+      columns: [
+        { data: 'item_code' },
+        { data: null, render: (d, t, r) => r.description || '' },
+        { data: 'unit_name' },
+        {
+          data: 'average_price',
+          className: 'text-right',
+          render: d => d != null ? d : '-',
+          orderable: false  // disable sorting
+        },
+        {
+          data: 'stock_on_hand',
+          className: 'text-right',
+          render: d => d != null ? d : '-',
+          orderable: false  // disable sorting
+        },
+        {
+          data: null,
+          orderable: false,
+          searchable: false,
+          className: 'text-center',
+          render: (data, type, row) => {
+            return `<button class="btn btn-sm btn-primary select-product" data-id="${row.id}">Select</button>`;
+          }
+        }
+      ]
+    });
+  } else {
+    productsTable.ajax.reload();
+  }
 
-  // Use correct modal selector
-  $('#productModal').modal('show') 
-}
+  // Handle Select button click
+  $('#productModal').off('click', '.select-product').on('click', '.select-product', function() {
+    const productId = $(this).data('id');
+    const product = productsTable.rows().data().toArray().find(p => p.id === productId);
+
+    if (!product) {
+      return showAlert('Error', 'Product not found', 'danger');
+    }
+
+    // Check if product already added
+    const existingIds = new Set(form.value.items.map(i => i.product_id));
+    if (existingIds.has(product.id)) {
+      showAlert('Warning', 'Product already added', 'warning');
+      return;
+    }
+
+    // Add product to items
+    form.value.items.push(createItem({
+      product_id: product.id,
+      product_code: product.item_code,
+      product_description: product.description,
+      unit_name: product.unit_name,
+      currency: 'USD',
+      exchange_rate: 4000,
+      quantity: 1,
+      unit_price: 0
+    }));
+
+    nextTick(initItemSelects);
+    showAlert('Success', 'Product added to Item List.', 'success');
+
+    // $('#productModal').modal('hide'); // Close modal
+  });
+
+  $('#productModal').modal('show');
+};
+
 
 
 // -------------------- Datepicker --------------------
 const initDatepicker = () => {
-  $('.datepicker').datepicker({ format: 'yyyy-mm-dd', autoclose: true }).on('changeDate', e => form.value.deadline_date = e.format('yyyy-mm-dd'));
-  if (form.value.deadline_date) $('.datepicker').datepicker('update', form.value.deadline_date);
-};
+  $('#deadline_date').datepicker({
+    format: 'yyyy-mm-dd',
+    autoclose: true,
+    todayHighlight: true,
+    orientation: 'bottom left'
+  }).on('changeDate', e => {
+    form.value.deadline_date = e.format()
+  })
+}
 
 // -------------------- Submit --------------------
 const submitForm = async () => {
