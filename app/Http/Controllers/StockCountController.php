@@ -264,33 +264,48 @@ class StockCountController extends Controller
     public function getEditData(StockCount $stockCount): JsonResponse
     {
         $this->authorize('update', $stockCount);
-        // Eager load only what's needed
+
+        // Eager load nested relationships
         $stockCount->load([
             'items.product.product.unit',
             'approvals.responder'
         ]);
 
         $items = $stockCount->items->map(function ($item) use ($stockCount) {
-            $product = $item->product?->product;
+            $product = $item->product?->product; // inner product
+
+            // Compute stock and price safely
+            $stockOnHand = 0;
+            $averagePrice = 0;
+
+            if ($item->product_id) {
+                try {
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $item->product_id,
+                        $stockCount->warehouse_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+                
+                try {
+                    $averagePrice = $this->stockLedgerService->getAvgPrice(
+                        $item->product_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+            }
 
             return [
                 'id' => $item->id,
                 'product_id' => $item->product_id,
                 'product_code' => $item->product?->item_code ?? '',
                 'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
-                'unit_name' => $product?->unit?->name ?? '',
+                'unit_name' => $product?->unit->name ?? '',
                 'ending_quantity' => $item->ending_quantity,
                 'counted_quantity' => $item->counted_quantity,
                 'remarks' => $item->remarks,
-                'stock_on_hand' => $this->stockLedgerService->getStockOnHand(
-                    $item->product_id,
-                    $stockCount->warehouse_id,
-                    $stockCount->transaction_date
-                ),
-                'average_price' => $this->stockLedgerService->getAvgPrice(
-                    $item->product_id,
-                    $stockCount->transaction_date
-                ),
+                'stock_on_hand' => $stockOnHand,
+                'average_price' => $averagePrice,
             ];
         });
 
@@ -315,6 +330,7 @@ class StockCountController extends Controller
             ],
         ]);
     }
+
 
     public function update(Request $request, StockCount $stockCount): JsonResponse
     {

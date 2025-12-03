@@ -276,7 +276,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
@@ -286,7 +286,7 @@ const emit = defineEmits(['submitted'])
 
 const isEditMode = ref(false)
 const isSubmitting = ref(false)
-const isImporting = ref(false);
+const isImporting = ref(false)
 
 const form = ref({
   transaction_date: '',
@@ -302,127 +302,99 @@ const fileInput = ref(null)
 const itemsModal = ref(null)
 const warehouseSelect = ref(null)
 
+let productsTable = null
+let approvalUsers = ref({ initial: [], approve: [] })
+
 const goToIndex = () => window.location.href = '/inventory/stock-counts'
 
+// ==================== Fetching Data ====================
 const fetchWarehouses = async () => {
   const { data } = await axios.get('/api/main-value-lists/get-warehouses')
   warehouses.value = data.data || data
 }
 
+const fetchApprovalUsers = async () => {
+  const { data } = await axios.get('/api/inventory/stock-counts/get-approval-users')
+  approvalUsers.value = { initial: data.initial || [], approve: data.approve || [] }
+}
+
+// ==================== Datepicker ====================
 const initDatepicker = () => {
   $('#transaction_date').datepicker({
     format: 'yyyy-mm-dd',
     autoclose: true,
     todayHighlight: true,
     orientation: 'bottom left'
-  }).on('changeDate', (e) => {
+  }).on('changeDate', e => {
     form.value.transaction_date = e.format()
   })
 }
 
+// ==================== Warehouse Select ====================
 const initWarehouseSelect2 = () => {
   if (!warehouseSelect.value) return
   initSelect2(warehouseSelect.value, {
     placeholder: 'Select Warehouse',
     width: '100%',
     allowClear: false
-  }, (val) => {
-    form.value.warehouse_id = val
-  })
+  }, val => form.value.warehouse_id = val)
 
   if (form.value.warehouse_id) {
     $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
   }
 }
 
-const initApprovalSelect2 = async () => {
-  const { data } = await axios.get('/api/inventory/stock-counts/get-approval-users')
-  const users = {
-    initial: data.initial || [],
-    approve: data.approve || []
+// ==================== Approvals ====================
+const initApprovalSelect2 = () => {
+  // Type selects
+  document.querySelectorAll('.approval-type-select').forEach((el, index) => {
+    initSelect2(el, { placeholder: 'Select Type', width: '100%' }, val => {
+      form.value.approvals[index].request_type = val
+      updateUserSelect(index)
+    })
+    $(el).val(form.value.approvals[index].request_type || '').trigger('change')
+  })
+
+  // User selects
+  document.querySelectorAll('.user-select').forEach((el, index) => updateUserSelect(index))
+}
+
+const updateUserSelect = (index) => {
+  const select = document.querySelector(`.user-select[data-index="${index}"]`)
+  if (!select) return
+  const type = form.value.approvals[index].request_type
+  const users = approvalUsers.value[type] || []
+
+  const data = users.map(u => ({ id: u.id, text: u.name }))
+
+  if ($(select).hasClass('select2-hidden-accessible')) {
+    $(select).empty().select2({ data, placeholder: 'Select User', width: '100%' })
+  } else {
+    initSelect2(select, { data, placeholder: 'Select User', width: '100%' }, val => {
+      form.value.approvals[index].user_id = val ? Number(val) : null
+    })
   }
 
-  await nextTick()
-
-  $('.approval-type-select').each(function () {
-    const index = $(this).data('index')
-    initSelect2(this, {
-      placeholder: 'Select Type',
-      width: '100%',
-      allowClear: false
-    }, (val) => {
-      form.value.approvals[index].request_type = val
-      updateUserSelect(index, users)
-    })
-    $(this).val(form.value.approvals[index].request_type).trigger('change')
-  })
-
-  $('.user-select').each(function () {
-    const index = $(this).data('index')
-    const type = form.value.approvals[index].request_type
-    const userList = users[type] || []
-
-    destroySelect2(this)
-    initSelect2(this, {
-      placeholder: 'Select User',
-      width: '100%',
-      data: userList.map(u => ({ id: u.id, text: u.name }))
-    }, (val) => {
-      form.value.approvals[index].user_id = val ? Number(val) : null
-    })
-
-    if (form.value.approvals[index].user_id) {
-      $(this).val(form.value.approvals[index].user_id).trigger('change')
-    }
-  })
+  $(select).val(form.value.approvals[index].user_id || '').trigger('change')
 }
 
-const updateUserSelect = (index, users) => {
-  nextTick(() => {
-    const select = document.querySelector(`.user-select[data-index="${index}"]`)
-    if (!select) return
-
-    const type = form.value.approvals[index].request_type
-    const userList = users[type] || []
-
-    destroySelect2(select)
-    initSelect2(select, {
-      placeholder: 'Select User',
-      width: '100%',
-      data: userList.map(u => ({ id: u.id, text: u.name }))
-    }, (val) => {
-      form.value.approvals[index].user_id = val ? Number(val) : null
-    })
-
-    $(select).val(form.value.approvals[index].user_id || '').trigger('change')
-  })
-}
-
-const addApproval = async () => {
+const addApproval = () => {
   form.value.approvals.push({
     request_type: '',
     user_id: null,
     isDefault: false,
     availableUsers: []
   })
-  await nextTick()
   const index = form.value.approvals.length - 1
-  const typeEl = document.querySelector(`.approval-type-select[data-index="${index}"]`)
-  const userEl = document.querySelector(`.user-select[data-index="${index}"]`)
-
-  initSelect2(typeEl, { placeholder: 'Select Type', width: '100%' }, (val) => {
-    form.value.approvals[index].request_type = val
-    updateUserSelect(index, { initial: [], approve: [] })
-  })
-  initSelect2(userEl, { placeholder: 'Select User', width: '100%' })
+  updateUserSelect(index)
 }
 
 const removeApproval = (i) => {
   if (form.value.approvals[i].isDefault) return
-  const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`)
-  const userEl = document.querySelector(`.user-select[data-index="${i}"]`)
-  if (typeEl) destroySelect2(typeEl)
-  if (userEl) destroySelect2(userEl)
+  ['.approval-type-select', '.user-select'].forEach(sel => {
+    const el = document.querySelector(`${sel}[data-index="${i}"]`)
+    if (el) destroySelect2(el)
+  })
   form.value.approvals.splice(i, 1)
 }
 
@@ -431,74 +403,62 @@ const validateApprovals = () => {
   return types.includes('initial') && types.includes('approve') && new Set(types).size === 2
 }
 
-const openProductsModal = async () => {
+// ==================== Products Modal ====================
+const openProductsModal = () => {
   if (!form.value.warehouse_id || !form.value.transaction_date) {
     showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
     return
   }
 
-  await nextTick()
   const table = $(itemsModal.value).find('table')
-  if ($.fn.DataTable.isDataTable(table)) table.DataTable().destroy()
-
-  table.DataTable({
-    serverSide: true,
-    processing: true,
-    responsive: true,
-    autoWidth: false,
-    ajax: {
-      url: '/api/inventory/stock-counts/get-products',
-      type: 'GET',
-      data: function(d) {
-        return $.extend({}, d, {
-          warehouse_id: form.value.warehouse_id,
-          cutoff_date: form.value.transaction_date
-        });
-      }
-    },
-    columns: [
-      { 
-        data: 'id',
-        orderable: false,
-        render: id => `
-            <div class="custom-control custom-checkbox">
-                <input 
-                    type="checkbox" 
-                    class="custom-control-input select-item" 
-                    id="chk-${id}" 
-                    value="${id}"
-                >
-                <label class="custom-control-label" for="chk-${id}"></label>
-            </div>
-        `
+  if (!productsTable) {
+    productsTable = table.DataTable({
+      serverSide: true,
+      processing: true,
+      responsive: true,
+      autoWidth: false,
+      ajax: {
+        url: '/api/inventory/stock-counts/get-products',
+        type: 'GET',
+        data: d => ({ ...d, warehouse_id: form.value.warehouse_id, cutoff_date: form.value.transaction_date })
       },
-      { data: 'item_code' },
-      { data: null, render: (d, t, r) => `${r.description || ''}` },
-      { data: 'unit_name' },
-      { data: 'stock_on_hand', className: 'text-right' }
-    ]
-  })
+      columns: [
+        {
+          data: 'id',
+          orderable: false,
+          render: id => `<div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input select-item" id="chk-${id}" value="${id}">
+                          <label class="custom-control-label" for="chk-${id}"></label>
+                        </div>`
+        },
+        { data: 'item_code' },
+        { data: null, render: (d,t,r) => r.description || '' },
+        { data: 'unit_name' },
+        { data: 'stock_on_hand', className: 'text-right' }
+      ]
+    })
+  } else productsTable.ajax.reload()
 
   $(itemsModal.value).modal('show')
 }
 
 const addSelectedItems = () => {
   const table = $(itemsModal.value).find('table').DataTable()
-  const selected = []
-  table.rows().every(function () {
-    if ($(this.node()).find('.select-item').is(':checked')) selected.push(this.data())
-  })
+  const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
 
+  const existingIds = new Set(form.value.items.map(i => i.product_id))
   selected.forEach(p => {
-    if (!form.value.items.find(i => i.product_id === p.id)) {
+    if (!existingIds.has(p.id)) {
       form.value.items.push({
         product_id: p.id,
         item_code: p.item_code,
-        product_name: p.product_name,
+        product_name: p.product_name || '',
         description: p.description || '',
         unit_name: p.unit_name,
         ending_quantity: parseFloat(p.stock_on_hand) || 0,
         counted_quantity: parseFloat(p.stock_on_hand) || 0,
+        stock_on_hand: parseFloat(p.stock_on_hand) || 0,
+        average_price: 0,
         remarks: ''
       })
     }
@@ -508,52 +468,84 @@ const addSelectedItems = () => {
   $(itemsModal.value).modal('hide')
 }
 
-// Watch warehouse or transaction_date changes
-watch(
-  () => [form.value.warehouse_id, form.value.transaction_date],
-  async ([whId, date]) => {
-    if (!whId || !date || !form.value.items.length) return
-
-    try {
-      // Collect product IDs from current items
-      const productIds = form.value.items.map(i => i.product_id)
-
-      // Call refresh-stock endpoint with warehouse, date, and product_ids
-      const { data } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
-        warehouse_id: whId,
-        transaction_date: date,
-        product_ids: productIds
-      })
-
-      const updatedItems = data.data || []
-
-      // Update stock_on_hand and average_price
-      form.value.items = form.value.items.map(item => {
-        const updated = updatedItems.find(u => u.product_id === item.product_id)
-        if (updated) {
-          return {
-            ...item,
-            ending_quantity: parseFloat(updated.stock_on_hand || 0),
-            stock_on_hand: parseFloat(updated.stock_on_hand || 0),
-            average_price: parseFloat(updated.average_price || 0),
-            // Keep counted_quantity & remarks unchanged
-          }
-        }
-        return item
-      })
-    } catch (err) {
-      showAlert('Error', 'Failed to refresh stock data', 'danger')
-    }
-  }
-)
-
-
-
 const removeItem = i => form.value.items.splice(i, 1)
 const closeItemsModal = () => $(itemsModal.value).modal('hide')
 const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
+
+// ==================== File Import ====================
 const triggerFileInput = () => fileInput.value.click()
 const handleFileUpload = e => { if (e.target.files[0]) importFile() }
+
+const importFile = async () => {
+  const file = fileInput.value.files[0]
+  if (!file) return
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
+    return
+  }
+
+  isImporting.value = true
+  const formData = new FormData()
+  formData.append("file", file)
+
+  try {
+    const { data } = await axios.post("/api/inventory/stock-counts/import", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    })
+
+    if (data.errors?.length) {
+      showAlert("Error", `Errors:<br>${data.errors.join('<br>')}`, "danger", { html: true })
+      return
+    }
+
+    const rows = data.data?.items || []
+    if (!rows.length) {
+      showAlert("Warning", "No valid rows found in Excel.", "warning")
+      return
+    }
+
+    // Only add new items
+    const existingIds = new Set(form.value.items.map(i => i.product_id))
+    rows.forEach(r => {
+      if (!existingIds.has(r.product_id)) {
+        form.value.items.push({
+          product_id: r.product_id,
+          item_code: r.product_code,
+          product_name: r.product_name || "",
+          description: r.description || "",
+          unit_name: r.unit_name || "",
+          ending_quantity: 0,
+          stock_on_hand: 0,
+          average_price: 0,
+          counted_quantity: parseFloat(r.counted_quantity ?? 0),
+          remarks: r.remark || ""
+        })
+      }
+    })
+
+    // Refresh stock for new items
+    const productIds = rows.map(r => r.product_id)
+    const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
+      warehouse_id: form.value.warehouse_id,
+      transaction_date: form.value.transaction_date,
+      product_ids: productIds
+    })
+
+    const updatedMap = Object.fromEntries((refreshed.data || []).map(u => [u.product_id, u]))
+    form.value.items = form.value.items.map(item => {
+      const updated = updatedMap[item.product_id]
+      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+    })
+
+    fileInput.value.value = ""
+    showAlert("Success", `Imported ${rows.length} items and refreshed stock successfully`, "success")
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to import', 'danger')
+  } finally {
+    isImporting.value = false
+    if (fileInput.value) fileInput.value.value = ""
+  }
+}
 
 const downloadSampleExcel = () => {
   const link = document.createElement('a')
@@ -564,90 +556,26 @@ const downloadSampleExcel = () => {
   document.body.removeChild(link)
 }
 
-const importFile = async () => {
-  const file = fileInput.value.files[0];
-  if (!file) return;
-
-  if (!form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning');
-    return;
-  }
-
-  isImporting.value = true;
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  try {
-    // 1️⃣ Upload Excel
-    const { data } = await axios.post("/api/inventory/stock-counts/import", formData, {
-      headers: { "Content-Type": "multipart/form-data" }
-    });
-
-    if (data.errors && data.errors.length) {
-      showAlert("Error", `Errors found in Excel file:<br>${data.errors.join('<br>')}`, "danger", { html: true });
-      return;
+// ==================== Refresh Stock on Change ====================
+watch(
+  () => [form.value.warehouse_id, form.value.transaction_date],
+  async ([whId, date]) => {
+    if (!whId || !date || !form.value.items.length) return
+    const productIds = form.value.items.map(i => i.product_id)
+    try {
+      const { data } = await axios.patch('/api/inventory/stock-counts/refresh-stock', { warehouse_id: whId, transaction_date: date, product_ids: productIds })
+      const updatedMap = Object.fromEntries((data.data || []).map(u => [u.product_id, u]))
+      form.value.items = form.value.items.map(item => {
+        const updated = updatedMap[item.product_id]
+        return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+      })
+    } catch {
+      showAlert('Error', 'Failed to refresh stock data', 'danger')
     }
-
-    const rows = data.data?.items || [];
-    if (!rows.length) {
-      showAlert("Warning", "No valid rows found in Excel.", "warning");
-      return;
-    }
-
-    // 2️⃣ Add imported items
-    rows.forEach(r => {
-      if (!form.value.items.find(i => i.product_id === r.product_id)) {
-        form.value.items.push({
-          product_id: r.product_id,
-          item_code: r.product_code,
-          product_name: r.product_name || "",
-          description: r.description || "",
-          unit_name: r.unit_name || "",
-          ending_quantity: 0,      // will be updated next
-          stock_on_hand: 0,        // will be updated next
-          average_price: 0,        // will be updated next
-          counted_quantity: parseFloat(r.counted_quantity ?? 0),
-          remarks: r.remark || ""
-        });
-      }
-    });
-
-    // 3️⃣ Immediately call refresh-stock for newly imported items
-    const productIds = rows.map(r => r.product_id);
-    const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
-      warehouse_id: form.value.warehouse_id,
-      transaction_date: form.value.transaction_date,
-      product_ids: productIds
-    });
-
-    const updatedItems = refreshed.data || [];
-    form.value.items = form.value.items.map(item => {
-      const updated = updatedItems.find(u => u.product_id === item.product_id);
-      if (updated) {
-        return {
-          ...item,
-          ending_quantity: parseFloat(updated.stock_on_hand || 0),
-          stock_on_hand: parseFloat(updated.stock_on_hand || 0),
-          average_price: parseFloat(updated.average_price || 0)
-        };
-      }
-      return item;
-    });
-
-    fileInput.value.value = "";
-    showAlert("Success", `Imported ${rows.length} items and refreshed stock successfully`, "success");
-
-  } catch (err) {
-    showAlert("Error", err.response?.data?.message || "Failed to import", "danger");
-  } finally {
-    isImporting.value = false;
-    if (fileInput.value) fileInput.value.value = "";
   }
-};
+)
 
-
-
+// ==================== Form Submission ====================
 const submitForm = async () => {
   if (!form.value.transaction_date || !form.value.warehouse_id || !form.value.items.length) {
     showAlert('Error', 'Please complete all required fields.', 'danger')
@@ -664,16 +592,8 @@ const submitForm = async () => {
       transaction_date: form.value.transaction_date,
       warehouse_id: form.value.warehouse_id,
       remarks: form.value.remarks || null,
-      items: form.value.items.map(i => ({
-        product_id: i.product_id,
-        ending_quantity: i.ending_quantity,
-        counted_quantity: i.counted_quantity,
-        remarks: i.remarks || null
-      })),
-      approvals: form.value.approvals.map(a => ({
-        user_id: a.user_id,
-        request_type: a.request_type
-      }))
+      items: form.value.items.map(i => ({ product_id: i.product_id, ending_quantity: i.ending_quantity, counted_quantity: i.counted_quantity, remarks: i.remarks || null })),
+      approvals: form.value.approvals.map(a => ({ user_id: a.user_id, request_type: a.request_type }))
     }
 
     const url = isEditMode.value
@@ -691,8 +611,53 @@ const submitForm = async () => {
   }
 }
 
+// ==================== Load Edit Data ====================
+const loadEditData = async (id) => {
+  try {
+    const { data } = await axios.get(`/api/inventory/stock-counts/${id}/edit`)
+    const d = data.data
+
+    form.value.transaction_date = d.transaction_date
+    form.value.warehouse_id = d.warehouse_id
+    form.value.reference_no = d.reference_no
+    form.value.remarks = d.remarks
+
+    form.value.items = d.items.map(i => ({
+      id: i.id,
+      product_id: i.product_id,
+      item_code: i.product_code,
+      product_name: (i.description || '').split(' ')[0] || '',
+      description: i.description || '',
+      unit_name: i.unit_name || '',
+      ending_quantity: parseFloat(i.ending_quantity ?? 0),
+      counted_quantity: parseFloat(i.counted_quantity ?? 0),
+      remarks: i.remarks || '',
+      stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
+      average_price: parseFloat(i.average_price ?? 0)
+    }))
+
+    form.value.approvals = d.approvals.map(a => ({
+      id: a.id,
+      request_type: a.request_type,
+      user_id: a.user_id || a.responder_id,
+      isDefault: true,
+      availableUsers: []
+    }))
+
+    initWarehouseSelect2()
+    await fetchApprovalUsers()
+    initApprovalSelect2()
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to load stock count data', 'danger')
+  }
+}
+
+// ==================== Lifecycle ====================
 onMounted(async () => {
   await fetchWarehouses()
+  initDatepicker()
+  initWarehouseSelect2()
+  await fetchApprovalUsers()
 
   // Default approvals
   form.value.approvals = [
@@ -700,69 +665,18 @@ onMounted(async () => {
     { request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] }
   ]
 
-  initDatepicker()
-  initWarehouseSelect2()
-  await initApprovalSelect2()
+  initApprovalSelect2()
 
   if (props.stockCountId) {
     isEditMode.value = true
-    await loadEditData(props.stockCountId) // load existing data
+    await loadEditData(props.stockCountId)
   }
 })
-
-const loadEditData = async (id) => {
-  try {
-    const { data } = await axios.get(`/api/inventory/stock-counts/${id}/edit`)
-    const d = data.data
-
-    // Header
-    form.value.transaction_date = d.transaction_date
-    form.value.warehouse_id = d.warehouse_id
-    form.value.reference_no = d.reference_no
-    form.value.remarks = d.remarks
-
-    // Items
-    form.value.items = d.items.map(i => ({
-      id: i.id,
-      product_id: i.product_id,
-      item_code: i.product_code,
-      product_name: (i.description || '').split(' ')[0] || '', // fallback if product_name not returned
-      description: i.description || '',
-      unit_name: i.unit_name || '',
-      ending_quantity: parseFloat(i.ending_quantity ?? 0),
-      counted_quantity: parseFloat(i.counted_quantity ?? 0),
-      remarks: i.remarks || '',
-      stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
-      average_price: parseFloat(i.average_price ?? 0),
-    }))
-
-    // Approvals
-    form.value.approvals = d.approvals.map(a => ({
-      id: a.id,
-      request_type: a.request_type,
-      user_id: a.user_id || a.responder_id,
-      isDefault: true,
-      availableUsers: [] // will be set in initApprovalSelect2
-    }))
-
-    // Trigger approval Select2 only, do NOT call initWarehouseSelect2()
-    await nextTick()
-    initWarehouseSelect2()
-    await initApprovalSelect2()
-
-    form.value.approvals.forEach((a, index) => {
-      const selectEl = document.querySelector(`.user-select[data-index="${index}"]`)
-      if (selectEl) $(selectEl).val(a.user_id).trigger('change')
-    })
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to load stock count data', 'danger')
-  }
-}
 
 onUnmounted(() => {
   $('#transaction_date').datepicker('destroy')
   if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
-  $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
+  document.querySelectorAll('.approval-type-select, .user-select').forEach(destroySelect2)
 })
 </script>
 
