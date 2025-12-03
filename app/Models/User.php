@@ -68,7 +68,7 @@ class User extends Authenticatable
     }
     public function defaultDepartment()
     {
-        return $this->departments()->wherePivot('is_default', true)->first();
+        return $this->belongsTo(Department::class, 'default_department_id');
     }
 
     public function campus()
@@ -80,7 +80,7 @@ class User extends Authenticatable
 
     public function defaultCampus()
     {
-        return $this->campus()->wherePivot('is_default', true)->first();
+        return $this->belongsTo(Campus::class, 'default_campus_id');
     }
 
     public function warehouses()
@@ -110,6 +110,6 @@ class User extends Authenticatable
 
     public function defaultPosition()
     {
-        return $this->positions()->wherePivot('is_default', true)->first();
+        return $this->belongsTo(Position::class, 'current_position_id');
     }
 }

@@ -97,18 +97,23 @@ class UserController extends Controller
                 'phone' => ['nullable', 'string', 'max:255'],
                 'is_active' => ['required', 'integer'],
                 'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
+
                 'departments' => ['sometimes', 'array'],
                 'departments.*.id' => ['required_with:departments', 'integer', 'exists:departments,id'],
                 'departments.*.is_default' => ['required_with:departments', 'boolean'],
+
                 'campus' => ['sometimes', 'array'],
                 'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
                 'campus.*.is_default' => ['required_with:campus', 'boolean'],
+
                 'warehouses' => ['sometimes', 'array'],
                 'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
                 'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
+
                 'positions' => ['sometimes', 'array'],
                 'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
                 'positions.*.is_default' => ['required_with:positions', 'boolean'],
+
                 'roles' => ['sometimes', 'array'],
                 'roles.*' => ['string', 'exists:roles,name'],
                 'permissions' => ['sometimes', 'array'],
@@ -124,10 +129,36 @@ class UserController extends Controller
 
             DB::beginTransaction();
 
-            // Handle file uploads
-            $profilePath = $request->hasFile('profile_url') ? $request->file('profile_url')->store('profiles', 'public') : null;
-            $signaturePath = $request->hasFile('signature_url') ? $request->file('signature_url')->store('signatures', 'public') : null;
+            // ----------------------------------------------------------------------
+            // Extract default selections from array (supports both frontend formats)
+            // ----------------------------------------------------------------------
 
+            $defaultDepartment = collect($request->departments ?? [])
+                ->firstWhere('is_default', true)['id'] ?? null;
+
+            $defaultCampus = collect($request->campus ?? [])
+                ->firstWhere('is_default', true)['id'] ?? null;
+
+            $defaultWarehouse = collect($request->warehouses ?? [])
+                ->firstWhere('is_default', true)['id'] ?? null;
+
+            $defaultPosition = collect($request->positions ?? [])
+                ->firstWhere('is_default', true)['id'] ?? null;
+
+            // ----------------------------------------------------------------------
+            // Handle file uploads
+            // ----------------------------------------------------------------------
+            $profilePath = $request->hasFile('profile_url')
+                ? $request->file('profile_url')->store('profiles', 'public')
+                : null;
+
+            $signaturePath = $request->hasFile('signature_url')
+                ? $request->file('signature_url')->store('signatures', 'public')
+                : null;
+
+            // ----------------------------------------------------------------------
+            // Create user
+            // ----------------------------------------------------------------------
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -139,32 +170,51 @@ class UserController extends Controller
                 'phone' => $request->phone,
                 'is_active' => (int) $request->is_active,
                 'building_id' => $request->building_id,
+
+                // Correct default saving
+                'default_department_id' => $defaultDepartment,
+                'default_campus_id' => $defaultCampus,
+                'default_warehouse_id' => $defaultWarehouse,
+                'current_position_id' => $defaultPosition,
+
                 'email_verified_at' => $request->email_verified_at,
             ]);
 
-            // Sync relations
+            // ----------------------------------------------------------------------
+            // Sync Relations
+            // ----------------------------------------------------------------------
+
             if ($request->has('departments')) {
-                $departments = collect($request->departments)->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
+                $departments = collect($request->departments)
+                    ->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
                 $user->departments()->sync($departments);
             }
 
             if ($request->has('campus')) {
-                $campus = collect($request->campus)->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
+                $campus = collect($request->campus)
+                    ->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
                 $user->campus()->sync($campus);
             }
 
             if ($request->has('warehouses')) {
-                $warehouses = collect($request->warehouses)->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
+                $warehouses = collect($request->warehouses)
+                    ->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
                 $user->warehouses()->sync($warehouses);
             }
 
             if ($request->has('positions')) {
-                $positions = collect($request->positions)->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
+                $positions = collect($request->positions)
+                    ->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
                 $user->positions()->sync($positions);
             }
 
-            if ($request->has('roles')) $user->syncRoles($request->roles);
-            if ($request->has('permissions')) $user->syncPermissions($request->permissions);
+            if ($request->has('roles')) {
+                $user->syncRoles($request->roles);
+            }
+
+            if ($request->has('permissions')) {
+                $user->syncPermissions($request->permissions);
+            }
 
             DB::commit();
 
@@ -175,12 +225,14 @@ class UserController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to create user.',
                 'errors' => [$e->getMessage()],
             ], 500);
         }
     }
+
 
     public function update(Request $request, $id)
     {
@@ -198,18 +250,23 @@ class UserController extends Controller
                 'phone' => ['nullable', 'string', 'max:255'],
                 'is_active' => ['required', 'integer'],
                 'building_id' => ['nullable', 'integer', 'exists:buildings,id'],
+
                 'departments' => ['sometimes', 'array'],
                 'departments.*.id' => ['required_with:departments', 'integer', 'exists:departments,id'],
                 'departments.*.is_default' => ['required_with:departments', 'boolean'],
+
                 'campus' => ['sometimes', 'array'],
                 'campus.*.id' => ['required_with:campus', 'integer', 'exists:campus,id'],
                 'campus.*.is_default' => ['required_with:campus', 'boolean'],
+
                 'warehouses' => ['sometimes', 'array'],
                 'warehouses.*.id' => ['required_with:warehouses', 'integer', 'exists:warehouses,id'],
                 'warehouses.*.is_default' => ['required_with:warehouses', 'boolean'],
+
                 'positions' => ['sometimes', 'array'],
                 'positions.*.id' => ['required_with:positions', 'integer', 'exists:positions,id'],
                 'positions.*.is_default' => ['required_with:positions', 'boolean'],
+
                 'roles' => ['sometimes', 'array'],
                 'roles.*' => ['string', 'exists:roles,name'],
                 'permissions' => ['sometimes', 'array'],
@@ -225,6 +282,24 @@ class UserController extends Controller
 
             DB::beginTransaction();
 
+            // ----------------------------------------------------
+            // Extract defaults
+            // ----------------------------------------------------
+            $defaultDepartment = collect($request->departments ?? [])
+                ->firstWhere('is_default', true)['id'] ?? $user->default_department_id;
+
+            $defaultCampus = collect($request->campus ?? [])
+                ->firstWhere('is_default', true)['id'] ?? $user->default_campus_id;
+
+            $defaultWarehouse = collect($request->warehouses ?? [])
+                ->firstWhere('is_default', true)['id'] ?? $user->default_warehouse_id;
+
+            $defaultPosition = collect($request->positions ?? [])
+                ->firstWhere('is_default', true)['id'] ?? $user->current_position_id;
+
+            // ----------------------------------------------------
+            // Prepare user update data
+            // ----------------------------------------------------
             $userData = [
                 'name' => $request->name,
                 'email' => $request->email,
@@ -234,43 +309,66 @@ class UserController extends Controller
                 'phone' => $request->phone,
                 'is_active' => (int) $request->is_active,
                 'building_id' => $request->building_id,
+
+                // Save updated defaults
+                'default_department_id' => $defaultDepartment,
+                'default_campus_id' => $defaultCampus,
+                'default_warehouse_id' => $defaultWarehouse,
+                'current_position_id' => $defaultPosition,
+
                 'email_verified_at' => $request->email_verified_at ?? $user->email_verified_at,
             ];
 
-            // Handle uploaded files
+            // ----------------------------------------------------
+            // Handle file uploads
+            // ----------------------------------------------------
             if ($request->hasFile('profile_url')) {
-                $userData['profile_url'] = $request->file('profile_url')->store('profiles', 'public');
+                $userData['profile_url'] = $request->file('profile_url')
+                    ->store('profiles', 'public');
             }
 
             if ($request->hasFile('signature_url')) {
-                $userData['signature_url'] = $request->file('signature_url')->store('signatures', 'public');
+                $userData['signature_url'] = $request->file('signature_url')
+                    ->store('signatures', 'public');
             }
 
+            // Update user record
             $user->update($userData);
 
-            // Sync relations
+            // ----------------------------------------------------
+            // Sync pivot relations
+            // ----------------------------------------------------
             if ($request->has('departments')) {
-                $departments = collect($request->departments)->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
+                $departments = collect($request->departments)
+                    ->mapWithKeys(fn($d) => [$d['id'] => ['is_default' => $d['is_default']]]);
                 $user->departments()->sync($departments);
             }
 
             if ($request->has('campus')) {
-                $campus = collect($request->campus)->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
+                $campus = collect($request->campus)
+                    ->mapWithKeys(fn($c) => [$c['id'] => ['is_default' => $c['is_default']]]);
                 $user->campus()->sync($campus);
             }
 
             if ($request->has('warehouses')) {
-                $warehouses = collect($request->warehouses)->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
+                $warehouses = collect($request->warehouses)
+                    ->mapWithKeys(fn($w) => [$w['id'] => ['is_default' => $w['is_default']]]);
                 $user->warehouses()->sync($warehouses);
             }
 
             if ($request->has('positions')) {
-                $positions = collect($request->positions)->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
+                $positions = collect($request->positions)
+                    ->mapWithKeys(fn($p) => [$p['id'] => ['is_default' => $p['is_default']]]);
                 $user->positions()->sync($positions);
             }
 
-            if ($request->has('roles')) $user->syncRoles($request->roles);
-            if ($request->has('permissions')) $user->syncPermissions($request->permissions);
+            if ($request->has('roles')) {
+                $user->syncRoles($request->roles);
+            }
+
+            if ($request->has('permissions')) {
+                $user->syncPermissions($request->permissions);
+            }
 
             DB::commit();
 
@@ -283,10 +381,12 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Failed to update user.', 'errors' => [$e->getMessage()]], 500);
+            return response()->json([
+                'message' => 'Failed to update user.',
+                'errors' => [$e->getMessage()],
+            ], 500);
         }
     }
-
 
 
     public function edit($id)

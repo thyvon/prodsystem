@@ -10,16 +10,21 @@ class UserService
     public function getUsers(Request $request)
     {
         try {
-            $query = User::query()->with(['roles', 'departments', 'campus', 'positions']);
+            $query = User::query()->with([
+                'roles',
+                'defaultDepartment',
+                'defaultCampus',
+                'defaultPosition'
+            ]);
 
             if ($search = $request->input('search')) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
                 });
             }
 
-            $allowedSortColumns = ['name', 'email', 'created_at', 'updated_at'];
+            $allowedSortColumns = ['name', 'email', 'created_at', 'updated_at', 'is_active', 'default_department', 'default_position', 'default_campus', 'role'];
             $sortColumn = $request->input('sortColumn', 'created_at');
             $sortDirection = $request->input('sortDirection', 'desc');
 
@@ -32,11 +37,20 @@ class UserService
             $users = $query->paginate($limit);
 
             $data = collect($users->items())->map(function ($user) {
-                $user->role = $user->roles->pluck('name')->implode(', ');
-                $user->default_department = $user->defaultDepartment() ? $user->defaultDepartment()->short_name : null;
-                $user->default_campus = $user->defaultCampus() ? $user->defaultCampus()->short_name : null;
-                $user->default_position = $user->defaultPosition() ? $user->defaultPosition()->title : null;
-                return $user;
+                return [
+                    'id' => $user->id,
+                    'profile_url' => $user->profile_url,
+                    'name' => $user->name,
+                    'default_department' => $user->defaultDepartment?->short_name,
+                    'default_position' => $user->defaultPosition?->title,
+                    'default_campus' => $user->defaultCampus?->short_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->roles->pluck('name')->implode(', '),
+                    'is_active' => $user->is_active,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at,
+                ];
             });
 
             return response()->json([
@@ -45,6 +59,7 @@ class UserService
                 'recordsFiltered' => $users->total(),
                 'draw' => intval($request->input('draw')),
             ], 200);
+
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch users.',
@@ -52,5 +67,6 @@ class UserService
             ], 500);
         }
     }
+
 }
 ?>

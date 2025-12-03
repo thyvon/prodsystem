@@ -130,17 +130,21 @@ class PurchaseRequestController extends Controller
         // Map user data to labeled fields
         $requester = [
             'Requester'  => $user->name,
-            'Position'   => $user->defaultPosition()->title,
+            'Position'   => $user->defaultPosition?->title ?? '',
             'Card ID'    => $user->card_number,
-            'Department' => $user->defaultDepartment()->name,
+            'Department' => $user->defaultDepartment?->name ?? '',
             'Cellphone'  => $user->phone,
             'Ext'        => $user->ext,
         ];
 
         // Get default department and campus
-        $userDefaultDepartment = $user->defaultDepartment()->select('id', 'short_name')->first();
-        $userDefaultCampus = $user->defaultCampus()->select('id', 'short_name')->first();
+        $userDefaultDepartment = $user->defaultDepartment
+            ? $user->defaultDepartment->only(['id', 'short_name'])
+            : null;
 
+        $userDefaultCampus = $user->defaultCampus
+            ? $user->defaultCampus->only(['id', 'short_name'])
+            : null;
         return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
     }
 
@@ -344,7 +348,7 @@ class PurchaseRequestController extends Controller
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
                     'created_by' => $user->id,
-                    'position_id' => $user->defaultPosition()->id,
+                    'position_id' => $user->defaultPosition?->id ?? null,
                 ]);
 
 
@@ -454,6 +458,8 @@ class PurchaseRequestController extends Controller
                     'deadline_date' => $validated['deadline_date'] ?? null,
                     'purpose' => $validated['purpose'],
                     'is_urgent' => $validated['is_urgent'],
+                    'updated_by' => $user->id,
+                    'updated_at' => now(),
                 ]);
 
                 // --------------------
@@ -703,7 +709,7 @@ class PurchaseRequestController extends Controller
                 'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
                 'requester_id' => $purchaseRequest->created_by,
                 'responder_id' => $approval['user_id'],
-                'position_id' => User::find($approval['user_id'])?->defaultPosition()?->id,
+                'position_id' => User::find($approval['user_id'])?->defaultPosition?->id,
             ];
              $this->approvalService->storeApproval($approvalPayload);
         }
@@ -943,11 +949,11 @@ class PurchaseRequestController extends Controller
             'purpose' => $purchaseRequest->purpose,
             'is_urgent' => $purchaseRequest->is_urgent,
             'creator_name' => $purchaseRequest->creator?->name,
-            'creator_position' => $purchaseRequest->creator->defaultPosition()?->title,
+            'creator_position' => $purchaseRequest->creator->defaultPosition?->title,
             'creator_id_card' => $purchaseRequest->creator->card_number,
             'creator_profile_url' => $purchaseRequest->creator->profile_url,
             'creator_signature_url' => $purchaseRequest->creator->signature_url,
-            'creator_department' => $purchaseRequest->creator->defaultDepartment()?->name,
+            'creator_department' => $purchaseRequest->creator->defaultDepartment?->name,
             'creator_cellphone' => $purchaseRequest->creator->phone,
             'request_date' => $purchaseRequest->request_date 
                 ? Carbon::parse($purchaseRequest->request_date)->format('M d, Y') 

@@ -248,20 +248,32 @@ class ApprovalController extends Controller
      */
     private function formatApprovalForList($approval, $user): array
     {
+        // Initialize display status and response date
         $displayStatus = $approval->approval_status;
         $displayResponseDate = $approval->responded_date;
 
+        // Eager load requester relationships
+        $approval->load([
+            'requester.defaultPosition',
+            'requester.defaultDepartment',
+            'requester.defaultCampus',
+            'responder'
+        ]);
+
+        // Fetch all approvals for the same document
         $allApprovals = Approval::where('approvable_type', $approval->approvable_type)
             ->where('approvable_id', $approval->approvable_id)
             ->orderBy('ordinal')
             ->orderBy('id')
             ->get();
 
+        // Filter previous approvals
         $previous = $allApprovals->filter(fn($a) =>
             $a->ordinal < $approval->ordinal ||
             ($a->ordinal === $approval->ordinal && $a->id < $approval->id)
         );
 
+        // Determine blocking approvals
         $blockingApproval = $previous->first(fn($a) => strtolower(trim($a->approval_status)) !== 'approved');
         $blockingRejected = $previous->last(fn($a) => strtolower(trim($a->approval_status)) === 'rejected');
         $blockingReturned = $previous->last(fn($a) => strtolower(trim($a->approval_status)) === 'returned');
@@ -271,31 +283,37 @@ class ApprovalController extends Controller
         }
 
         if ($blockingRejected) {
-            $displayStatus = 'Rejected by ' . ($blockingRejected->responder->name ?? 'Unknown');
+            $displayStatus = 'Rejected by ' . ($blockingRejected->responder?->name ?? 'Unknown');
             $displayResponseDate = $blockingRejected->responded_date;
         }
+
         if ($blockingReturned) {
-            $displayStatus = 'Returned by ' . ($blockingReturned->responder->name ?? 'Unknown');
+            $displayStatus = 'Returned by ' . ($blockingReturned->responder?->name ?? 'Unknown');
             $displayResponseDate = $blockingReturned->responded_date;
         }
 
+        // Get requester safely
+        $requester = $approval->requester;
+
+        // Return mapped approval data
         return [
-            'id'                 => $approval->id,
-            'approvable_type'    => $approval->approvable_type,
-            'approvable_id'      => $approval->approvable_id,
-            'document_name'      => $approval->document_name,
-            'document_reference' => $approval->document_reference,
-            'request_type'       => ucwords($approval->request_type),
-            'approval_status'    => $displayStatus,
-            'comment'            => $approval->comment,
-            'ordinal'            => $approval->ordinal,
-            'requester_name'     => $approval->requester->name ?? null,
-            'requester_position' => $approval->requester->defaultPosition()?->title ?? null,
-            'requester_department'=> $approval->requester?->defaultDepartment()?->name ?? null,
-            'responder_name'     => $approval->responder->name ?? null,
-            'responded_date'     => $displayResponseDate,
-            'created_at'         => $approval->created_at?->toDateTimeString(),
-            'updated_at'         => $approval->updated_at?->toDateTimeString(),
+            'id'                  => $approval->id,
+            'approvable_type'     => $approval->approvable_type,
+            'approvable_id'       => $approval->approvable_id,
+            'document_name'       => $approval->document_name,
+            'document_reference'  => $approval->document_reference,
+            'request_type'        => ucwords($approval->request_type),
+            'approval_status'     => $displayStatus,
+            'comment'             => $approval->comment,
+            'ordinal'             => $approval->ordinal,
+            'requester_name'      => $requester?->name,
+            'requester_position'  => $requester?->defaultPosition?->title,
+            'requester_department'=> $requester?->defaultDepartment?->name,
+            'requester_campus'    => $requester?->defaultCampus?->short_name,
+            'responder_name'      => $approval->responder?->name,
+            'responded_date'      => $displayResponseDate,
+            'created_at'          => $approval->created_at?->toDateTimeString(),
+            'updated_at'          => $approval->updated_at?->toDateTimeString(),
         ];
     }
 

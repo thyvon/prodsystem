@@ -372,13 +372,6 @@ class StockIssueController extends Controller
         try {
             return DB::transaction(function () use ($validated, $stockRequest) {
                 $user = auth()->user();
-                $userPosition = $user?->defaultPosition();
-
-                if (!$userPosition) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
 
                 // Generate reference number if not provided
                 $referenceNo = $validated['reference_no'] ?? $this->generateReferenceNo($stockRequest, $validated['transaction_date']);
@@ -394,6 +387,7 @@ class StockIssueController extends Controller
                     'stock_request_id' => $validated['stock_request_id'] ?? null,
                     'requested_by'     => $validated['requested_by'] ?? $user?->id ?? 1,
                     'created_by'       => $user?->id ?? 1,
+                    'position_id'      => $user?->current_position_id ?? null,
                     'updated_by'       => $user?->id ?? 1,
                 ]);
 
@@ -548,13 +542,6 @@ class StockIssueController extends Controller
         try {
             return DB::transaction(function () use ($validated, $stockIssue, $stockRequest) {
                 $user = auth()->user();
-                $userPosition = $user?->defaultPosition();
-
-                if (!$userPosition) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
 
                 // Update StockIssue
                 $stockIssue->update([
@@ -565,6 +552,7 @@ class StockIssueController extends Controller
                     'stock_request_id' => $stockRequest?->id ?? $validated['stock_request_id'] ?? null,
                     'warehouse_id'     => $validated['warehouse_id'] ?? $stockRequest?->warehouse_id,
                     'requested_by'     => $validated['requested_by'] ?? $stockIssue->requested_by,
+                    'position_id'      => $user?->current_position_id ?? null,
                     'remarks'          => $validated['remarks'] ?? null,
                     'updated_by'       => $user?->id ?? 1,
                 ]);

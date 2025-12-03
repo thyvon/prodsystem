@@ -172,12 +172,6 @@ class StockCountController extends Controller
                     $validated['transaction_date']
                 );
 
-                // Creator position
-                $userPosition = auth()->user()->defaultPosition();
-                if (!$userPosition) {
-                    return response()->json(['message' => 'User does not have a default position set.'], 404);
-                }
-
                 // Create stock count
                 $stockCount = StockCount::create([
                     'transaction_date' => $validated['transaction_date'],
@@ -186,7 +180,7 @@ class StockCountController extends Controller
                     'remarks' => $validated['remarks'] ?? null,
                     'approval_status' => 'Pending',
                     'created_by' => auth()->id(),
-                    'position_id' => $userPosition->id
+                    'position_id' => auth()->user()->current_position_id
                 ]);
 
                 // Create each stock count item using Eloquent create()
@@ -311,7 +305,7 @@ class StockCountController extends Controller
 
         $approvals = $stockCount->approvals->map(fn($a) => [
             'id' => $a->id,
-            'responder_id' => $a->responder_id,
+            'user_id' => $a->responder_id,
             'request_type' => $a->request_type,
             'approval_status' => $a->approval_status,
             'responder_name' => $a->responder?->name ?? '',
@@ -335,6 +329,7 @@ class StockCountController extends Controller
     public function update(Request $request, StockCount $stockCount): JsonResponse
     {
         $this->authorize('update', $stockCount);
+        $user = auth()->user();
 
         // 1️⃣ Validate request
         $validated = Validator::make(
@@ -352,9 +347,15 @@ class StockCountController extends Controller
 
         // 2️⃣ Validate approval permissions
         foreach ($validated['approvals'] as $approval) {
-            $user = User::find($approval['user_id']);
+            $approvalUser = User::find($approval['user_id']);
+            if (!$approvalUser) {
+                return response()->json([
+                    'message' => "User ID {$approval['user_id']} not found."
+                ], 404);
+            }
+
             $permission = "stockCount.{$approval['request_type']}";
-            if (!$user->hasPermissionTo($permission)) {
+            if (!$approvalUser->hasPermissionTo($permission)) {
                 return response()->json([
                     'message' => "User ID {$approval['user_id']} does not have permission for {$approval['request_type']}.",
                 ], 403);
@@ -362,17 +363,15 @@ class StockCountController extends Controller
         }
 
         try {
-            return DB::transaction(function () use ($validated, $stockCount) {
-
-                $userId = auth()->id() ?? 1;
+            return DB::transaction(function () use ($validated, $stockCount, $user) {
 
                 // 3️⃣ Update Stock Count header
                 $stockCount->update([
                     'transaction_date' => $validated['transaction_date'],
                     'warehouse_id'     => $validated['warehouse_id'],
                     'remarks'          => $validated['remarks'] ?? null,
-                    'updated_by'       => $userId,
-                    'position_id'      => auth()->user()->defaultPosition()->id,
+                    'updated_by'       => $user->id,
+                    'position_id'      => $user->current_position_id,
                 ]);
 
                 // 4️⃣ Sync Stock Count Items
@@ -382,13 +381,13 @@ class StockCountController extends Controller
                 foreach ($validated['items'] as $item) {
                     if (!empty($item['id']) && $existingItems->has($item['id'])) {
                         // Update existing item
-                        $existing = $existingItems[$item['id']];
-                        $existing->update([
+                        $existingItem = $existingItems[$item['id']];
+                        $existingItem->update([
                             'product_id'       => $item['product_id'],
                             'ending_quantity'  => $item['ending_quantity'],
                             'counted_quantity' => $item['counted_quantity'],
                             'remarks'          => $item['remarks'] ?? null,
-                            'updated_by'       => $userId,
+                            'updated_by'       => $user->id,
                         ]);
                         $submittedItemIds[] = $item['id'];
                     } else {
@@ -398,7 +397,7 @@ class StockCountController extends Controller
                             'ending_quantity'  => $item['ending_quantity'],
                             'counted_quantity' => $item['counted_quantity'],
                             'remarks'          => $item['remarks'] ?? null,
-                            'created_by'       => $userId,
+                            'created_by'       => $user->id,
                         ]);
                         $submittedItemIds[] = $newItem->id;
                     }
@@ -408,20 +407,26 @@ class StockCountController extends Controller
                 $stockCount->items()
                     ->whereNotIn('id', $submittedItemIds)
                     ->get()
-                    ->each(function ($item) use ($userId) {
-                        $item->deleted_by = $userId;
+                    ->each(function ($item) use ($user) {
+                        $item->deleted_by = $user->id;
                         $item->save();
                         $item->delete();
                     });
 
                 // 6️⃣ Sync approvals
-                $stockCount->approvals()->delete();
+                $stockCount->approvals()->delete(); // remove old approvals
                 $this->storeApprovals($stockCount, $validated['approvals']);
 
-                // 7️⃣ Return response
+                // 7️⃣ Return response with eager loaded relations
                 return response()->json([
                     'message' => 'Stock count updated successfully.',
-                    'data' => $stockCount->load('items.product', 'approvals.responder'),
+                    'data' => $stockCount->load([
+                        'items.product', 
+                        'approvals.responder', 
+                        'approvals.requester.defaultPosition',
+                        'approvals.requester.defaultDepartment',
+                        'approvals.requester.defaultCampus'
+                    ]),
                 ], 200);
 
             });
@@ -626,7 +631,7 @@ class StockCountController extends Controller
                 'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
                 'requester_id' => $stockCount->created_by,
                 'responder_id' => $approval['user_id'],
-                'position_id' => User::find($approval['user_id'])?->defaultPosition()?->id,
+                'position_id' => User::find($approval['user_id'])?->current_position_id,
             ];
             $this->approvalService->storeApproval($approvalData);
         }

@@ -355,7 +355,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
             'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
             'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
             'preparedBy'    => Auth::user()->name,
-            'preparedByPosition' => Auth::user()->defaultPosition()?->title,
+            'preparedByPosition' => Auth::user()->defaultPosition?->title,
             'preparedDate'  => Carbon::now()->format('d-m-Y'),
         ])->render();
 
@@ -541,7 +541,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
             'start_date'       => $data['start_date'],
             'end_date'         => $data['end_date'],
             'created_by'       => Auth::id(),
-            'position_id'      => Auth::user()->defaultPosition()?->id,
+            'position_id'      => Auth::user()->defaultPosition?->id,
             'warehouse_ids'    => $data['warehouse_ids'],
             'warehouse_names'  => $warehouseNames,
             'remarks'          => $data['remarks'] ?? null,
@@ -777,7 +777,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
                 'ordinal'             => $this->ordinal($approval['request_type']),
                 'requester_id'        => $report->created_by,
                 'responder_id'        => $approval['user_id'],
-                'position_id'         => User::find($approval['user_id'])?->defaultPosition()?->id,
+                'position_id'         => User::find($approval['user_id'])?->defaultPosition?->id,
             ]);
         }
     }
@@ -924,7 +924,7 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
         ]);
 
         $user = User::findOrFail($validated['new_user_id']);
-        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition?->id;
 
         if (!$positionId) {
             return response()->json([

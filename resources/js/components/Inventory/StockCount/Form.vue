@@ -276,7 +276,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
@@ -386,7 +386,7 @@ const addApproval = () => {
     availableUsers: []
   })
   const index = form.value.approvals.length - 1
-  updateUserSelect(index)
+  nextTick(() => updateUserSelect(index))
 }
 
 const removeApproval = (i) => {
@@ -504,7 +504,6 @@ const importFile = async () => {
       return
     }
 
-    // Only add new items
     const existingIds = new Set(form.value.items.map(i => i.product_id))
     rows.forEach(r => {
       if (!existingIds.has(r.product_id)) {
@@ -523,7 +522,6 @@ const importFile = async () => {
       }
     })
 
-    // Refresh stock for new items
     const productIds = rows.map(r => r.product_id)
     const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
       warehouse_id: form.value.warehouse_id,
@@ -639,14 +637,14 @@ const loadEditData = async (id) => {
     form.value.approvals = d.approvals.map(a => ({
       id: a.id,
       request_type: a.request_type,
-      user_id: a.user_id || a.responder_id,
+      user_id: a.user_id,
       isDefault: true,
       availableUsers: []
     }))
 
     initWarehouseSelect2()
     await fetchApprovalUsers()
-    initApprovalSelect2()
+    nextTick(() => initApprovalSelect2())
   } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to load stock count data', 'danger')
   }
@@ -657,15 +655,18 @@ onMounted(async () => {
   await fetchWarehouses()
   initDatepicker()
   initWarehouseSelect2()
-  await fetchApprovalUsers()
+  
+  await fetchApprovalUsers() // wait for users
 
-  // Default approvals
-  form.value.approvals = [
-    { request_type: 'initial', user_id: null, isDefault: true, availableUsers: [] },
-    { request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] }
-  ]
+  // Default approvals for create mode
+  if (!props.stockCountId) {
+    form.value.approvals = [
+      { request_type: 'initial', user_id: null, isDefault: true, availableUsers: [] },
+      { request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] }
+    ]
+  }
 
-  initApprovalSelect2()
+  nextTick(() => initApprovalSelect2()) // init dropdowns after DOM exists
 
   if (props.stockCountId) {
     isEditMode.value = true
@@ -679,6 +680,7 @@ onUnmounted(() => {
   document.querySelectorAll('.approval-type-select, .user-select').forEach(destroySelect2)
 })
 </script>
+
 
 <style scoped>
   .table td, .table th { vertical-align: middle; }

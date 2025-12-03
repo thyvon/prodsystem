@@ -155,8 +155,12 @@
                       :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
                       readonly
                     /></td>
-                    <td><select multiple class="form-control campus-select" :data-index="index"></select></td>
-                    <td><select multiple class="form-control department-select" :data-index="index"></select></td>
+                    <td>
+                      <select multiple class="form-control campus-select" :data-index="index"></select>
+                    </td>
+                    <td>
+                      <select multiple class="form-control department-select" :data-index="index"></select>
+                    </td>
                     <td><select class="form-control budget-select" :data-index="index"></select></td>
                     <td class="text-center">
                       <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm">
@@ -516,15 +520,34 @@ const removeItem = (index) => {
 const initSelect = (index, type) => {
   const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
   if (!el) return;
+
   destroySelect2(el);
+
+  // Use the data from your API
   const dataList = type === 'campus' ? campuses.value : departments.value;
-  el.innerHTML = dataList.map(d => `<option value="${d.id}">${d.short_name || d.name}</option>`).join('');
-  initSelect2(el, {
-    multiple: true, allowClear: true, width: '100%',
-    placeholder: `Select ${type}`,
-    value: form.value.items[index][`${type}_ids`].map(String)
-  }, val => form.value.items[index][`${type}_ids`] = val ? val.map(Number) : []);
+
+  // Populate the select options
+  el.innerHTML = (dataList || [])
+    .map(d => `<option value="${d.id}">${d.text}</option>`)
+    .join('');
+
+  // Pre-select values from the form
+  const selectedIds = form.value.items[index][`${type}_ids`] || [];
+  initSelect2(
+    el,
+    {
+      multiple: true,
+      allowClear: true,
+      width: '100%',
+      placeholder: `Select ${type}`,
+      value: selectedIds.map(String) // convert to string for Select2
+    },
+    val => {
+      form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
+    }
+  );
 };
+
 
 const initBudgetSelect = (index) => {
   const el = document.querySelector(`.budget-select[data-index="${index}"]`);
@@ -667,7 +690,7 @@ const showProductModal = async () => {
       currency: 'USD',
       exchange_rate: 4000,
       quantity: 1,
-      unit_price: 0
+      unit_price: 0,
     }));
 
     nextTick(initItemSelects);
@@ -738,11 +761,28 @@ const submitForm = async () => {
 // -------------------- Lifecycle --------------------
 onMounted(async () => {
   try {
-    const [campusRes, deptRes] = await Promise.all([axios.get('/api/campuses'), axios.get('/api/departments')]);
-    campuses.value = campusRes.data.data || [];
-    departments.value = deptRes.data.data || [];
-  } catch { campuses.value = []; departments.value = []; }
+    const [campusRes, deptRes] = await Promise.all([
+      axios.get('/api/main-value-lists/get-campuses'),
+      axios.get('/api/main-value-lists/get-departments')
+    ]);
+    campuses.value = campusRes.data || []; // your data format matches
+    departments.value = deptRes.data || [];
+  } catch (err) {
+    campuses.value = [];
+    departments.value = [];
+    console.error('Failed to fetch campuses/departments', err);
+  }
+
   initDatepicker();
-  await loadPurchaseRequest();
+
+  await loadPurchaseRequest(); // load items for edit mode
+
+  // Initialize selects **after** items and data are ready
+  await nextTick(() => {
+    initItemSelects();
+    initApprovalSelects();
+  });
 });
+
+
 </script>

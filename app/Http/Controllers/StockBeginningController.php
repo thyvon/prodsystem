@@ -202,19 +202,12 @@ class StockBeginningController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['beginning_date']);
-                $userPosition = auth()->user()->defaultPosition();
-
-                if (!$userPosition) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
 
                 // Create Main Stock Beginning
                 $mainStockBeginning = MainStockBeginning::create([
                     'reference_no'    => $referenceNo,
                     'warehouse_id'    => $validated['warehouse_id'],
-                    'position_id'     => $userPosition->id,
+                    'position_id'     => auth()->user()->defaultPosition?->id ?? null,
                     'beginning_date'  => $validated['beginning_date'],
                     'created_by'      => auth()->id() ?? 1,
                     'approval_status' => 'Pending',
@@ -365,7 +358,7 @@ class StockBeginningController extends Controller
                     'beginning_date' => $validated['beginning_date'],
                     'remarks'        => $validated['remarks'] ?? null,
                     'updated_by'     => $userId,
-                    'position_id'    => auth()->user()->defaultPosition()->id,
+                    'position_id'    => auth()->user()->defaultPosition?->id,
                 ]);
 
                 // 4️⃣ Sync Line Items
@@ -419,7 +412,7 @@ class StockBeginningController extends Controller
 
                 foreach ($validated['approvals'] as $approval) {
                     $user = User::find($approval['user_id']);
-                    $position = $user->defaultPosition();
+                    $positionId = $user->defaultPosition?->id;
 
                     $this->approvalService->storeApproval([
                         'approvable_type'    => MainStockBeginning::class,
@@ -431,7 +424,7 @@ class StockBeginningController extends Controller
                         'ordinal'            => $this->getOrdinalForRequestType($approval['request_type']),
                         'requester_id'       => $mainStockBeginning->created_by,
                         'responder_id'       => $approval['user_id'],
-                        'position_id'        => $position?->id,
+                        'position_id'        => $positionId,
                     ]);
                 }
 
@@ -896,6 +889,7 @@ class StockBeginningController extends Controller
                 'ordinal' => $this->getOrdinalForRequestType($approval['request_type']),
                 'requester_id' => $mainStockBeginning->created_by,
                 'responder_id' => $approval['user_id'],
+                'position_id' => User::find($approval['user_id'])?->defaultPosition?->id,
             ];
             $this->approvalService->storeApproval($approvalData);
         }
@@ -920,7 +914,7 @@ class StockBeginningController extends Controller
         ]);
 
         $user = User::findOrFail($validated['new_user_id']);
-        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition?->id;
 
         if (!$positionId) {
             return response()->json([
