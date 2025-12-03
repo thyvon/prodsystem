@@ -743,43 +743,31 @@ class PurchaseRequestController extends Controller
     // ====================
     // Approval Users Endpoint
     // ====================
-    public function getApprovalUsers(Request $request): JsonResponse
+    public function getApprovalUsers(): JsonResponse
     {
-        $this->authorize('viewAny', PurchaseRequest::class);
+        $users = [
+            'initial' => $this->usersWithPermission('purchaseRequest.initial'),
+            'check'   => $this->usersWithPermission('purchaseRequest.check'),
+            'approve' => $this->usersWithPermission('purchaseRequest.approve'),
+            'verify'  => $this->usersWithPermission('purchaseRequest.verify'),
+        ];
 
-        $validated = $request->validate([
-            'request_type' => ['required', 'string', 'in:approve,initial,check,verify'],
-        ]);
-
-        $permission = "purchaseRequest.{$validated['request_type']}";
-        $authUserId = $request->user()->id;
-
-        try {
-            $users = User::query()
-                ->whereHas('permissions', fn($q) => $q->where('name', $permission))
-                ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
-                ->whereNotNull('telegram_id')
-                ->where('id', '!=', $authUserId)
-                ->select('id', 'name', 'telegram_id', 'card_number')
-                ->orderBy('name')
-                ->distinct()
-                ->get();
-
-            return response()->json([
-                'message' => 'Users fetched successfully.',
-                'data' => $users,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Failed to fetch users for approval', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to fetch users for approval.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json($users);
     }
+
+    private function usersWithPermission(string $permission)
+    {
+        return User::where(function ($query) use ($permission) {
+                $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
+                    ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
+            })
+            ->whereNotNull('telegram_id')        // optional: only users with telegram_id
+            ->where('id', '!=', auth()->id())    // optional: exclude current user
+            ->select('id', 'name', 'card_number', 'telegram_id') // select needed fields
+            ->orderBy('name')
+            ->get();
+    }
+
 
     // ====================
     // Get Products

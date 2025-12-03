@@ -366,7 +366,7 @@ const approvalTypes = [
   { id: 'verify', text: 'Verify' }
 ];
 
-const usersForApproval = ref({ initial: [], approve: [], check: [], verify: [] });
+const approvalUsers = ref({ initial: [], check: [], verify: [], approve: [] });
 
 // -------------------- Computed --------------------
 const totalAmount = computed(() => {
@@ -566,42 +566,76 @@ const initItemSelects = () => {
 };
 
 // -------------------- Approvals --------------------
-const fetchUsersForApproval = async (type) => {
-  if (!type || usersForApproval.value[type]?.length) return;
+const fetchApprovalUsers = async () => {
   try {
-    const { data } = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: type } });
-    usersForApproval.value[type] = data.data || [];
-  } catch { usersForApproval.value[type] = []; }
+    const { data } = await axios.get('/api/purchase-requests/get-approval-users');
+    approvalUsers.value = {
+      initial: data.initial || [],
+      check: data.check || [],
+      verify: data.verify || [],
+      approve: data.approve || []
+    };
+  } catch (error) {
+    console.error(error);
+    approvalUsers.value = { initial: [], check: [], verify: [], approve: [] };
+  }
 };
 
 const populateUserSelect = async (approval, userEl) => {
-  await fetchUsersForApproval(approval.request_type);
-  let users = usersForApproval.value[approval.request_type] || [];
-  if (approval.user_id && !users.find(u => u.id === approval.user_id)) users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
+  let users = approvalUsers.value[approval.request_type] || [];
+
+  // Ensure current selected user exists in the list
+  if (approval.user_id && !users.find(u => u.id === approval.user_id)) {
+    users.unshift({ id: approval.user_id, name: approval.name || 'Unknown' });
+  }
+
   approval.availableUsers = users;
+
   destroySelect2(userEl);
   userEl.innerHTML = users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
-  initSelect2(userEl, { width: '100%', allowClear: true, placeholder: 'Select User', value: String(approval.user_id) },
-    val => approval.user_id = val ? Number(val) : '');
+
+  initSelect2(userEl, {
+    width: '100%',
+    allowClear: true,
+    placeholder: 'Select User',
+    value: String(approval.user_id)
+  }, val => approval.user_id = val ? Number(val) : '');
 };
 
 const initApprovalSelect = async (i) => {
   const approval = form.value.approvals[i];
   if (!approval) return;
+
   const typeEl = document.querySelector(`.approval-type-select[data-index="${i}"]`);
   const userEl = document.querySelector(`.user-select[data-index="${i}"]`);
   if (!typeEl || !userEl) return;
 
   destroySelect2(typeEl);
   typeEl.innerHTML = approvalTypes.map(t => `<option value="${t.id}">${t.text}</option>`).join('');
-  initSelect2(typeEl, { width: '100%', allowClear: true, placeholder: 'Select Type', value: approval.request_type },
-    async val => { approval.request_type = val || ''; await populateUserSelect(approval, userEl); });
+
+  initSelect2(typeEl, { width: '100%', allowClear: true, placeholder: 'Select Type', value: approval.request_type }, 
+    async val => {
+      approval.request_type = val || '';
+      await populateUserSelect(approval, userEl);
+    }
+  );
+
+  // Pre-populate user select if type is already selected
   if (approval.request_type) await populateUserSelect(approval, userEl);
 };
 
 const initApprovalSelects = () => form.value.approvals.forEach((_, i) => initApprovalSelect(i));
-const addApproval = async () => { form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] }); await nextTick(initApprovalSelects); };
-const removeApproval = async (i) => { form.value.approvals.splice(i, 1); await nextTick(initApprovalSelects); };
+
+const addApproval = async () => {
+  form.value.approvals.push({ user_id: '', request_type: '', availableUsers: [] });
+  await nextTick(initApprovalSelects);
+};
+
+const removeApproval = async (i) => {
+  form.value.approvals.splice(i, 1);
+  await nextTick(initApprovalSelects);
+};
+
 
 // -------------------- Product Table --------------------
 let productsTable = null;
@@ -765,7 +799,8 @@ onMounted(async () => {
       axios.get('/api/main-value-lists/get-campuses'),
       axios.get('/api/main-value-lists/get-departments')
     ]);
-    campuses.value = campusRes.data || []; // your data format matches
+
+    campuses.value = campusRes.data || [];
     departments.value = deptRes.data || [];
   } catch (err) {
     campuses.value = [];
@@ -773,16 +808,15 @@ onMounted(async () => {
     console.error('Failed to fetch campuses/departments', err);
   }
 
+  await fetchApprovalUsers();  // ✅ fetch all approval users first
   initDatepicker();
 
   await loadPurchaseRequest(); // load items for edit mode
 
-  // Initialize selects **after** items and data are ready
   await nextTick(() => {
     initItemSelects();
     initApprovalSelects();
   });
 });
-
 
 </script>
