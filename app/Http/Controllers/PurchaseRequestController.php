@@ -757,13 +757,10 @@ class PurchaseRequestController extends Controller
 
     private function usersWithPermission(string $permission)
     {
-        return User::where(function ($query) use ($permission) {
-                $query->whereHas('permissions', fn($q) => $q->where('name', $permission))
-                    ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission));
-            })
-            ->whereNotNull('telegram_id')        // optional: only users with telegram_id
-            ->where('id', '!=', auth()->id())    // optional: exclude current user
-            ->select('id', 'name', 'card_number', 'telegram_id') // select needed fields
+        return User::whereHas('permissions', fn($q) => $q->where('name', $permission))
+            ->orWhereHas('roles.permissions', fn($q) => $q->where('name', $permission))
+            // ->where('id', '!=', Auth::id())
+            ->select('id', 'name', 'card_number')
             ->orderBy('name')
             ->get();
     }
