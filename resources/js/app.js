@@ -69,7 +69,7 @@ import MonthlyStockReport from './components/Inventory/StockReport/MonthlyReport
 
 import StockCountForm from './components/Inventory/StockCount/Form.vue'
 import StockCountList from './components/Inventory/StockCount/StockCountList.vue'
-// import StockCountShow from './components/Inventory/StockCount/Show.vue'
+import StockCountShow from './components/Inventory/StockCount/Show.vue'
 
 //Approval Management
 import ApprovalList from './components/Approval/Index.vue'
@@ -161,7 +161,7 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  //=======Stock Count
  app.component('stock-count-form', StockCountForm)
  app.component('stock-count-list', StockCountList)
-// app.component('stock-count-show', StockCountShow)
+ app.component('stock-count-show', StockCountShow)
 
  //Approval Management
  app.component('approval-list', ApprovalList)

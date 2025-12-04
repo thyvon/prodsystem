@@ -74,6 +74,7 @@ const handlePreview = (approval) => {
     'App\\Models\\DigitalDocsApproval': 'approvals/digital-docs-approvals',
     'App\\Models\\PurchaseRequest': 'approvals/purchase-requests',
     'App\\Models\\MonthlyStockReport': 'approvals/monthly-stock-reports',
+    'App\\Models\\StockCount': 'approvals/stock-counts',
   }
 
   const routePrefix = typeRouteMap[approval.approvable_type]

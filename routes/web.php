@@ -292,6 +292,9 @@ Route::middleware(['auth'])->group(function () {
         //Monthly Stock Report View
         Route::get('/approvals/monthly-stock-reports/{monthlyStockReport}/show', [StockController::class, 'showDetails'])
         ->name('approvals-monthly-stock-reports.show');
+        //Stock Count View
+        Route::get('/approvals/stock-counts/{stockCount}/show', [StockCountController::class, 'show'])
+        ->name('approvals-stock-counts.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])

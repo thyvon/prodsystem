@@ -48,4 +48,8 @@ class StockCount extends Model
     {
         return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
     }
+    public function creatorPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
+    }
 }

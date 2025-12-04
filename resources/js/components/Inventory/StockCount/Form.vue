@@ -224,7 +224,7 @@
               :disabled="isSubmitting || !form.items.length || !validateApprovals()"
             >
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-2"></span>
-              {{ isEditMode ? 'Update' : 'Create Stock Count' }}
+              {{ isEditMode ? form.actionButtonText : 'Create Stock Count' }}
             </button>
             <button type="button" class="btn btn-secondary ml-2" @click="goToIndex">Cancel</button>
           </div>
@@ -619,6 +619,7 @@ const loadEditData = async (id) => {
     form.value.warehouse_id = d.warehouse_id
     form.value.reference_no = d.reference_no
     form.value.remarks = d.remarks
+    form.value.actionButtonText = d.buttonSubmitText
 
     form.value.items = d.items.map(i => ({
       id: i.id,

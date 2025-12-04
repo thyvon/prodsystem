@@ -25,6 +25,11 @@ class StockCountItems extends Model
         'deleted_by',
     ];
 
+    protected $casts = [
+    'ending_quantity' => 'float',
+    'counted_quantity' => 'float',
+    ];
+
     public function stockCount()
     {
         return $this->belongsTo(StockCount::class);

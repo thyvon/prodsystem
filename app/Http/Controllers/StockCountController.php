@@ -19,6 +19,7 @@ use App\Models\StockCountItems;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
 use App\Models\User;
+use App\Models\Approval;
 
 class StockCountController extends Controller
 {
@@ -62,6 +63,15 @@ class StockCountController extends Controller
         $this->authorize('update', $stockCount);
 
         return view('Inventory.stock-count.form', [
+            'stockCountId' => $stockCount->id,
+        ]);
+    }
+
+    public function show(StockCount $stockCount): View
+    {
+        $this->authorize('view', $stockCount);
+
+        return view('Inventory.stock-count.show', [
             'stockCountId' => $stockCount->id,
         ]);
     }
@@ -321,10 +331,229 @@ class StockCountController extends Controller
                 'reference_no' => $stockCount->reference_no,
                 'items' => $items,
                 'approvals' => $approvals,
+                'buttonSubmitText' => $stockCount->approval_status === 'Returned' ? 'Re-Submit' : 'Update',
             ],
         ]);
     }
 
+    public function getShowData(StockCount $stockCount): JsonResponse
+    {
+        $this->authorize('view', $stockCount);
+
+        // Eager load nested relationships
+        $stockCount->load([
+            'items.product.product.unit',
+            'approvals.responder'
+        ]);
+
+        $items = $stockCount->items->map(function ($item) use ($stockCount) {
+            $product = $item->product?->product; // inner product
+
+            // Compute stock and price safely
+            $stockOnHand = 0;
+            $averagePrice = 0;
+
+            if ($item->product_id) {
+                try {
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $item->product_id,
+                        $stockCount->warehouse_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+
+                try {
+                    $averagePrice = $this->stockLedgerService->getAvgPrice(
+                        $item->product_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+            }
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_code' => $item->product?->item_code ?? '',
+                'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
+                'unit_name' => $product?->unit->name ?? '',
+                'ending_quantity' => $item->ending_quantity,
+                'counted_quantity' => $item->counted_quantity,
+                'remarks' => $item->remarks,
+                'stock_on_hand' => $stockOnHand,
+                'average_price' => $averagePrice,
+            ];
+        });
+
+        $approvalLabels = [
+            'initial' => 'Initialed',
+            'approve' => 'Approved',
+        ];
+
+        $approvals = $stockCount->approvals->map(fn($a) => [
+            'id' => $a->id,
+            'user_id' => $a->responder_id,
+            'request_type' => $a->request_type,
+            'approval_status' => $a->approval_status,
+            'responder_name' => $a->responder?->name ?? '',
+            'position_name' => $a->responderPosition?->title ?? '',
+            'profile_picture' => $a->responder?->profile_url ?? '',
+            'signature' => $a->responder?->signature_url ?? '',
+            'responded_date' => $a->responded_date ?? '',
+            'comment' => $a->comment ?? '',
+            'label' => $approvalLabels[$a->request_type] ?? '',
+        ]);
+
+        $approvalInfo = $this->canShowApprovalButton($stockCount->id);
+        if ($approvalInfo['showButton']) {
+            $stockCount->approvals()
+                ->where('responder_id', auth()->id())
+                ->where('approval_status', 'Pending')
+                ->where('is_seen', false)
+                ->update(['is_seen' => true]);
+        }
+
+        return response()->json([
+            'message' => 'Stock count show data retrieved successfully.',
+            'data' => [
+                'id' => $stockCount->id,
+                'transaction_date' => $stockCount->transaction_date,
+                'warehouse_id' => $stockCount->warehouse_id,
+                'warehouse_name' => $stockCount->warehouse->name,
+                'warehouse_campus' => $stockCount->warehouse->building->campus->short_name,
+                'remarks' => $stockCount->remarks,
+                'reference_no' => $stockCount->reference_no,
+                'prepared_by' => $stockCount->creator->name,
+                'creator_position' => $stockCount->creatorPosition?->title,
+                'creator_profile_picture' => $stockCount->creator->profile_url,
+                'creator_signature' => $stockCount->creator->signature_url,
+                'card_number' => $stockCount->creator->card_number,
+                'items' => $items,
+                'approvals' => $approvals,
+                'approval_buttons' => $this->canShowApprovalButton($stockCount->id),
+            ],
+        ]);
+    }
+
+    public function submitApproval(Request $request, StockCount $stockCount, ApprovalService $approvalService): JsonResponse 
+    {
+        // Validate request
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:initial,approve',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
+        ]);
+
+        // Check user permission
+        $permission = "stockCount.{$validated['request_type']}";
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this stock count.",
+            ], 403);
+        }
+
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $stockCount,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
+        );
+
+        $success = $result['success'] ?? false;
+
+        // Map status
+        $statusMap = [
+            'initial' => 'Initialed',
+            'approve' => 'Approved',
+            'reject'  => 'Rejected',
+            'return'  => 'Returned',
+        ];
+
+        // Determine approval_status
+        $stockCount->approval_status = $validated['action'] === 'approve'
+            ? ($statusMap[$validated['request_type']] ?? 'Pending')
+            : ($statusMap[$validated['action']] ?? 'Pending');
+
+        // Update StockCount if successful
+        if ($success) {
+            $stockCount->save();
+        }
+
+        return response()->json([
+            'message'      => $result['message'] ?? 'Action failed',
+            'redirect_url' => route('approvals-stock-counts.show', $stockCount->id),
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
+    }
+
+    public function reassignResponder(Request $request, StockCount $stockCount): JsonResponse
+    {
+        $this->authorize('reassign', $stockCount);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:initial,approve',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("stockCount.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => StockCount::class,
+            'approvable_id'   => $stockCount->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+                'is_seen'      => false,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $stockCount->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function update(Request $request, StockCount $stockCount): JsonResponse
     {
@@ -372,6 +601,7 @@ class StockCountController extends Controller
                     'remarks'          => $validated['remarks'] ?? null,
                     'updated_by'       => $user->id,
                     'position_id'      => $user->current_position_id,
+                    'approval_status'  => 'Pending',
                 ]);
 
                 // 4️⃣ Sync Stock Count Items
@@ -644,5 +874,78 @@ class StockCountController extends Controller
             'initial' => 1,
         ];
         return $ordinals[$requestType] ?? 1;
+    }
+
+    private function canShowApprovalButton(int $documentId): array
+    {
+        try {
+            $userId = auth()->id();
+            if (!$userId) {
+                return $this->approvalButtonResponse('User not authenticated.');
+            }
+
+            $approvals = Approval::where([
+                'approvable_type' => StockCount::class,
+                'approvable_id'   => $documentId,
+            ])->orderBy('ordinal')->orderBy('id')->get();
+
+            if ($approvals->isEmpty()) {
+                return $this->approvalButtonResponse('No approvals configured.');
+            }
+
+            // Find the first pending approval for the current user
+            $currentApproval = $approvals->firstWhere(function($a) use ($userId) {
+                return $a->approval_status === 'Pending' && $a->responder_id === $userId;
+            });
+
+            if (!$currentApproval) {
+                return $this->approvalButtonResponse('No pending approval assigned to current user.');
+            }
+
+            // Check all previous approvals (lower OR same ordinal but lower id)
+            $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
+                return ($a->ordinal < $currentApproval->ordinal) || 
+                    ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
+            });
+
+            // Block if any previous approval is Rejected
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Rejected')) {
+                return $this->approvalButtonResponse('A previous approval was rejected.');
+            }
+
+            // Block if any previous approval is Returned
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Returned')) {
+                return $this->approvalButtonResponse('A previous approval was returned.');
+            }
+
+            // Block if any previous approval is still Pending
+            if ($previousApprovals->contains(fn($a) => $a->approval_status === 'Pending')) {
+                return $this->approvalButtonResponse('Previous approval steps are not completed.');
+            }
+
+            return [
+                'message' => 'Approval button available.',
+                'showButton' => true,
+                'requestType' => $currentApproval->request_type,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check approval button visibility', [
+                'document_id' => $documentId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->approvalButtonResponse('Failed to check approval button visibility');
+        }
+    }
+
+    private function approvalButtonResponse(string $reason): array
+    {
+        return [
+            'message' => "Approval button not available: {$reason}",
+            'showButton' => false,
+            'requestType' => null,
+        ];
     }
 }

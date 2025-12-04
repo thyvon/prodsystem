@@ -1,10 +1,10 @@
-@php($header = 'Purchase Request')
+@php($header = 'Stock Count')
 @extends('layouts.main')
 
 @section('content')
-  <purchase-request-show
-      :purchase-request-id="{{ $purchaseRequestId }}"
-  ></purchase-request-show>
+  <stock-count-show
+      :stock-count-id="{{ $stockCountId }}"
+  ></stock-count-show>
 @endsection
 
 @push('vite')
