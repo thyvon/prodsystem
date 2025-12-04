@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use \Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProductVariant extends Model
 {
     use HasFactory;
-    use \Illuminate\Database\Eloquent\SoftDeletes;
+    use SoftDeletes;
     protected $table = 'product_variants';
     protected $fillable = [
         'product_id',
@@ -40,5 +41,10 @@ class ProductVariant extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function stockLedgers()
+    {
+        return $this->hasMany(StockLedger::class, 'product_id');
     }
 }

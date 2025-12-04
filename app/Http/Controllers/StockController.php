@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Spatie\Browsershot\Browsershot;
 
@@ -618,127 +621,318 @@ public function showpdf(MonthlyStockReport $monthlyStockReport)
     }
 
 
+    // private function calculateStockReport(
+    //     $startDate, $endDate, array $warehouseIds = [], array $productIds = [],
+    //     ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
+    //     bool $paginate = false, int $perPage = 50, int $page = 1
+    // ) {
+    //     $query = ProductVariant::with('product.unit')
+    //         ->whereNull('deleted_at')
+    //         ->where('is_active', 1)
+    //         ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
+    //         ->whereHas('stockLedgers', function ($q) use ($startDate, $endDate) {
+    //             $q->where('transaction_date', '<=', $endDate);
+    //         })
+    //         ->when($productIds, fn($q) => $q->whereIn('id', $productIds))
+    //         ->when($search, fn($q) => $q->where(function ($sq) use ($search) {
+    //             $sq->where('item_code', 'like', "%{$search}%")
+    //             ->orWhere('description', 'like', "%{$search}%")
+    //             ->orWhereHas('product', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
+    //         }));
+
+
+    //     // Sort by item_code at DB level
+    //     if ($sortColumn === 'item_code') {
+    //         $query->orderBy('item_code', $sortDirection);
+    //     } else {
+    //         $query->orderBy('item_code', 'asc');
+    //     }
+
+    //     // Fetch collection (paginated or not)
+    //     $collection = $paginate ? $query->paginate($perPage, ['*'], 'page', $page)->getCollection()
+    //                             : $query->get();
+
+    //     // Map each variant to calculated stock row
+    //     $report = $collection->map(fn($variant) =>
+    //         $this->calculateRow($variant, $warehouseIds, $startDate, $endDate)
+    //     );
+
+    //     // Sort after mapping if needed
+
+    //     // Apply pagination
+    //     if ($paginate) {
+    //         $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+    //         $paginated->setCollection($report->values());
+    //         return $paginated;
+    //     }
+
+    //     return $report->values();
+    // }
+
+    // private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
+    // {
+    //     $productId   = $variant->id;
+    //     $product     = $variant->product;
+    //     $unitName    = $product->unit->name ?? '';
+    //     $description = trim($product->name . ' ' . $variant->description);
+
+    //     // Auto-detect warehouses if not provided
+    //     if (empty($warehouseIds)) {
+    //         $warehouseIds = StockLedger::where('product_id', $productId)
+    //             ->distinct()
+    //             ->pluck('parent_warehouse')
+    //             ->toArray();
+    //     }
+
+    //     // Conditional aggregation with Stock_Begin included in begin sums
+    //     $totals = StockLedger::where('product_id', $productId)
+    //         ->whereIn('parent_warehouse', $warehouseIds)
+    //         ->selectRaw("
+    //             SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN quantity ELSE 0 END) AS begin_qty,
+    //             SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN total_price ELSE 0 END) AS begin_total,
+    //             SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
+    //             SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
+    //             SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
+    //             SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
+    //             SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) AS out_total
+    //         ", [
+    //             $startDate, $startDate,
+    //             $startDate, $endDate,
+    //             $startDate, $endDate,
+    //             $startDate, $endDate,
+    //             $startDate, $endDate, 
+    //             $startDate, $endDate
+    //             ])
+    //         ->first();
+
+    //     $beginQty = (float)($totals->begin_qty ?? 0);
+    //     $inQty    = (float)($totals->in_qty ?? 0);
+    //     $inTotal  = (float)($totals->in_total ?? 0);
+    //     $outQty   = (float)($totals->out_qty ?? 0);
+    //     $outTotal = (float)($totals->out_total ?? 0);
+    //     $countedQty = (float)($totals->counted_quantity ?? 0);
+
+    //     $beginAvg = (float)$this->beginAvg($productId, $startDate);
+    //     $avgPrice = (float)$this->avgPrice($productId, $endDate);
+
+    //     $beginTotal     = round($beginQty * $beginAvg, 6);
+    //     $inTotal        = round($inTotal, 6);
+    //     $outTotal       = round($outTotal, 6);
+    //     $availableQty   = $beginQty + $inQty;
+    //     $availableTotal = round($beginTotal + $inTotal, 6);
+    //     $availablePrice = ($availableQty != 0) ? round($availableTotal / $availableQty, 6) : 0;
+    //     $endingQty      = $availableQty - abs($outQty);
+    //     $endingTotal    = round($endingQty * $avgPrice, 6);
+
+    //     return [
+    //         'product_id'         => $productId,
+    //         'item_code'          => $variant->item_code,
+    //         'description'        => $description,
+    //         'unit_name'          => $unitName,
+    //         'beginning_quantity' => $beginQty,
+    //         'beginning_price'    => $beginAvg,
+    //         'beginning_total'    => $beginTotal,
+    //         'stock_in_quantity'  => $inQty,
+    //         'stock_in_total'     => $inTotal,
+    //         'available_quantity' => $availableQty,
+    //         'available_price'    => $availablePrice,
+    //         'available_total'    => $availableTotal,
+    //         'stock_out_quantity' => abs($outQty),
+    //         'stock_out_total'    => abs($outTotal),
+    //         'ending_quantity'    => $endingQty,
+    //         'counted_quantity'   => $countedQty,
+    //         'variance_quantity' => $countedQty - $endingQty,
+    //         'ending_total'       => $endingTotal,
+    //         'average_price'      => $avgPrice,
+    //     ];
+    // }
+
     private function calculateStockReport(
-        $startDate, $endDate, array $warehouseIds = [], array $productIds = [],
+        $startDate, $endDate,
+        array $warehouseIds = [], array $productIds = [],
         ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
         bool $paginate = false, int $perPage = 50, int $page = 1
-    ) {
-        $query = ProductVariant::with('product.unit')
+    ) 
+    {
+
+        /* ============================================================
+        | 1) BASE VARIANT QUERY
+        * ============================================================ */
+        $baseQuery = ProductVariant::query()
             ->whereNull('deleted_at')
             ->where('is_active', 1)
             ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
-            ->when($productIds, fn($q) => $q->whereIn('id', $productIds))
-            ->when($search, fn($q) => $q->where(function ($sq) use ($search) {
-                $sq->where('item_code', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%")
-                ->orWhereHas('product', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
-            }));
+            ->whereHas('stockLedgers', fn($q) => $q->where('transaction_date', '<=', $endDate))
+            ->with(['product:id,name,unit_id', 'product.unit:id,name']);
 
-        // Sort by item_code at DB level
+        if ($productIds) {
+            $baseQuery->whereIn('id', $productIds);
+        }
+
+        if ($search) {
+            $baseQuery->where(function ($q) use ($search) {
+                $like = "%$search%";
+                $q->where('item_code', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhereHas('product', fn($p) => $p->where('name', 'like', $like));
+            });
+        }
+
+        // Sorting
         if ($sortColumn === 'item_code') {
-            $query->orderBy('item_code', $sortDirection);
+            $baseQuery->orderBy('item_code', $sortDirection);
         } else {
-            $query->orderBy('item_code', 'asc');
+            $baseQuery->orderBy($sortColumn, $sortDirection)
+                    ->orderBy('item_code', 'asc');
         }
 
-        // Fetch collection (paginated or not)
-        $collection = $paginate ? $query->paginate($perPage, ['*'], 'page', $page)->getCollection()
-                                : $query->get();
-
-        // Map each variant to calculated stock row
-        $report = $collection->map(fn($variant) =>
-            $this->calculateRow($variant, $warehouseIds, $startDate, $endDate)
-        );
-
-        // Sort after mapping if needed
-
-        // Apply pagination
+        /* ============================================================
+        | 2) LOAD VARIANTS (Paginated or Full)
+        * ============================================================ */
         if ($paginate) {
-            $paginated = $query->paginate($perPage, ['*'], 'page', $page);
-            $paginated->setCollection($report->values());
-            return $paginated;
+            $paginator = $baseQuery->paginate($perPage, ['*'], 'page', $page);
+            $products  = $paginator->getCollection();
+        } else {
+            $products = $baseQuery->get();
         }
 
-        return $report->values();
-    }
-
-    private function calculateRow($variant, array $warehouseIds, $startDate, $endDate)
-    {
-        $productId   = $variant->id;
-        $product     = $variant->product;
-        $unitName    = $product->unit->name ?? '';
-        $description = trim($product->name . ' ' . $variant->description);
-
-        // Auto-detect warehouses if not provided
-        if (empty($warehouseIds)) {
-            $warehouseIds = StockLedger::where('product_id', $productId)
-                ->distinct()
-                ->pluck('parent_warehouse')
-                ->toArray();
+        if ($products->isEmpty()) {
+            return $paginate ? $paginator->setCollection(collect()) : collect();
         }
 
-        // Conditional aggregation with Stock_Begin included in begin sums
-        $totals = StockLedger::where('product_id', $productId)
-            ->whereIn('parent_warehouse', $warehouseIds)
-            ->selectRaw("
-                SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN quantity ELSE 0 END) AS begin_qty,
-                SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN total_price ELSE 0 END) AS begin_total,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
-                SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) AS out_total
-            ", [
-                $startDate, $startDate,
-                $startDate, $endDate,
-                $startDate, $endDate,
-                $startDate, $endDate,
-                $startDate, $endDate, 
-                $startDate, $endDate
-                ])
-            ->first();
+        $productIds = $products->pluck('id')->all();
 
-        $beginQty = (float)($totals->begin_qty ?? 0);
-        $inQty    = (float)($totals->in_qty ?? 0);
-        $inTotal  = (float)($totals->in_total ?? 0);
-        $outQty   = (float)($totals->out_qty ?? 0);
-        $outTotal = (float)($totals->out_total ?? 0);
-        $countedQty = (float)($totals->counted_quantity ?? 0);
+        /* ============================================================
+        | 3) LEDGER AGGREGATIONS (Single Query)
+        * ============================================================ */
+        $ledgerQuery = StockLedger::query()
+            ->whereIn('product_id', $productIds)
+            ->where('transaction_date', '<=', $endDate);
 
-        $beginAvg = (float)$this->beginAvg($productId, $startDate);
-        $avgPrice = (float)$this->avgPrice($productId, $endDate);
+        if ($warehouseIds) {
+            $ledgerQuery->whereIn('parent_warehouse', $warehouseIds);
+        }
 
-        $beginTotal     = round($beginQty * $beginAvg, 6);
-        $inTotal        = round($inTotal, 6);
-        $outTotal       = round($outTotal, 6);
-        $availableQty   = $beginQty + $inQty;
-        $availableTotal = round($beginTotal + $inTotal, 6);
-        $availablePrice = ($availableQty != 0) ? round($availableTotal / $availableQty, 6) : 0;
-        $endingQty      = $availableQty - abs($outQty);
-        $endingTotal    = round($endingQty * $avgPrice, 6);
+        $ledgerAggregates = $ledgerQuery->selectRaw("
+        product_id,
+        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN quantity ELSE 0 END) AS begin_qty,
+        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN total_price ELSE 0 END) AS begin_total,
+        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
+        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
+        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
+        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
+        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) AS out_total
+        ", [
+            $startDate, $startDate,      // begin_qty & begin_total
+            $startDate, $endDate,        // counted_quantity
+            $startDate, $endDate,        // in_qty
+            $startDate, $endDate,        // in_total
+            $startDate, $endDate,        // out_qty
+            $startDate, $endDate         // out_total
+        ])
+        ->groupBy('product_id')
+        ->get()
+        ->keyBy('product_id');
 
-        return [
-            'product_id'         => $productId,
-            'item_code'          => $variant->item_code,
-            'description'        => $description,
-            'unit_name'          => $unitName,
-            'beginning_quantity' => $beginQty,
-            'beginning_price'    => $beginAvg,
-            'beginning_total'    => $beginTotal,
-            'stock_in_quantity'  => $inQty,
-            'stock_in_total'     => $inTotal,
-            'available_quantity' => $availableQty,
-            'available_price'    => $availablePrice,
-            'available_total'    => $availableTotal,
-            'stock_out_quantity' => abs($outQty),
-            'stock_out_total'    => abs($outTotal),
-            'ending_quantity'    => $endingQty,
-            'counted_quantity'   => $countedQty,
-            'variance_quantity' => $countedQty - $endingQty,
-            'ending_total'       => $endingTotal,
-            'average_price'      => $avgPrice,
-        ];
+
+        /* ============================================================
+        | 4) BEGIN AVG & AVG PRICE (Two lightweight queries)
+        * ============================================================ */
+        $priceBase = StockLedger::query()->whereIn('product_id', $productIds);
+        if ($warehouseIds) {
+            $priceBase->whereIn('parent_warehouse', $warehouseIds);
+        }
+
+        // Begin average
+        $beginAvgs = (clone $priceBase)
+            ->where('transaction_date', '<', $startDate)
+            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In'])
+            ->selectRaw('product_id, 
+                CASE WHEN SUM(quantity) = 0 THEN 0 
+                    ELSE SUM(total_price) / SUM(quantity) END AS begin_avg')
+            ->groupBy('product_id')
+            ->pluck('begin_avg', 'product_id')
+            ->all();
+
+        // Overall avg price
+        $avgPrices = (clone $priceBase)
+            ->where('transaction_date', '<=', $endDate)
+            ->selectRaw('product_id, 
+                CASE WHEN SUM(quantity) = 0 THEN 0 
+                    ELSE SUM(total_price) / SUM(quantity) END AS avg_price')
+            ->groupBy('product_id')
+            ->pluck('avg_price', 'product_id')
+            ->all();
+
+        /* ============================================================
+        | 5) BUILD FINAL REPORT ROWS (Low memory map)
+        * ============================================================ */
+        $report = $products->map(function ($v) use ($ledgerAggregates, $beginAvgs, $avgPrices) {
+
+            $id   = $v->id;
+            $prod = $v->product;
+
+            $unitName = $prod->unit->name ?? '';
+            $desc     = trim(($prod->name ?? '') . ' ' . ($v->description ?? ''));
+
+            $row = $ledgerAggregates[$id] ?? null;
+
+            $beginQty   = (float)($row->begin_qty ?? 0);
+            $inQty      = (float)($row->in_qty ?? 0);
+            $inTotal    = (float)($row->in_total ?? 0);
+            $outQty     = abs((float)($row->out_qty ?? 0));
+            $outTotal   = abs((float)($row->out_total ?? 0));
+            $countedQty = (float)($row->counted_quantity ?? 0);
+
+            $beginAvg = (float)($beginAvgs[$id] ?? 0);
+            $avgPrice = (float)($avgPrices[$id] ?? 0);
+
+            // === Original formulas (unchanged) ===
+            $beginTotal     = round($beginQty * $beginAvg, 6);
+            $availableQty   = $beginQty + $inQty;
+            $availableTotal = round($beginTotal + $inTotal, 6);
+            $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 6) : 0;
+            $endingQty      = $availableQty - $outQty;
+            $endingTotal    = round($endingQty * $avgPrice, 6);
+
+            return [
+                'product_id'         => $id,
+                'item_code'          => $v->item_code,
+                'description'        => $desc,
+                'unit_name'          => $unitName,
+
+                'beginning_quantity' => $beginQty,
+                'beginning_price'    => $beginAvg,
+                'beginning_total'    => $beginTotal,
+
+                'stock_in_quantity'  => $inQty,
+                'stock_in_total'     => $inTotal,
+
+                'available_quantity' => $availableQty,
+                'available_price'    => $availablePrice,
+                'available_total'    => $availableTotal,
+
+                'stock_out_quantity' => $outQty,
+                'stock_out_total'    => $outTotal,
+
+                'ending_quantity'    => $endingQty,
+                'ending_total'       => $endingTotal,
+
+                'counted_quantity'   => $countedQty,
+                'variance_quantity'  => $countedQty - $endingQty,
+
+                'average_price'      => $avgPrice,
+            ];
+        });
+
+        /* ============================================================
+        | 6) RETURN RESULT
+        * ============================================================ */
+        return $paginate
+            ? $paginator->setCollection($report->values())
+            : $report->values();
     }
+
 
     private function avgPrice($productId, $endDate = null)
     {
