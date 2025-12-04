@@ -73,7 +73,7 @@
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
             <tr class="table-secondary">
-              <td colspan="6" class="text-end font-weight-bold">Total</td>
+              <td colspan="5" class="text-end font-weight-bold">Total</td>
               <td class="text-center font-weight-bold">{{ formatQty(totalQuantity) }}</td>
               <td class="text-end font-weight-bold">{{ format(totalValue) }}</td>
               <td></td>
