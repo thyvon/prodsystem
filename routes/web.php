@@ -53,6 +53,9 @@ use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\Warehouse;
 
+use App\Http\Controllers\WarehouseProductController;
+use App\Models\WarehouseProduct;
+
 use App\Http\Controllers\StockBeginningController;
 use App\Models\MainStockBeginning;
 
@@ -186,7 +189,7 @@ Route::middleware(['auth'])->group(function () {
         // Inventory Management - Warehouses
         Route::get('/warehouses', [WarehouseController::class, 'index'])
             ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
-
+        Route::get('/warehouses/products', [WarehouseProductController::class, 'index'])->name('warehouses.products');
         // Inventory Items
         Route::get('/items', [StockController::class, 'stockList'])
             ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);

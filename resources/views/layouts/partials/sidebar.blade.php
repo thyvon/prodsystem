@@ -185,7 +185,7 @@
             </li>
 
             @php
-                $inventoryActive = request()->is('inventory/warehouses*') 
+                $inventoryActive = request()->is('inventory/warehouses*')
                 || request()->is('inventory/items*') 
                 || request()->is('inventory/stock-movements*')
                 || request()->is('inventory/stock-beginnings*')
@@ -207,11 +207,23 @@
                     </a>
                     <ul>
                         @can('warehouse.view') <!-- Optional permission check -->
-                            <li class="{{ request()->is('inventory/warehouses') ? 'active' : '' }}">
-                                <a href="{{ url('inventory/warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
-                                    <span class="nav-link-text">Warehouse</span>
-                                </a>
-                            </li>
+                        <li class="{{ request()->is('inventory/warehouses*') ? 'active open' : '' }}">
+                            <a href="#" title="Warehouse" data-filter-tags="warehouse">
+                                <span class="nav-link-text">Warehouse</span>
+                            </a>
+                            <ul>
+                                <li class="{{ request()->is('inventory/warehouses') ? 'active' : '' }}">
+                                    <a href="{{ url('inventory/warehouses') }}" title="Warehouse List" data-filter-tags="warehouse list">
+                                        <span class="nav-link-text">Warehouse List</span>
+                                    </a>
+                                </li>
+                                <li class="{{ request()->is('inventory/warehouses/products') ? 'active' : '' }}">
+                                    <a href="{{ url('inventory/warehouses/products') }}" title="Products" data-filter-tags="products">
+                                        <span class="nav-link-text">Products</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
                         @endcan
                         <!-- @can('product.view')
                             <li class="{{ request()->is('inventory/items') ? 'active' : '' }}">

@@ -39,6 +39,8 @@ import ProductForm from './components/Product/ProductForm.vue'
 
 //Inventory Management
 import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
+import WarehouseProductList from './components/Inventory/Warehouse/WarehouseProduct/Index.vue'
+//Stock Management
 import InventoryItemList from './components/Inventory/Items/ItemList.vue'
 import StockMovement from './components/Inventory/Items/ItemMovement.vue'
 import StockBeginningForm from './components/Inventory/StockBeginning/Form.vue'
@@ -124,7 +126,10 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  app.component('product-form', ProductForm)
 
  //Inventory Management
+ // WH management
  app.component('warehouse-page', WarehousePage)
+ app.component('warehouse-product-list', WarehouseProductList)
+ // Stock Management
  app.component('inventory-item-page', InventoryItemList)
  app.component('stock-movement-page', StockMovement)
 //========Stock Beginning

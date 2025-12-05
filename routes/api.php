@@ -49,6 +49,9 @@ use App\Http\Controllers\ProductVariantController;
 use App\Models\Warehouse;
 use App\Http\Controllers\WarehouseController;
 
+use App\Models\WarehouseProduct;
+use App\Http\Controllers\WarehouseProductController;
+
 use App\Models\StockBeginning;
 use App\Models\MainStockBeginning;
 use App\Http\Controllers\StockBeginningController;
@@ -252,6 +255,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/warehouses/{warehouse}/restore', [WarehouseController::class, 'restore'])->middleware('can:restore,warehouse');
         Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
         Route::get('/warehouses/buildings', [WarehouseController::class, 'getBuildings'])->middleware('can:viewAny,' . Warehouse::class);
+        Route::get('/warehouses/products', [WarehouseProductController::class, 'getWarehouseProducts'])->name('api.warehouses.products');
 
         // Inventory Items
         Route::get('/items', [StockController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
