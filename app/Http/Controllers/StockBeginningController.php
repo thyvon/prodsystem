@@ -91,7 +91,13 @@ class StockBeginningController extends Controller
 
             // Check if the approval button should be shown
             $approvalButtonData = $this->canShowApprovalButton($mainStockBeginning->id);
-
+            if ($approvalButtonData['showButton']) {
+                $mainStockBeginning->approvals()
+                    ->where('responder_id', auth()->id())
+                    ->where('approval_status', 'Pending')
+                    ->where('is_seen', false)
+                    ->update(['is_seen' => true]);
+            }
             // Derive responders from approvals
             $responders = $mainStockBeginning->approvals->map(function ($approval) {
                 return [
@@ -358,6 +364,7 @@ class StockBeginningController extends Controller
                     'beginning_date' => $validated['beginning_date'],
                     'remarks'        => $validated['remarks'] ?? null,
                     'updated_by'     => $userId,
+                    'approval_status' => 'Pending',
                     'position_id'    => auth()->user()->defaultPosition?->id,
                 ]);
 
@@ -817,16 +824,21 @@ class StockBeginningController extends Controller
      * @param int $documentId
      * @return JsonResponse
      */
-    public function submitApproval(Request $request, MainStockBeginning $mainStockBeginning, ApprovalService $approvalService): JsonResponse 
+    public function submitApproval(
+        Request $request,
+        MainStockBeginning $mainStockBeginning,
+        ApprovalService $approvalService
+    ): JsonResponse 
     {
-        // Validate request
+
+        // Validate request exactly like stock count
         $validated = $request->validate([
             'request_type' => 'required|string|in:review,check,approve',
             'action'       => 'required|string|in:approve,reject,return',
             'comment'      => 'nullable|string|max:1000',
         ]);
 
-        // Check user permission
+        // Permission check (same structure)
         $permission = "mainStockBeginning.{$validated['request_type']}";
         if (!auth()->user()->can($permission)) {
             return response()->json([
@@ -834,7 +846,7 @@ class StockBeginningController extends Controller
             ], 403);
         }
 
-        // Process approval via ApprovalService
+        // Process approval (same as stock count)
         $result = $approvalService->handleApprovalAction(
             $mainStockBeginning,
             $validated['request_type'],
@@ -842,23 +854,24 @@ class StockBeginningController extends Controller
             $validated['comment'] ?? null
         );
 
-        // Ensure $result has 'success' key
         $success = $result['success'] ?? false;
 
-        // Update MainStockBeginning approval_status if successful
+        // Status map (same style as StockCount)
+        $statusMap = [
+            'review'  => 'Reviewed',
+            'check'   => 'Checked',
+            'approve' => 'Approved',
+            'reject'  => 'Rejected',
+            'return'  => 'Returned',
+        ];
+
+        // Set approval_status (same logic as StockCount)
+        $mainStockBeginning->approval_status = $validated['action'] === 'approve'
+            ? ($statusMap[$validated['request_type']] ?? 'Pending')
+            : ($statusMap[$validated['action']] ?? 'Pending');
+
+        // Save only if success
         if ($success) {
-            $statusMap = [
-                'review'  => 'Reviewed',
-                'check'   => 'Checked',
-                'approve' => 'Approved',
-                'reject'  => 'Rejected',
-                'return'  => 'Returned',
-            ];
-
-            $mainStockBeginning->approval_status =
-                $statusMap[$validated['action']] ??
-                ($statusMap[$validated['request_type']] ?? 'Pending');
-
             $mainStockBeginning->save();
         }
 
@@ -949,6 +962,7 @@ class StockBeginningController extends Controller
                 'responder_id' => $user->id,
                 'position_id'  => $positionId,
                 'comment'      => $validated['comment'] ?? $approval->comment,
+                'is_seen'      => false,
             ]);
 
             return response()->json([
