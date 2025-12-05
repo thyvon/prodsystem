@@ -9,6 +9,7 @@ use App\Models\VariantValue;
 use App\Models\MainCategory;
 use App\Models\SubCategory;
 use App\Models\UnitOfMeasure;
+use App\Models\WarehouseProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +53,7 @@ class ProductController extends Controller
     private function validationRules($productId = null, $variantIds = [])
     {
         $existingVariantCodes = ProductVariant::pluck('item_code')->toArray();
+
         return [
             'item_code' => [
                 'nullable',
@@ -70,6 +72,12 @@ class ProductController extends Controller
             'manage_stock' => 'boolean',
             'image' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
             'is_active' => 'boolean',
+
+            // ✅ New warehouse validation
+            'has_warehouse' => 'boolean',
+            'warehouse_ids' => 'array',
+            'warehouse_ids.*' => 'exists:warehouses,id',
+
             'variants' => 'array|nullable',
             'variants.*.id' => 'nullable|exists:product_variants,id',
             'variants.*.item_code' => [
@@ -84,8 +92,8 @@ class ProductController extends Controller
                     }
                 }
             ],
-            'variants.*.estimated_price' => 'required|numeric|min:0', // Made required
-            'variants.*.average_price' => 'required|numeric|min:0',   // Made required
+            'variants.*.estimated_price' => 'required|numeric|min:0',
+            'variants.*.average_price' => 'required|numeric|min:0',
             'variants.*.description' => 'nullable|string',
             'variants.*.image' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:2048',
             'variants.*.variant_value_ids' => 'array',
@@ -316,9 +324,9 @@ class ProductController extends Controller
                     // ⭐ NEW (does NOT modify logic)
                     foreach ($warehouseIds as $warehouseId) {
                         WarehouseProduct::create([
-                            'product_variant_id' => $createdVariant->id,
+                            'product_id' => $createdVariant->id,
                             'warehouse_id'       => $warehouseId,
-                            'qty'                => 0,
+                            'alert_quantity'                => 0,
                         ]);
                     }
                 }
@@ -345,9 +353,9 @@ class ProductController extends Controller
                 // ⭐ NEW (still won't affect old behavior)
                 foreach ($warehouseIds as $warehouseId) {
                     WarehouseProduct::create([
-                        'product_variant_id' => $createdVariant->id,
+                        'product_id' => $createdVariant->id,
                         'warehouse_id'       => $warehouseId,
-                        'qty'                => 0,
+                        'alert_quantity'     => 0,
                     ]);
                 }
             }
@@ -382,11 +390,25 @@ class ProductController extends Controller
         $this->authorize('update', $product);
 
         try {
-            $product->load(['variants.values.attribute', 'category', 'subCategory', 'unit', 'updatedBy', 'deletedBy']);
+            // Load all relationships
+            $product->load([
+                'variants.values.attribute',
+                'variants.warehouseProducts',
+                'category',
+                'subCategory',
+                'unit',
+                'updatedBy',
+                'deletedBy'
+            ]);
+
+            // Add image URLs
             $product->image_url = $product->image ? asset('storage/' . $product->image) : null;
 
             foreach ($product->variants as $variant) {
                 $variant->image_url = $variant->image ? asset('storage/' . $variant->image) : null;
+
+                // Include warehouse_ids for each variant
+                $variant->warehouse_ids = $variant->warehouseProducts->pluck('warehouse_id')->toArray();
             }
 
             return response()->json(['product' => $product]);
@@ -395,6 +417,7 @@ class ProductController extends Controller
                 'error_message' => $e->getMessage(),
                 'product_id' => $product->id,
             ]);
+
             return response()->json([
                 'message' => 'Failed to fetch product',
                 'error' => $e->getMessage(),
@@ -413,6 +436,7 @@ class ProductController extends Controller
     {
         $this->authorize('update', $product);
 
+        // Collect existing variant IDs for validation
         $variantIds = [];
         if ($request->has('variants')) {
             foreach ($request->input('variants') as $i => $variant) {
@@ -425,6 +449,7 @@ class ProductController extends Controller
         DB::beginTransaction();
 
         try {
+            // Handle main product image
             $imagePath = $product->image;
             if ($request->has('remove_image') && $request->input('remove_image') === true) {
                 if ($product->image) {
@@ -435,28 +460,31 @@ class ProductController extends Controller
                 $imagePath = $this->handleImageUpload($request, 'image', 'products', $product->image);
             }
 
+            // Update main product fields
             $product->update([
-                'item_code' => $validated['item_code'] ?? $product->item_code,
-                'name' => $validated['name'],
-                'khmer_name' => $validated['khmer_name'] ?? null,
-                'description' => $validated['description'] ?? null,
-                'has_variants' => $validated['has_variants'] ?? false,
-                'barcode' => $validated['barcode'] ?? null,
-                'category_id' => $validated['category_id'],
+                'item_code'       => $validated['item_code'] ?? $product->item_code,
+                'name'            => $validated['name'],
+                'khmer_name'      => $validated['khmer_name'] ?? null,
+                'description'     => $validated['description'] ?? null,
+                'has_variants'    => $validated['has_variants'] ?? false,
+                'barcode'         => $validated['barcode'] ?? null,
+                'category_id'     => $validated['category_id'],
                 'sub_category_id' => $validated['sub_category_id'] ?? null,
-                'unit_id' => $validated['unit_id'],
-                'manage_stock' => $validated['manage_stock'] ?? true,
-                'image' => $imagePath,
-                'is_active' => $validated['is_active'] ?? true,
-                'updated_by' => auth()->id(),
+                'unit_id'         => $validated['unit_id'],
+                'manage_stock'    => $validated['manage_stock'] ?? true,
+                'image'           => $imagePath,
+                'is_active'       => $validated['is_active'] ?? true,
+                'updated_by'      => auth()->id(),
             ]);
 
+            $warehouseIds = $validated['warehouse_ids'] ?? [];
+
             if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
-                // Update or create variants
+                // Handle variants
                 $existingVariantIds = $product->variants->pluck('id')->toArray();
                 $updatedVariantIds = array_filter(array_column($validated['variants'], 'id'));
 
-                // Delete variants not in the updated list
+                // Delete variants removed in the update
                 ProductVariant::where('product_id', $product->id)
                     ->whereNotIn('id', $updatedVariantIds)
                     ->each(function ($variant) {
@@ -481,14 +509,14 @@ class ProductController extends Controller
                         : $this->generateVariantItemCode($product->item_code, $index + 1, $product->has_variants);
 
                     $variantData = [
-                        'product_id' => $product->id,
-                        'item_code' => $variantItemCode,
-                        'estimated_price' => $variant['estimated_price'],
-                        'average_price' => $variant['average_price'],
-                        'description' => $variant['description'] ?? null,
-                        'image' => $variantImagePath,
-                        'is_active' => $variant['is_active'] ?? 1,
-                        'updated_by' => auth()->id(),
+                        'product_id'     => $product->id,
+                        'item_code'      => $variantItemCode,
+                        'estimated_price'=> $variant['estimated_price'],
+                        'average_price'  => $variant['average_price'],
+                        'description'    => $variant['description'] ?? null,
+                        'image'          => $variantImagePath,
+                        'is_active'      => $variant['is_active'] ?? 1,
+                        'updated_by'     => auth()->id(),
                     ];
 
                     if ($existingVariant) {
@@ -498,11 +526,29 @@ class ProductController extends Controller
                         $createdVariant = ProductVariant::create($variantData);
                     }
 
+                    // Sync variant values
                     if (!empty($variant['variant_value_ids'])) {
                         $createdVariant->values()->sync($variant['variant_value_ids']);
                     } else {
                         $createdVariant->values()->detach();
                     }
+
+                    // Sync warehouses
+                    foreach ($warehouseIds as $warehouseId) {
+                        WarehouseProduct::updateOrCreate(
+                            [
+                                'product_id' => $createdVariant->id,
+                                'warehouse_id'       => $warehouseId,
+                            ],
+                            ['alert_quantity' => 0]
+                        );
+                    }
+
+                    // Mark warehouses no longer selected as inactive
+                    WarehouseProduct::where('product_id', $createdVariant->id)
+                        ->whereNotIn('warehouse_id', $warehouseIds)
+                        ->update(['is_active' => 0]);
+
                 }
             } else {
                 // No variants - update or create default variant
@@ -514,13 +560,28 @@ class ProductController extends Controller
                 ]);
 
                 $variant->update([
-                    'estimated_price' => $variantData['estimated_price'] ?? null,
-                    'average_price' => $variantData['average_price'] ?? null,
-                    'description' => $variantData['description'] ?? $validated['description'] ?? null,
-                    'image' => $imagePath,
-                    'is_active' => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
-                    'updated_by' => auth()->id(),
+                    'estimated_price'=> $variantData['estimated_price'] ?? null,
+                    'average_price'  => $variantData['average_price'] ?? null,
+                    'description'    => $variantData['description'] ?? $validated['description'] ?? null,
+                    'image'          => $imagePath,
+                    'is_active'      => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
+                    'updated_by'     => auth()->id(),
                 ]);
+
+                // Sync warehouses
+                foreach ($warehouseIds as $warehouseId) {
+                    WarehouseProduct::updateOrCreate(
+                        [
+                            'product_id' => $variant->id,
+                            'warehouse_id'       => $warehouseId,
+                        ],
+                        ['alert_quantity' => 0]
+                    );
+                }
+
+                    WarehouseProduct::where('product_id', $variant->id)
+                        ->whereNotIn('warehouse_id', $warehouseIds)
+                        ->update(['is_active' => 0]);
             }
 
             DB::commit();
@@ -533,6 +594,7 @@ class ProductController extends Controller
                     'image_url' => $product->image ? asset('storage/' . $product->image) : null,
                 ]
             ]);
+
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error updating product', [

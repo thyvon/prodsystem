@@ -47,4 +47,9 @@ class ProductVariant extends Model
     {
         return $this->hasMany(StockLedger::class, 'product_id');
     }
+
+    public function warehouseProducts()
+    {
+        return $this->hasMany(WarehouseProduct::class, 'product_id');
+    }
 }

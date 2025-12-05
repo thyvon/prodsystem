@@ -162,19 +162,24 @@
             <h6 class="mb-0 font-weight-bold">Select Warehouses</h6>
           </div>
           <div class="card-body">
-            <div v-for="wh in warehouses" :key="wh.id" class="custom-control custom-checkbox mb-2">
+            <div
+              class="custom-control custom-checkbox custom-checkbox-circle custom-control-inline mb-2"
+              v-for="wh in warehouses"
+              :key="wh.id"
+            >
               <input
                 type="checkbox"
                 class="custom-control-input"
                 :id="'wh-' + wh.id"
-                v-model="form.warehouse_ids"
                 :value="wh.id"
+                v-model="selectedWarehouseArray"
               />
-              <label class="custom-control-label" :for="'wh-' + wh.id">{{ wh.name }}</label>
+              <label class="custom-control-label" :for="'wh-' + wh.id">
+                {{ wh.name || wh.text }}
+              </label>
             </div>
           </div>
         </div>
-
         <!-- Attribute Management -->
         <div v-if="form.has_variants" class="card border shadow-sm mb-4">
           <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
@@ -486,6 +491,8 @@ const newAttribute = ref({ name: '', values: '', ordinal: null })
 const newValue = ref('')
 const currentAttribute = ref(null)
 const isLoading = ref(false)
+const selectedWarehouses = ref(new Set())
+const warehouses = ref([])
 
 const form = ref({
   id: null,
@@ -504,17 +511,19 @@ const form = ref({
   estimated_price: null,
   average_price: null,
   variants: [],
-  // ✅ New warehouse fields
-  has_warehouse: false,        // toggle to show/hide warehouses
-  warehouse_ids: [],           // selected warehouse IDs
-});
+  warehouse_ids: [], // selected warehouse IDs
+})
 
-const warehouses = [
-  { id: 1, name: 'Main Warehouse' },
-  { id: 2, name: 'Secondary Warehouse' },
-  { id: 3, name: 'Overflow Warehouse' },
-];
+// Computed for v-model warehouse binding
+const selectedWarehouseArray = computed({
+  get: () => Array.from(selectedWarehouses.value),
+  set: (arr) => {
+    selectedWarehouses.value = new Set(arr)
+    form.value.warehouse_ids = Array.from(selectedWarehouses.value)
+  }
+})
 
+// Select2 references
 const barcodeSelect = ref(null)
 const unitSelect = ref(null)
 const categorySelect = ref(null)
@@ -545,6 +554,27 @@ const filteredAvailableAttributes = computed(() => {
 })
 
 // Methods
+const fetchWarehouses = async () => {
+  try {
+    const response = await axios.get('/api/main-value-lists/get-warehouses'); 
+    warehouses.value = response.data || []
+  } catch (error) {
+    console.error('Failed to fetch warehouses:', error)
+    warehouses.value = []
+  }
+}
+
+const toggleWarehouse = (id) => {
+  if (selectedWarehouses.value.has(id)) selectedWarehouses.value.delete(id)
+  else selectedWarehouses.value.add(id)
+  form.value.warehouse_ids = Array.from(selectedWarehouses.value)
+  console.log("Selected warehouse_ids:", form.value.warehouse_ids)
+}
+
+const syncFormWarehouses = () => {
+  selectedWarehouseArray.value = Array.from(selectedWarehouses.value)
+}
+
 const loadInitialData = async () => {
   try {
     const [mainCategoriesRes, subCategoriesRes, unitsRes] = await Promise.all([
@@ -552,11 +582,13 @@ const loadInitialData = async () => {
       axios.get('/api/sub-categories'),
       axios.get('/api/unit-of-measures'),
     ])
-    mainCategories.value = mainCategoriesRes.data.data || mainCategoriesRes.data || []
-    subCategories.value = subCategoriesRes.data.data || subCategoriesRes.data || []
-    units.value = unitsRes.data.data || unitsRes.data || []
+    mainCategories.value = mainCategoriesRes.data?.data || mainCategoriesRes.data || []
+    subCategories.value = subCategoriesRes.data?.data || subCategoriesRes.data || []
+    units.value = unitsRes.data?.data || unitsRes.data || []
+    await fetchWarehouses()
   } catch (error) {
-    showAlert('Error', 'Failed to load categories or units.', 'danger')
+    console.error(error)
+    showAlert('Error', 'Failed to load categories, units, or warehouses.', 'danger')
   }
 }
 
@@ -565,9 +597,7 @@ const loadAttributes = async () => {
   try {
     const response = await axios.get('/api/attributes-values', { timeout: 5000 })
     availableAttributes.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : []
-    if (!availableAttributes.value.length) {
-      showAlert('Warning', 'No attributes data received from server.', 'warning')
-    }
+    if (!availableAttributes.value.length) showAlert('Warning', 'No attributes data received from server.', 'warning')
   } catch (error) {
     showAlert('Error', 'Failed to load attributes.', 'danger')
     availableAttributes.value = []
@@ -594,12 +624,14 @@ const resetForm = () => {
     estimated_price: null,
     average_price: null,
     variants: [],
+    warehouse_ids: []
   }
   selectedAttributes.value = {}
   generatedVariants.value = [createEmptyVariant()]
   newAttribute.value = { name: '', values: '', ordinal: null }
   newValue.value = ''
   currentAttribute.value = null
+  selectedWarehouses.value = new Set()
 }
 
 const createEmptyVariant = () => ({
@@ -618,12 +650,13 @@ const show = async (product = null) => {
   await Promise.all([loadInitialData(), loadAttributes()])
 
   availableAttributes.value.forEach(attr => {
-    if (attr.values?.length && !selectedAttributes.value[attr.id]) {
-      selectedAttributes.value[attr.id] = []
-    }
+    if (attr.values?.length && !selectedAttributes.value[attr.id]) selectedAttributes.value[attr.id] = []
   })
+
   if (product) {
     skipCategoryWatcher.value = true
+
+    // Populate form with product data
     form.value = {
       id: product.id || null,
       item_code: product.item_code || '',
@@ -650,14 +683,30 @@ const show = async (product = null) => {
             image: v.image || null,
             is_active: Number(v.is_active ?? 1),
             values: v.values || [],
+            warehouse_ids: Array.isArray(v.warehouse_ids) ? v.warehouse_ids : [],
           }))
         : [],
+      warehouse_ids: [], // will populate below
     }
+
+    // --- Sync selectedWarehouses for edit mode ---
+    // Union all warehouse_ids from variants
+    const allWarehouseIds = new Set()
+    form.value.variants.forEach(v => {
+      if (Array.isArray(v.warehouse_ids)) {
+        v.warehouse_ids.forEach(id => allWarehouseIds.add(id))
+      }
+    })
+    selectedWarehouses.value = allWarehouseIds
+    form.value.warehouse_ids = Array.from(allWarehouseIds)
+    syncFormWarehouses() // make sure this updates the checkbox array if needed
+
     selectedAttributes.value = getSelectedFromVariants(form.value.variants)
     generateVariants()
     await nextTick()
     skipCategoryWatcher.value = false
   }
+
 
   isLoading.value = false
   showModal.value = true
@@ -666,11 +715,10 @@ const show = async (product = null) => {
 
 const hideModal = () => {
   showModal.value = false
-  ;[barcodeSelect, unitSelect, categorySelect, subCategorySelect].forEach(select => {
-    destroySelect2(select.value)
-  })
+  ;[barcodeSelect, unitSelect, categorySelect, subCategorySelect].forEach(select => destroySelect2(select.value))
 }
 
+// Attribute modals
 const openNewAttributeModal = () => {
   newAttribute.value = { name: '', values: '', ordinal: null }
   showNewAttributeModal.value = true
@@ -682,24 +730,18 @@ const openAddValueModal = (attr) => {
   showAddValueModal.value = true
 }
 
+// Attribute CRUD
 const createAttribute = async () => {
   if (isSubmittingAttribute.value) return
   isSubmittingAttribute.value = true
-
   try {
-    const values = newAttribute.value.values
-      .split(',')
-      .map(v => v.trim())
-      .filter(v => v)
-      .map(value => ({ value, is_active: 1 }))
-
+    const values = newAttribute.value.values.split(',').map(v => v.trim()).filter(v => v).map(value => ({ value, is_active: 1 }))
     await axios.post('/api/product-variant-attributes', {
       name: newAttribute.value.name,
       ordinal: newAttribute.value.ordinal,
       values: values.length ? values : undefined,
       is_active: 1,
     })
-
     await loadAttributes()
     showNewAttributeModal.value = false
     showAlert('Success', 'Attribute created successfully.', 'success')
@@ -716,13 +758,11 @@ const createAttribute = async () => {
 const addValueToAttribute = async () => {
   if (isSubmittingAttribute.value || !currentAttribute.value) return
   isSubmittingAttribute.value = true
-
   try {
     await axios.post(`/api/product-variant-attributes/${currentAttribute.value.id}/values`, {
       value: newValue.value.trim(),
       is_active: 1,
     })
-
     await loadAttributes()
     showAddValueModal.value = false
     showAlert('Success', 'Attribute value added successfully.', 'success')
@@ -736,6 +776,7 @@ const addValueToAttribute = async () => {
   }
 }
 
+// Attribute selection
 const toggleAttribute = (attrId, valId) => {
   const values = selectedAttributes.value[attrId] || []
   const index = values.indexOf(valId)
@@ -761,39 +802,20 @@ const getSelectedFromVariants = (variants) => {
   return map
 }
 
+// Variant generation
 const generateVariants = () => {
   const combinations = Object.entries(selectedAttributes.value)
     .filter(([_, values]) => values.length)
     .map(([attrId, values]) => values.map(valId => ({ attrId: Number(attrId), valId })))
 
   const allCombos = combinations.length
-    ? combinations.reduce((acc, curr) =>
-        acc.length ? acc.flatMap(a => curr.map(c => [...a, c])) : curr.map(c => [c]),
-        []
-      )
+    ? combinations.reduce((acc, curr) => acc.length ? acc.flatMap(a => curr.map(c => [...a, c])) : curr.map(c => [c]), [])
     : []
 
-  const validVariants = Array.isArray(form.value.variants)
-    ? form.value.variants.filter(v => v && typeof v === 'object' && Array.isArray(v.values))
-    : []
-  const existingVariantMap = new Map(
-    validVariants.map(v => [
-      v.values.map(val => val.id).sort((a, b) => a - b).join('-'),
-      v,
-    ])
-  )
-
-  const currentVariantMap = new Map(
-    generatedVariants.value.map(v => [
-      (v.variant_value_ids || []).sort((a, b) => a - b).join('-'),
-      v,
-    ])
-  )
-
-  const defaultVariant = validVariants.length === 1 && validVariants[0].values.length === 0
-    ? validVariants[0]
-    : null
-
+  const validVariants = Array.isArray(form.value.variants) ? form.value.variants.filter(v => v && typeof v === 'object' && Array.isArray(v.values)) : []
+  const existingVariantMap = new Map(validVariants.map(v => [v.values.map(val => val.id).sort((a, b) => a - b).join('-'), v]))
+  const currentVariantMap = new Map(generatedVariants.value.map(v => [(v.variant_value_ids || []).sort((a, b) => a - b).join('-'), v]))
+  const defaultVariant = validVariants.length === 1 && validVariants[0].values.length === 0 ? validVariants[0] : null
   const lastUserInput = generatedVariants.value[generatedVariants.value.length - 1]
 
   generatedVariants.value = allCombos.length
@@ -802,65 +824,45 @@ const generateVariants = () => {
         const key = valIds.join('-')
         const userInput = currentVariantMap.get(key)
         const existing = existingVariantMap.get(key)
-        const desc = combo
-          .map(({ attrId, valId }) => {
-            const attr = availableAttributes.value.find(a => a.id === attrId)
-            const val = attr?.values.find(v => v.id === valId)
-            return {
-              ordinal: attr?.ordinal ?? 0,
-              text: `${attr?.name || 'Unknown'}: ${val?.value || 'Unknown'}`
-            }
-          })
-          .sort((a, b) => a.ordinal - b.ordinal)
-          .map(item => item.text)
-          .join(', ')
+        const desc = combo.map(({ attrId, valId }) => {
+          const attr = availableAttributes.value.find(a => a.id === attrId)
+          const val = attr?.values.find(v => v.id === valId)
+          return { ordinal: attr?.ordinal ?? 0, text: `${attr?.name || 'Unknown'}: ${val?.value || 'Unknown'}` }
+        }).sort((a, b) => a.ordinal - b.ordinal).map(item => item.text).join(', ')
 
         const isNewCombo = !userInput && !existing
         return {
           id: existing?.id,
           description: desc,
           item_code: userInput?.item_code ?? existing?.item_code ?? '',
-          estimated_price: isNewCombo
-            ? null
-            : (userInput?.estimated_price ?? existing?.estimated_price ?? form.value.estimated_price ?? null),
-          average_price: isNewCombo
-            ? null
-            : (userInput?.average_price ?? existing?.average_price ?? form.value.average_price ?? null),
-          image: isNewCombo
-            ? form.value.image // Default to main product image for new variants
-            : (userInput?.image ?? existing?.image ?? form.value.image ?? defaultVariant?.image ?? lastUserInput?.image ?? null),
+          estimated_price: isNewCombo ? null : (userInput?.estimated_price ?? existing?.estimated_price ?? form.value.estimated_price ?? null),
+          average_price: isNewCombo ? null : (userInput?.average_price ?? existing?.average_price ?? form.value.average_price ?? null),
+          image: isNewCombo ? form.value.image : (userInput?.image ?? existing?.image ?? form.value.image ?? defaultVariant?.image ?? lastUserInput?.image ?? null),
           is_active: Number(userInput?.is_active ?? existing?.is_active ?? defaultVariant?.is_active ?? lastUserInput?.is_active ?? 1),
           variant_value_ids: valIds,
         }
       })
-    : (form.value.has_variants
-        ? [createEmptyVariant()]
-        : [{
-            id: defaultVariant?.id,
-            description: form.value.description || '',
-            item_code: form.value.item_code || '',
-            estimated_price: form.value.estimated_price ?? defaultVariant?.estimated_price ?? null,
-            average_price: form.value.average_price ?? defaultVariant?.average_price ?? null,
-            image: form.value.image || defaultVariant?.image || null, // Default to main product image
-            is_active: Number(form.value.is_active ?? defaultVariant?.is_active ?? 1),
-            variant_value_ids: [],
-          }])
+    : (form.value.has_variants ? [createEmptyVariant()] : [{
+        id: defaultVariant?.id,
+        description: form.value.description || '',
+        item_code: form.value.item_code || '',
+        estimated_price: form.value.estimated_price ?? defaultVariant?.estimated_price ?? null,
+        average_price: form.value.average_price ?? defaultVariant?.average_price ?? null,
+        image: form.value.image || defaultVariant?.image || null,
+        is_active: Number(form.value.is_active ?? defaultVariant?.is_active ?? 1),
+        variant_value_ids: [],
+      }])
 }
 
 const removeVariant = (index) => {
-  if (generatedVariants.value.length > 1) {
-    generatedVariants.value.splice(index, 1)
-  }
+  if (generatedVariants.value.length > 1) generatedVariants.value.splice(index, 1)
 }
 
-const onProductImageChange = (event) => {
-  form.value.image = event.target.files[0] || null
-}
+// File changes
+const onProductImageChange = (event) => { form.value.image = event.target.files[0] || null }
+const onVariantImageChange = (event, index) => { generatedVariants.value[index].image = event.target.files[0] || null }
 
-const onVariantImageChange = (event, index) => {
-  generatedVariants.value[index].image = event.target.files[0] || null
-}
-
+// Select2 dropdown init
 const initSelect2Dropdowns = async () => {
   await nextTick()
   const $modal = window.$('#productModal')
@@ -885,19 +887,12 @@ const initSelect2Dropdowns = async () => {
   window.$(subCategorySelect.value).val(exists ? form.value.sub_category_id : '').trigger('change')
 }
 
+// Form submission
 const submitForm = async () => {
   if (isSubmitting.value) return
   isSubmitting.value = true
 
   try {
-    // Validate prices for non-variant products
-    // if (!form.value.has_variants && (form.value.estimated_price === null || form.value.average_price === null)) {
-    //   showAlert('Error', 'Estimated Price and Average Price are required for non-variant products.', 'danger')
-    //   isSubmitting.value = false
-    //   return
-    // }
-
-    // Validate variant prices
     if (form.value.has_variants) {
       for (const [index, variant] of generatedVariants.value.entries()) {
         if (variant.estimated_price === null || variant.average_price === null) {
@@ -911,44 +906,29 @@ const submitForm = async () => {
     const url = props.isEditing ? `/api/products/${form.value.id}` : '/api/products'
     const formData = new FormData()
 
-    // Append main form fields
+    // Main fields
     Object.entries(form.value).forEach(([key, value]) => {
-      if (key === 'variants') return
-      if (key === 'image') {
-        if (value instanceof File) {
-          formData.append('image', value)
-        }
-        // Do NOT append if it's a string (existing image path)
-      } else if (typeof value === 'boolean') {
-        formData.append(key, value ? '1' : '0')
-      } else if (value !== null && value !== undefined) {
-        formData.append(key, value)
-      }
+      if (key === 'variants' || key === 'warehouse_ids') return
+      if (key === 'image') { if (value instanceof File) formData.append('image', value) }
+      else if (typeof value === 'boolean') formData.append(key, value ? '1' : '0')
+      else if (value !== null && value !== undefined) formData.append(key, value)
     })
 
-    // Append variants
-  generatedVariants.value.forEach((variant, idx) => {
-    Object.entries(variant).forEach(([key, value]) => {
-      if (key === 'image') {
-        if (value instanceof File) {
-          formData.append(`variants[${idx}][image]`, value)
-        }
-        // Do NOT append if it's a string (existing image path)
-      } else if (key === 'variant_value_ids' && Array.isArray(value)) {
-        value.forEach((id, i) => formData.append(`variants[${idx}][variant_value_ids][${i}]`, id))
-      } else if (key === 'is_active') {
-        formData.append(`variants[${idx}][${key}]`, Number(value))
-      } else if (value !== null && value !== undefined) {
-        formData.append(`variants[${idx}][${key}]`, value)
-      }
+    // Warehouses
+    form.value.warehouse_ids.forEach(id => formData.append('warehouse_ids[]', id))
+
+    // Variants
+    generatedVariants.value.forEach((variant, idx) => {
+      Object.entries(variant).forEach(([key, value]) => {
+        if (key === 'image') { if (value instanceof File) formData.append(`variants[${idx}][image]`, value) }
+        else if (key === 'variant_value_ids' && Array.isArray(value)) value.forEach((id, i) => formData.append(`variants[${idx}][variant_value_ids][${i}]`, id))
+        else if (key === 'is_active') formData.append(`variants[${idx}][${key}]`, Number(value))
+        else if (value !== null && value !== undefined) formData.append(`variants[${idx}][${key}]`, value)
+      })
     })
-  })
 
     if (props.isEditing) formData.append('_method', 'PUT')
-
-    await axios.post(url, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    await axios.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
     emit('submitted')
     hideModal()
@@ -965,64 +945,45 @@ const submitForm = async () => {
 
 // Watchers
 watch(() => form.value.has_variants, (hasVariants) => {
-  if (!hasVariants) {
-    // Ensure a single variant with root-level prices for non-variant products
-    generatedVariants.value = [{
-      description: form.value.description || '',
-      item_code: form.value.item_code || '',
-      estimated_price: form.value.estimated_price ?? null,
-      average_price: form.value.average_price ?? null,
-      image: form.value.image || null,
-      is_active: Number(form.value.is_active ?? 1),
-      variant_value_ids: [],
-    }]
-  } else {
-    generateVariants()
-  }
+  if (!hasVariants) generatedVariants.value = [{
+    description: form.value.description || '',
+    item_code: form.value.item_code || '',
+    estimated_price: form.value.estimated_price ?? null,
+    average_price: form.value.average_price ?? null,
+    image: form.value.image || null,
+    is_active: Number(form.value.is_active ?? 1),
+    variant_value_ids: [],
+  }]
+  else generateVariants()
 })
 
-watch(
-  () => selectedAttributes.value,
-  () => {
-    if (form.value.has_variants) generateVariants()
-  },
-  { deep: true }
-)
+watch(() => selectedAttributes.value, () => {
+  if (form.value.has_variants) generateVariants()
+}, { deep: true })
 
-watch(
-  () => form.value.category_id,
-  async (newVal, oldVal) => {
-    if (skipCategoryWatcher.value) return
+watch(() => form.value.category_id, async (newVal) => {
+  if (skipCategoryWatcher.value) return
+  const validSubCats = subCategories.value.filter(cat => cat.main_category_id === Number(newVal)).map(cat => cat.id)
+  if (!validSubCats.includes(form.value.sub_category_id)) form.value.sub_category_id = null
 
-    const validSubCats = subCategories.value.filter(cat => cat.main_category_id === Number(newVal)).map(cat => cat.id)
-    if (!validSubCats.includes(form.value.sub_category_id)) {
-      form.value.sub_category_id = null
-    }
-
-    await nextTick()
-    destroySelect2(subCategorySelect.value)
-    initSelect2(
-      subCategorySelect.value,
-      { placeholder: 'Select Sub-Category', width: '100%', allowClear: true, dropdownParent: window.$('#productModal') },
-      v => (form.value.sub_category_id = v)
-    )
-    const exists = filteredSubCategories.value.some(cat => cat.id == form.value.sub_category_id)
-    window.$(subCategorySelect.value).val(exists ? form.value.sub_category_id : '').trigger('change')
-  }
-)
-
-watch(showModal, async (isVisible) => {
-  if (isVisible) await initSelect2Dropdowns()
-  else hideModal()
+  await nextTick()
+  destroySelect2(subCategorySelect.value)
+  initSelect2(subCategorySelect.value, { placeholder: 'Select Sub-Category', width: '100%', allowClear: true, dropdownParent: window.$('#productModal') }, v => (form.value.sub_category_id = v))
+  const exists = filteredSubCategories.value.some(cat => cat.id == form.value.sub_category_id)
+  window.$(subCategorySelect.value).val(exists ? form.value.sub_category_id : '').trigger('change')
 })
+
+watch(showModal, async (isVisible) => { if (isVisible) await initSelect2Dropdowns(); else hideModal() })
 
 // Lifecycle
 onMounted(() => {
+  fetchWarehouses()
   resetForm()
 })
 
 defineExpose({ show })
 </script>
+
 
 <style scoped>
 .table th,

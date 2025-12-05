@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('product_variants')->onDelete('cascade');
             $table->decimal('alert_quantity', 10, 4)->default(0);
             $table->integer('order_leadtime')->default(0);
+            $table->integer('is_active')->default(1);
             $table->timestamps();
         });
     }
