@@ -11,7 +11,7 @@
     </div>
 
     <!-- Body -->
-    <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
+    <div class="card-body bg-white p-3">
       <div class="row mb-2">
         <div class="col-3">
           <p class="text-muted mb-1">
