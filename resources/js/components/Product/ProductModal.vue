@@ -156,6 +156,24 @@
             </div> -->
           </div>
         </div>
+        <!-- Warehouse Card -->
+        <div class="card border shadow-sm mb-4">
+          <div class="card-header py-2 bg-light">
+            <h6 class="mb-0 font-weight-bold">Select Warehouses</h6>
+          </div>
+          <div class="card-body">
+            <div v-for="wh in warehouses" :key="wh.id" class="custom-control custom-checkbox mb-2">
+              <input
+                type="checkbox"
+                class="custom-control-input"
+                :id="'wh-' + wh.id"
+                v-model="form.warehouse_ids"
+                :value="wh.id"
+              />
+              <label class="custom-control-label" :for="'wh-' + wh.id">{{ wh.name }}</label>
+            </div>
+          </div>
+        </div>
 
         <!-- Attribute Management -->
         <div v-if="form.has_variants" class="card border shadow-sm mb-4">
@@ -486,7 +504,16 @@ const form = ref({
   estimated_price: null,
   average_price: null,
   variants: [],
-})
+  // ✅ New warehouse fields
+  has_warehouse: false,        // toggle to show/hide warehouses
+  warehouse_ids: [],           // selected warehouse IDs
+});
+
+const warehouses = [
+  { id: 1, name: 'Main Warehouse' },
+  { id: 2, name: 'Secondary Warehouse' },
+  { id: 3, name: 'Overflow Warehouse' },
+];
 
 const barcodeSelect = ref(null)
 const unitSelect = ref(null)

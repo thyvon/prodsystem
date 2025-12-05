@@ -127,7 +127,7 @@ const renderColumnData = (key, val) => {
       const status = val?.toLowerCase();
       const cls = status?.includes('rejected') ? 'badge-danger' :
                   status === 'pending' ? 'badge-warning' :
-                  status === 'approved' ? 'badge-success' :
+                  status === 'done' ? 'badge-success' :
                   status === 'reviewed' ? 'badge-info' :
                   status === 'checked' ? 'badge-primary' : 'badge-secondary';
       return badge(cls, capitalize(val));

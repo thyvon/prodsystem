@@ -38,12 +38,7 @@
             <div class="form-row">
               <div class="form-group col-md-4">
                 <label for="barcode" class="font-weight-bold">Barcode Type</label>
-                <select
-                  ref="barcodeSelect"
-                  v-model="form.barcode"
-                  class="form-control"
-                  id="barcode"
-                >
+                <select ref="barcodeSelect" v-model="form.barcode" class="form-control" id="barcode">
                   <option value="">Select Barcode</option>
                   <option value="EAN13">EAN-13</option>
                   <option value="CODE128">CODE128</option>
@@ -51,26 +46,14 @@
               </div>
               <div class="form-group col-md-4">
                 <label for="unit_id" class="font-weight-bold">Unit <span class="text-danger">*</span></label>
-                <select
-                  ref="unitSelect"
-                  v-model="form.unit_id"
-                  class="form-control"
-                  id="unit_id"
-                  required
-                >
+                <select ref="unitSelect" v-model="form.unit_id" class="form-control" id="unit_id" required>
                   <option value="">Select Unit</option>
                   <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
                 </select>
               </div>
               <div class="form-group col-md-4">
                 <label for="category_id" class="font-weight-bold">Main Category <span class="text-danger">*</span></label>
-                <select
-                  ref="categorySelect"
-                  v-model="form.category_id"
-                  class="form-control"
-                  id="category_id"
-                  required
-                >
+                <select ref="categorySelect" v-model="form.category_id" class="form-control" id="category_id" required>
                   <option value="">Select Main Category</option>
                   <option v-for="cat in mainCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
                 </select>
@@ -79,12 +62,7 @@
             <div class="form-row">
               <div class="form-group col-md-4">
                 <label for="sub_category_id" class="font-weight-bold">Sub-Category</label>
-                <select
-                  ref="subCategorySelect"
-                  v-model="form.sub_category_id"
-                  class="form-control"
-                  id="sub_category_id"
-                >
+                <select ref="subCategorySelect" v-model="form.sub_category_id" class="form-control" id="sub_category_id">
                   <option value="">Select Sub-Category</option>
                   <option v-for="cat in filteredSubCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
                 </select>
@@ -110,20 +88,11 @@
                     </label>
                   </div>
                   <div class="input-group-append">
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      @click="importFile"
-                      :disabled="isImporting"
-                    >
+                    <button type="button" class="btn btn-primary" @click="importFile" :disabled="isImporting">
                       <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
                       <i class="fal fa-upload"></i> Import
                     </button>
-                    <a
-                      class="btn btn-secondary"
-                      href="/sampleExcel/Product_Sample.xlsx"
-                      download="Product_Sample.xlsx"
-                    >
+                    <a class="btn btn-secondary" href="/sampleExcel/Product_Sample.xlsx" download="Product_Sample.xlsx">
                       <i class="fal fa-file-excel"></i> Download Sample
                     </a>
                   </div>
@@ -137,46 +106,26 @@
             <div class="form-row">
               <div class="form-group col-md-3">
                 <div class="custom-control custom-checkbox mt-4">
-                  <input
-                    type="checkbox"
-                    class="custom-control-input"
-                    id="manageStock"
-                    v-model="form.manage_stock"
-                  />
+                  <input type="checkbox" class="custom-control-input" id="manageStock" v-model="form.manage_stock" />
                   <label class="custom-control-label" for="manageStock">Manage Stock</label>
                 </div>
               </div>
               <div class="form-group col-md-3">
                 <div class="custom-control custom-checkbox mt-4">
-                  <input
-                    type="checkbox"
-                    class="custom-control-input"
-                    id="isActive"
-                    v-model="form.is_active"
-                  />
+                  <input type="checkbox" class="custom-control-input" id="isActive" v-model="form.is_active" />
                   <label class="custom-control-label" for="isActive">Active</label>
                 </div>
               </div>
               <div class="form-group col-md-3">
                 <div class="custom-control custom-checkbox mt-4">
-                  <input
-                    type="checkbox"
-                    class="custom-control-input"
-                    id="hasVariants"
-                    v-model="form.has_variants"
-                  />
+                  <input type="checkbox" class="custom-control-input" id="hasVariants" v-model="form.has_variants" />
                   <label class="custom-control-label" for="hasVariants">Has Variants</label>
                 </div>
               </div>
               <div class="form-group col-md-3">
                 <label for="productImageInput" class="font-weight-bold">Image</label>
                 <div class="custom-file">
-                  <input
-                    type="file"
-                    class="custom-file-input"
-                    id="productImageInput"
-                    @change="onProductImageChange"
-                  />
+                  <input type="file" class="custom-file-input" id="productImageInput" @change="onProductImageChange" />
                   <label class="custom-file-label" for="productImageInput">
                     {{ form.image && typeof form.image === 'string' ? 'Change Image' : 'Choose Image' }}
                   </label>
@@ -192,17 +141,31 @@
             </div>
           </div>
 
-          <!-- Section 2: Attribute Management -->
+          <!-- Section 2: Warehouse Information (Always Visible) -->
+          <div class="card mb-3">
+            <div class="card-header py-2">
+              <h6 class="mb-0">Warehouse Information</h6>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="font-weight-bold">Select Warehouses</label>
+                <select class="form-control" multiple v-model="form.warehouse_ids">
+                  <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">
+                    {{ wh.name }}
+                  </option>
+                </select>
+                <small v-if="!warehouses.length" class="text-danger">No warehouses available.</small>
+                <small v-else class="form-text text-muted">You can select multiple warehouses.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Attribute Management -->
           <div v-if="form.has_variants" class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">🔧 Attribute Management</h5>
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h6 class="mb-0">Attributes</h6>
-              <button
-                type="button"
-                class="btn btn-primary btn-sm"
-                @click="openNewAttributeModal"
-                :disabled="isEditMode"
-              >
+              <button type="button" class="btn btn-primary btn-sm" @click="openNewAttributeModal" :disabled="isEditMode">
                 <i class="fal fa-plus"></i> Add New Attribute
               </button>
             </div>
@@ -213,11 +176,7 @@
                 <div class="card border h-100">
                   <div class="card-header py-2 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 font-weight-bold">{{ attr.name || 'Unknown Attribute' }}</h6>
-                    <button
-                      type="button"
-                      class="btn btn-outline-primary btn-sm"
-                      @click="openAddValueModal(attr)"
-                    >
+                    <button type="button" class="btn btn-outline-primary btn-sm" @click="openAddValueModal(attr)">
                       <i class="fal fa-plus"></i> Add Value
                     </button>
                   </div>
@@ -241,7 +200,7 @@
             </div>
           </div>
 
-          <!-- Section 3: Variants Table -->
+          <!-- Section 4: Variants Table -->
           <div class="border rounded p-3 mb-4">
             <h5 class="font-weight-bold mb-3 text-primary">📦 Product Variants</h5>
             <div class="table-responsive">
@@ -291,12 +250,7 @@
                       />
                     </td>
                     <td>
-                      <textarea
-                        v-model="variant.description"
-                        class="form-control"
-                        rows="2"
-                        maxlength="1000"
-                      ></textarea>
+                      <textarea v-model="variant.description" class="form-control" rows="2" maxlength="1000"></textarea>
                     </td>
                     <td>
                       <div class="custom-file">
@@ -345,23 +299,14 @@
                 </tbody>
               </table>
             </div>
-            <button
-              type="button"
-              class="btn btn-success btn-sm mt-2"
-              @click="addVariant"
-              v-if="form.has_variants"
-            >
+            <button type="button" class="btn btn-success btn-sm mt-2" @click="addVariant" v-if="form.has_variants">
               <i class="fal fa-plus"></i> Add Variant
             </button>
           </div>
 
-          <!-- Section 4: Submit/Cancel -->
+          <!-- Section 5: Submit/Cancel -->
           <div class="text-right">
-            <button
-              type="submit"
-              class="btn btn-primary btn-sm mr-2"
-              :disabled="isSubmitting || isLoading"
-            >
+            <button type="submit" class="btn btn-primary btn-sm mr-2" :disabled="isSubmitting || isLoading">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm mr-1"></span>
               {{ isEditMode ? 'Update' : 'Create' }}
             </button>
@@ -371,94 +316,45 @@
       </div>
     </form>
 
-    <!-- New Attribute Modal -->
-    <BaseModal
-      v-model="showNewAttributeModal"
-      id="newAttributeModal"
-      title="Add New Attribute"
-      size="md"
-    >
+    <!-- Modals (Attribute / Add Value) -->
+    <BaseModal v-model="showNewAttributeModal" id="newAttributeModal" title="Add New Attribute" size="md">
       <template #body>
         <div class="form-group">
           <label>Attribute Name <span class="text-danger">*</span></label>
-          <input
-            v-model="newAttribute.name"
-            type="text"
-            class="form-control"
-            placeholder="Enter attribute name"
-            required
-          />
+          <input v-model="newAttribute.name" type="text" class="form-control" placeholder="Enter attribute name" required />
         </div>
         <div class="form-group">
           <label>Ordinal (optional)</label>
-          <input
-            v-model.number="newAttribute.ordinal"
-            type="number"
-            min="0"
-            class="form-control"
-            placeholder="Enter ordinal value"
-          />
+          <input v-model.number="newAttribute.ordinal" type="number" min="0" class="form-control" placeholder="Enter ordinal value" />
         </div>
         <div class="form-group">
           <label>Attribute Values (comma-separated)</label>
-          <textarea
-            v-model="newAttribute.values"
-            class="form-control"
-            rows="3"
-            placeholder="Enter values separated by commas (e.g., Small, Medium, Large)"
-          ></textarea>
+          <textarea v-model="newAttribute.values" class="form-control" rows="3" placeholder="Enter values separated by commas"></textarea>
         </div>
       </template>
       <template #footer>
         <button type="button" class="btn btn-secondary" @click="showNewAttributeModal = false">Cancel</button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="isSubmittingAttribute || !newAttribute.name"
-          @click="createAttribute"
-        >
+        <button type="button" class="btn btn-primary" :disabled="isSubmittingAttribute || !newAttribute.name" @click="createAttribute">
           <span v-if="isSubmittingAttribute" class="spinner-border spinner-border-sm mr-1"></span>
           Create Attribute
         </button>
       </template>
     </BaseModal>
 
-    <!-- Add Value to Attribute Modal -->
-    <BaseModal
-      v-model="showAddValueModal"
-      id="addValueModal"
-      title="Add Value to Attribute"
-      size="md"
-    >
+    <BaseModal v-model="showAddValueModal" id="addValueModal" title="Add Value to Attribute" size="md">
       <template #body>
         <div class="form-group">
           <label>Attribute</label>
-          <input
-            type="text"
-            class="form-control"
-            :value="currentAttribute?.name || ''"
-            disabled
-          />
+          <input type="text" class="form-control" :value="currentAttribute?.name || ''" disabled />
         </div>
         <div class="form-group">
           <label>New Value <span class="text-danger">*</span></label>
-          <input
-            v-model="newValue"
-            type="text"
-            class="form-control"
-            placeholder="Enter new value"
-            required
-          />
+          <input v-model="newValue" type="text" class="form-control" placeholder="Enter new value" required />
         </div>
       </template>
       <template #footer>
         <button type="button" class="btn btn-secondary" @click="showAddValueModal = false">Cancel</button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="isSubmittingAttribute || !newValue"
-          @click="addValueToAttribute"
-        >
+        <button type="button" class="btn btn-primary" :disabled="isSubmittingAttribute || !newValue" @click="addValueToAttribute">
           <span v-if="isSubmittingAttribute" class="spinner-border spinner-border-sm mr-1"></span>
           Add Value
         </button>
@@ -466,6 +362,7 @@
     </BaseModal>
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';

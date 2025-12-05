@@ -172,6 +172,88 @@ class ProductController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+    // public function store(Request $request)
+    // {
+    //     $this->authorize('create', Product::class);
+
+    //     $validated = $request->validate($this->validationRules());
+
+    //     DB::beginTransaction();
+
+    //     try {
+    //         $imagePath = $this->handleImageUpload($request, 'image', 'products');
+
+    //         $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode($validated['category_id']);
+
+    //         $product = Product::create([
+    //             'item_code' => $baseItemCode,
+    //             'name' => $validated['name'],
+    //             'khmer_name' => $validated['khmer_name'] ?? null,
+    //             'description' => $validated['description'] ?? null,
+    //             'has_variants' => $validated['has_variants'] ?? false,
+    //             'barcode' => $validated['barcode'] ?? null,
+    //             'category_id' => $validated['category_id'],
+    //             'sub_category_id' => $validated['sub_category_id'] ?? null,
+    //             'unit_id' => $validated['unit_id'],
+    //             'manage_stock' => $validated['manage_stock'] ?? true,
+    //             'image' => $imagePath,
+    //             'is_active' => $validated['is_active'] ?? true,
+    //             'created_by' => auth()->id(),
+    //             'updated_by' => auth()->id(),
+    //         ]);
+
+    //         if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
+    //             // Product has variants, create each variant
+    //             foreach ($validated['variants'] as $index => $variant) {
+    //                 $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
+    //                 $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
+
+    //                 $createdVariant = ProductVariant::create([
+    //                     'product_id' => $product->id,
+    //                     'item_code' => $variantItemCode,
+    //                     'estimated_price' => $variant['estimated_price'],
+    //                     'average_price' => $variant['average_price'],
+    //                     'description' => $variant['description'] ?? null,
+    //                     'image' => $variantImagePath,
+    //                     'is_active' => $variant['is_active'] ?? 1,
+    //                     'updated_by' => auth()->id(),
+    //                 ]);
+
+    //                 if (!empty($variant['variant_value_ids'])) {
+    //                     $createdVariant->values()->sync($variant['variant_value_ids']);
+    //                 }
+    //             }
+    //         } else {
+    //             // No variants - create one default variant
+    //             $variantData = $validated['variants'][0] ?? [];
+    //             ProductVariant::create([
+    //                 'product_id' => $product->id,
+    //                 'item_code' => $baseItemCode,
+    //                 'estimated_price' => $variantData['estimated_price'] ?? null,
+    //                 'average_price' => $variantData['average_price'] ?? null,
+    //                 'description' => $variantData['description'] ?? $validated['description'] ?? null,
+    //                 'image' => $imagePath,
+    //                 'is_active' => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
+    //                 'updated_by' => auth()->id(),
+    //             ]);
+    //         }
+
+    //         DB::commit();
+
+    //         return response()->json(['message' => 'Product created successfully'], 201);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         Log::error('Error creating product', [
+    //             'error_message' => $e->getMessage(),
+    //             'product_id' => $product->id ?? null,
+    //         ]);
+    //         return response()->json([
+    //             'message' => 'Failed to create product',
+    //             'error' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+
     public function store(Request $request)
     {
         $this->authorize('create', Product::class);
@@ -183,73 +265,108 @@ class ProductController extends Controller
         try {
             $imagePath = $this->handleImageUpload($request, 'image', 'products');
 
-            $baseItemCode = $validated['item_code'] ?? $this->generateBaseItemCode($validated['category_id']);
+            $baseItemCode = $validated['item_code'] 
+                ?? $this->generateBaseItemCode($validated['category_id']);
 
             $product = Product::create([
-                'item_code' => $baseItemCode,
-                'name' => $validated['name'],
-                'khmer_name' => $validated['khmer_name'] ?? null,
-                'description' => $validated['description'] ?? null,
-                'has_variants' => $validated['has_variants'] ?? false,
-                'barcode' => $validated['barcode'] ?? null,
-                'category_id' => $validated['category_id'],
+                'item_code'       => $baseItemCode,
+                'name'            => $validated['name'],
+                'khmer_name'      => $validated['khmer_name'] ?? null,
+                'description'     => $validated['description'] ?? null,
+                'has_variants'    => $validated['has_variants'] ?? false,
+                'barcode'         => $validated['barcode'] ?? null,
+                'category_id'     => $validated['category_id'],
                 'sub_category_id' => $validated['sub_category_id'] ?? null,
-                'unit_id' => $validated['unit_id'],
-                'manage_stock' => $validated['manage_stock'] ?? true,
-                'image' => $imagePath,
-                'is_active' => $validated['is_active'] ?? true,
-                'created_by' => auth()->id(),
-                'updated_by' => auth()->id(),
+                'unit_id'         => $validated['unit_id'],
+                'manage_stock'    => $validated['manage_stock'] ?? true,
+                'image'           => $imagePath,
+                'is_active'       => $validated['is_active'] ?? true,
+                'created_by'      => auth()->id(),
+                'updated_by'      => auth()->id(),
             ]);
 
-            if (!empty($validated['has_variants']) && $validated['has_variants'] && !empty($validated['variants'])) {
-                // Product has variants, create each variant
+            // ⭐ NEW → safely added, does not affect your old logic
+            $warehouseIds = $validated['warehouse_ids'] ?? [];
+
+            if (!empty($validated['has_variants']) 
+                && $validated['has_variants'] 
+                && !empty($validated['variants'])) {
+
+                // ORIGINAL CODE (unchanged)
                 foreach ($validated['variants'] as $index => $variant) {
                     $variantImagePath = $this->handleImageUpload($request, "variants.$index.image", 'variants');
-                    $variantItemCode = $variant['item_code'] ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
+                    $variantItemCode  = $variant['item_code'] 
+                        ?? $this->generateVariantItemCode($baseItemCode, $index + 1);
 
                     $createdVariant = ProductVariant::create([
-                        'product_id' => $product->id,
-                        'item_code' => $variantItemCode,
-                        'estimated_price' => $variant['estimated_price'],
-                        'average_price' => $variant['average_price'],
-                        'description' => $variant['description'] ?? null,
-                        'image' => $variantImagePath,
-                        'is_active' => $variant['is_active'] ?? 1,
-                        'updated_by' => auth()->id(),
+                        'product_id'     => $product->id,
+                        'item_code'      => $variantItemCode,
+                        'estimated_price'=> $variant['estimated_price'],
+                        'average_price'  => $variant['average_price'],
+                        'description'    => $variant['description'] ?? null,
+                        'image'          => $variantImagePath,
+                        'is_active'      => $variant['is_active'] ?? 1,
+                        'updated_by'     => auth()->id(),
                     ]);
 
                     if (!empty($variant['variant_value_ids'])) {
                         $createdVariant->values()->sync($variant['variant_value_ids']);
                     }
+
+                    // ⭐ NEW (does NOT modify logic)
+                    foreach ($warehouseIds as $warehouseId) {
+                        WarehouseProduct::create([
+                            'product_variant_id' => $createdVariant->id,
+                            'warehouse_id'       => $warehouseId,
+                            'qty'                => 0,
+                        ]);
+                    }
                 }
+
             } else {
-                // No variants - create one default variant
+                // ORIGINAL CODE (unchanged)
                 $variantData = $validated['variants'][0] ?? [];
-                ProductVariant::create([
-                    'product_id' => $product->id,
-                    'item_code' => $baseItemCode,
-                    'estimated_price' => $variantData['estimated_price'] ?? null,
-                    'average_price' => $variantData['average_price'] ?? null,
-                    'description' => $variantData['description'] ?? $validated['description'] ?? null,
-                    'image' => $imagePath,
-                    'is_active' => $variantData['is_active'] ?? $validated['is_active'] ?? 1,
-                    'updated_by' => auth()->id(),
+
+                $createdVariant = ProductVariant::create([
+                    'product_id'     => $product->id,
+                    'item_code'      => $baseItemCode,
+                    'estimated_price'=> $variantData['estimated_price'] ?? null,
+                    'average_price'  => $variantData['average_price'] ?? null,
+                    'description'    => $variantData['description'] 
+                                        ?? $validated['description'] 
+                                        ?? null,
+                    'image'          => $imagePath,
+                    'is_active'      => $variantData['is_active'] 
+                                        ?? $validated['is_active'] 
+                                        ?? 1,
+                    'updated_by'     => auth()->id(),
                 ]);
+
+                // ⭐ NEW (still won't affect old behavior)
+                foreach ($warehouseIds as $warehouseId) {
+                    WarehouseProduct::create([
+                        'product_variant_id' => $createdVariant->id,
+                        'warehouse_id'       => $warehouseId,
+                        'qty'                => 0,
+                    ]);
+                }
             }
 
             DB::commit();
 
             return response()->json(['message' => 'Product created successfully'], 201);
+
         } catch (\Exception $e) {
             DB::rollBack();
+
             Log::error('Error creating product', [
                 'error_message' => $e->getMessage(),
-                'product_id' => $product->id ?? null,
+                'product_id'    => $product->id ?? null,
             ]);
+
             return response()->json([
                 'message' => 'Failed to create product',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

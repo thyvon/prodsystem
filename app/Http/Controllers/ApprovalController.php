@@ -193,6 +193,56 @@ class ApprovalController extends Controller
 
     /* ---------------------- Get / List Approvals ---------------------- */
 
+    // public function getApprovals(Request $request): JsonResponse
+    // {
+    //     $validated = $request->validate([
+    //         'search'        => 'nullable|string|max:255',
+    //         'sortColumn'    => 'nullable|string|in:' . implode(',', self::ALLOWED_SORT_COLUMNS),
+    //         'sortDirection' => 'nullable|string|in:asc,desc',
+    //         'limit'         => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+    //         'draw'          => 'nullable|integer',
+    //         'page'          => 'nullable|integer|min:1',
+    //     ]);
+
+    //     $search        = $validated['search'] ?? null;
+    //     $sortColumn    = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
+    //     $sortDirection = strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
+    //     $limit         = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
+    //     $page          = (int) ($validated['page'] ?? 1);
+    //     $draw          = (int) ($validated['draw'] ?? 1);
+
+    //     $user = Auth::user();
+
+    //     $query = Approval::with(['requester:id,name', 'responder:id,name'])
+    //         ->when($search, function ($query, $search) {
+    //             $query->where(function ($q) use ($search) {
+    //                 $q->where('document_name', 'like', "%{$search}%")
+    //                     ->orWhere('request_type', 'like', "%{$search}%")
+    //                     ->orWhere('approval_status', 'like', "%{$search}%")
+    //                     ->orWhere('document_reference', 'like', "%{$search}%")
+    //                     ->orWhereHas('requester', fn($q) => $q->where('name', 'like', "%{$search}%"))
+    //                     ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
+    //             });
+    //         });
+
+    //     if (!$user->hasRole('admin')) {
+    //         $query->where('responder_id', $user->id);
+    //     }
+
+    //     $recordsTotal = $user->hasRole('admin') ? Approval::count() : $query->count();
+    //     $query->orderBy($sortColumn, $sortDirection);
+    //     $approvals = $query->paginate($limit, ['*'], 'page', $page);
+
+    //     $items = $approvals->getCollection()->map(fn($approval) => $this->formatApprovalForList($approval, $user));
+
+    //     return response()->json([
+    //         'data'            => $items,
+    //         'recordsTotal'    => $recordsTotal,
+    //         'recordsFiltered' => $approvals->total(),
+    //         'draw'            => $draw,
+    //     ]);
+    // }
+
     public function getApprovals(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -202,6 +252,7 @@ class ApprovalController extends Controller
             'limit'         => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'draw'          => 'nullable|integer',
             'page'          => 'nullable|integer|min:1',
+            'filterType'    => 'nullable|string|in:all,pending,completed,upcoming',
         ]);
 
         $search        = $validated['search'] ?? null;
@@ -210,6 +261,7 @@ class ApprovalController extends Controller
         $limit         = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
         $page          = (int) ($validated['page'] ?? 1);
         $draw          = (int) ($validated['draw'] ?? 1);
+        $filterType    = $validated['filterType'] ?? null;
 
         $user = Auth::user();
 
@@ -217,28 +269,69 @@ class ApprovalController extends Controller
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('document_name', 'like', "%{$search}%")
-                        ->orWhere('request_type', 'like', "%{$search}%")
-                        ->orWhere('approval_status', 'like', "%{$search}%")
-                        ->orWhere('document_reference', 'like', "%{$search}%")
-                        ->orWhereHas('requester', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
+                    ->orWhere('request_type', 'like', "%{$search}%")
+                    ->orWhere('approval_status', 'like', "%{$search}%")
+                    ->orWhere('document_reference', 'like', "%{$search}%")
+                    ->orWhereHas('requester', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
                 });
             });
 
-        if (!$user->hasRole('admin')) {
-            $query->where('responder_id', $user->id);
+        // Filter only approvals for the current user
+        $query->where('responder_id', $user->id);
+
+        $query->orderBy($sortColumn, $sortDirection);
+
+        $approvalsAll = $query->get();
+        $mappedApprovals = $approvalsAll->map(fn($approval) => $this->formatApprovalForList($approval, $user));
+
+        // -----------------------
+        // Status counts based on $displayStatus
+        // -----------------------
+        $statusCounts = [
+            'all'       => $mappedApprovals->count(),
+            'upcoming'  => $mappedApprovals->filter(fn($a) => str_contains(strtolower($a['approval_status']), 'waiting'))->count(),
+            'completed' => $mappedApprovals->filter(fn($a) => 
+                strtolower($a['approval_status']) === 'done' ||
+                str_contains(strtolower($a['approval_status']), 'rejected') ||
+                str_contains(strtolower($a['approval_status']), 'returned')
+            )->count(),
+            'pending'   => $mappedApprovals->filter(fn($a) => 
+                !str_contains(strtolower($a['approval_status']), 'waiting') &&
+                strtolower($a['approval_status']) !== 'done' &&
+                !str_contains(strtolower($a['approval_status']), 'rejected') &&
+                !str_contains(strtolower($a['approval_status']), 'returned')
+            )->count(),
+        ];
+
+        // -----------------------
+        // Apply filter if selected
+        // -----------------------
+        if ($filterType && $filterType !== 'all') {
+            $mappedApprovals = match ($filterType) {
+                'upcoming'  => $mappedApprovals->filter(fn($a) => str_contains(strtolower($a['approval_status']), 'waiting')),
+                'completed' => $mappedApprovals->filter(fn($a) => 
+                    strtolower($a['approval_status']) === 'done' ||
+                    str_contains(strtolower($a['approval_status']), 'rejected') ||
+                    str_contains(strtolower($a['approval_status']), 'returned')
+                ),
+                'pending'   => $mappedApprovals->filter(fn($a) => 
+                    !str_contains(strtolower($a['approval_status']), 'waiting') &&
+                    strtolower($a['approval_status']) !== 'done' &&
+                    !str_contains(strtolower($a['approval_status']), 'rejected') &&
+                    !str_contains(strtolower($a['approval_status']), 'returned')
+                ),
+                default => $mappedApprovals,
+            };
         }
 
-        $recordsTotal = $user->hasRole('admin') ? Approval::count() : $query->count();
-        $query->orderBy($sortColumn, $sortDirection);
-        $approvals = $query->paginate($limit, ['*'], 'page', $page);
-
-        $items = $approvals->getCollection()->map(fn($approval) => $this->formatApprovalForList($approval, $user));
+        $paginated = $mappedApprovals->forPage($page, $limit);
 
         return response()->json([
-            'data'            => $items,
-            'recordsTotal'    => $recordsTotal,
-            'recordsFiltered' => $approvals->total(),
+            'data'            => $paginated->values(),
+            'recordsTotal'    => $mappedApprovals->count(),
+            'recordsFiltered' => $mappedApprovals->count(),
+            'statusCounts'    => $statusCounts,
             'draw'            => $draw,
         ]);
     }
@@ -291,6 +384,11 @@ class ApprovalController extends Controller
             $displayStatus = 'Returned by ' . ($blockingReturned->responder?->name ?? 'Unknown');
             $displayResponseDate = $blockingReturned->responded_date;
         }
+        
+        // Map "Approved" to "Done"
+        if (strtolower($displayStatus) === 'approved') {
+            $displayStatus = 'Done';
+        }
 
         // Get requester safely
         $requester = $approval->requester;
@@ -308,7 +406,7 @@ class ApprovalController extends Controller
             'ordinal'             => $approval->ordinal,
             'requester_name'      => $requester?->name,
             'requester_position'  => $requester?->defaultPosition?->title,
-            'requester_department'=> $requester?->defaultDepartment?->name,
+            'requester_department'=> $requester?->defaultDepartment?->short_name,
             'requester_campus'    => $requester?->defaultCampus?->short_name,
             'responder_name'      => $approval->responder?->name,
             'responded_date'      => $displayResponseDate,
