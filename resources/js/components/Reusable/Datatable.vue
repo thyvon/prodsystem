@@ -1,31 +1,65 @@
 <template>
   <div>
+    <!-- Additional header slot -->
     <div v-if="$slots['additional-header']" class="datatable-header mb-2">
       <slot name="additional-header" />
     </div>
 
     <!-- Outer container with horizontal padding -->
-    <div class="px-3"> 
-      <div class="bg-white dark:bg-gray-800 p-6 rounded shadow text-gray-900 dark:text-gray-100" style="overflow-x: auto;">
+    <div class="px-3">
+      <div
+        class="bg-white dark:bg-gray-800 p-6 rounded shadow text-gray-900 dark:text-gray-100"
+        style="overflow-x: auto;"
+      >
         <!-- Outer wrapper to control margins/alignment -->
         <div class="table-wrapper" style="padding-left: 15px; padding-right: 15px; overflow-x: auto;">
-          <table ref="table" class="table table-bordered table-sm table-hover table-striped" style="margin: 0 auto;">
+          <table
+            ref="table"
+            class="table table-bordered table-sm table-hover table-striped"
+            style="margin: 0 auto; cursor: pointer;"
+          >
             <thead class="thead-light">
               <tr>
                 <th style="width: 30px; text-align: center;">#</th>
-                <th v-for="(h, i) in headers" :key="i" :style="{ width: h.width, minWidth: h.minWidth }">
+                <th
+                  v-for="(h, i) in headers"
+                  :key="i"
+                  :style="{ width: h.width, minWidth: h.minWidth }"
+                >
                   {{ h.text }}
                 </th>
                 <th v-if="actions.length" style="width: 80px; text-align: center;">Actions</th>
               </tr>
             </thead>
-            <tbody></tbody>
+            <tbody>
+              <!-- Example row for row click -->
+              <tr
+                v-for="(row, index) in rows"
+                :key="row.id || index"
+                @click="handleRowClick(row)"
+                style="cursor: pointer;"
+              >
+                <td style="text-align:center">{{ index + 1 }}</td>
+                <td v-for="(h, i) in headers" :key="i">{{ row[h.value] }}</td>
+                <td v-if="actions.length">
+                  <button
+                    v-for="act in actions"
+                    :key="act"
+                    @click.stop="handlers[act](row)"
+                    class="btn btn-sm btn-outline-primary"
+                  >
+                    {{ act }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
     </div>
   </div>
 </template>
+
 
 
 <script setup>
@@ -60,6 +94,7 @@ const props = defineProps({
   fetchUrl: String,
   totalRecords: Number,
   fetchParams: Object,
+  rows: Array,
 });
 
 const emit = defineEmits([
@@ -67,6 +102,7 @@ const emit = defineEmits([
   'page-change',
   'length-change',
   'search-change',
+  'row-click',
 ]);
 
 const table = ref(null);

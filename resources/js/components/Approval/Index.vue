@@ -3,6 +3,7 @@
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
+      :rows="datatableRows"
       :fetch-url="datatableFetchUrl"
       :fetch-params="datatableParams"
       :actions="datatableActions"
@@ -12,6 +13,7 @@
       @page-change="handlePageChange"
       @length-change="handleLengthChange"
       @search-change="handleSearchChange"
+      @row-click="previewRow"
     >
       <!-- Additional Header Cards -->
       <template #additional-header>
@@ -82,6 +84,7 @@ import { ref, reactive, nextTick, onMounted } from 'vue'
 import axios from 'axios'
 
 const datatableRef = ref(null)
+const datatableRows = ref([]) // <-- rows for your datatable
 const pageLength = ref(10)
 
 const datatableParams = reactive({
@@ -101,22 +104,23 @@ const statusCounts = reactive({
 })
 
 const datatableHeaders = [
-  { text: 'Requested Date', value: 'created_at', width: '10%' },
-  { text: 'Docs Name', value: 'document_name', width: '20%' },
-  { text: 'Docs Ref.', value: 'document_reference', width: '15%' },
-  { text: 'Requester', value: 'requester_name', width: '15%', sortable: false },
-  { text: 'Position', value: 'requester_position', width: '10%', sortable: false },
-  { text: 'Department', value: 'requester_department', width: '10%', sortable: false },
-  { text: 'Request Type', value: 'request_type', width: '5%' },
-  { text: 'Status', value: 'approval_status', width: '10%' },
-  { text: 'Responded Date', value: 'responded_date', width: '15%' },
+  { text: 'Requested Date', value: 'created_at', width: '10%', minWidth: '120px' },
+  { text: 'Docs Name', value: 'document_name', width: '20%', minWidth: '200px' },
+  { text: 'Docs Ref.', value: 'document_reference', width: '15%', minWidth: '150px' },
+  { text: 'Requester', value: 'requester_name', width: '15%', sortable: false, minWidth: '150px' },
+  { text: 'Position', value: 'requester_position', width: '10%', sortable: false, minWidth: '120px' },
+  { text: 'Department', value: 'requester_department', width: '10%', sortable: false, minWidth: '120px' },
+  { text: 'Request Type', value: 'request_type', width: '5%', minWidth: '100px' },
+  { text: 'Status', value: 'approval_status', width: '10%', minWidth: '120px' },
+  { text: 'Responded Date', value: 'responded_date', width: '15%', minWidth: '150px' },
 ]
 
 const datatableFetchUrl = '/api/approvals'
 const datatableActions = ['preview']
 
 const datatableOptions = {
-  responsive: true,
+  autoWidth: false,
+  responsive: false,
   pageLength: pageLength.value,
   lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
 }
@@ -159,6 +163,13 @@ const handleSearchChange = (search) => {
 }
 
 // -----------------------
+// Row click
+// -----------------------
+const previewRow = (row) => {
+  if (datatableHandlers.preview) datatableHandlers.preview(row)
+}
+
+// -----------------------
 // Filter function
 // -----------------------
 const filterApprovals = async (type) => {
@@ -171,27 +182,26 @@ const filterApprovals = async (type) => {
 }
 
 // -----------------------
-// Fetch counts from backend
+// Fetch rows and counts from backend
 // -----------------------
-const fetchStatusCounts = async () => {
+const fetchRows = async () => {
   try {
     const { data } = await axios.get(datatableFetchUrl, { params: datatableParams })
-    if (data.statusCounts) {
-      Object.assign(statusCounts, data.statusCounts)
-    }
+    datatableRows.value = data.data || []
+    if (data.statusCounts) Object.assign(statusCounts, data.statusCounts)
   } catch (error) {
-    console.error('Error fetching status counts', error)
+    console.error(error)
   }
 }
 
-// Fetch on mounted
+// Fetch status counts on mounted
 onMounted(() => {
-  fetchStatusCounts()
+  fetchRows()
 })
 </script>
 
 <style>
-/* Simplified Card styles */
+/* Filter card styles */
 .filter-card {
   position: relative;
   z-index: 1;
@@ -202,17 +212,14 @@ onMounted(() => {
   padding: 1rem;
 }
 
-/* Optional subtle hover: just a light shadow */
 .filter-card:hover {
   box-shadow: 0 4px 8px rgba(16, 9, 209, 0.1);
 }
 
-/* Active card with animated border */
 .filter-card.active {
-  border: none; /* remove static border */
+  border: none;
 }
 
-/* Active card with animated border */
 .filter-card.active::before {
   content: '';
   position: absolute;
@@ -225,10 +232,9 @@ onMounted(() => {
   background: linear-gradient(270deg, #ff0047, #2c34c7, #00ffe4, #ff0047);
   background-size: 600% 600%;
   z-index: -1;
-  animation: borderAnimation 10s linear infinite; /* slow and continuous */
+  animation: borderAnimation 10s linear infinite;
 }
 
-/* Animate gradient in one direction */
 @keyframes borderAnimation {
   0% {
     background-position: 0% 50%;
@@ -238,15 +244,12 @@ onMounted(() => {
   }
 }
 
-
-/* Ensure inner content stays above the animated border */
 .filter-card.active h3,
 .filter-card.active small {
   position: relative;
   z-index: 1;
 }
 
-/* Icon transition */
 .filter-card i {
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
