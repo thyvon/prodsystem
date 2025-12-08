@@ -3,9 +3,9 @@
     <div v-if="$slots['additional-header']" class="datatable-header mb-2">
       <slot name="additional-header" />
     </div>
-    <div class="bg-white dark:bg-gray-800 p-6 rounded shadow text-gray-900 dark:text-gray-100">
-      <table ref="table" class="table table-bordered w-100 table-sm">
-        <thead>
+    <div class="bg-white dark:bg-gray-800 p-6 rounded shadow text-gray-900 dark:text-gray-100 table-responsive">
+      <table ref="table" class="table table-bordered w-100 table-sm table-hover">
+        <thead class="thead-light">
           <tr>
             <th style="width: 30px; text-align: center;">#</th>
             <th v-for="(h, i) in headers" :key="i" :style="{ width: h.width }">
@@ -46,7 +46,9 @@ const props = defineProps({
   rows: Array, // not used for server-side, but kept for compatibility
   actions: { type: Array, default: () => [] },
   handlers: { type: Object, default: () => ({}) },
-  options: { type: Object, default: () => ({ responsive: true, pageLength: 20 }) },
+  options: { type: Object, default: () => ({ 
+    responsive: true, 
+    pageLength: 20, }) },
   fetchUrl: String,
   totalRecords: Number,
   fetchParams: Object,
@@ -101,6 +103,8 @@ const renderColumnData = (key, val) => {
     case 'transaction_date': return formatDate(val);
     case 'report_date': return formatDate(val);
     case 'responded_date': return formatDateTime(val);
+    case 'request_date': return formatDate(val);
+    case 'deadline_date': return formatDate(val);
 
     // Boolean status badges
     case 'is_active':
@@ -269,24 +273,24 @@ const initDataTable = () => {
         titleAttr: 'Col visibility',
         className: 'btn-outline-default'
       },
-      {
-        extend: 'csvHtml5',
-        text: 'CSV',
-        titleAttr: 'Generate CSV',
-        className: 'btn-outline-default'
-      },
-      {
-        extend: 'copyHtml5',
-        text: 'Copy',
-        titleAttr: 'Copy to clipboard',
-        className: 'btn-outline-default'
-      },
-      {
-        extend: 'print',
-        text: 'Print',
-        titleAttr: 'Print Table',
-        className: 'btn-outline-default'
-      }
+      // {
+      //   extend: 'csvHtml5',
+      //   text: 'CSV',
+      //   titleAttr: 'Generate CSV',
+      //   className: 'btn-outline-default'
+      // },
+      // {
+      //   extend: 'copyHtml5',
+      //   text: 'Copy',
+      //   titleAttr: 'Copy to clipboard',
+      //   className: 'btn-outline-default'
+      // },
+      // {
+      //   extend: 'print',
+      //   text: 'Print',
+      //   titleAttr: 'Print Table',
+      //   className: 'btn-outline-default'
+      // }
     ],
   ajax: async (data, callback) => {
     const orderIndex = data.order?.[0]?.column;

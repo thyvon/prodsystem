@@ -17,11 +17,7 @@
       <template #additional-header>
         <div class="row g-3">
           <!-- All my approvals -->
-          <div
-            class="col-sm-6 col-xl-3"
-            @click="filterApprovals('all')"
-            style="cursor: pointer"
-          >
+          <div class="col-sm-6 col-xl-3" @click="filterApprovals('all')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-primary-300 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'all' }"
@@ -35,11 +31,7 @@
           </div>
 
           <!-- Pending approvals -->
-          <div
-            class="col-sm-6 col-xl-3"
-            @click="filterApprovals('pending')"
-            style="cursor: pointer"
-          >
+          <div class="col-sm-6 col-xl-3" @click="filterApprovals('pending')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-warning-400 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'pending' }"
@@ -53,11 +45,7 @@
           </div>
 
           <!-- Completed approvals -->
-          <div
-            class="col-sm-6 col-xl-3"
-            @click="filterApprovals('completed')"
-            style="cursor: pointer"
-          >
+          <div class="col-sm-6 col-xl-3" @click="filterApprovals('completed')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-success-200 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'completed' }"
@@ -71,11 +59,7 @@
           </div>
 
           <!-- Upcoming approvals -->
-          <div
-            class="col-sm-6 col-xl-3"
-            @click="filterApprovals('upcoming')"
-            style="cursor: pointer"
-          >
+          <div class="col-sm-6 col-xl-3" @click="filterApprovals('upcoming')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-info-200 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'upcoming' }"
@@ -84,7 +68,6 @@
                 {{ statusCounts.upcoming }}
                 <small class="m-0 l-h-n d-block">My upcoming approvals</small>
               </h3>
-              <!-- Changed icon to clock -->
               <i class="fal fa-clock position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
             </div>
           </div>
@@ -104,7 +87,7 @@ const pageLength = ref(10)
 const datatableParams = reactive({
   sortColumn: 'created_at',
   sortDirection: 'desc',
-  filterType: 'all',
+  filterType: 'pending',
   page: 1,
   limit: pageLength.value,
   search: '',
@@ -121,10 +104,9 @@ const datatableHeaders = [
   { text: 'Requested Date', value: 'created_at', width: '10%' },
   { text: 'Docs Name', value: 'document_name', width: '20%' },
   { text: 'Docs Ref.', value: 'document_reference', width: '15%' },
-  { text: 'Requester', value: 'requester_name', width: '15%',sortable: false },
+  { text: 'Requester', value: 'requester_name', width: '15%', sortable: false },
   { text: 'Position', value: 'requester_position', width: '10%', sortable: false },
   { text: 'Department', value: 'requester_department', width: '10%', sortable: false },
-  // { text: 'Responder', value: 'responder_name', width: '10%' },
   { text: 'Request Type', value: 'request_type', width: '5%' },
   { text: 'Status', value: 'approval_status', width: '10%' },
   { text: 'Responded Date', value: 'responded_date', width: '15%' },
@@ -209,12 +191,68 @@ onMounted(() => {
 </script>
 
 <style>
+/* Simplified Card styles */
 .filter-card {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  overflow: hidden;
   transition: all 0.2s ease;
+  padding: 1rem;
 }
-.filter-card.active,
+
+/* Optional subtle hover: just a light shadow */
 .filter-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 8px rgba(16, 9, 209, 0.1);
+}
+
+/* Active card with animated border */
+.filter-card.active {
+  border: none; /* remove static border */
+}
+
+/* Active card with animated border */
+.filter-card.active::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 0.5rem;
+  padding: 2px;
+  background: linear-gradient(270deg, #ff0047, #2c34c7, #00ffe4, #ff0047);
+  background-size: 600% 600%;
+  z-index: -1;
+  animation: borderAnimation 10s linear infinite; /* slow and continuous */
+}
+
+/* Animate gradient in one direction */
+@keyframes borderAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+
+/* Ensure inner content stays above the animated border */
+.filter-card.active h3,
+.filter-card.active small {
+  position: relative;
+  z-index: 1;
+}
+
+/* Icon transition */
+.filter-card i {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.filter-card:hover i {
+  transform: scale(1.05);
+  opacity: 0.3;
 }
 </style>
