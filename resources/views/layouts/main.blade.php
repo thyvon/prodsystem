@@ -26,8 +26,8 @@
     <style>
         /* Khmer font for Khmer characters only */
         @font-face {
-            font-family: 'KhmerOSBattambang';
-            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
+            font-family: 'Kantumruy Pro';
+            src: url("{{ asset('fonts/KantumruyPro-Regular.ttf') }}") format('truetype');
             unicode-range: U+1780-17FF;
         }
 
@@ -39,7 +39,7 @@
 
         /* Latin / English system font */
         body {
-           font-family: 'Roboto', 'Khmer OS Battambang','Helvetica', 'Arial', sans-serif !important;
+           font-family: 'Roboto', 'Kantumruy Pro','Helvetica', 'Arial', sans-serif !important;
         }
     </style>
 </head>
