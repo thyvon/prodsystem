@@ -114,23 +114,24 @@ const datatableParams = reactive({
 })
 
 const datatableHeaders = [
-  { text: 'Date', value: 'transaction_date', sortable: false  },
-  { text: 'Issue No', value: 'stock_issue_reference', sortable: false },
-  { text: 'Warehouse', value: 'warehouse_name', sortable: false },
-  { text: 'Product Code', value: 'product_code' },
-  { text: 'Description', value: 'description', sortable: false },
-  { text: 'Quantity', value: 'quantity', sortable: false },
-  { text: 'Unit', value: 'unit_name', sortable: false },
-  { text: 'Unit Price', value: 'unit_price', sortable: false  },
-  { text: 'Total Price', value: 'total_price', sortable: false  },
-  { text: 'Requester', value: 'requester_name', sortable: false  },
-  { text: 'Campus', value: 'campus_name', sortable: false  },
-  { text: 'Division', value: 'division_name', sortable: false  },
-  { text: 'Department', value: 'department_name', sortable: false  },
-  { text: 'Purpose', value: 'purpose', sortable: false  },
-  { text: 'Transaction Type', value: 'transaction_type', sortable: false  },
-  { text: 'Remarks', value: 'remarks', sortable: false  },
+  { text: 'Date', value: 'transaction_date', sortable: false, minWidth: '120px' },
+  { text: 'Issue No', value: 'stock_issue_reference', sortable: false, minWidth: '120px' },
+  { text: 'Warehouse', value: 'warehouse_name', sortable: false, minWidth: '150px' },
+  { text: 'Product Code', value: 'product_code', minWidth: '120px' },
+  { text: 'Description', value: 'description', sortable: false, minWidth: '250px' },
+  { text: 'Quantity', value: 'quantity', sortable: false, minWidth: '100px' },
+  { text: 'Unit', value: 'unit_name', sortable: false, minWidth: '80px' },
+  { text: 'Unit Price', value: 'unit_price', sortable: false, minWidth: '120px' },
+  { text: 'Total Price', value: 'total_price', sortable: false, minWidth: '120px' },
+  { text: 'Requester', value: 'requester_name', sortable: false, minWidth: '150px' },
+  { text: 'Campus', value: 'campus_name', sortable: false, minWidth: '120px' },
+  { text: 'Division', value: 'division_name', sortable: false, minWidth: '150px' },
+  { text: 'Department', value: 'department_name', sortable: false, minWidth: '150px' },
+  { text: 'Purpose', value: 'purpose', sortable: false, minWidth: '200px' },
+  { text: 'Transaction Type', value: 'transaction_type', sortable: false, minWidth: '150px' },
+  { text: 'Remarks', value: 'remarks', sortable: false, minWidth: '250px' },
 ]
+
 
 const datatableFetchUrl = '/api/inventory/stock-issue/items'
 const datatableActions = []
