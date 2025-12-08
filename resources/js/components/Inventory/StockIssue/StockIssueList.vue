@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="stock-issue-items-table">
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
@@ -89,22 +89,25 @@ const pageLength = ref(10)
 const datatableParams = reactive({ sortColumn: 'created_at', sortDirection: 'desc', search: '' })
 
 const datatableHeaders = [
-  { text: 'Issue Date', value: 'transaction_date', width: '11%' },
-  { text: 'Reference No', value: 'reference_no', width: '9%' },
-  { text: 'Request No', value: 'request_number', width: '9%' },
-  { text: 'Warehouse', value: 'warehouse_name', width: '18%' },
-  { text: 'Warehouse Campus', value: 'warehouse_campus_name', width: '7%' },
-  { text: 'Quantity', value: 'quantity', width: '7%' },
-  { text: 'Amount', value: 'total_price', width: '7%' },
-  { text: 'Issued By', value: 'created_by', width: '10%' },
-  { text: 'Requester', value: 'requester_name', width: '12%' },
-  { text: 'Campus', value: 'requester_campus_name', width: '10%' },
-]
+  { text: 'Issue Date', value: 'transaction_date', minWidth: '120px' },
+  { text: 'Reference No', value: 'reference_no', minWidth: '100px' },
+  { text: 'Request No', value: 'request_number', minWidth: '100px' },
+  { text: 'Warehouse', value: 'warehouse_name', minWidth: '180px' },
+  { text: 'Warehouse Campus', value: 'warehouse_campus_name', minWidth: '120px' },
+  { text: 'Quantity', value: 'quantity', minWidth: '80px' },
+  { text: 'Amount', value: 'total_price', minWidth: '100px' },
+  { text: 'Issued By', value: 'created_by', minWidth: '120px' },
+  { text: 'Requester', value: 'requester_name', minWidth: '140px' },
+  { text: 'Campus', value: 'requester_campus_name', minWidth: '120px' },
+];
+
+
 
 const datatableFetchUrl = '/api/inventory/stock-issues'
 const datatableActions = ['edit', 'delete', 'preview']
 const datatableOptions = {
-  responsive: true,
+  autoWidth: false,
+  responsive: false,
   pageLength: pageLength.value,
   lengthMenu: [[10, 20, 50, 100, 1000], [10, 20, 50, 100, 1000]],
 }

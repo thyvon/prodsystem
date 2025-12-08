@@ -1,4 +1,3 @@
-// ...existing code...
 <template>
   <div>
     <datatable
@@ -79,30 +78,29 @@ const datatableParams = reactive({
   start_date: null,
   end_date: null,
 })
-
 const datatableHeaders = [
-  { text: 'Date', value: 'transaction_date' },
-  { text: 'Reference', value: 'stock_in_reference' },
-  { text: 'Warehouse', value: 'warehouse_name' },
-  { text: 'Product Code', value: 'product_code' },
-  { text: 'Description', value: 'description' },
-  { text: 'Quantity', value: 'quantity' },
-  { text: 'Unit', value: 'unit_name' },
-  { text: 'Unit Price', value: 'unit_price' },
-  { text: 'Total Price', value: 'total_price' },
-  { text: 'Campus', value: 'campus_name' },
-  { text: 'Supplier', value: 'supplier_name' },
-  { text: 'Payment Term', value: 'payment_terms' },
-  { text: 'Contact', value: 'supplier_contact' },
-  { text: 'Category', value: 'main_category' },
-  { text: 'Sub Category', value: 'sub_category' },
-  { text: 'Transaction Type', value: 'transaction_type' },
-  { text: 'Remarks', value: 'remarks' },
-]
+  { text: 'Date', value: 'transaction_date', minWidth: '60px' },
+  { text: 'Reference', value: 'stock_in_reference', minWidth: '100px' },
+  { text: 'Warehouse', value: 'warehouse_name', minWidth: '80px' },
+  { text: 'Product Code', value: 'product_code', minWidth: '80px' },
+  { text: 'Description', value: 'description', minWidth: '300px' },
+  { text: 'Quantity', value: 'quantity', minWidth: '10px' },
+  { text: 'Unit', value: 'unit_name', minWidth: '10px' },
+  { text: 'Price', value: 'unit_price', minWidth: '10px' },
+  { text: 'Total', value: 'total_price', minWidth: '10px' },
+  { text: 'Campus', value: 'campus_name', minWidth: '10px' },
+  { text: 'Supplier', value: 'supplier_name', minWidth: '150px' },
+  { text: 'Term', value: 'payment_terms', minWidth: '10px' },
+  { text: 'Contact', value: 'supplier_contact', minWidth: '10px' },
+  { text: 'Category', value: 'main_category', minWidth: '120px' },
+  { text: 'Sub Category', value: 'sub_category', minWidth: '120px' },
+  { text: 'Transaction Type', value: 'transaction_type', minWidth: '140px' },
+  { text: 'Remarks', value: 'remarks', minWidth: '200px' },
+];
 
 const datatableFetchUrl = '/api/inventory/stock-in/items'
 const datatableActions = []
-const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
+const datatableOptions = { autoWidth: false, responsive: false, pageLength: 10 }
 const datatableHandlers = {}
 
 // --- Route to Stock In List ---
@@ -161,3 +159,4 @@ onMounted(() => {
   initDatepickers()
 })
 </script>
+

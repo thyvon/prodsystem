@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="stock-report-table">
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
@@ -11,20 +11,17 @@
       @length-change="handleLengthChange"
       @search-change="handleSearchChange"
     >
+      <!-- Additional Header -->
       <template #additional-header>
         <div class="d-flex flex-column mb-2">
           <!-- Top Row: Print + Filters -->
           <div class="d-flex mb-2 align-items-center">
-            <!-- Print Button with Preloader -->
             <button class="btn btn-success mr-2" :disabled="isGeneratingPdf" @click="openPdfViewer">
               <i class="fal fa-print mr-1" v-if="!isGeneratingPdf"></i>
               <span v-if="!isGeneratingPdf">Print Stock Report</span>
-
               <span v-else class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
               <span v-else class="ml-1">Generating...</span>
             </button>
-
-            <!-- Filters Button -->
             <button class="btn btn-info" type="button" data-toggle="collapse" data-target="#filterCollapse">
               <i class="fal fa-filter mr-2"></i> Filters
             </button>
@@ -64,7 +61,6 @@
               style="width: 100%; height: 100vh;"
               frameborder="0"
             ></iframe>
-
             <div v-else class="text-center p-5">Loading PDF...</div>
           </div>
         </div>
@@ -101,28 +97,32 @@ const datatableParams = reactive({
 
 // --- Datatable config ---
 const datatableHeaders = [
-  { text: 'Item Code', value: 'item_code' },
-  { text: 'Description', value: 'description', sortable: false },
-  { text: 'Unit', value: 'unit_name', sortable: false },
-  { text: 'Begin Qty', value: 'beginning_quantity', sortable: false },
-  { text: 'Begin Price', value: 'beginning_price', sortable: false },
-  { text: 'Begin Amount', value: 'beginning_total', sortable: false },
-  { text: 'Stock In Qty', value: 'stock_in_quantity', sortable: false },
-  { text: 'Stock In Amount', value: 'stock_in_total', sortable: false  },
-  { text: 'Available Qty', value: 'available_quantity', sortable: false  },
-  { text: 'Available Price', value: 'available_price', sortable: false  },
-  { text: 'Available Amount', value: 'available_total', sortable: false  },
-  { text: 'Stock Out Qty', value: 'stock_out_quantity', sortable: false  },
-  { text: 'Stock Out Amount', value: 'stock_out_total', sortable: false  },
-  { text: 'Ending Qty', value: 'ending_quantity', sortable: false  },
-  { text: 'Count Qty', value: 'counted_quantity', sortable: false  },
-  { text: 'Variance', value: 'variance_quantity', sortable: false  },
-  { text: 'Carried Qty', value: 'counted_quantity', sortable: false  },
-  { text: 'Avg Price', value: 'average_price', sortable: false  },
-  { text: 'Ending Amount', value: 'ending_total', sortable: false  },
+  { text: 'Item Code', value: 'item_code', minWidth: '120px' },
+  { text: 'Description', value: 'description', minWidth: '300px', sortable: false },
+  { text: 'Unit', value: 'unit_name', minWidth: '60px', sortable: false },
+  { text: 'Begin Qty', value: 'beginning_quantity', minWidth: '100px', sortable: false },
+  { text: 'Begin Price', value: 'beginning_price', minWidth: '120px', sortable: false },
+  { text: 'Begin Amount', value: 'beginning_total', minWidth: '120px', sortable: false },
+  { text: 'Stock In Qty', value: 'stock_in_quantity', minWidth: '100px', sortable: false },
+  { text: 'Stock In Amount', value: 'stock_in_total', minWidth: '120px', sortable: false },
+  { text: 'Available Qty', value: 'available_quantity', minWidth: '100px', sortable: false },
+  { text: 'Available Price', value: 'available_price', minWidth: '120px', sortable: false },
+  { text: 'Available Amount', value: 'available_total', minWidth: '120px', sortable: false },
+  { text: 'Stock Out Qty', value: 'stock_out_quantity', minWidth: '100px', sortable: false },
+  { text: 'Stock Out Amount', value: 'stock_out_total', minWidth: '120px', sortable: false },
+  { text: 'Ending Qty', value: 'ending_quantity', minWidth: '100px', sortable: false },
+  { text: 'Count Qty', value: 'counted_quantity', minWidth: '100px', sortable: false },
+  { text: 'Variance', value: 'variance_quantity', minWidth: '80px', sortable: false },
+  { text: 'Carried Qty', value: 'counted_quantity', minWidth: '100px', sortable: false },
+  { text: 'Avg Price', value: 'average_price', minWidth: '120px', sortable: false },
+  { text: 'Ending Amount', value: 'ending_total', minWidth: '120px', sortable: false },
 ]
+
 const datatableFetchUrl = '/api/inventory/stock-reports'
-const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
+const datatableOptions = { 
+  autoWidth: false,
+  responsive: false, 
+  pageLength: 10 }
 
 // --- PDF export ---
 const openPdfViewer = async () => {
@@ -138,7 +138,6 @@ const openPdfViewer = async () => {
     const blob = new Blob([res.data], { type: 'application/pdf' })
     pdfUrl.value = URL.createObjectURL(blob)
 
-    // Show fullscreen modal
     $('#pdfModal').modal('show')
   } catch (err) {
     console.error(err)
@@ -185,12 +184,8 @@ const handleSearchChange = (search) => { datatableParams.search = search }
 onMounted(() => {
   fetchWarehouses()
   initDatepickers()
-
   $('#pdfModal').on('hidden.bs.modal', () => {
-    if (pdfUrl.value) {
-      URL.revokeObjectURL(pdfUrl.value)
-      pdfUrl.value = null
-    }
+    if (pdfUrl.value) { URL.revokeObjectURL(pdfUrl.value); pdfUrl.value = null }
   })
 })
 </script>
