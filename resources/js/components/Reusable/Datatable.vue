@@ -391,11 +391,22 @@ const initDataTable = () => {
     columns: dtColumns.value,
   });
 
-  // ⭐⭐ This enables row click event ⭐⭐
-  $(table.value).on('click', 'tbody tr', function () {
+  $(table.value).on('click', 'tbody tr', function (event) {
     const rowData = dataTableInstance.row(this).data();
+
+    // Check if click is inside an action cell
+    if (
+      $(event.target).closest('td').index() === dtColumns.value.length - 1 || // last column = Actions
+      $(event.target).closest('button').length ||
+      $(event.target).closest('.dropdown').length ||
+      $(event.target).closest('a').length
+    ) {
+      return; // Ignore clicks in Actions column or buttons/dropdowns
+    }
+
     emit("row-click", rowData);
   });
+
 };
 
 // Expose reload method for parent to refresh data

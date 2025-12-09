@@ -8,6 +8,7 @@
       :actions="datatableActions"
       :handlers="datatableHandlers"
       :options="datatableOptions"
+      :scrollable="true"
       @sort-change="handleSortChange"
       @page-change="handlePageChange"
       @length-change="handleLengthChange"
@@ -42,13 +43,13 @@ const datatableParams = reactive({
 
 // Datatable headers
 const datatableHeaders = [
-  { text: 'Variant Code', value: 'variant_item_code', width: '10%' },
-  { text: 'Product Name', value: 'product_name', width: '20%' },
-  { text: 'Warehouse', value: 'warehouse_name', width: '15%' },
-  { text: 'Alert Quantity', value: 'alert_quantity', width: '10%' },
-  { text: 'Active', value: 'is_active', width: '10%' },
-  { text: 'Created At', value: 'created_at', width: '15%' },
-  { text: 'Updated At', value: 'updated_at', width: '15%' },
+  { text: 'Variant Code', value: 'variant_item_code', minWidth: '100px' },
+  { text: 'Product Name', value: 'product_name', minWidth: '300px' },
+  { text: 'Warehouse', value: 'warehouse_name', minWidth: '150px' },
+  { text: 'Alert Quantity', value: 'alert_quantity', minWidth: '100px' },
+  { text: 'Active', value: 'is_active', minWidth: '100px' },
+  { text: 'Created At', value: 'created_at', minWidth: '150px' },
+  { text: 'Updated At', value: 'updated_at', minWidth: '150px' },
 ]
 
 // API endpoint
