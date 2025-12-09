@@ -18,6 +18,11 @@ class WarehouseProduct extends Model
         'is_active',
     ];
 
+    protected $casts = [
+        'alert_quantity' => 'float', // or 'float' if needed
+        'is_active' => 'integer',
+    ];
+
     // ✅ Relation to ProductVariant
     public function variant()
     {
@@ -29,4 +34,5 @@ class WarehouseProduct extends Model
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
+    
 }

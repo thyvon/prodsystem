@@ -190,6 +190,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/warehouses', [WarehouseController::class, 'index'])
             ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
         Route::get('/warehouses/products', [WarehouseProductController::class, 'index'])->name('warehouses.products');
+        Route::post('/warehouses/products/import', [WarehouseProductController::class, 'import'])->name('warehouses.products.import');
         // Inventory Items
         Route::get('/items', [StockController::class, 'stockList'])
             ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);

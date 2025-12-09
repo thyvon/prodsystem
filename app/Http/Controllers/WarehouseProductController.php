@@ -5,6 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\WarehouseProduct;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\JsonResponse;
+use App\Imports\WarehouseProductImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class WarehouseProductController extends Controller
 {
@@ -90,4 +95,92 @@ class WarehouseProductController extends Controller
             'draw' => $draw,
         ]);
     }
+
+    public function editData(WarehouseProduct $warehouseProduct): JsonResponse
+    {
+        // Authorize if needed
+        // $this->authorize('view', $warehouseProduct);
+
+        // Load related product and warehouse for display
+        $warehouseProduct->load(['variant:id,item_code,product_id', 'variant.product:id,name', 'warehouse:id,name']);
+
+        return response()->json([
+            'data' => [
+                'id' => $warehouseProduct->id,
+                'variant_id' => $warehouseProduct->product_id,
+                'variant_item_code' => $warehouseProduct->variant->item_code,
+                'product_id' => $warehouseProduct->variant->product->id ?? null,
+                'product_name' => $warehouseProduct->variant->description . ' ' . $warehouseProduct->variant-> product->name ?? null,
+                'warehouse_id' => $warehouseProduct->warehouse_id,
+                'warehouse_name' => $warehouseProduct->warehouse->name ?? null,
+                'alert_quantity' => $warehouseProduct->alert_quantity,
+                'is_active' => $warehouseProduct->is_active,
+            ]
+        ]);
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,csv,xls|max:2048'
+        ]);
+
+        $import = new WarehouseProductImport();
+
+        try {
+            // Run the import
+            Excel::import($import, $request->file('file'));
+
+            return response()->json([
+                'message' => "✅ Warehouse Products imported successfully.",
+            ]);
+        } catch (\Exception $e) {
+            // Stop on first error, return row number and message
+            return response()->json([
+                'message' => "❌ Import failed: " . $e->getMessage(),
+            ], 422); // Use 422 for validation/import errors
+        }
+    }
+
+
+    public function update(Request $request, WarehouseProduct $warehouseProduct): JsonResponse
+    {
+        // Authorize if needed
+        // $this->authorize('update', $warehouseProduct);
+
+        // Validation rules
+        $validated = Validator::make($request->all(), [
+            'product_id' => 'nullable|exists:product_variants,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'alert_quantity' => 'nullable|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+        ])->validate();
+
+        DB::beginTransaction();
+        try {
+            $warehouseProduct->update([
+                'product_id' => $validated['product_id'] ?? $warehouseProduct->product_id,
+                'warehouse_id' => $validated['warehouse_id'] ?? $warehouseProduct->warehouse_id,
+                'alert_quantity' => $validated['alert_quantity'] ?? $warehouseProduct->alert_quantity,
+                'is_active' => $validated['is_active'] ?? $warehouseProduct->is_active,
+                'updated_by' => Auth::id(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Warehouse product updated successfully.',
+                'data' => $warehouseProduct,
+                'success' => true
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to update warehouse product.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 }

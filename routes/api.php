@@ -256,6 +256,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/warehouses/{warehouse}/force', [WarehouseController::class, 'forceDelete'])->middleware('can:forceDelete,warehouse');
         Route::get('/warehouses/buildings', [WarehouseController::class, 'getBuildings'])->middleware('can:viewAny,' . Warehouse::class);
         Route::get('/warehouses/products', [WarehouseProductController::class, 'getWarehouseProducts'])->name('api.warehouses.products');
+        Route::get('/warehouses/products/{warehouseProduct}/edit', [WarehouseProductController::class, 'editData'])->name('api.warehouses.products.edit-data');
+        Route::put('/warehouses/products/{warehouseProduct}/update', [WarehouseProductController::class, 'update'])->name('api.warehouses.products.update');
 
         // Inventory Items
         Route::get('/items', [StockController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);

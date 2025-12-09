@@ -3,7 +3,7 @@
     <transition name="modal-fade">
       <div
         v-show="modelValue || loading"
-        :class="['modal', 'fade', { show: modelValue || loading }]"
+        :class="['modal','fade', { show: modelValue || loading }]"
         :id="id"
         tabindex="-1"
         role="dialog"
@@ -19,26 +19,21 @@
           <div class="modal-content border-0 shadow-lg">
             <!-- Loading Spinner -->
             <div v-if="loading" class="d-flex justify-content-center align-items-center" style="height: 100px;">
-              <div class="spinner-border text-primary" role="status">
-              </div>
+              <div class="spinner-border text-primary" role="status"></div>
             </div>
 
-            <!-- Modal Content -->
             <div v-else>
-              <!-- Header -->
-              <div
-                class="modal-header d-flex align-items-center"
-                :class="['modal-header-slim', headerClass]"
-              >
+              <!-- Header with SmartAdmin animated gradient -->
+              <div class="modal-header smart-gradient-header d-flex align-items-center">
                 <h5 class="modal-title font-weight-bold mb-0" :id="id + '-label'">{{ title }}</h5>
-                <button type="button" class="close text-danger" @click="close" aria-label="Close">
+                <button type="button" class="close text-white" @click="close" aria-label="Close">
                   <span aria-hidden="true">×</span>
                 </button>
               </div>
 
-              <!-- Body -->
+              <!-- Scrollable body -->
               <div class="modal-body">
-                <slot name="body" />
+                <slot name="body"/>
               </div>
 
               <!-- Footer -->
@@ -62,101 +57,85 @@ const props = defineProps({
   id: { type: String, required: true },
   title: { type: String, default: '' },
   size: { type: String, default: 'xl' },
-  headerClass: { type: String, default: 'bg-secondary text-white' },
   modelValue: { type: Boolean, default: false },
   loading: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue'])
-
 const modalRef = ref(null)
 
 const dialogClass = computed(() => {
-  const sizeMap = {
-    sm: 'modal-sm',
-    md: 'modal-md',
-    lg: 'modal-lg',
-    xl: 'modal-xl'
-  }
-  return `modal-dialog ${sizeMap[props.size] || 'modal-xl'} modal-dialog-centered modal-dialog-scrollable`
+  const sizeMap = { sm:'modal-sm', md:'modal-md', lg:'modal-lg', xl:'modal-xl' }
+  return `modal-dialog ${sizeMap[props.size]||'modal-xl'} modal-dialog-centered modal-dialog-scrollable`
 })
 
-const close = () => {
-  emit('update:modelValue', false)
-}
+const close = () => emit('update:modelValue', false)
+const show = () => emit('update:modelValue', true)
+const handleEsc = () => close()
+const handleBackdrop = (e) => { if (e.target === modalRef.value) close() }
 
-const show = () => {
-  emit('update:modelValue', true)
-}
-
-const handleEsc = () => {
-  close()
-}
-
-const handleBackdrop = (e) => {
-  if (e.target === modalRef.value) close()
-}
-
-// Trap focus inside modal when open and not loading
 watch(() => props.modelValue, (val) => {
-  if (val && !props.loading) {
-    nextTick(() => {
-      modalRef.value?.focus()
-    })
-  }
+  if (val && !props.loading) nextTick(() => modalRef.value?.focus())
 })
 
 defineExpose({ show, close })
 </script>
 
 <style scoped>
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 1050;
-  overflow: hidden;
-}
-
-.modal-dialog {
-  max-height: 90vh;
-  margin: 1.75rem auto;
-}
-
+/* Modal container & scrollable body */
 .modal-content {
   max-height: 90vh;
-  overflow-y: auto !important;
-  border-radius: 0.3rem; /* Align with SmartAdmin styling */
+  overflow: hidden;
+  border-radius: 0.3rem;
 }
 
 .modal-body {
-  max-height: calc(90vh - 130px); /* Adjusted for SmartAdmin header/footer */
-  overflow-y: auto !important;
-  padding: 15px; /* Match SmartAdmin's default padding */
+  max-height: calc(90vh - 120px); /* subtract header/footer height */
+  overflow-y: auto;
+  padding: 15px;
 }
 
-.modal-header-slim {
-  padding: 10px 15px; /* Match SmartAdmin's slimmer header */
+/* SmartAdmin animated gradient header */
+.smart-gradient-header {
+  position: relative;
+  overflow: hidden;
+  color: white;
+  border-radius: 0.3rem 0.3rem 0 0;
+  background-color: var(--bs-primary, #007bff);
 }
 
-.modal-footer {
-  padding: 10px 15px; /* Match SmartAdmin's footer styling */
+.smart-gradient-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--bs-primary-rgb,0,123,255),1),
+    rgba(var(--bs-success-rgb,40,167,69),1),
+    rgba(var(--bs-info-rgb,23,162,184),1)
+  );
+  background-size: 300% 100%;
+  animation: slide-gradient 8s linear infinite;
+  filter: brightness(1.1);
 }
 
-.spinner-border {
-  width: 2rem;
-  height: 2rem;
-  border-width: 0.3em;
+.smart-gradient-header > * {
+  position: relative;
+  z-index: 1; /* ensure text & close button above gradient */
 }
 
+@keyframes slide-gradient {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Fade animation */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.3s;
 }
-
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
