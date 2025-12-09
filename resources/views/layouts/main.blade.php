@@ -42,6 +42,9 @@
            font-family: 'Roboto', 'Khmer OS Battambang','Helvetica', 'Arial', sans-serif !important;
            font-size: 12px;
         }
+        .page-content-wrapper .page-content {
+            padding: 0.5rem !important;
+        }
     </style>
 </head>
 <body class="mod-nav-link header-function-fixed footer-function-fixed nav-function-fixed nav-mobile-push mod-clean-page-bg mod-hide-info-card mod-nav-dark desktop chrome webkit pace-done blur">

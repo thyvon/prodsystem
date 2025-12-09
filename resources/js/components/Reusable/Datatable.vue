@@ -40,30 +40,34 @@
               </tr>
             </thead>
 
-            <tbody>
-              <tr
-                v-for="(row, index) in rows"
-                :key="row.id || index"
-                @click="handleRowClick(row)"
-              >
-                <td style="text-align:center">{{ index + 1 }}</td>
+              <tbody>
+                <tr
+                  v-for="(row, index) in rows"
+                  :key="index"
+                  @click="$emit('row-click', row)"
+                  style="cursor: pointer;"
+                >
+                  <!-- Row number -->
+                  <td style="text-align:center">{{ index + 1 }}</td>
 
-                <td v-for="(h, i) in headers" :key="i">
-                  {{ row[h.value] }}
-                </td>
+                  <!-- Data columns -->
+                  <td v-for="(h, i) in headers" :key="i">
+                    {{ row[h.value] }}
+                  </td>
 
-                <td v-if="actions.length" class="text-center">
-                  <button
-                    v-for="act in actions"
-                    :key="act"
-                    @click.stop="handlers[act](row)"
-                    class="btn btn-sm btn-outline-primary"
-                  >
-                    {{ act }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
+                  <!-- Action buttons -->
+                  <td v-if="actions.length" class="text-center">
+                    <button
+                      v-for="act in actions"
+                      :key="act"
+                      @click.stop="handlers[act](row)"
+                      class="btn btn-sm btn-outline-primary"
+                    >
+                      {{ act }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
 
           </table>
 
@@ -385,6 +389,12 @@ const initDataTable = () => {
     });
   },
     columns: dtColumns.value,
+  });
+
+  // ⭐⭐ This enables row click event ⭐⭐
+  $(table.value).on('click', 'tbody tr', function () {
+    const rowData = dataTableInstance.row(this).data();
+    emit("row-click", rowData);
   });
 };
 
