@@ -43,7 +43,7 @@
            font-size: 12px;
         }
         .page-content-wrapper .page-content {
-            padding: 0.5rem !important;
+            padding: 0.5rem 0.5rem 2rem 0.5rem !important; /* top right bottom left */
         }
     </style>
 </head>
