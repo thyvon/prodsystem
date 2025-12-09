@@ -33,7 +33,7 @@
 
     <!-- Import Modal -->
     <div class="modal fade" ref="importModal" tabindex="-1" role="dialog" aria-labelledby="importModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+      <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content border-0 shadow-lg">
           <div class="modal-header bg-primary text-white">
             <h5 class="modal-title font-weight-bold" id="importModalLabel">Import Warehouse Products</h5>
@@ -67,7 +67,7 @@
             </p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" :disabled="importing">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal" aria-label="Close" :disabled="importing">Cancel</button>
             <button type="button" class="btn btn-primary" @click="importFileAction" :disabled="importing">
               <span v-if="importing" class="spinner-border spinner-border-sm mr-1"></span>
               Import

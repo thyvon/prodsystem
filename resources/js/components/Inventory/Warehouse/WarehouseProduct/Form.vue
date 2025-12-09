@@ -26,13 +26,14 @@
               <tr>
                 <th>Alert Quantity <span class="text-danger">*</span></th>
                 <td>
-                  <input
+                <input
                     type="number"
                     v-model.number="form.alert_quantity"
-                    class="form-control"
+                    class="form-control p-0 border-0"
+                    style="width: 100%; height: 100%;"
                     required
                     min="0.0001"
-                  />
+                />
                 </td>
               </tr>
               <tr>
