@@ -8,6 +8,7 @@
       :actions="datatableActions"
       :handlers="datatableHandlers"
       :options="datatableOptions"
+      :scrollable="true"
       @sort-change="handleSortChange"
       @page-change="handlePageChange"
       @length-change="handleLengthChange"
