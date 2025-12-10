@@ -259,6 +259,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/warehouses/products/{warehouseProduct}/edit', [WarehouseProductController::class, 'editData'])->name('api.warehouses.products.edit-data');
         Route::put('/warehouses/products/{warehouseProduct}/update', [WarehouseProductController::class, 'update'])->name('api.warehouses.products.update');
 
+        // // Report Product Warehouse
+        // Route::get('/warehouses/products/report', [WarehouseProductController::class, 'getStockReportByProduct'])->name('api.warehouses.products.report');
+
         // Inventory Items
         Route::get('/items', [StockController::class, 'getStockManagedVariants'])->middleware('can:viewAny,' . Product::class);
 

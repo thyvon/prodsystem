@@ -96,7 +96,7 @@
                         <img src="{{ asset('storage/'.auth()->user()->profile_url) }}" class="rounded-circle profile-image mr-2" alt="User Avatar">
                         <div>
                             <div class="fs-lg text-truncate">{{ Auth::user()->name }}</div>
-                            <span class="opacity-80">{{ auth()->user()->defaultPosition()?->short_title ?? 'N/A' }}</span>
+                            <span class="opacity-80">{{ auth()->user()->defaultPosition?->short_title ?? 'N/A' }}</span>
                         </div>
                     </div>
                 </div>

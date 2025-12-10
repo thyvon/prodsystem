@@ -26,14 +26,50 @@
               <tr>
                 <th>Alert Quantity <span class="text-danger">*</span></th>
                 <td>
-                <input
+                  <input
                     type="number"
                     v-model.number="form.alert_quantity"
-                    class="form-control p-0 border-0"
+                    class="form-control"
                     style="width: 100%; height: 100%;"
                     required
                     min="0.0001"
-                />
+                  />
+                </td>
+              </tr>
+              <tr>
+                <th>Order Leadtime Days</th>
+                <td>
+                  <input
+                    type="number"
+                    v-model.number="form.order_leadtime_days"
+                    class="form-control"
+                    style="width: 100%; height: 100%;"
+                    min="0"
+                  />
+                </td>
+              </tr>
+              <tr>
+                <th>Stock Out Forecast Days</th>
+                <td>
+                  <input
+                    type="number"
+                    v-model.number="form.stock_out_forecast_days"
+                    class="form-control"
+                    style="width: 100%; height: 100%;"
+                    min="0"
+                  />
+                </td>
+              </tr>
+              <tr>
+                <th>Target Inventory Turnover Days</th>
+                <td>
+                  <input
+                    type="number"
+                    v-model.number="form.target_inv_turnover_days"
+                    class="form-control"
+                    style="width: 100%; height: 100%;"
+                    min="0"
+                  />
                 </td>
               </tr>
               <tr>
@@ -93,6 +129,9 @@ const form = ref({
   warehouse_id: null,
   warehouse_name: '',
   alert_quantity: 0,
+  order_leadtime_days: 0,
+  stock_out_forecast_days: 0,
+  target_inv_turnover_days: 0,
   is_active: 1,
 })
 
@@ -114,6 +153,9 @@ const show = async (warehouseProductId) => {
       warehouse_id: warehouseProduct.warehouse_id,
       warehouse_name: warehouseProduct.warehouse_name,
       alert_quantity: warehouseProduct.alert_quantity,
+      order_leadtime_days: warehouseProduct.order_leadtime_days || 0,
+      stock_out_forecast_days: warehouseProduct.stock_out_forecast_days || 0,
+      target_inv_turnover_days: warehouseProduct.target_inv_turnover_days || 0,
       is_active: warehouseProduct.is_active !== undefined ? warehouseProduct.is_active : 1,
     }
 
@@ -138,6 +180,9 @@ const submitForm = async () => {
   try {
     await axios.put(`/api/inventory/warehouses/products/${form.value.id}/update`, {
       alert_quantity: form.value.alert_quantity,
+      order_leadtime_days: form.value.order_leadtime_days,
+      stock_out_forecast_days: form.value.stock_out_forecast_days,
+      target_inv_turnover_days: form.value.target_inv_turnover_days,
       is_active: form.value.is_active ? 1 : 0,
     })
 

@@ -24,7 +24,7 @@
                         {{ auth()->user()->name}}
                     </span>
                 </a>
-                <span class="d-inline-block text-truncate text-truncate-sm">{{ auth()->user()->defaultPosition()?->short_title ?? 'N/A' }}</span>
+                <span class="d-inline-block text-truncate text-truncate-sm">{{ auth()->user()->defaultPosition?->short_title ?? 'N/A' }}</span>
             </div>
             <img src="{{asset ('template/img/card-backgrounds/cover-2-lg.png') }}" class="cover" alt="cover">
             <a href="#" onclick="return false;" class="pull-trigger-btn" data-action="toggle" data-class="list-filter-active" data-target=".page-sidebar" data-focus="nav_filter_input">

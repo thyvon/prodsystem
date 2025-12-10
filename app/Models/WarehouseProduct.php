@@ -14,7 +14,9 @@ class WarehouseProduct extends Model
         'product_id',
         'warehouse_id',
         'alert_quantity',
-        'order_leadtime',
+        'order_leadtime_days',
+        'stock_out_forecast_days',
+        'target_inv_turnover_days',
         'is_active',
     ];
 

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use App\Imports\WarehouseProductImport;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\WarehouseStockService;
+use Illuminate\Support\Facades\Log;
 
 class WarehouseProductController extends Controller
 {
@@ -114,6 +116,9 @@ class WarehouseProductController extends Controller
                 'warehouse_id' => $warehouseProduct->warehouse_id,
                 'warehouse_name' => $warehouseProduct->warehouse->name ?? null,
                 'alert_quantity' => $warehouseProduct->alert_quantity,
+                'order_leadtime_days' => $warehouseProduct->order_leadtime_days,
+                'stock_out_forecast_days' => $warehouseProduct->stock_out_forecast_days,
+                'target_inv_turnover_days' => $warehouseProduct->target_inv_turnover_days,
                 'is_active' => $warehouseProduct->is_active,
             ]
         ]);
@@ -153,6 +158,9 @@ class WarehouseProductController extends Controller
             'product_id' => 'nullable|exists:product_variants,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
             'alert_quantity' => 'nullable|numeric|min:0',
+            'order_leadtime_days' => 'nullable|integer|min:0',
+            'stock_out_forecast_days' => 'nullable|integer|min:0',
+            'target_inv_turnover_days' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ])->validate();
 
@@ -162,6 +170,9 @@ class WarehouseProductController extends Controller
                 'product_id' => $validated['product_id'] ?? $warehouseProduct->product_id,
                 'warehouse_id' => $validated['warehouse_id'] ?? $warehouseProduct->warehouse_id,
                 'alert_quantity' => $validated['alert_quantity'] ?? $warehouseProduct->alert_quantity,
+                'order_leadtime_days' => $validated['order_leadtime_days'] ?? $warehouseProduct->order_leadtime_days,
+                'stock_out_forecast_days' => $validated['stock_out_forecast_days'] ?? $warehouseProduct->stock_out_forecast_days,
+                'target_inv_turnover_days' => $validated['target_inv_turnover_days'] ?? $warehouseProduct->target_inv_turnover_days,
                 'is_active' => $validated['is_active'] ?? $warehouseProduct->is_active,
                 'updated_by' => Auth::id(),
             ]);
@@ -181,6 +192,29 @@ class WarehouseProductController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function getStockReportByProduct(Request $request, WarehouseStockService $warehouseStockService): JsonResponse
+    {
+        // Validate input
+        $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'product_id'   => 'required|exists:warehouse_products,product_id',
+        ]);
+
+        $warehouseId = $validated['warehouse_id'];
+        $productId = $validated['product_id'];
+
+        // Get stock report from the service
+        $stockReport = $warehouseStockService->getStockReportByProduct($warehouseId, $productId);
+
+        if (!$stockReport) {
+            return response()->json(['message' => 'Product not found in this warehouse'], 404);
+        }
+
+        return response()->json([
+            'warehouseProductReport' => $stockReport,
+        ]);
     }
 
 }

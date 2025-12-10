@@ -191,6 +191,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('warehouses.index')->middleware('can:viewAny,' . Warehouse::class);
         Route::get('/warehouses/products', [WarehouseProductController::class, 'index'])->name('warehouses.products');
         Route::post('/warehouses/products/import', [WarehouseProductController::class, 'import'])->name('warehouses.products.import');
+
         // Inventory Items
         Route::get('/items', [StockController::class, 'stockList'])
             ->name('inventoryItems.index')->middleware('can:viewAny,' . Product::class);
@@ -275,6 +276,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-reports.monthly-report.showpdf');
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'showDetails'])->middleware('can:view,monthlyStockReport')
             ->name('stock-reports.monthly-report.show');
+
+        Route::get('/stock-reports/warehouse-products/report', [WarehouseProductController::class, 'getStockReportByProduct'])
+            ->name('warehouses.products.report');
     });
 
     //Approval View Route

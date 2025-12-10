@@ -16,7 +16,9 @@ return new class extends Migration
             $table->foreignId('warehouse_id')->constrained('warehouses')->onDelete('cascade');
             $table->foreignId('product_id')->constrained('product_variants')->onDelete('cascade');
             $table->decimal('alert_quantity', 10, 4)->default(0);
-            $table->integer('order_leadtime')->default(0);
+            $table->integer('order_leadtime_days')->default(0);
+            $table->integer('stock_out_forecast_days')->default(0);
+            $table->integer('target_inv_turnover_days')->default(0);
             $table->integer('is_active')->default(1);
             $table->timestamps();
         });

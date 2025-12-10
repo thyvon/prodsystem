@@ -104,7 +104,7 @@
               <!-- Add Product -->
               <div class="form-group col-md-8">
                 <label class="font-weight-bold">➕ Add Product</label>
-                <button type="button" class="btn btn-primary btn-block" @click="showProductModal" :disabled="isLoadingProducts">
+                <button type="button" class="btn btn-primary btn-block" @click="openProductsModal" :disabled="isLoadingProducts">
                   <span v-if="isLoadingProducts" class="spinner-border spinner-border-sm mr-2"></span>
                   <i class="fal fa-plus"></i> Select Product
                 </button>
@@ -129,9 +129,9 @@
                   <th style="min-width: 100px;">Qty</th>
                   <th style="min-width: 100px;">Price</th>
                   <th style="min-width: 100px;">Value USD</th>
+                  <th style="min-width: 160px;">Budget</th>
                   <th style="min-width: 120px;">Campus</th>
                   <th style="min-width: 120px;">Dept</th>
-                  <th style="min-width: 100px;">Budget</th>
                   <th style="min-width: 80px;">Action</th>
                 </tr>
                 </thead>
@@ -155,13 +155,13 @@
                       :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
                       readonly
                     /></td>
+                    <td><select class="form-control budget-select" :data-index="index"></select></td>
                     <td>
                       <select multiple class="form-control campus-select" :data-index="index"></select>
                     </td>
                     <td>
                       <select multiple class="form-control department-select" :data-index="index"></select>
                     </td>
-                    <td><select class="form-control budget-select" :data-index="index"></select></td>
                     <td class="text-center">
                       <button @click.prevent="removeItem(index)" class="btn btn-danger btn-sm">
                         <i class="fal fa-trash"></i>
@@ -261,41 +261,47 @@
     </form>
 
     <!-- Product Modal -->
-    <div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-labelledby="productModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
-        <div class="modal-content">
-          
-          <!-- Modal Header -->
-          <div class="modal-header">
-            <h5 class="modal-title" id="productModalLabel">Select Product</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          
-          <!-- Modal Body -->
-          <div class="modal-body">
-            <div v-if="isLoadingProducts" class="text-center py-4">
-              <div class="spinner-border text-primary"></div>
-            </div>
-            <table v-show="!isLoadingProducts" id="productTable" class="table table-bordered table-striped table-sm" style="width: 100%">
-              <thead class="thead-light">
-                <tr>
-                  <th style="width: 20%;">Code</th>
-                  <th style="width: 40%;">Description</th>
-                  <th style="width: 10%;">UoM</th>
-                  <th style="width: 20%;">Avg Price</th>
-                  <th style="width: 10%;">Stock Onhand</th>
-                  <th style="width: 10%;">Select</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          
+    <BaseModal
+      id="productModal"
+      title="Select Product"
+      size="xl"
+      v-model="showProductModal"
+      :loading="isLoadingProducts"
+    >
+      <!-- BODY -->
+      <template #body>
+        <div v-if="isLoadingProducts" class="text-center py-4">
+          <div class="spinner-border text-primary"></div>
         </div>
-      </div>
-    </div>
+
+        <table
+          v-show="!isLoadingProducts"
+          id="productTable"
+          class="table table-bordered table-striped table-sm mb-0"
+          style="width: 100%"
+        >
+          <thead class="thead-light">
+            <tr>
+              <th style="width: 20%;">Code</th>
+              <th style="width: 40%;">Description</th>
+              <th style="width: 10%;">UoM</th>
+              <th style="width: 20%;">Avg Price</th>
+              <th style="width: 10%;">Stock Onhand</th>
+              <th style="width: 10%;">Select</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </template>
+
+      <!-- FOOTER -->
+      <template #footer>
+        <button type="button" class="btn btn-secondary" @click="showProductModal = false">
+          Close
+        </button>
+      </template>
+    </BaseModal>
+
 
     <!-- File Viewer Modal -->
   <FileViewerModal ref="viewerRef" />
@@ -310,6 +316,7 @@ import axios from 'axios';
 import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
 import FileViewerModal from '../Reusable/FileViewerModal.vue';
+import BaseModal from '@/components/Reusable/BaseModal.vue';
 
 // -------------------- Props & Emits --------------------
 const props = defineProps({
@@ -323,6 +330,7 @@ const emit = defineEmits(['submitted']);
 // -------------------- Reactive State --------------------
 const isSubmitting = ref(false);
 const isImporting = ref(false);
+const showProductModal = ref(false)
 const isLoadingProducts = ref(false);
 const isEditMode = ref(!!props.purchaseRequestId);
 
@@ -354,7 +362,7 @@ const openFileViewer = (url, name) => {
 }
 
 const budgetCodes = ref([
-  { id: 1, code: 'BUD-001', name: 'Office Supplies' },
+  { id: 1, code: '25-CEN-EAL-0005', name: 'Office Supplies' },
   { id: 2, code: 'BUD-002', name: 'IT Equipment' },
   { id: 3, code: 'BUD-003', name: 'Maintenance' }
 ]);
@@ -554,7 +562,7 @@ const initBudgetSelect = (index) => {
   if (!el) return;
   destroySelect2(el);
   el.innerHTML = budgetCodes.value.map(b => `<option value="${b.id}">${b.code}</option>`).join('');
-  initSelect2(el, { width: '100%', allowClear: true, placeholder: 'Select Budget', value: String(form.value.items[index].budget_code_id) },
+  initSelect2(el, { width: '100%', allowClear: false, placeholder: 'Select Budget', value: String(form.value.items[index].budget_code_id) },
     val => form.value.items[index].budget_code_id = val ? Number(val) : null);
 };
 
@@ -641,7 +649,7 @@ const removeApproval = async (i) => {
 let productsTable = null;
 
 // -------------------- Product Modal --------------------
-const showProductModal = async () => {
+const openProductsModal = async () => {
   // Check warehouse and date
   // if (!form.value.warehouse_id || !form.value.transaction_date) {
   //   showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning');
@@ -733,7 +741,7 @@ const showProductModal = async () => {
     // $('#productModal').modal('hide'); // Close modal
   });
 
-  $('#productModal').modal('show');
+  showProductModal.value = true;
 };
 
 
@@ -797,7 +805,8 @@ onMounted(async () => {
   try {
     const [campusRes, deptRes] = await Promise.all([
       axios.get('/api/main-value-lists/get-campuses'),
-      axios.get('/api/main-value-lists/get-departments')
+      axios.get('/api/main-value-lists/get-departments'),
+      // axios.get('/api/budgets/get-budget-items'),
     ]);
 
     campuses.value = campusRes.data || [];
@@ -820,3 +829,60 @@ onMounted(async () => {
 });
 
 </script>
+
+<!-- <style>
+.select2-container--default .select2-selection--single {
+  background-image: none !important;
+  background-color: #fff;
+  border: 1px solid #ced4da;
+  height: calc(1.5em + .75rem + 2px);
+  display: flex;
+  align-items: center;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+  display: none !important;
+}
+
+/* ===== Select2 Multiple Styling ===== */
+
+/* Hide arrow */
+.select2-container--default .select2-selection--multiple .select2-selection__arrow {
+  display: none !important;
+}
+
+/* Clean input style */
+.select2-container--default .select2-selection--multiple {
+  border: 1px solid #ced4da !important;
+  min-height: 38px !important;
+  padding: 4px !important;
+  border-radius: 4px !important;
+  display: flex;
+  flex-wrap: wrap;
+  cursor: text;
+}
+
+/* Tags */
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+  background-color: #0d6efd !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 2px 6px !important;
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+}
+
+/* Close icon */
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+  color: #fff !important;
+  margin-right: 2px !important;
+}
+
+/* Fix search input spacing */
+.select2-container--default .select2-selection--multiple .select2-search__field {
+  margin-top: 0 !important;
+}
+
+</style> -->

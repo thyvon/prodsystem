@@ -54,11 +54,17 @@ class WarehouseProductImport implements ToCollection, WithHeadingRow
 
                 // Validate row
                 $validator = Validator::make([
-                    'alert_quantity' => $row['alert_quantity'] ?? null,
-                    'is_active'      => $row['is_active'] ?? 1,
+                    'alert_quantity'             => $row['alert_quantity'] ?? null,
+                    'is_active'                  => $row['is_active'] ?? 1,
+                    'order_leadtime_days'        => $row['order_leadtime_days'] ?? null,
+                    'stock_out_forecast_days'    => $row['stock_out_forecast_days'] ?? null,
+                    'target_inv_turnover_days'   => $row['target_inv_turnover_days'] ?? null,
                 ], [
-                    'alert_quantity' => ['required', 'numeric', 'min:0'],
-                    'is_active'      => ['nullable', 'boolean'],
+                    'alert_quantity'             => ['required', 'numeric', 'min:0'],
+                    'is_active'                  => ['nullable', 'boolean'],
+                    'order_leadtime_days'        => ['nullable', 'integer', 'min:0'],
+                    'stock_out_forecast_days'    => ['nullable', 'integer', 'min:0'],
+                    'target_inv_turnover_days'   => ['nullable', 'integer', 'min:0'],
                 ]);
 
                 if ($validator->fails()) {
@@ -72,10 +78,14 @@ class WarehouseProductImport implements ToCollection, WithHeadingRow
 
                 // Update warehouse product
                 $warehouseProduct->update([
-                    'alert_quantity' => $validated['alert_quantity'],
-                    'is_active'      => $validated['is_active'] ?? 1,
+                    'alert_quantity'             => $validated['alert_quantity'],
+                    'is_active'                  => $validated['is_active'] ?? 1,
+                    'order_leadtime_days'        => $validated['order_leadtime_days'],
+                    'stock_out_forecast_days'    => $validated['stock_out_forecast_days'],
+                    'target_inv_turnover_days'   => $validated['target_inv_turnover_days'],
                 ]);
             }
         });
     }
 }
+
