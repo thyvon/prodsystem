@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\WarehouseProduct;
+use App\Models\WarehouseProductReport;
+use App\Models\WarehouseProductReportItems;
+use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
@@ -11,10 +14,24 @@ use Illuminate\Http\JsonResponse;
 use App\Imports\WarehouseProductImport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Services\WarehouseStockService;
+use App\Services\ProductService;
 use Illuminate\Support\Facades\Log;
 
 class WarehouseProductController extends Controller
 {
+
+    protected $warehouseStockService;
+    protected $productService;
+
+    public function __construct(
+        WarehouseStockService $warehouseStockService,
+        ProductService $productService
+    ) {
+        $this->warehouseStockService = $warehouseStockService;
+        $this->productService = $productService;
+    }
+
+    private const DATE_FORMAT = 'Y-m-d';
 
     public function index()
     {
@@ -194,27 +211,144 @@ class WarehouseProductController extends Controller
         }
     }
 
-    public function getStockReportByProduct(Request $request, WarehouseStockService $warehouseStockService): JsonResponse
+    public function getStockReportByProduct(Request $request): JsonResponse
     {
-        // Validate input
         $validated = $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'product_id'   => 'required|exists:warehouse_products,product_id',
         ]);
 
-        $warehouseId = $validated['warehouse_id'];
-        $productId = $validated['product_id'];
-
-        // Get stock report from the service
-        $stockReport = $warehouseStockService->getStockReportByProduct($warehouseId, $productId);
+        $stockReport = $this->warehouseStockService->getStockReportByProduct(
+            $validated['warehouse_id'],
+            $validated['product_id']
+        );
 
         if (!$stockReport) {
             return response()->json(['message' => 'Product not found in this warehouse'], 404);
         }
 
-        return response()->json([
-            'warehouseProductReport' => $stockReport,
+        return response()->json(['warehouseProductReport' => $stockReport]);
+    }
+
+    // Reports
+
+    public function getProducts(Request $request): JsonResponse
+    {
+        $params = $request->all();
+
+        // Use ProductService to fetch warehouse stock products
+        $result = $this->productService->getWarehouseStockProductsWithReport($params);
+
+        return response()->json($result);
+    }
+
+    public function reportForm()
+    {
+        return view('inventory.warehouse.warehouse-product.report-form');
+    }
+    public function storeReport(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'report_date'  => 'required|date',
+            'remarks'      => 'nullable|string',
+            'items'        => 'required|array|min:1',
+            'items.*.warehouse_product_id' => 'required|exists:warehouse_products,id',
+
         ]);
+
+        DB::beginTransaction();
+        try {
+            $mainReport = WarehouseProductReport::create([
+                'reference_no'    => $this->generateReferenceNo($validated['warehouse_id'], $validated['report_date']),
+                'report_date'     => $validated['report_date'],
+                'warehouse_id'    => $validated['warehouse_id'],
+                'approval_status' => 'Pending',
+                'created_by'      => Auth::id(),
+            ]);
+
+            $warehouseProductIds = collect($validated['items'])->pluck('warehouse_product_id');
+
+            $warehouseProducts = WarehouseProduct::whereIn('id', $warehouseProductIds)
+                ->where('warehouse_id', $validated['warehouse_id'])
+                ->get();
+
+            foreach ($warehouseProducts as $whProduct) {
+                $result = $this->warehouseStockService->getStockReportByProduct(
+                    $validated['warehouse_id'],
+                    $whProduct->product_id
+                );
+
+                if (!$result) continue;
+
+                WarehouseProductReportItems::create([
+                    'report_id'                    => $mainReport->id,
+                    'product_id'                   => $whProduct->product_id,
+                    'warehouse_product_id'         => $whProduct->id,
+                    'unit_price'                   => $result['avg_price'] ?? 0,
+                    'avg_6_month_usage'            => $result['avg_usage'] ?? 0,
+                    'last_month_usage'             => $result['avg_daily_use_per_day'] ?? 0,
+                    'stock_on_hand'                => $result['stock_onhand'] ?? 0,
+                    'order_plan_quantity'          => $result['order_plan_qty'] ?? 0,
+                    'demand_forecast_quantity'     => $result['demand_stock_out_forecast_qty'] ?? 0,
+                    'ending_stock_cover_day'       => $result['ending_stock_cover_days'] ?? 0,
+                    'target_safety_stock_day'      => $result['target_safety_stock_days'] ?? 0,
+                    'stock_value'                  => $result['stock_value_usd'] ?? 0,
+                    'inventory_reorder_quantity'   => $result['inventory_reorder_qty'] ?? 0,
+                    'reorder_level_day'            => $result['reorder_level_qty'] ?? 0,
+                    'max_inventory_level_quantity' => $result['max_inventory_level_qty'] ?? 0,
+                    'max_inventory_usage_day'      => $result['max_usage_days'] ?? 0,
+                    'remarks'                      => $validated['remarks'] ?? null,
+                    'updated_by'                   => Auth::id(),
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message'   => 'Stock report created successfully.',
+                'success'   => true,
+                'report_id' => $mainReport->id,
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to create stock report.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function generateReferenceNo(int $warehouseId, string $transactionDate): string
+    {
+        $warehouse = Warehouse::with('building.campus')->findOrFail($warehouseId);
+
+        try {
+            $date = \Carbon\Carbon::createFromFormat(self::DATE_FORMAT, $transactionDate);
+            if (!$date || $date->format(self::DATE_FORMAT) !== $transactionDate) {
+                throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.');
+            }
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException('Invalid date format. Expected ' . self::DATE_FORMAT . '.', 0, $e);
+        }
+
+        $shortName = $warehouse->building?->campus?->short_name ?? 'WH';
+        $monthYear = $date->format('my');
+        $sequence = $this->getSequenceNumber($shortName, $monthYear);
+        return "RPT-{$shortName}-{$monthYear}-{$sequence}";
+    }
+
+    private function getSequenceNumber(string $shortName, string $monthYear): string
+    {
+        $prefix = "RPT-{$shortName}-{$monthYear}-";
+
+        $count = WarehouseProductReport::withTrashed()
+            ->where('reference_no', 'like', "{$prefix}%")
+            ->count();
+
+        return str_pad($count + 1, 2, '0', STR_PAD_LEFT);
     }
 
 }

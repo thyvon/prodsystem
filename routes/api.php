@@ -357,6 +357,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-reports/{monthlyStockReport}/edit', [StockController::class, 'getEditData'])->middleware('can:update,monthlyStockReport')->name('api.stock-reports.edit');
         Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)->name('api.stock-reports.monthly-report');
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->middleware('can:view,monthlyStockReport')->name('api.stock-reports.monthly-report.details');
+        // Report to Attache PR
+        Route::post('/stock-reports-store', [WarehouseProductController::class, 'storeReport'])->name('api.stock-reports.store-report');
+        Route::get('/stock-reports/get-products', [WarehouseProductController::class, 'getProducts'])->name('api.stock-reports.get-products');
 
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);

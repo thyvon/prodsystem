@@ -279,6 +279,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/stock-reports/warehouse-products/report', [WarehouseProductController::class, 'getStockReportByProduct'])
             ->name('warehouses.products.report');
+
+        Route::get('/stock-reports/reports/create', [WarehouseProductController::class, 'reportForm'])->name('warehouses.reports.create');
     });
 
     //Approval View Route
