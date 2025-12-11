@@ -1,11 +1,12 @@
 <template>
-  <div class="stock-report-table">
+  <div>
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
       :fetch-url="datatableFetchUrl"
       :fetch-params="datatableParams"
       :options="datatableOptions"
+      :scrollable="true"
       @sort-change="handleSortChange"
       @page-change="handlePageChange"
       @length-change="handleLengthChange"

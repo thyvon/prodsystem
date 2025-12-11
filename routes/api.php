@@ -71,6 +71,8 @@ use App\Http\Controllers\StockInController;
 use App\Models\MonthlyStockReport;
 use App\Http\Controllers\StockController;
 
+use App\Models\WarehouseProductReport;
+
 use App\Models\StockCount;
 use App\Http\Controllers\StockCountController;
 

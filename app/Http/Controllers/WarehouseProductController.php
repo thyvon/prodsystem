@@ -470,7 +470,7 @@ class WarehouseProductController extends Controller
 
     public function reportForm()
     {
-        return view('inventory.warehouse.warehouse-product.report-form');
+        return view('Inventory.warehouse.warehouse-product.report-form');
     }
     public function storeReport(Request $request): JsonResponse
     {

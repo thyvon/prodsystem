@@ -27,7 +27,7 @@
         body {
             font-family: 'TW Cen MT', 'Khmer OS Battambang', sans-serif;
             font-size: 10px;
-            line-height: 1.3;
+            line-height: 1;
             margin: 0;
             padding: 5px;
         }
@@ -99,6 +99,20 @@
         .text-right {
             text-align: right !important;
         }
+        .text-left{
+            text-align: left !important;
+        }
+        td.currency {
+            text-align: right;           /* number to the right */
+            position: relative;
+            padding-left: 20px;          /* space for currency symbol */
+        }
+
+        td.currency::before {
+            content: '$';                /* your currency symbol */
+            position: absolute;
+            left: 5px;                   /* symbol on the left edge */
+        }
     </style>
 </head>
 <body>
@@ -107,7 +121,12 @@
     $items = collect($items ?? []);
     $approvals = array_pad($approvals ?? [], 3, null);
 
-    $fmt = function($v, $d=2){ return is_numeric($v) ? number_format($v,$d) : ($v ?: '-'); };
+    $fmt = function($v, $d=2) { 
+        return (is_numeric($v) && $v != 0) ? number_format($v, $d) : '-'; 
+    };
+    $fmtStock = function($v) {
+        return (is_numeric($v) && $v != 0) ? number_format($v, 2, '.', ',') : '-';
+    };
     $fmtDate = fn($d)=> $d ? \Carbon\Carbon::parse($d)->format('M d, Y') : '-';
 @endphp
 
@@ -119,8 +138,8 @@
             <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
-            <h3>របាយការណ៍ផលិតផលស្តុក</h3>
-            <h3>Warehouse Product Report
+            <h3>Stock Report</h3>
+            <h3>
                 @if(!empty($warehouse_name))
                     <small style="font-weight:normal; color:#555;">({{ $warehouse_name }})</small>
                 @endif
@@ -132,29 +151,29 @@
     <!-- Table -->
     <table class="items">
         <thead>
-<tr>
-                <th rowspan="2" style="width:2%;">#</th>
-                <th rowspan="2" style="width:7%;">Item Code</th>
-                <th rowspan="2" style="width:20%;">Description</th>
-                <th rowspan="2" style="width:4%;">UoM</th>
-                <th style="width:5%;">Unit Price</th>
-                <th style="width:5%;">6-Month Avg Usage</th>
-                <th style="width:5%;">Last Month Usage</th>
-                <th style="width:5%;">Stock Beginning</th>
-                <th style="width:5%;">Order Plan Qty</th>
-                <th style="width:5%;">Demand Forecast</th>
-                <th style="width:5%;">Stock Ending</th>
-                <th style="width:5%;">Ending Cover Day</th>
-                <th style="width:5%;">Target SS. Day</th>
-                <th style="width:5%;">Stock Value</th>
-                <th style="width:5%;">Inv. Reorder Qty</th>
-                <th style="width:5%;">Reorder Level Qty</th>
-                <th style="width:5%;">Max Inv. Level Qty</th>
-                <th style="width:7%;">Max Inv. Usage Day</th>
-                <th style="width:10%;">Remarks</th>
+            <tr>
+                <th style="min-width:25px;">#</th>
+                <th style="min-width:80px;">Item Code</th>
+                <th style="min-width:200px;">Description</th>
+                <th style="min-width:40px;">UoM</th>
+                <th style="min-width:60px;">Unit Price</th>
+                <th style="min-width:50px;">6-Month Avg Usage</th>
+                <th style="min-width:50px;">Last Month Usage</th>
+                <th style="min-width:50px;">Stock Beginning</th>
+                <th style="min-width:50px;">Order Plan Qty</th>
+                <th style="min-width:50px;">Demand Forecast</th>
+                <th style="min-width:50px;">Stock Ending</th>
+                <th style="min-width:50px;">Ending Cover Day</th>
+                <th style="min-width:50px;">Target SS. Day</th>
+                <th style="min-width:50px;">Stock Value</th>
+                <th style="min-width:50px;">Inv. Reorder Qty</th>
+                <th style="min-width:50px;">Reorder Level Qty</th>
+                <th style="min-width:50px;">Max Inv. Level Qty</th>
+                <th style="min-width:50px;">Max Inv. Usage Day</th>
+                <th style="min-width:120px;">Remarks</th>
             </tr>
-
         </thead>
+
         <tbody>
             @foreach($items as $i => $item)
             <tr>
@@ -171,7 +190,7 @@
                 <td class="text-right">{{ $fmt($item['stock_ending']) }}</td>
                 <td class="text-right">{{ $fmt($item['ending_stock_cover_day']) }}</td>
                 <td class="text-right">{{ $fmt($item['target_safety_stock_day']) }}</td>
-                <td class="text-right">{{ $fmt($item['stock_value']) }}</td>
+                <td class="currency">{{ $fmtStock($item['stock_value']) }}</td>
                 <td class="text-right">{{ $fmt($item['inventory_reorder_quantity']) }}</td>
                 <td class="text-right">{{ $fmt($item['reorder_level_qty']) }}</td>
                 <td class="text-right">{{ $fmt($item['max_inventory_level_qty']) }}</td>
