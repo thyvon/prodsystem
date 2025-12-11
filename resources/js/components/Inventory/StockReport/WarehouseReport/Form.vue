@@ -353,7 +353,6 @@ const addSelectedItems = () => {
         reoder_level_qty: p.reorder_level_qty || 0,
         max_inv_level_qty: p.max_inv_level_qty || 0,
         max_inv_usage_day: p.max_inv_usage_day || 0, 
-        remarks: ''
       })
     }
   })

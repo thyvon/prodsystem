@@ -41,6 +41,7 @@ import ProductForm from './components/Product/ProductForm.vue'
 import WarehousePage from './components/Inventory/Warehouse/WarehouseList.vue'
 import WarehouseProductList from './components/Inventory/Warehouse/WarehouseProduct/Index.vue'
 import WarehouseProductReportForm from './components/Inventory/StockReport/WarehouseReport/Form.vue'
+import WarehouseProductReportShow from './components/Inventory/StockReport/WarehouseReport/Show.vue'
 //Stock Management
 import InventoryItemList from './components/Inventory/Items/ItemList.vue'
 import StockMovement from './components/Inventory/Items/ItemMovement.vue'
@@ -131,6 +132,7 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  app.component('warehouse-page', WarehousePage)
  app.component('warehouse-product-list', WarehouseProductList)
  app.component('wh-product-report-form', WarehouseProductReportForm)
+ app.component('wh-product-report-show', WarehouseProductReportShow)
  // Stock Management
  app.component('inventory-item-page', InventoryItemList)
  app.component('stock-movement-page', StockMovement)

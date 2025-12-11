@@ -360,6 +360,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Report to Attache PR
         Route::post('/stock-reports-store', [WarehouseProductController::class, 'storeReport'])->name('api.stock-reports.store-report');
         Route::get('/stock-reports/get-products', [WarehouseProductController::class, 'getProducts'])->name('api.stock-reports.get-products');
+        Route::get('/stock-reports/{warehouseProductReport}/get-show-data', [WarehouseProductController::class, 'getStockReport'])->name('api.stock-reports.get-show-data');
 
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);

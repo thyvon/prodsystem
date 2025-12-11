@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class WareHouseProductReport extends Model
+class WarehouseProductReport extends Model
 {
     use HasFactory;
     use SoftDeletes;
@@ -25,7 +25,7 @@ class WareHouseProductReport extends Model
 
     public function items()
     {
-        return $this->hasMany(WareHouseProductRepotItems::class, 'report_id');
+        return $this->hasMany(WarehouseProductReportItems::class, 'report_id');
     }
 
     public function warehouse()
