@@ -17,7 +17,9 @@ return new class extends Migration
             $table->date('report_date');
             $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
             $table->string('approval_status')->default('Pending');
+            $table->string('remarks')->nullable();
             $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('position_id')->constrained('positions')->cascadeOnDelete();
             $table->foreignId('updated_by')->nullable()->constrained('users')->cascadeOnDelete();
             $table->foreignId('deleted_by')->nullable()->constrained('users')->cascadeOnDelete();
             $table->softDeletes();

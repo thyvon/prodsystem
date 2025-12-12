@@ -360,9 +360,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-reports/monthly-report', [StockController::class, 'getMonthlyStockReport'])->middleware('can:viewAny,' . MonthlyStockReport::class)->name('api.stock-reports.monthly-report');
         Route::get('/stock-reports/monthly-report/{monthlyStockReport}/show', [StockController::class, 'getDetails'])->middleware('can:view,monthlyStockReport')->name('api.stock-reports.monthly-report.details');
         // Report to Attache PR
-        Route::post('/stock-reports-store', [WarehouseProductController::class, 'storeReport'])->name('api.stock-reports.store-report');
+        Route::get('/stock-reports/get-report-list', [WarehouseProductController::class, 'getReportList'])->name('api.stock-reports.get-report-list');
+        Route::post('/stock-reports/store-report', [WarehouseProductController::class, 'storeReport'])->name('api.stock-reports.store-report');
+        Route::get('/stock-reports/{warehouseProductReport}/get-report-edit-data', [WarehouseProductController::class, 'getReportEditData'])->name('api.stock-reports.get-edit-data');
+        Route::put('/stock-reports/{warehouseProductReport}/update-report', [WarehouseProductController::class, 'updateReport'])->name('api.stock-reports.update-report');
         Route::get('/stock-reports/get-products', [WarehouseProductController::class, 'getProducts'])->name('api.stock-reports.get-products');
-        Route::get('/stock-reports/{warehouseProductReport}/get-show-data', [WarehouseProductController::class, 'getStockReport'])->name('api.stock-reports.get-show-data');
+        Route::get('/stock-reports/{warehouseProductReport}/get-show-data', [WarehouseProductController::class, 'getStockReportShow'])->name('api.stock-reports.get-show-data');
+        Route::get('/stock-reports/report/get-approval-users', [WarehouseProductController::class, 'getApprovalUsers'])->name('api.stock-reports.get-approval-users');
+        Route::delete('/stock-reports/{warehouseProductReport}/delete-report', [WarehouseProductController::class, 'destroyReport'])->name('api.stock-reports.delete-report');
 
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);

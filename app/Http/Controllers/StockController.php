@@ -239,95 +239,91 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
-public function showpdf(MonthlyStockReport $monthlyStockReport)
-{
-    $this->authorize('view', $monthlyStockReport);
+    public function showpdf(MonthlyStockReport $monthlyStockReport)
+    {
+        $this->authorize('view', $monthlyStockReport);
 
-    // Label mapping
-    $mapLabel = [
-        'verify'       => 'Verified By',
-        'check'        => 'Checked By',
-        'acknowledge'  => 'Acknowledged By',
-    ];
-
-    // Transform approvals
-    $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-        $typeKey = strtolower($approval->request_type);
-
-        return [
-            'user_name'          => $approval->responder?->name ?? 'Unknown',
-            'position_name'      => $approval->responderPosition?->title ?? null,
-            'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey).' By',
-            'approval_status'    => $approval->approval_status,
-            'responded_date' => $approval->responded_date 
-                                ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A') 
-                                : null,
-            'comment'            => $approval->comment,
-            'signature_url'      => $approval->responder?->signature_url ?? null,
+        // Label mapping
+        $mapLabel = [
+            'verify'      => 'Verified By',
+            'check'       => 'Checked By',
+            'acknowledge' => 'Acknowledged By',
         ];
-    })->toArray();
 
-    // Prepare PDF data
-    $data = $this->prepareReportData($monthlyStockReport);
-    $data['approvals'] = $approvals;
+        // Transform approvals
+        $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+            $typeKey = strtolower($approval->request_type);
 
-    // Render HTML
-    $html = view('Inventory.stock-report.print-report', $data)->render();
+            return [
+                'user_name'          => $approval->responder?->name ?? 'Unknown',
+                'position_name'      => $approval->responderPosition?->title ?? null,
+                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+                'approval_status'    => $approval->approval_status,
+                'responded_date'     => $approval->responded_date
+                                        ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
+                                        : null,
+                'comment'            => $approval->comment,
+                'signature_url'      => $approval->responder?->signature_url ?? null,
+            ];
+        })->toArray();
 
-    $fileName = 'Stock_Report.pdf';
-    $filePath = storage_path('app/public/' . $fileName);
+        // Prepare PDF data
+        $data = $this->prepareReportData($monthlyStockReport);
+        $data['approvals'] = $approvals;
 
-    // ⚡ ULTRA LOW CPU + LOW RAM CONFIG ⚡
-    Browsershot::html($html)
-        ->noSandbox()
+        // Render Blade HTML
+        $html = view('Inventory.stock-report.print-report', $data)->render();
 
-        // ✓ Reduce CPU by skipping heavy rendering
-        ->emulateMedia('print')
-        ->showBackground()
+        // ⚡ Generate PDF directly in memory (NO saving)
+        $pdf = Browsershot::html($html)
+            ->noSandbox()
 
-        // ✓ Reduce CPU & RAM by disabling expensive features
-        ->addChromiumArguments([
-            '--disable-gpu',
-            '--blink-settings=imagesEnabled=true',
-            '--disable-extensions',
-            '--disable-dev-shm-usage',
-            '--disable-software-rasterizer',
-            '--single-process',            // MOST IMPORTANT FOR LOW CPU
-            '--no-zygote',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--no-first-run',
-            '--no-default-browser-check',
+            // Reduce CPU
+            ->emulateMedia('print')
+            ->showBackground()
 
-            // ↓↓↓ These reduce CPU load drastically ↓↓↓
-            '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
-            '--disable-background-networking',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-breakpad',
-            '--disable-ipc-flooding-protection',
-            '--disable-renderer-backgrounding',
-            '--disable-client-side-phishing-detection',
-            '--disable-hang-monitor',
-            '--disable-popup-blocking',
-            '--disable-sync',
-            '--metrics-recording-only',
-            '--mute-audio',
-        ])
+            // Ultra low resource mode
+            ->addChromiumArguments([
+                '--disable-gpu',
+                '--blink-settings=imagesEnabled=true',
+                '--disable-extensions',
+                '--disable-dev-shm-usage',
+                '--disable-software-rasterizer',
+                '--single-process',
+                '--no-zygote',
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-breakpad',
+                '--disable-ipc-flooding-protection',
+                '--disable-renderer-backgrounding',
+                '--disable-client-side-phishing-detection',
+                '--disable-hang-monitor',
+                '--disable-popup-blocking',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--mute-audio',
+            ])
 
-        // ✓ Lower delay (CPU-friendly)
-        ->setDelay(20)
+            ->setDelay(20)
+            ->format('A4')
+            ->landscape()
+            ->margins(5, 3, 5, 3)
+            ->timeout(40)
+            ->setTemporaryFolder('/tmp/chromium')
 
-        ->format('A4')
-        ->landscape()
-        ->margins(5, 3, 5, 3)
-        ->timeout(40)
-        ->setTemporaryFolder('/tmp/chromium')
+            ->pdf(); // ← generate raw PDF bytes
 
-        ->save($filePath);
-
-    return response()->file($filePath);
-}
+        // Return PDF directly to browser
+        return response($pdf)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
+    }
 
     public function generateStockReportPdf(Request $request)
     {

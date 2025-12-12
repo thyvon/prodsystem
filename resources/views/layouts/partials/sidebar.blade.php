@@ -296,16 +296,22 @@
                     <span class="nav-link-text">Stock Report</span>
                 </a>
                 <ul>
-                    <li class="{{ request()->is('inventory/stock-reports') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/stock-reports') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
+                    <li class="{{ request()->is('inventory/stock-reports/track-report') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-reports/track-report') }}" title="Track Report" data-filter-tags="Track Report" data-filter-tags="Track Report">
                             <span class="nav-link-text">Tracking Report</span>
                         </a>
                     </li>
                     <li class="{{ request()->is('inventory/stock-reports/monthly-report') ? 'active' : '' }}">
-                        <a href="{{ url('inventory/stock-reports/monthly-report') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
+                        <a href="{{ url('inventory/stock-reports/monthly-report') }}" title="Monthly Stock Report" data-filter-tags="monthly stock report" data-filter-tags="monthly stock report">
                             <span class="nav-link-text">Monthly Report</span>
                         </a>
                     </li>
+                    <li class="{{ request()->is('inventory/stock-reports/reports-list') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-reports/reports-list') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
+                            <span class="nav-link-text">Stock Report</span>
+                        </a>
+                    </li>
+
                     <!-- <li class="{{ request()->is('reports/details') ? 'active' : '' }}">
                         <a href="{{ url('reports/details') }}" title="Detailed Report" data-filter-tags="detailed report">
                             <span class="nav-link-text">PR Summary</span>

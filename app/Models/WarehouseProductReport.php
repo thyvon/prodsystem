@@ -18,7 +18,9 @@ class WarehouseProductReport extends Model
         'report_date',
         'warehouse_id',
         'approval_status',
+        'remarks',
         'created_by',
+        'position_id',
         'updated_by',
         'deleted_by',
     ];
@@ -30,22 +32,27 @@ class WarehouseProductReport extends Model
 
     public function warehouse()
     {
-        return $this->belongsTo(Warehouse::class);
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 
     public function creater()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function createrPosition()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 
     public function updater()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function deleter()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 
     public function approvals()

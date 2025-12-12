@@ -136,41 +136,63 @@
             </div>
           </div>
 
-          <!-- Approval Assignments -->
-          <div class="border rounded p-3 mb-4 bg-white">
-            <h5 class="mb-3 text-primary">Approval Assignments</h5>
-            <table class="table table-bordered table-sm">
-              <thead class="thead-light">
-                <tr>
-                  <th width="30%">Type</th>
-                  <th width="50%">Assigned User</th>
-                  <th width="20%"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(app, i) in form.approvals" :key="i">
-                  <td>
-                    <select v-model="app.request_type" class="form-control approval-type-select" :data-index="i" :disabled="app.isDefault" required>
-                      <option value="initial">Initial</option>
-                      <option value="approve">Approve</option>
-                    </select>
-                  </td>
-                  <td>
-                    <select v-model="app.user_id" class="form-control user-select" :data-index="i" required>
-                      <option value="">Select User</option>
-                      <option v-for="u in app.availableUsers" :key="u.id" :value="u.id">
-                        {{ u.name }}
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <button type="button" class="btn btn-sm btn-danger" @click="removeApproval(i)" :disabled="app.isDefault">
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- Approval Table -->
+          <div class="border rounded p-4 bg-light">
+            <h5 class="h5 fw-bold text-primary mb-3">Approval Assignments</h5>
+
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th width="35%">Approval Type</th>
+                    <th width="55%">Assigned User</th>
+                    <th width="10%" class="text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(approval, index) in form.approvals" :key="index">
+                    <td>
+                      <select
+                        :ref="el => setTypeSelectRef(el, index)"
+                        class="form-control form-control-sm"
+                        v-model="approval.request_type"
+                        :disabled="approval.isDefault"
+                      >
+                        <option value="">Select Type</option>
+                        <option value="check">Check</option>
+                        <option value="approve">Approve</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        :ref="el => setUserSelectRef(el, index)"
+                        class="form-control form-control-sm"
+                        :disabled="!approval.request_type"
+                      >
+                        <option value="">Select User</option>
+                        <option v-for="user in approval.availableUsers" :key="user.id" :value="user.id">
+                          {{ user.name }} ({{ user.card_number || user.email }})
+                        </option>
+                      </select>
+                    </td>
+                    <td class="text-center">
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        @click="removeApproval(index)"
+                        :disabled="approval.isDefault"
+                        title="Remove"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="form.approvals.length === 0">
+                    <td colspan="3" class="text-center text-muted py-3">No approval assignments</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Submit -->
@@ -229,7 +251,7 @@ import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({ reportId: [String, Number] })
+const props = defineProps({ warehouseProductReportId: [String, Number] })
 const emit = defineEmits(['submitted'])
 
 const isEditMode = ref(false)
@@ -242,6 +264,8 @@ const form = ref({
   reference_no: '',
   remarks: '',
   items: [], // { product_id }
+  approvals: [], // keep approval data structure
+  actionButtonText: 'Update Stock Report'
 })
 
 const warehouses = ref([])
@@ -249,14 +273,152 @@ const fileInput = ref(null)
 const itemsModal = ref(null)
 const warehouseSelect = ref(null)
 
+// ================= Approval Section =================
+const typeSelectRefs = ref([])
+const userSelectRefs = ref([])
+const approvalUsers = ref({})
+
+const setTypeSelectRef = (el, index) => { typeSelectRefs.value[index] = el }
+const setUserSelectRef = (el, index) => { userSelectRefs.value[index] = el }
+
+const defaultApprovalTypes = ['check', 'approve']
+
+const initApprovals = () => {
+  if (!form.value.approvals.length) {
+    defaultApprovalTypes.forEach(type => {
+      form.value.approvals.push({
+        id: null,
+        request_type: type,   // <-- set default type here
+        user_id: null,
+        isDefault: true,
+        availableUsers: [] // to be loaded from API
+      })
+    })
+  } else {
+    // Ensure all default types exist
+    defaultApprovalTypes.forEach(type => {
+      if (!form.value.approvals.some(a => a.request_type === type)) {
+        form.value.approvals.push({
+          id: null,
+          request_type: type, // <-- default type
+          user_id: null,
+          isDefault: true,
+          availableUsers: []
+        })
+      }
+    })
+  }
+}
+
+const fetchApprovalUsers = async () => {
+  try {
+    const { data } = await axios.get('/api/inventory/stock-reports/report/get-approval-users')
+    approvalUsers.value = data || {}
+    // Assign availableUsers to approvals
+    form.value.approvals.forEach(a => {
+      a.availableUsers = approvalUsers.value[a.request_type] || []
+    })
+  } catch (err) {
+    showAlert('Error', 'Failed to load approval users', 'danger')
+  }
+}
+
+const initApprovalSelect2 = async () => {
+  form.value.approvals.forEach((approval, index) => {
+    // Type select
+    const typeEl = typeSelectRefs.value[index]
+    if (typeEl && !typeEl.dataset.initialized) {
+      $(typeEl).select2({
+        placeholder: 'Select Type',
+        width: '100%',
+        allowClear: !approval.isDefault
+      }).val(approval.request_type || null).trigger('change')
+      .on('change', () => {
+        approval.request_type = typeEl.value
+        approval.availableUsers = approvalUsers.value[typeEl.value] || []
+        refreshUserDropdown(index)
+      })
+
+      // Disable default type in Select2
+      if (approval.isDefault) {
+        $(typeEl).prop("disabled", true)  // disable the select
+        $(typeEl).select2({ width: '100%' }) // refresh Select2 to apply disable
+      }
+
+      typeEl.dataset.initialized = true
+    }
+
+    // User select
+    refreshUserDropdown(index)
+  })
+}
+
+// Refresh user dropdown based on type
+const refreshUserDropdown = async (index) => {
+  const approval = form.value.approvals[index]
+  const $select = userSelectRefs.value[index]
+  if (!$select) return
+
+  if ($($select).data('select2')) $($select).select2('destroy')
+
+  $($select).select2({
+    placeholder: 'Select User',
+    width: '100%',
+    allowClear: true,
+    data: approval.availableUsers.map(u => ({ id: u.id, text: `${u.name} (${u.card_number || ''})` }))
+  }).val(approval.user_id || null).trigger('change')
+  .on('change', e => {
+    approval.user_id = e.target.value ? Number(e.target.value) : null
+  })
+}
+
+// Remove approval
+const removeApproval = (index) => {
+  if (form.value.approvals[index].isDefault) {
+    showAlert('Cannot Remove', 'Default approval steps cannot be removed.', 'warning')
+    return
+  }
+  form.value.approvals.splice(index, 1)
+}
+// =====================================================
+
 let productsTable = null
 
-const goToIndex = () => window.location.href = '/inventory/stock-reports'
+const goToIndex = () => window.location.href = '/inventory/stock-reports/reports-list'
 
 // ==================== Fetching Data ====================
 const fetchWarehouses = async () => {
   const { data } = await axios.get('/api/main-value-lists/get-warehouses')
   warehouses.value = data.data || data
+}
+
+// ==================== Load Edit Data ====================
+const loadEditData = async () => {
+  if (!props.warehouseProductReportId) return
+
+  isEditMode.value = true
+  try {
+    const { data } = await axios.get(`/api/inventory/stock-reports/${props.warehouseProductReportId}/get-report-edit-data`)
+    const report = data.data || data
+
+    form.value.report_date = report.report_date
+    form.value.warehouse_id = report.warehouse_id
+    form.value.reference_no = report.reference_no
+    form.value.remarks = report.remarks || ''
+    form.value.items = report.items || []
+    form.value.approvals = report.approvals || []
+
+    // Mark default types in edit mode
+    form.value.approvals.forEach(a => {
+      if (defaultApprovalTypes.includes(a.request_type)) a.isDefault = true
+    })
+
+    await nextTick()
+    if (warehouseSelect.value) $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
+    $('#report_date').datepicker('update', form.value.report_date)
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to load report', 'danger')
+  }
 }
 
 // ==================== Datepicker ====================
@@ -418,15 +580,20 @@ const submitForm = async () => {
       report_date: form.value.report_date,
       reference_no: form.value.reference_no,
       remarks: form.value.remarks || null,
-        items: form.value.items.map(i => ({
-            warehouse_product_id: i.warehouse_product_id,
-            remarks: i.remarks || null
-        }))
+      items: form.value.items.map(i => ({
+        warehouse_product_id: i.warehouse_product_id,
+        remarks: i.remarks || null
+      })),
+      approvals: form.value.approvals.map(a => ({
+        id: a.id,
+        request_type: a.request_type,
+        user_id: a.user_id
+      }))
     }
 
     const url = isEditMode.value
-      ? `/api/inventory/stock-reports/${props.reportId}`
-      : '/api/inventory/stock-reports-store'
+      ? `/api/inventory/stock-reports/${props.warehouseProductReportId}/update-report`
+      : '/api/inventory/stock-reports/store-report'
 
     await axios[isEditMode.value ? 'put' : 'post'](url, payload)
     await showAlert('Success', 'Stock report saved successfully!', 'success')
@@ -444,6 +611,11 @@ onMounted(async () => {
   await fetchWarehouses()
   initDatepicker()
   initWarehouseSelect2()
+  await loadEditData()  // Load edit data
+  initApprovals()        // Ensure default approvals
+  await fetchApprovalUsers()
+  await nextTick()
+  initApprovalSelect2()  // Initialize Select2 for approvals
 })
 
 onUnmounted(() => {
@@ -451,4 +623,6 @@ onUnmounted(() => {
   if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
 })
 </script>
+
+
 

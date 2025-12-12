@@ -5,7 +5,7 @@
       <button class="btn btn-sm btn-outline-success" @click="goBack">
         <i class="fal fa-backward"></i> Back
       </button>
-      <button class="btn btn-sm btn-outline-secondary" @click="window.print()">
+      <button class="btn btn-sm btn-outline-secondary" @click="printReport(props.warehouseProductReportId)">
         <i class="fal fa-print"></i> Print
       </button>
     </div>
@@ -34,8 +34,8 @@
 
       <!-- Stock Table -->
       <div class="table-responsive">
-        <table class="table table-sm table-bordered table-striped table-hover">
-          <thead class="table-primary text-center">
+        <table class="table table-sm table-bordered table-hover">
+          <thead class="table-secondary text-center">
             <tr>
               <th>#</th>
               <th style="min-width: 120px;">Item Code</th>
@@ -65,24 +65,24 @@
               <td class="text-start">{{ item.product_name }} {{ item.description ?? '' }}</td>
               <td>{{ item.unit_name ?? 'N/A' }}</td>
               <td class="text-end">{{ formatAmount(item.unit_price) }}</td>
-              <td class="text-end">{{ formatAmount(item.avg_6_month_usage) }}</td>
-              <td class="text-end">{{ formatAmount(item.last_month_usage) }}</td>
-              <td class="text-end">{{ formatAmount(item.stock_beginning) }}</td>
-              <td class="text-end">{{ formatAmount(item.order_plan_qty) }}</td>
-              <td class="text-end">{{ formatAmount(item.demand_forecast_quantity) }}</td>
-              <td class="text-end">{{ formatAmount(item.stock_ending) }}</td>
-              <td class="text-end">{{ formatAmount(item.ending_stock_cover_day) }}</td>
-              <td class="text-end">{{ formatAmount(item.target_safety_stock_day) }}</td>
+              <td class="text-end">{{ formatQty(item.avg_6_month_usage) }}</td>
+              <td class="text-end">{{ formatQty(item.last_month_usage) }}</td>
+              <td class="text-end">{{ formatQty(item.stock_beginning) }}</td>
+              <td class="text-end">{{ formatQty(item.order_plan_qty) }}</td>
+              <td class="text-end">{{ formatQty(item.demand_forecast_quantity) }}</td>
+              <td class="text-end">{{ formatQty(item.stock_ending) }}</td>
+              <td class="text-end">{{ formatQty(item.ending_stock_cover_day) }}</td>
+              <td class="text-end">{{ formatQty(item.target_safety_stock_day) }}</td>
               <td class="text-end">{{ formatAmount(item.stock_value) }}</td>
-              <td class="text-end">{{ formatAmount(item.inventory_reorder_quantity) }}</td>
-              <td class="text-end">{{ formatAmount(item.reorder_level_day) }}</td>
-              <td class="text-end">{{ formatAmount(item.max_inventory_level_quantity) }}</td>
-              <td class="text-end">{{ formatAmount(item.max_inventory_usage_day) }}</td>
+              <td class="text-end">{{ formatQty(item.inventory_reorder_quantity) }}</td>
+              <td class="text-end">{{ formatQty(item.reorder_level_day) }}</td>
+              <td class="text-end">{{ formatQty(item.max_inventory_level_quantity) }}</td>
+              <td class="text-end">{{ formatQty(item.max_inventory_usage_day) }}</td>
               <td class="text-start">{{ item.remarks ?? '-' }}</td>
             </tr>
 
             <!-- Totals Row -->
-            <tr class="table-primary font-weight-bold text-center">
+            <tr class="table-secondary font-weight-bold text-center">
               <td colspan="4" class="text-end">Total</td>
               <td>-</td>
               <td>{{ formatTotal(report.items, 'avg_6_month_usage') }}</td>
@@ -93,7 +93,7 @@
               <td>{{ formatTotal(report.items, 'stock_ending') }}</td>
               <td>{{ formatTotal(report.items, 'ending_stock_cover_day') }}</td>
               <td>{{ formatTotal(report.items, 'target_safety_stock_day') }}</td>
-              <td>{{ formatTotal(report.items, 'stock_value') }}</td>
+              <td>{{ formatTotalAmount(report.items, 'stock_value') }}</td>
               <td>{{ formatTotal(report.items, 'inventory_reorder_quantity') }}</td>
               <td>{{ formatTotal(report.items, 'reorder_level_day') }}</td>
               <td>{{ formatTotal(report.items, 'max_inventory_level_quantity') }}</td>
@@ -201,6 +201,7 @@
       </div>
 
     </div>
+    <FileViewerModal ref="fileModal" title="Stock Report PDF" />
   </div>
 </template>
 
@@ -210,6 +211,7 @@ import axios from 'axios'
 import { formatDateWithTime, formatDateShort } from '@/Utils/dateFormat'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
+import FileViewerModal from '@/components/Reusable/FileViewerModal.vue'
 
 const props = defineProps({ warehouseProductReportId: [String, Number] })
 
@@ -219,6 +221,7 @@ const usersList = ref([])
 const currentAction = ref('approve')
 const commentInput = ref('')
 const reassignComment = ref('')
+const fileModal = ref(null) // reusable file modal
 
 // Helpers
 const formatAmount = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 4 })
@@ -226,8 +229,28 @@ const formatQty = val => Number(val || 0).toLocaleString(undefined, { minimumFra
 const capitalize = s => (s && typeof s === 'string') ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
-const goBack = () => window.history.back()
-const formatTotal = (items, field) => formatAmount((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
+const goBack = () => window.location.href = '/inventory/stock-reports/reports-list'
+const formatTotal = (items, field) => formatQty((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
+const formatTotalAmount = (items, field) => formatAmount((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
+
+const printReport = async (warehouseProductReportId) => {
+  try {
+    const res = await axios.get(
+      `/inventory/stock-reports/reports/${warehouseProductReportId}/print-report`,
+      {
+        responseType: 'blob',
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content }
+      }
+    )
+
+    const blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+    fileModal.value.openModal(blobUrl, `Stock Report - ${report.value.reference_no}.pdf`)
+
+  } catch (err) {
+    console.error(err)
+    showAlert('Error', 'Failed to generate PDF.', 'danger')
+  }
+}
 
 // Computed
 const currentActionBtnClass = computed(() =>
@@ -320,7 +343,6 @@ onMounted(() => { if (props.warehouseProductReportId) fetchReport() })
 </script>
 
 <style scoped>
-.table-secondary { background-color: #f7f7f7 !important; }
 .modal { overflow: visible !important; }
 .select2-container--default .select2-dropdown { z-index: 1060 !important; }
 </style>

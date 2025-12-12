@@ -34,6 +34,22 @@ class WarehouseProductReportItems extends Model
         'deleted_by',
     ];
 
+    protected $casts = [
+        'unit_price' => 'float',
+        'avg_6_month_usage' => 'float',
+        'last_month_usage' => 'float',
+        'stock_on_hand' => 'float',
+        'order_plan_quantity' => 'float',
+        'demand_forecast_quantity' => 'float',
+        'ending_stock_cover_day' => 'float',
+        'target_safety_stock_day' => 'float',
+        'stock_value' => 'float',
+        'inventory_reorder_quantity' => 'float',
+        'reorder_level_day' => 'float',
+        'max_inventory_level_quantity' => 'float',
+        'max_inventory_usage_day' => 'float',
+    ];
+
 
     public function product()
     {

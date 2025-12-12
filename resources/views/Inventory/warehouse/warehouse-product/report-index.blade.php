@@ -1,14 +1,12 @@
-@php($header = 'Stock Report Form')
+@php($header = 'Stock Report List')
 @extends('layouts.main')
 
 @section('content')
-<wh-product-report-form
-    :warehouse-product-report-id="{{ $warehouseProductReportId ?? 'null' }}"
-/>
+  <wh-product-report-list :page-length="{{ $pageLength ?? 10 }}" />
 @endsection
 
 @push('vite')
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @vite(['resources/css/app.css','resources/js/app.js'])
 @endpush
 
 @push('styles')

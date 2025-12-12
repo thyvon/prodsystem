@@ -19,7 +19,7 @@
             margin: 5mm;
             @bottom-center {
                 content: "Page " counter(page) " of " counter(pages);
-                font-size: 10px;
+                font-size: 12px;
                 font-family: 'TW Cen MT', 'Khmer OS Battambang', sans-serif;
             }
         }
@@ -36,28 +36,27 @@
 
         .header { text-align: center; margin-bottom: 10px; position: relative; }
         .logo-section { position: absolute; left: 0px; top: 0; }
-        .logo-section img { width: 100px; height: auto; }
-        .title-section h3 { margin: 0; font-size: 15px; font-weight: bold; }
+        .logo-section img { width: 120px; height: auto; }
+        .title-section h3 { margin: 0; font-size: 20px; font-weight: bold; }
         .date-range { color: red; font-weight: bold; font-size: 11px; }
 
         table.items {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 14px;
         }
         table.items th, table.items td {
             border: 1px solid #333;
             vertical-align: middle;
             word-wrap: break-word;
             white-space: normal;
+            padding: 3px;
         }
         table.items th {
             background-color: #f2f2f2;
             text-align: center;
             font-weight: bold;
         }
-
-        .col-desc { max-width: 300px; }
 
         .text-center { text-align: center; }
         .text-right { text-align: right; }
@@ -77,24 +76,52 @@
             gap: 20px;
             page-break-inside: avoid;
         }
+
         .signature-box {
-            flex: 1 1 calc((100% / 4) - 20px);
-            max-width: calc((100% / 4) - 20px);
+            flex: 1 1 auto;
+            max-width: 30%;      /* 3 boxes per row */
             min-width: 150px;
             display: flex;
             flex-direction: column;
-            height: 150px;
+            height: 190px;
             box-sizing: border-box;
         }
+
+        /* Add spacing to center box ONLY */
+        .signature-section .signature-box:nth-child(2) {
+            margin: 0 200px;   /* space on left + right */
+        }
+
+        .signature-title{
+            font-size: 12px;
+            text-align: center;
+            line-height: 1.3;
+            margin-bottom: 2px; /* Better spacing */
+        }
+
         .signature-image-box {
-            height: 55px;
+            min-height: 80px;              /* Ensure space for signature */
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        .signature-image { max-width: 100px; max-height: 90px; }
-        .signature-line { height: 1px; background-color: #333; width: 100%; margin: 5px 0; }
-        .signature-info { font-size: 12px; line-height: 1.2; }
+
+        .signature-image {
+            max-width: 130px;
+            max-height: 130px;
+            object-fit: contain;
+        }
+
+        .signature-line {
+            height: 1px;
+            background-color: #9b9a9aff;
+            margin: 10px 0;           /* Better spacing */
+        }
+
+        .signature-info {
+            font-size: 14px;
+            line-height: 1.3;
+        }
 
         .text-right {
             text-align: right !important;
@@ -154,7 +181,7 @@
             <tr>
                 <th style="min-width:25px;">#</th>
                 <th style="min-width:80px;">Item Code</th>
-                <th style="min-width:200px;">Description</th>
+                <th style="min-width:290px;">Description</th>
                 <th style="min-width:40px;">UoM</th>
                 <th style="min-width:60px;">Unit Price</th>
                 <th style="min-width:50px;">6-Month Avg Usage</th>
@@ -181,7 +208,7 @@
                 <td class="text-center">{{ $item['product_code'] }}</td>
                 <td class="text-left">{{ $item['description'] ?? '-' }}</td>
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
-                <td class="text-right">{{ $fmt($item['unit_price']) }}</td>
+                <td class="currency">{{ $fmtStock($item['unit_price']) }}</td>
                 <td class="text-right">{{ $fmt($item['avg_6_month_usage']) }}</td>
                 <td class="text-right">{{ $fmt($item['last_month_usage']) }}</td>
                 <td class="text-right">{{ $fmt($item['stock_beginning']) }}</td>
@@ -200,22 +227,31 @@
             @endforeach
         </tbody>
     </table>
-
+    @if(!empty($remarks))
+    <p>Remarks: {{$remarks}}</p>
+    @endif
     <!-- Signatures -->
     <div class="signature-section">
 
         <!-- Prepared by -->
         @if(!empty($prepared_by))
         <div class="signature-box">
+            <strong class="signature-title">
+                ស្នើសុំដោយ<br>Requested By
+            </strong>
+
             <div class="signature-image-box">
-                <img src="{{ $creator_signature ? public_path('storage/' . $creator_signature) : '' }}" class="signature-image">
+                @if($creator_signature)
+                    <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image">
+                @endif
             </div>
+
             <div class="signature-line"></div>
+
             <div class="signature-info">
-                <strong>Prepared By</strong><br>
-                Name: {{ $prepared_by }}<br>
-                Position: {{ $creator_position ?? '-' }}<br>
-                Date: {{ $created_at ?? $fmtDate($report_date) }}
+                ឈ្មោះ /Name: {{ $prepared_by }}<br>
+                តួនាទី /Position: {{ $creator_position ?? '-' }}<br>
+                កាលបរិច្ឆេទ /Date: {{ $created_at ?? $fmtDate($report_date) }}
             </div>
         </div>
         @endif
@@ -224,17 +260,24 @@
         @foreach($approvals as $appr)
             @if(!empty($appr['user_name']))
             <div class="signature-box">
+
+                <strong class="signature-title">
+                    {{ $appr['request_type_label_kh'] ?? 'Approved By' }}<br>
+                    {{ $appr['request_type_label_en'] ?? 'Approved By' }}
+                </strong>
+
                 <div class="signature-image-box">
-                    @if(!empty($appr['signature_url']))
+                    @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
                         <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
                     @endif
                 </div>
+
                 <div class="signature-line"></div>
+
                 <div class="signature-info">
-                    <strong>{{ $appr['request_type_label'] ?? 'Approved By' }}</strong><br>
-                    Name: {{ $appr['user_name'] }}<br>
-                    Position: {{ $appr['position_name'] ?? '-' }}<br>
-                    Date: {{ $appr['responded_date'] ?? '-' }}
+                    ឈ្មោះ /Name: {{ $appr['user_name'] }}<br>
+                    តួនាទី /Position: {{ $appr['position_name'] ?? '-' }}<br>
+                    កាលបរិច្ឆេទ /Date: {{ $appr['responded_date'] ?? '-' }}
                 </div>
             </div>
             @endif
