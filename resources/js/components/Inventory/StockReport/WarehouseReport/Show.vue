@@ -39,7 +39,7 @@
             <tr>
               <th>#</th>
               <th style="min-width: 120px;">Item Code</th>
-              <th style="min-width: 200px;">Description</th>
+              <th style="min-width: 300px;">Description</th>
               <th style="min-width: 80px;">UoM</th>
               <th style="min-width: 100px;">Unit Price</th>
               <th style="min-width: 100px;">6-Month<br>Avg Usage</th>
