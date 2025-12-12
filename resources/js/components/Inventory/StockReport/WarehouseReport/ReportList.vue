@@ -95,20 +95,30 @@ const createReport = () => {
 // Print report using reusable modal
 const printReport = async (row) => {
   try {
-    const res = await axios.get(
+    // Call your Laravel route that returns the HTML view
+    const response = await axios.get(
       `/inventory/stock-reports/reports/${row.id}/print-report`,
       {
-        responseType: 'blob',
-        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content }
+        headers: {
+          'Accept': 'text/html',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
       }
     )
 
-    const blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-    fileModal.value.openModal(blobUrl, `Stock Report - ${row.reference_no}.pdf`)
+    // Open in new tab - instant & beautiful
+    const newTab = window.open('', '_blank')
+    
+    newTab.document.write(response.data)
+    newTab.document.close()
+
+    // Optional: Auto trigger print after load
+    newTab.focus()
+    // newTab.print()  // Uncomment if you want auto-print
 
   } catch (err) {
     console.error(err)
-    showAlert('Error', 'Failed to generate PDF.', 'danger')
+    showAlert('Error', 'Failed to open report. Please try again.', 'danger')
   }
 }
 
