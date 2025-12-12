@@ -92,10 +92,29 @@ const createReport = () => {
   window.location.href = '/inventory/stock-reports/reports/create-report'
 }
 
-// Print report using reusable modal
 const printReport = async (row) => {
   try {
-    // Call your Laravel route that returns the HTML view
+    // Step 1: Open blank tab FIRST (this bypasses popup blocker)
+    const printTab = window.open('', '_blank')
+    
+    if (!printTab) {
+      showAlert('Popup Blocked', 'Please allow popups for this site to print reports.', 'warning')
+      return
+    }
+
+    // Show loading message in the new tab
+    printTab.document.write(`
+      <html>
+        <head><title>Loading Report...</title></head>
+        <body style="font-family: sans-serif; text-align:center; padding:50px;">
+          <h3>Loading Stock Report...</h3>
+          <p>Please wait</p>
+        </body>
+      </html>
+    `)
+    printTab.document.close()
+
+    // Step 2: Now fetch the HTML content
     const response = await axios.get(
       `/inventory/stock-reports/reports/${row.id}/print-report`,
       {
@@ -106,22 +125,20 @@ const printReport = async (row) => {
       }
     )
 
-    // Open in new tab - instant & beautiful
-    const newTab = window.open('', '_blank')
-    
-    newTab.document.write(response.data)
-    newTab.document.close()
+    // Step 3: Write the real content
+    printTab.document.open()
+    printTab.document.write(response.data)
+    printTab.document.close()
 
-    // Optional: Auto trigger print after load
-    newTab.focus()
-    // newTab.print()  // Uncomment if you want auto-print
+    // Optional: Auto focus and print after load
+    printTab.focus()
+    // printTab.print()  // Uncomment if you want auto-print
 
   } catch (err) {
     console.error(err)
-    showAlert('Error', 'Failed to open report. Please try again.', 'danger')
+    showAlert('Error', 'Failed to load report. Please try again.', 'danger')
   }
 }
-
 const viewReport = (row) => window.location.href = `/inventory/stock-reports/reports/${row.id}/show-report`
 const editReport = (row) => window.location.href = `/inventory/stock-reports/reports/${row.id}/edit-report`
 const deleteReport = async (row) => {
