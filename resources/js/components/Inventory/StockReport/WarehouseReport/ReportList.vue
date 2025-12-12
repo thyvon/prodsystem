@@ -92,53 +92,14 @@ const createReport = () => {
   window.location.href = '/inventory/stock-reports/reports/create-report'
 }
 
-const printReport = async (row) => {
-  try {
-    // Step 1: Open blank tab FIRST (this bypasses popup blocker)
-    const printTab = window.open('', '_blank')
-    
-    if (!printTab) {
-      showAlert('Popup Blocked', 'Please allow popups for this site to print reports.', 'warning')
-      return
-    }
-
-    // Show loading message in the new tab
-    printTab.document.write(`
-      <html>
-        <head><title>Loading Report...</title></head>
-        <body style="font-family: sans-serif; text-align:center; padding:50px;">
-          <h3>Loading Stock Report...</h3>
-          <p>Please wait</p>
-        </body>
-      </html>
-    `)
-    printTab.document.close()
-
-    // Step 2: Now fetch the HTML content
-    const response = await axios.get(
-      `/inventory/stock-reports/reports/${row.id}/print-report`,
-      {
-        headers: {
-          'Accept': 'text/html',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      }
-    )
-
-    // Step 3: Write the real content
-    printTab.document.open()
-    printTab.document.write(response.data)
-    printTab.document.close()
-
-    // Optional: Auto focus and print after load
-    printTab.focus()
-    // printTab.print()  // Uncomment if you want auto-print
-
-  } catch (err) {
-    console.error(err)
-    showAlert('Error', 'Failed to load report. Please try again.', 'danger')
-  }
+const printReport = (row) => {
+  window.open(
+    `/inventory/stock-reports/reports/${row.id}/print-report`,
+    '_blank',
+    'noopener,noreferrer'
+  )
 }
+
 const viewReport = (row) => window.location.href = `/inventory/stock-reports/reports/${row.id}/show-report`
 const editReport = (row) => window.location.href = `/inventory/stock-reports/reports/${row.id}/edit-report`
 const deleteReport = async (row) => {
