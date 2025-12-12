@@ -59,9 +59,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, i) in report.items || []" :key="i" class="text-center">
-              <td>{{ i + 1 }}</td>
-              <td>{{ item.product_code ?? 'N/A' }}</td>
+            <tr v-for="(item, i) in report.items || []" :key="i">
+              <td class="text-center">{{ i + 1 }}</td>
+              <td class="text-center">{{ item.product_code ?? 'N/A' }}</td>
               <td class="text-start">{{ item.product_name }} {{ item.description ?? '' }}</td>
               <td>{{ item.unit_name ?? 'N/A' }}</td>
               <td class="text-end">{{ formatAmount(item.unit_price) }}</td>
