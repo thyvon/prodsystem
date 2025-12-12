@@ -69,6 +69,7 @@
         tfoot { display: table-footer-group; }
         tr { page-break-inside: avoid; }
 
+        /* ======================== SIGNATURE SECTION ======================== */
         .signature-section {
             margin-top: 20px;
             display: flex;
@@ -79,7 +80,7 @@
 
         .signature-box {
             flex: 1 1 auto;
-            max-width: 30%;      /* 3 boxes per row */
+            max-width: 30%;
             min-width: 150px;
             display: flex;
             flex-direction: column;
@@ -87,35 +88,50 @@
             box-sizing: border-box;
         }
 
-        /* Add spacing to center box ONLY */
+        /* Keep your original big spacing for the middle box */
         .signature-section .signature-box:nth-child(2) {
-            margin: 0 200px;   /* space on left + right */
+            margin: 0 200px;
         }
 
-        .signature-title{
+        .signature-title {
             font-size: 12px;
             text-align: center;
             line-height: 1.3;
-            margin-bottom: 2px; /* Better spacing */
+            margin-bottom: 2px;
         }
 
+        /* Fixed & improved signature image area */
         .signature-image-box {
-            min-height: 80px;              /* Ensure space for signature */
+            min-height: 80px;
+            height: 110px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+
+        .signature-image-wrapper {
+            width: 130px;
+            height: 90px;
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
         .signature-image {
-            max-width: 130px;
-            max-height: 130px;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
             object-fit: contain;
+            display: block;
         }
 
         .signature-line {
             height: 1px;
             background-color: #9b9a9aff;
-            margin: 10px 0;           /* Better spacing */
+            margin: 10px 0;
         }
 
         .signature-info {
@@ -123,22 +139,17 @@
             line-height: 1.3;
         }
 
-        .text-right {
-            text-align: right !important;
-        }
-        .text-left{
-            text-align: left !important;
-        }
+        /* Currency styling */
         td.currency {
-            text-align: right;           /* number to the right */
+            text-align: right;
             position: relative;
-            padding-left: 20px;          /* space for currency symbol */
+            padding-left: 20px;
         }
 
         td.currency::before {
-            content: '$';                /* your currency symbol */
+            content: '$';
             position: absolute;
-            left: 5px;                   /* symbol on the left edge */
+            left: 5px;
         }
     </style>
 </head>
@@ -227,9 +238,11 @@
             @endforeach
         </tbody>
     </table>
+
     @if(!empty($remarks))
-    <p>Remarks: {{$remarks}}</p>
+    <p>Remarks: {{ $remarks }}</p>
     @endif
+
     <!-- Signatures -->
     <div class="signature-section">
 
@@ -241,9 +254,11 @@
             </strong>
 
             <div class="signature-image-box">
-                @if($creator_signature)
-                    <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image">
-                @endif
+                <div class="signature-image-wrapper">
+                    @if($creator_signature)
+                        <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image" alt="Signature">
+                    @endif
+                </div>
             </div>
 
             <div class="signature-line"></div>
@@ -267,9 +282,11 @@
                 </strong>
 
                 <div class="signature-image-box">
-                    @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
-                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
-                    @endif
+                    <div class="signature-image-wrapper">
+                        @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
+                            <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image" alt="Signature">
+                        @endif
+                    </div>
                 </div>
 
                 <div class="signature-line"></div>
