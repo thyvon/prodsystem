@@ -109,7 +109,13 @@
                     <td>{{ item.avg_6_month_usage }}</td>
                     <td>{{ item.last_month_usage }}</td>
                     <td>{{ item.stock_beginning }}</td>
-                    <td>{{ item.order_plan_qty }}</td>
+                    <td>
+                        <input type="number" 
+                              v-model.number="item.order_plan_qty" 
+                              class="form-control form-control-sm" 
+                              min="0.00" 
+                              placeholder="Order Plan Qty" />
+                    </td>
                     <td>{{ item.demand_forecast }}</td>
                     <td>{{ item.stock_ending }}</td>
                     <td>{{ item.stock_ending_cover_day }}</td>
@@ -582,6 +588,25 @@ const submitForm = async () => {
       remarks: form.value.remarks || null,
       items: form.value.items.map(i => ({
         warehouse_product_id: i.warehouse_product_id,
+        product_id: i.product_id,
+        item_code: i.item_code,
+        product_name: i.product_name,
+        description: i.description,
+        unit_name: i.unit_name,
+        unit_price: i.unit_price,
+        avg_6_month_usage: i.avg_6_month_usage,
+        last_month_usage: i.last_month_usage,
+        stock_beginning: i.stock_beginning,
+        order_plan_qty: i.order_plan_qty,
+        demand_forecast: i.demand_forecast,
+        stock_ending: i.stock_ending,
+        stock_ending_cover_day: i.stock_ending_cover_day,
+        target_safety_stock_day: i.target_safety_stock_day,
+        stock_value: i.stock_value,
+        inv_reorder_qty: i.inv_reorder_qty,
+        reoder_level_qty: i.reoder_level_qty,
+        max_inv_level_qty: i.max_inv_level_qty,
+        max_inv_usage_day: i.max_inv_usage_day,
         remarks: i.remarks || null
       })),
       approvals: form.value.approvals.map(a => ({
