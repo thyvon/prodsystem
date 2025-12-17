@@ -839,16 +839,32 @@ class StockController extends Controller
             $priceBase->whereIn('parent_warehouse', $warehouseIds);
         }
 
-        // Begin average
+        // Begin average (Old formula from excel)
+        $startOfMonth = Carbon::parse($startDate)->startOfMonth();
+
         $beginAvgs = (clone $priceBase)
+            ->where('transaction_date', '>=', $startOfMonth)
             ->where('transaction_date', '<', $startDate)
-            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
+            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In'])
             ->selectRaw('product_id, 
-                CASE WHEN SUM(quantity) = 0 THEN 0 
-                    ELSE SUM(total_price) / SUM(quantity) END AS begin_avg')
+                CASE 
+                    WHEN SUM(quantity) = 0 THEN 0 
+                    ELSE SUM(total_price) / SUM(quantity) 
+                END AS begin_avg')
             ->groupBy('product_id')
             ->pluck('begin_avg', 'product_id')
             ->all();
+
+        // Begin average (New formula)
+        // $beginAvgs = (clone $priceBase)
+        //     ->where('transaction_date', '<', $startDate)
+        //     ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
+        //     ->selectRaw('product_id, 
+        //         CASE WHEN SUM(quantity) = 0 THEN 0 
+        //             ELSE SUM(total_price) / SUM(quantity) END AS begin_avg')
+        //     ->groupBy('product_id')
+        //     ->pluck('begin_avg', 'product_id')
+        //     ->all();
 
         // Overall avg price
         $avgPrices = (clone $priceBase)
