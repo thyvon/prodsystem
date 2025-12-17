@@ -20,9 +20,9 @@ return new class extends Migration
             $table->date('transaction_date');
 
             // Stock movement
-            $table->decimal('quantity', 25, 4)->default(0); // negative = stock out
-            $table->decimal('unit_price', 25, 4)->default(0);   // 10 decimal places
-            $table->decimal('total_price', 25, 4)->default(0);  // 10 decimal places
+            $table->decimal('quantity', 10, 4)->default(0); // negative = stock out
+            $table->decimal('unit_price', 20, 15)->default(0);   // 10 decimal places
+            $table->decimal('total_price', 20, 15)->default(0);  // 10 decimal places
 
             // Transaction type
             $table->enum('transaction_type', ['Stock_In', 'Stock_Out','Stock_Count','Stock_Begin']);

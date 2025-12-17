@@ -16,8 +16,8 @@ return new class extends Migration
             $table->unsignedBigInteger('stock_transfer_id');
             $table->unsignedBigInteger('product_id');
             $table->decimal('quantity', 10, 4);
-            $table->decimal('unit_price', 10, 4);
-            $table->decimal('total_price', 10, 4);
+            $table->decimal('unit_price', 20, 15);
+            $table->decimal('total_price', 20, 15);
             $table->string('remarks')->nullable();
             $table->unsignedBigInteger('created_by');
             $table->unsignedBigInteger('updated_by')->nullable();

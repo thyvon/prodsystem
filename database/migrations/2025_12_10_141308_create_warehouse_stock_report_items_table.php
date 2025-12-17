@@ -17,17 +17,17 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
 
             // Quantities & values as decimal
-            $table->decimal('avg_daily_use_per_day', 16, 4)->default(0);
-            $table->decimal('order_plan_qty', 16, 4)->default(0);
-            $table->decimal('stock_out_forecast_qty', 16, 4)->default(0);
-            $table->decimal('demand_stock_out_forecast_qty', 16, 4)->default(0);
-            $table->decimal('ending_stock_qty', 16, 4)->default(0);
-            $table->decimal('buffer_15_days_qty', 16, 4)->default(0);
-            $table->decimal('safety_stock_qty', 16, 4)->default(0);
-            $table->decimal('stock_value_usd', 16, 4)->default(0);
-            $table->decimal('inventory_reorder_qty', 16, 4)->default(0);
-            $table->decimal('reorder_level_qty', 16, 4)->default(0);
-            $table->decimal('max_inventory_level_qty', 16, 4)->default(0);
+            $table->decimal('avg_daily_use_per_day', 10, 4)->default(0);
+            $table->decimal('order_plan_qty', 10, 4)->default(0);
+            $table->decimal('stock_out_forecast_qty', 10, 4)->default(0);
+            $table->decimal('demand_stock_out_forecast_qty', 10, 4)->default(0);
+            $table->decimal('ending_stock_qty', 10, 4)->default(0);
+            $table->decimal('buffer_15_days_qty', 10, 4)->default(0);
+            $table->decimal('safety_stock_qty', 10, 4)->default(0);
+            $table->decimal('stock_value_usd', 10, 4)->default(0);
+            $table->decimal('inventory_reorder_qty', 10, 4)->default(0);
+            $table->decimal('reorder_level_qty', 10, 4)->default(0);
+            $table->decimal('max_inventory_level_qty', 10, 4)->default(0);
 
             // Days as integer
             $table->integer('ending_stock_cover_days')->default(0);
