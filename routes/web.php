@@ -262,7 +262,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('stock-movements.index');
 
         // Stock Report
-        Route::get('/stock-reports', [StockController::class, 'index'])->middleware('can:viewAny,' . MonthlyStockReport::class)
+        Route::get('/stock-reports/track-report', [StockController::class, 'index'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.index');
         Route::post('/stock-reports/pdf', [StockController::class, 'generateStockReportPdf'])->middleware('can:viewAny,' . MonthlyStockReport::class)
             ->name('stock-reports.pdf');
@@ -279,6 +279,12 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/stock-reports/warehouse-products/report', [WarehouseProductController::class, 'getStockReportByProduct'])
             ->name('warehouses.products.report');
+        // Reports Attach PR
+        Route::get('/stock-reports/reports-list', [WarehouseProductController::class, 'reportIndex'])->name('warehouses.reports-list');
+        Route::get('/stock-reports/reports/create-report', [WarehouseProductController::class, 'createReport'])->name('warehouses.reports.create');
+        Route::get('/stock-reports/reports/{warehouseProductReport}/edit-report', [WarehouseProductController::class, 'editReport'])->name('warehouses.reports.edit-report');
+        Route::get('/stock-reports/reports/{warehouseProductReport}/show-report', [WarehouseProductController::class, 'showReport'])->name('warehouses.reports.show-report');
+        Route::get('/stock-reports/reports/{warehouseProductReport}/print-report', [WarehouseProductController::class, 'showPdf'])->name('warehouses.reports.print-report');
     });
 
     //Approval View Route

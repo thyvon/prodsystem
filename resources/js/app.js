@@ -63,11 +63,16 @@ import StockInForm from './components/Inventory/StockIn/Form.vue'
 import StockInList from './components/Inventory/StockIn/StockInList.vue'
 import StockInItemList from './components/Inventory/StockIn/StockInItemList.vue'
 
+// Report
 import StockReport from './components/Inventory/StockReport/Report.vue'
 import StockReportForm from './components/Inventory/StockReport/Form.vue'
 import MonthlyStockReportShow from './components/Inventory/StockReport/Show.vue'
 
 import MonthlyStockReport from './components/Inventory/StockReport/MonthlyReport.vue'
+
+import WarehouseProductReportForm from './components/Inventory/StockReport/WarehouseReport/Form.vue'
+import WarehouseProductReportShow from './components/Inventory/StockReport/WarehouseReport/Show.vue'
+import WarehouseProductReportList from './components/Inventory/StockReport/WarehouseReport/ReportList.vue'
 
 import StockCountForm from './components/Inventory/StockCount/Form.vue'
 import StockCountList from './components/Inventory/StockCount/StockCountList.vue'
@@ -162,6 +167,11 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  app.component('stock-report-form', StockReportForm)
  app.component('stock-monthly-report', MonthlyStockReport)
  app.component('monthly-stock-report-show', MonthlyStockReportShow)
+
+ // Stock Report Attach PR
+ app.component('wh-product-report-form', WarehouseProductReportForm)
+ app.component('wh-product-report-show', WarehouseProductReportShow)
+ app.component('wh-product-report-list', WarehouseProductReportList)
 
  //=======Stock Count
  app.component('stock-count-form', StockCountForm)

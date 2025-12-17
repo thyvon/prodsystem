@@ -136,7 +136,7 @@ const datatableHeaders = [
 
 const datatableFetchUrl = '/api/inventory/stock-issue/items'
 const datatableActions = []
-const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
+const datatableOptions = { autoWidth: false, responsive: false, pageLength: 10 }
 const datatableHandlers = {}
 
 const goToStockIssueList = () => {

@@ -49,8 +49,8 @@ defineExpose({ openModal, openCustom, closeModal })
 </script>
 
 <template>
-  <div class="modal fade" tabindex="-1" role="dialog" ref="modalRef">
-    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+  <div class="modal fade modal-fullscreen modal-backdrop-transparent" tabindex="-1" role="dialog" ref="modalRef">
+    <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header bg-dark text-white">
           <h5 class="modal-title">{{ fileName || props.title }}</h5>
