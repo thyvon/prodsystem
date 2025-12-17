@@ -840,12 +840,14 @@ class StockController extends Controller
         }
 
         // Begin average (Old formula from excel)
-        $startOfMonth = Carbon::parse($startDate)->startOfMonth();
+        $startOfLastMonth = Carbon::parse($startDate)
+            ->subMonthNoOverflow()
+            ->startOfMonth();
 
         $beginAvgs = (clone $priceBase)
-            ->where('transaction_date', '>=', $startOfMonth)
+            ->where('transaction_date', '>=', $startOfLastMonth)
             ->where('transaction_date', '<', $startDate)
-            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In'])
+            ->whereIn('transaction_type', ['Stock_Begin'])
             ->selectRaw('product_id, 
                 CASE 
                     WHEN SUM(quantity) = 0 THEN 0 
