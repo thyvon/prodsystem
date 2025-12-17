@@ -184,7 +184,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                 // -----------------------
                 $qty = (float) $validated['quantity'];
                 $unitPriceExcel = isset($row['unit_price']) ? (float) $row['unit_price'] : 0;
-                $total = round($qty * $unitPrice, 15);
+                $total = round($qty * $unitPriceExcel, 15);
 
                 StockIssueItem::create([
                     'stock_issue_id' => $stockIssue->id,
