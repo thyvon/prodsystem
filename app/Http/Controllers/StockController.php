@@ -842,7 +842,7 @@ class StockController extends Controller
         // Begin average
         $beginAvgs = (clone $priceBase)
             ->where('transaction_date', '<', $startDate)
-            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In'])
+            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
             ->selectRaw('product_id, 
                 CASE WHEN SUM(quantity) = 0 THEN 0 
                     ELSE SUM(total_price) / SUM(quantity) END AS begin_avg')
@@ -853,6 +853,7 @@ class StockController extends Controller
         // Overall avg price
         $avgPrices = (clone $priceBase)
             ->where('transaction_date', '<=', $endDate)
+            ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
             ->selectRaw('product_id, 
                 CASE WHEN SUM(quantity) = 0 THEN 0 
                     ELSE SUM(total_price) / SUM(quantity) END AS avg_price')
