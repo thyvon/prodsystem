@@ -74,17 +74,28 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     ? Department::where('short_name', $row['department_short_name'])->value('id')
                     : null;
 
-                // Auto-create requested_by user
+                // Handle requested_by user
                 $requestedByName = $row['requested_by_name'] ?? null;
                 $requestedById = null;
 
                 if ($requestedByName) {
-                    if (isset($existingUsers[$requestedByName])) {
-                        $requestedById = $existingUsers[$requestedByName];
-                    } else {
-                        $parts = array_values(array_filter(explode(' ', strtolower($requestedByName))));
-                        $email = "{$parts[0]}.{$parts[count($parts)-1]}@mjqeducation.edu.kh";
+                    // Generate email from name
+                    $parts = array_values(array_filter(explode(' ', strtolower($requestedByName))));
+                    $email = "{$parts[0]}.{$parts[count($parts)-1]}@mjqeducation.edu.kh";
 
+                    // Key for caching
+                    $key = strtolower($email) . '|' . strtolower($requestedByName);
+
+                    // Preload existing users cache (keyed by email|name)
+                    if (!isset($existingUsers)) {
+                        $existingUsers = User::all()->keyBy(fn($u) => strtolower($u->email) . '|' . strtolower($u->name));
+                    }
+
+                    // Check if user exists by email or name
+                    if (isset($existingUsers[$key])) {
+                        $requestedById = $existingUsers[$key]->id;
+                    } else {
+                        // Create new user
                         $newUser = User::create([
                             'name' => $requestedByName,
                             'email' => $email,
@@ -93,7 +104,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                         ]);
 
                         $requestedById = $newUser->id;
-                        $existingUsers[$requestedByName] = $requestedById;
+                        $existingUsers[$key] = $newUser; // Add to cache
                     }
                 }
 
