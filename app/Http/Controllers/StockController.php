@@ -884,12 +884,12 @@ class StockController extends Controller
             $avgPrice = (float)($avgPrices[$id] ?? 0);
 
             // === Original formulas (unchanged) ===
-            $beginTotal     = round($beginQty * $beginAvg, 6);
+            $beginTotal     = round($beginQty * $beginAvg, 15);
             $availableQty   = $beginQty + $inQty;
-            $availableTotal = round($beginTotal + $inTotal, 6);
-            $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 6) : 0;
+            $availableTotal = round($beginTotal + $inTotal, 15);
+            $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 15) : 0;
             $endingQty      = $availableQty - $outQty;
-            $endingTotal    = round($endingQty * $avgPrice, 6);
+            $endingTotal    = round($endingQty * $avgPrice, 15);
 
             return [
                 'product_id'         => $id,
@@ -938,7 +938,7 @@ class StockController extends Controller
         $totalQty   = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('quantity');
         $totalPrice = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('total_price');
 
-        return $totalQty != 0 ? round($totalPrice / $totalQty, 6) : 0;
+        return $totalQty != 0 ? round($totalPrice / $totalQty, 15) : 0;
     }
 
     private function beginAvg($productId, $startDate = null)
@@ -949,7 +949,7 @@ class StockController extends Controller
         $totalQty   = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('quantity');
         $totalPrice = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('total_price');
 
-        return $totalQty != 0 ? round($totalPrice / $totalQty, 6) : 0;
+        return $totalQty != 0 ? round($totalPrice / $totalQty, 15) : 0;
     }
 
 
