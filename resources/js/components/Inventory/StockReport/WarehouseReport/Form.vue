@@ -117,7 +117,7 @@
                               placeholder="Order Plan Qty" />
                     </td>
                     <td>{{ item.demand_forecast }}</td>
-                    <td>{{ item.stock_ending }}</td>
+                    <td>{{ item.stock_ending_quantity }}</td>
                     <td>{{ item.stock_ending_cover_day }}</td>
                     <td>{{ item.target_safety_stock_day }}</td>
                     <td>{{ item.stock_value }}</td>
@@ -513,7 +513,7 @@ const addSelectedItems = () => {
         stock_beginning: p.stock_onhand || 0,
         order_plan_qty: p.order_plan_qty || 0,
         demand_forecast: p.demand_forecast || 0,
-        stock_ending: p.ending_stock_qty || 0,
+        stock_ending_quantity: p.ending_stock_qty || 0,
         stock_ending_cover_day: p.stock_ending_cover_day || 0,
         target_safety_stock_day: p.target_safety_stock_day || 0,
         stock_value: p.stock_value_usd || 0,
@@ -599,7 +599,7 @@ const submitForm = async () => {
         stock_beginning: i.stock_beginning,
         order_plan_qty: i.order_plan_qty,
         demand_forecast: i.demand_forecast,
-        stock_ending: i.stock_ending,
+        stock_ending_quantity: i.stock_ending_quantity,
         stock_ending_cover_day: i.stock_ending_cover_day,
         target_safety_stock_day: i.target_safety_stock_day,
         stock_value: i.stock_value,
