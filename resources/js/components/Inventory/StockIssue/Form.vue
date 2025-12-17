@@ -109,8 +109,8 @@
                     <td>{{ item.unit_name }}</td>
                     <td>{{ item.stock_on_hand }}</td>
                     <td>{{ item.average_price }}</td>
-                    <td><input type="number" class="form-control" v-model.number="item.quantity" min="0.0000000001" step="0.0000000001" /></td>
-                    <td><input type="number" class="form-control" v-model.number="item.unit_price" min="0" step="0.0000000001" /></td>
+                    <td><input type="number" class="form-control" v-model.number="item.quantity" min="0" step="0.0001" required /></td>
+                    <td><input type="number" class="form-control" v-model.number="item.unit_price" min="0" step="0.000000000000001" required /></td>
                     <td><input type="number" class="form-control" :value="(item.quantity * item.unit_price).toFixed(10)" readonly /></td>
                     <td>
                       <select class="campusSelect" v-model="item.campus_id">
