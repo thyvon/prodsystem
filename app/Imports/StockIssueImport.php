@@ -161,6 +161,16 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                 if ($referenceNo && isset($stockIssuesCache[$referenceNo])) {
                     $stockIssue = $stockIssuesCache[$referenceNo];
                 } else {
+                    // Handle duplicate reference_no with sequence
+                    $originalRefNo = $referenceNo;
+                    if ($referenceNo) {
+                        $sequence = 2;
+                        while (StockIssue::where('reference_no', $referenceNo)->exists()) {
+                            $referenceNo = "{$originalRefNo}-{$sequence}";
+                            $sequence++;
+                        }
+                    }
+
                     $stockIssue = StockIssue::create([
                         'transaction_date' => $validated['transaction_date'],
                         'transaction_type' => $validated['transaction_type'],
@@ -174,8 +184,8 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                         'updated_by'       => $user?->id ?? 1,
                     ]);
 
-                    if ($referenceNo) {
-                        $stockIssuesCache[$referenceNo] = $stockIssue;
+                    if ($originalRefNo) {
+                        $stockIssuesCache[$originalRefNo] = $stockIssue;
                     }
                 }
 
