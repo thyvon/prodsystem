@@ -811,8 +811,8 @@ class StockController extends Controller
 
         $ledgerAggregates = $ledgerQuery->selectRaw("
         product_id,
-        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN quantity ELSE 0 END) AS begin_qty,
-        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In') THEN total_price ELSE 0 END) AS begin_total,
+        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In','Stock_Out') THEN quantity ELSE 0 END) AS begin_qty,
+        SUM(CASE WHEN transaction_date < ? AND transaction_type IN ('Stock_Begin','Stock_In','Stock_Out') THEN total_price ELSE 0 END) AS begin_total,
         SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
         SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
         SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
