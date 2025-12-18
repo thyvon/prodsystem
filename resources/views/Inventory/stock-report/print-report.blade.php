@@ -195,7 +195,7 @@
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
                 <td class="text-start">{{ $fmt($item['beginning_quantity'], 2) }}</td>
                 <td class="text-start currency">{{ $fmt($item['beginning_price']) }}</td>
-                <td class="text-start">{{ $fmt($item['beginning_total']) }}</td>
+                <td class="text-start currency">{{ $fmt($item['beginning_total']) }}</td>
                 <td class="text-start">{{ $fmt($item['stock_in_quantity'], 2) }}</td>
                 <td class="text-start currency">{{ $fmt($item['stock_in_total']) }}</td>
                 <td class="text-start ">{{ $fmt($item['available_quantity'], 2) }}</td>
