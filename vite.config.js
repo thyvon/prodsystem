@@ -6,7 +6,10 @@ import path from 'path';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+            ],
             refresh: true,
         }),
         vue(),
@@ -18,4 +21,26 @@ export default defineConfig({
             '@public': path.resolve(__dirname, 'public'),
         },
     },
+    build: {
+        // Increase limit to avoid chunk size warnings
+        chunkSizeWarningLimit: 1000, // 1MB
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    // Split vendor libraries into separate chunks
+                    if (id.includes('node_modules')) {
+                        if (id.includes('vue')) return 'vendor_vue';
+                        if (id.includes('@inertiajs')) return 'vendor_inertia';
+                        return 'vendor';
+                    }
+                },
+            },
+        },
+    },
+    // server: {
+    //     // Optional: improve hot reload for Laravel + Docker
+    //     host: '0.0.0.0',
+    //     port: 5173,
+    //     strictPort: true,
+    // },
 });
