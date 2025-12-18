@@ -69,38 +69,42 @@
         tfoot { display: table-footer-group; }
         tr { page-break-inside: avoid; }
 
+    /* ================= SIGNATURE SECTION ================= */
+
         .signature-section {
-            margin-top: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
+            width: 100%;
+            margin-top: 25px;
+            text-align: center;
             page-break-inside: avoid;
         }
 
-        .signature-box {
-            flex: 1 1 auto;
-            max-width: 30%;      /* 3 boxes per row */
-            min-width: 150px;
-            display: flex;
-            flex-direction: column;
-            height: 190px;
-            box-sizing: border-box;
-        }
-
-        /* Add spacing to center box ONLY */
-        .signature-section .signature-box:nth-child(2) {
-            margin: 0 200px;   /* space on left + right */
-        }
-
-        .signature-title{
-            font-size: 12px;
+        .signature-row {
+            display: inline-block;
+            width: 100%;
             text-align: center;
+        }
+
+        .signature-box {
+            display: inline-block;
+            width: 260px;          /* FIXED WIDTH */
+            height: 200px;         /* FIXED HEIGHT */
+            margin: 0 30px;
+            vertical-align: top;
+            box-sizing: border-box;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .signature-title {
+            font-weight: bold;
             line-height: 1.3;
-            margin-bottom: 2px; /* Better spacing */
+            margin-bottom: 5px;
         }
 
         .signature-image-box {
-            min-height: 80px;              /* Ensure space for signature */
+            width: 100%;
+            height: 90px;          /* FIXED IMAGE AREA */
+            border: 0;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -108,19 +112,21 @@
 
         .signature-image {
             max-width: 130px;
-            max-height: 130px;
+            max-height: 80px;
             object-fit: contain;
         }
 
         .signature-line {
+            width: 100%;
             height: 1px;
-            background-color: #9b9a9aff;
-            margin: 10px 0;           /* Better spacing */
+            background-color: #999;
+            margin: 8px 0;
         }
 
         .signature-info {
-            font-size: 14px;
+            text-align: left;
             line-height: 1.3;
+            font-size: 11px;
         }
 
         .text-right {
@@ -233,58 +239,59 @@
     <!-- Signatures -->
     <div class="signature-section">
 
-        <!-- Prepared by -->
-        @if(!empty($prepared_by))
-        <div class="signature-box">
-            <strong class="signature-title">
-                ស្នើសុំដោយ<br>Requested By
-            </strong>
+        <div class="signature-row">
 
-            <div class="signature-image-box">
-                @if($creator_signature)
-                    <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image">
-                @endif
-            </div>
-
-            <div class="signature-line"></div>
-
-            <div class="signature-info">
-                ឈ្មោះ /Name: {{ $prepared_by }}<br>
-                តួនាទី /Position: {{ $creator_position ?? '-' }}<br>
-                កាលបរិច្ឆេទ /Date: {{ $created_at ?? $fmtDate($report_date) }}
-            </div>
-        </div>
-        @endif
-
-        <!-- Approvals -->
-        @foreach($approvals as $appr)
-            @if(!empty($appr['user_name']))
+            <!-- Requested By -->
+            @if(!empty($prepared_by))
             <div class="signature-box">
-
-                <strong class="signature-title">
-                    {{ $appr['request_type_label_kh'] ?? 'Approved By' }}<br>
-                    {{ $appr['request_type_label_en'] ?? 'Approved By' }}
-                </strong>
+                <div class="signature-title">
+                    ស្នើសុំដោយ<br>Requested By
+                </div>
 
                 <div class="signature-image-box">
-                    @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
-                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                    @if(!empty($creator_signature))
+                        <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image">
                     @endif
                 </div>
 
                 <div class="signature-line"></div>
 
                 <div class="signature-info">
-                    ឈ្មោះ /Name: {{ $appr['user_name'] }}<br>
-                    តួនាទី /Position: {{ $appr['position_name'] ?? '-' }}<br>
-                    កាលបរិច្ឆេទ /Date: {{ $appr['responded_date'] ?? '-' }}
+                    ឈ្មោះ / Name: {{ $prepared_by }}<br>
+                    តួនាទី / Position: {{ $creator_position ?? '-' }}<br>
+                    កាលបរិច្ឆេទ / Date: {{ $created_at ?? $fmtDate($report_date) }}
                 </div>
             </div>
             @endif
-        @endforeach
 
+            <!-- Approvals -->
+            @foreach($approvals as $appr)
+                @if(!empty($appr['user_name']))
+                <div class="signature-box">
+                    <div class="signature-title">
+                        {{ $appr['request_type_label_kh'] ?? 'Approved By' }}<br>
+                        {{ $appr['request_type_label_en'] ?? 'Approved By' }}
+                    </div>
+
+                    <div class="signature-image-box">
+                        @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
+                            <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                        @endif
+                    </div>
+
+                    <div class="signature-line"></div>
+
+                    <div class="signature-info">
+                        ឈ្មោះ / Name: {{ $appr['user_name'] }}<br>
+                        តួនាទី / Position: {{ $appr['position_name'] ?? '-' }}<br>
+                        កាលបរិច្ឆេទ / Date: {{ $appr['responded_date'] ?? '-' }}
+                    </div>
+                </div>
+                @endif
+            @endforeach
+
+        </div>
     </div>
-
 </div>
 </body>
 </html>
