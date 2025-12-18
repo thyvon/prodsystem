@@ -16,9 +16,9 @@ return new class extends Migration
             $table->foreignId('stock_issue_id')->constrained('stock_issues')->cascadeOnDelete();
             $table->foreignId('stock_request_item_id')->nullable()->constrained('stock_request_items')->restrictOnDelete();
             $table->foreignId('product_id')->constrained('product_variants')->restrictOnDelete();
-            $table->decimal('quantity', 20, 10);
-            $table->decimal('unit_price', 20, 10);
-            $table->decimal('total_price', 20, 10);
+            $table->decimal('quantity', 10, 4);
+            $table->decimal('unit_price', 20, 15);
+            $table->decimal('total_price', 20, 15);
             $table->string('remarks')->nullable();
             $table->foreignId('campus_id')->constrained('campus')->restrictOnDelete();
             $table->foreignId('department_id')->constrained('departments')->restrictOnDelete();

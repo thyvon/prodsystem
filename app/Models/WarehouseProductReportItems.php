@@ -24,6 +24,7 @@ class WarehouseProductReportItems extends Model
         'demand_forecast_quantity',
         'ending_stock_cover_day',
         'target_safety_stock_day',
+        'stock_ending_quantity',
         'stock_value',
         'inventory_reorder_quantity',
         'reorder_level_day',

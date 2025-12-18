@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('warehouse_stock_report_items', function (Blueprint $table) {
@@ -17,7 +14,6 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
             $table->foreignId('warehouse_product_id')->constrained('warehouse_products')->cascadeOnDelete();
 
-            // Quantities & values as decimal
             $table->decimal('unit_price', 10, 6)->default(0);
             $table->decimal('avg_6_month_usage', 10, 6)->default(0);
             $table->decimal('last_month_usage', 10, 6)->default(0);
@@ -26,6 +22,7 @@ return new class extends Migration
             $table->decimal('demand_forecast_quantity', 10, 6)->default(0);
             $table->decimal('ending_stock_cover_day', 10, 6)->default(0);
             $table->decimal('target_safety_stock_day', 10, 6)->default(0);
+            $table->decimal('stock_ending_quantity', 10, 6)->default(0);
             $table->decimal('stock_value', 10, 6)->default(0);
             $table->decimal('inventory_reorder_quantity', 10, 6)->default(0);
             $table->decimal('reorder_level_day', 10, 6)->default(0);
@@ -40,9 +37,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('warehouse_stock_report_items');

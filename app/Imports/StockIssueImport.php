@@ -36,15 +36,14 @@ class StockIssueImport implements ToCollection, WithHeadingRow
 
             $user = Auth::user();
             $stockIssuesCache = [];
-            $existingUsers = [];
 
-            // Preload requested_by users
-            $requestedNames = $rows->pluck('requested_by_name')->filter()->unique();
-            foreach (User::whereIn('name', $requestedNames)->get() as $u) {
-                $existingUsers[$u->name] = $u->id;
-            }
+            // -----------------------
+            // Preload all users once
+            // -----------------------
+            $existingUsers = User::all()->keyBy(fn($u) => strtolower($u->email));
 
             foreach ($rows as $index => $row) {
+
                 $row = collect($row)->map(fn($v) => is_string($v) ? trim($v) : $v)->toArray();
 
                 if (empty($row['product_code'])) continue;
@@ -74,30 +73,41 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     ? Department::where('short_name', $row['department_short_name'])->value('id')
                     : null;
 
-                // Auto-create requested_by user
+                // -----------------------
+                // Optimized requested_by user creation
+                // -----------------------
                 $requestedByName = $row['requested_by_name'] ?? null;
                 $requestedById = null;
 
                 if ($requestedByName) {
-                    if (isset($existingUsers[$requestedByName])) {
-                        $requestedById = $existingUsers[$requestedByName];
+                    // Generate email from name
+                    $parts = array_values(array_filter(explode(' ', strtolower($requestedByName))));
+                    $email = strtolower("{$parts[0]}.{$parts[count($parts)-1]}@mjqeducation.edu.kh");
+
+                    if (isset($existingUsers[$email])) {
+                        $requestedById = $existingUsers[$email]->id;
                     } else {
-                        $parts = array_values(array_filter(explode(' ', strtolower($requestedByName))));
-                        $email = "{$parts[0]}.{$parts[count($parts)-1]}@mjqeducation.edu.kh";
-
-                        $newUser = User::create([
-                            'name' => $requestedByName,
-                            'email' => $email,
-                            'password' => bcrypt('password123'),
-                            'is_active' => 1,
-                        ]);
-
-                        $requestedById = $newUser->id;
-                        $existingUsers[$requestedByName] = $requestedById;
+                        // Optional: double-check DB just in case
+                        $existingUser = User::where('email', $email)->first();
+                        if ($existingUser) {
+                            $requestedById = $existingUser->id;
+                            $existingUsers[$email] = $existingUser;
+                        } else {
+                            $newUser = User::create([
+                                'name' => $requestedByName,
+                                'email' => $email,
+                                'password' => bcrypt('password123'),
+                                'is_active' => 1,
+                            ]);
+                            $requestedById = $newUser->id;
+                            $existingUsers[$email] = $newUser; // add to cache
+                        }
                     }
                 }
 
+                // -----------------------
                 // Validation
+                // -----------------------
                 $validator = Validator::make([
                     'transaction_date' => $row['transaction_date'] ?? null,
                     'transaction_type' => $row['transaction_type'] ?? null,
@@ -139,17 +149,28 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     $validated['transaction_date']
                 );
 
-                // Set to 0 if no unit price found
                 if ($unitPrice <= 0) {
                     $unitPrice = 0;
                 }
 
-                // Group StockIssue by reference_no
+                // -----------------------
+                // StockIssue creation
+                // -----------------------
                 $referenceNo = $validated['reference_no'] ?? null;
 
                 if ($referenceNo && isset($stockIssuesCache[$referenceNo])) {
                     $stockIssue = $stockIssuesCache[$referenceNo];
                 } else {
+                    // Handle duplicate reference_no with sequence
+                    $originalRefNo = $referenceNo;
+                    if ($referenceNo) {
+                        $sequence = 2;
+                        while (StockIssue::where('reference_no', $referenceNo)->exists()) {
+                            $referenceNo = "{$originalRefNo}-{$sequence}";
+                            $sequence++;
+                        }
+                    }
+
                     $stockIssue = StockIssue::create([
                         'transaction_date' => $validated['transaction_date'],
                         'transaction_type' => $validated['transaction_type'],
@@ -163,20 +184,23 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                         'updated_by'       => $user?->id ?? 1,
                     ]);
 
-                    if ($referenceNo) {
-                        $stockIssuesCache[$referenceNo] = $stockIssue;
+                    if ($originalRefNo) {
+                        $stockIssuesCache[$originalRefNo] = $stockIssue;
                     }
                 }
 
-                // Create StockIssueItem
+                // -----------------------
+                // StockIssueItem creation
+                // -----------------------
                 $qty = (float) $validated['quantity'];
-                $total = round($qty * $unitPrice, 6);
+                $unitPriceExcel = isset($row['unit_price']) ? (float) $row['unit_price'] : 0;
+                $total = round($qty * $unitPriceExcel, 15);
 
                 StockIssueItem::create([
                     'stock_issue_id' => $stockIssue->id,
                     'product_id'     => $validated['product_id'],
                     'quantity'       => $qty,
-                    'unit_price'     => $unitPrice,
+                    'unit_price'     => $unitPriceExcel,
                     'total_price'    => $total,
                     'campus_id'      => $validated['campus_id'],
                     'department_id'  => $validated['department_id'],

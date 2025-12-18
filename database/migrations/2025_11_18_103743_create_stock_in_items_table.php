@@ -18,11 +18,11 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('product_variants')->restrictOnDelete();
 
             $table->decimal('quantity', 10, 4);
-            $table->decimal('unit_price', 10, 4);
-            $table->decimal('vat', 10, 4)->default(0);
-            $table->decimal('discount', 10, 4)->default(0);
-            $table->decimal('delivery_fee', 10, 4)->default(0);
-            $table->decimal('total_price', 10, 4);
+            $table->decimal('unit_price', 20, 15);
+            $table->decimal('vat', 20, 15)->default(0);
+            $table->decimal('discount', 20, 15)->default(0);
+            $table->decimal('delivery_fee', 20, 15)->default(0);
+            $table->decimal('total_price', 20, 15);
             $table->string('remarks')->nullable();
 
             $table->foreignId('updated_by')->nullable()->constrained('users')->restrictOnDelete();
