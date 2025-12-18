@@ -58,6 +58,11 @@ class MonthlyStockReportPolicy
         return $user->can('monthlyStockReport.forceDelete');
     }
 
+    public function initial(User $user, MonthlyStockReport $monthlyStockReport): bool
+    {
+        return $user->can('monthlyStockReport.initial');
+    }
+
     public function verify(User $user, MonthlyStockReport $monthlyStockReport): bool
     {
         return $user->can('monthlyStockReport.verify');

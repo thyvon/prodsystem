@@ -60,6 +60,7 @@
                         v-model="approval.request_type"
                       >
                         <option value="">Select Type</option>
+                        <option value="initial">Initial</option>
                         <option value="verify">Verify</option>
                         <option value="check">Check</option>
                         <option value="acknowledge">Acknowledge</option>
@@ -137,7 +138,7 @@ const form = reactive({
 const typeSelectRefs = ref([])
 const userSelectRefs = ref([])
 
-const defaultApprovalTypes = ['verify', 'check', 'acknowledge']
+const defaultApprovalTypes = ['initial', 'verify', 'check', 'acknowledge']
 const sortApprovals = () => {
   form.approvals.sort((a, b) => {
     const aIndex = defaultApprovalTypes.indexOf(a.request_type)
@@ -150,10 +151,10 @@ const setTypeSelectRef = (el, index) => { typeSelectRefs.value[index] = el }
 const setUserSelectRef = (el, index) => { userSelectRefs.value[index] = el }
 
 const warehouses = ref([])
-const usersByType = reactive({ verify: [], check: [], acknowledge: [] })
+const usersByType = reactive({ initial: [], verify: [], check: [], acknowledge: [] })
 
 const canSubmit = computed(() => {
-  const required = ['verify', 'check', 'acknowledge']
+  const required = ['initial', 'verify', 'check', 'acknowledge']
   const assigned = form.approvals
     .filter(a => required.includes(a.request_type) && a.user_id)
     .map(a => a.request_type)
@@ -214,8 +215,8 @@ const loadReport = async (id) => {
       availableUsers: usersByType[a.request_type] || []
     })) : []
 
-    // Ensure all 3 types exist
-    ['verify', 'check', 'acknowledge'].forEach(type => {
+    // Ensure all 4 types exist
+    ['initial', 'verify', 'check', 'acknowledge'].forEach(type => {
       if (!form.approvals.some(a => a.request_type === type)) {
         form.approvals.push({
           id: null,
@@ -375,7 +376,7 @@ onMounted(async () => {
   if (isEditMode.value) {
     await loadReport(props.stockReportId)
   } else {
-    ['check', 'verify', 'acknowledge'].forEach(type => {
+    ['initial', 'check', 'verify', 'acknowledge'].forEach(type => {
       form.approvals.push({
         id: null,
         request_type: type,

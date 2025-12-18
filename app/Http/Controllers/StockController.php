@@ -406,6 +406,7 @@ class StockController extends Controller
         ]);
 
         $labelMap = [
+            'initial'      => 'Initialed By',
             'verify'       => 'Verified By',
             'check'        => 'Checked By',
             'acknowledge'  => 'Acknowledged By',
@@ -521,12 +522,12 @@ class StockController extends Controller
             'remarks'        => 'nullable|string|max:2000',
             'approvals'      => 'required|array|min:3',
             'approvals.*.user_id'      => 'required|exists:users,id',
-            'approvals.*.request_type' => 'required|in:check,verify,acknowledge',
+            'approvals.*.request_type' => 'required|in:check,verify,acknowledge,initial',
         ]);
 
         $types = collect($validated['approvals'])->pluck('request_type')->unique();
-        if ($types->count() !== 3) {
-            abort(422, 'Must assign exactly one user each for Check, Verify, and Acknowledge.');
+        if ($types->count() !== 4) {
+            abort(422, 'Must assign exactly one user each for Initial, Check, Verify, and Acknowledge.');
         }
 
         return $validated;
@@ -1020,7 +1021,7 @@ class StockController extends Controller
 
     private function ordinal($type)
     {
-        return ['verify' => 1, 'check' => 2, 'acknowledge' => 3][$type] ?? 1;
+        return ['initial' => 1,'verify' => 2, 'check' => 3, 'acknowledge' => 4][$type] ?? 1;
     }
 
     private function canShowApprovalButton(int $documentId): array
@@ -1100,7 +1101,7 @@ class StockController extends Controller
     {
         // Validate request
         $validated = $request->validate([
-            'request_type' => 'required|string|in:check,verify,acknowledge',
+            'request_type' => 'required|string|in:check,verify,acknowledge,initial',
             'action'       => 'required|string|in:approve,reject,return',
             'comment'      => 'nullable|string|max:1000',
         ]);
@@ -1127,6 +1128,7 @@ class StockController extends Controller
         // Update StockTransfer approval_status if successful
         if ($success) {
             $statusMap = [
+                'initial' => 'Initialed',
                 'check' => 'Checked',
                 'verify' => 'Verified',
                 'acknowledge' => 'Acknowledged',
@@ -1153,7 +1155,7 @@ class StockController extends Controller
         // $this->authorize('reassign', $monthlyStockReport);
 
         $validated = $request->validate([
-            'request_type'   => 'required|string|in:check,verify,acknowledge',
+            'request_type'   => 'required|string|in:check,verify,acknowledge,initial',
             'new_user_id'    => 'required|exists:users,id',
             'new_position_id'=> 'nullable|exists:positions,id',
             'comment'        => 'nullable|string|max:1000',
@@ -1220,6 +1222,7 @@ class StockController extends Controller
     public function getApprovalUsers(): JsonResponse
     {
         $users = [
+            'initial'     => $this->usersWithPermission('monthlyStockReport.initial'),
             'check'       => $this->usersWithPermission('monthlyStockReport.check'),
             'verify'      => $this->usersWithPermission('monthlyStockReport.verify'),
             'acknowledge' => $this->usersWithPermission('monthlyStockReport.acknowledge'),

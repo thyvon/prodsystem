@@ -308,7 +308,7 @@
 
     @foreach($approvalBoxes as $appr)
         @if(
-            ($appr['request_type'] ?? null) === 'check' &&
+            ($appr['request_type'] ?? null) === 'initial' &&
             $appr['approval_status'] === 'Approved' &&
             !empty($appr['signature_url'])
         )

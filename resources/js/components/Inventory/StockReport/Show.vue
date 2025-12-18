@@ -128,7 +128,7 @@
         <div class="row justify-content-center">
 
           <!-- Prepared By -->
-          <div class="col-md-3 mb-4">
+          <div class="col-md-2 mb-2 p-1">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">Prepared & Counted By</p>
@@ -155,7 +155,7 @@
           </div>
 
           <!-- Approvers -->
-          <div v-for="(resp, idx) in responders" :key="idx" class="col-md-3 mb-4">
+          <div v-for="(resp, idx) in responders" :key="idx" class="col-md-2 mb-2 p-1">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">{{ resp.request_type_label || resp.request_type }}</p>
