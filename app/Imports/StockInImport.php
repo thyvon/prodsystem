@@ -154,7 +154,7 @@ class StockInImport implements ToCollection, WithHeadingRow
                     'vat'           => number_format($validated['vat'], 10, '.', ''),
                     'discount'      => number_format($validated['discount'], 10, '.', ''),
                     'delivery_fee'  => number_format($validated['delivery_fee'], 10, '.', ''),
-                    'total_price'   => bcmul($validated['quantity'], $validated['unit_price'], 10),
+                    'total_price' => round($validated['quantity'] * $validated['unit_price'], 15),
                     'remarks'       => $row['item_remarks'] ?? null,
                     'updated_by'    => $createdById,
                     'deleted_by'    => null,
