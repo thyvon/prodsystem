@@ -690,10 +690,15 @@ class StockController extends Controller
             ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
             ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
                 $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
+                    // ONLY Stock_Begin in previous month
                     $q->where('transaction_type', 'Stock_Begin')
                     ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
                 })
-                ->orWhereBetween('transaction_date', [$startDate, $endDate]);
+                ->orWhere(function($q) use ($startDate, $endDate) {
+                    // Only Stock_In, Stock_Out, Stock_Count in current month
+                    $q->whereIn('transaction_type', ['Stock_In','Stock_Out','Stock_Count'])
+                    ->whereBetween('transaction_date', [$startDate, $endDate]);
+                });
             });
 
         $ledgerAggregates = $ledgerQuery->selectRaw("
