@@ -243,7 +243,10 @@ const renderColumnData = (key, val) => {
     default: return val ?? '';
   }
 };
-
+const formatNumber = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '0.00';
+  return parseFloat(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 const createActionButtons = (row) => {
   const encodedRow = encodeURIComponent(JSON.stringify(row));
@@ -281,7 +284,13 @@ const dtColumns = computed(() => {
     ...props.headers.map((h) => ({
       data: h.value,
       width: h.width || undefined,
-      render: (val, type, row) => renderColumnData(h.value, val),
+      render: (val, type, row) => {
+        // Call formatNumber only if this column has h.format === 'number'
+        if (h.format === 'number') {
+          return formatNumber(val);
+        }
+        return renderColumnData(h.value, val);
+      },
       orderable: h.sortable !== false,
       createdCell: (td) => {
      td.style.minWidth = h.minWidth || '80px'; // default fallback
