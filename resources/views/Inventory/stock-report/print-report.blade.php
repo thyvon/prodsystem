@@ -140,7 +140,7 @@
     $approvalBoxes = array_pad($approvals ?? [], 3, null);
 
     // Helper closures for formatting
-    $fmt = function($value, $decimals = 4) {
+    $fmt = function($value, $decimals = 2) {
         return ($value === null || $value == 0) ? '-' : number_format($value, $decimals);
     };
     $fmtDate = function($dateStr) {
@@ -197,20 +197,20 @@
                 <td class="text-center">{{ $item['item_code'] }}</td>
                 <td style="text-align:left; padding-left: 3px">{{ $item['description'] ?? '-' }}</td>
                 <td class="text-center">{{ $item['unit_name'] ?? '-' }}</td>
-                <td class="text-end">{{ $fmt($item['beginning_quantity'], 2) }}</td>
+                <td class="text-end">{{ $fmt($item['beginning_quantity']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['beginning_price']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['beginning_total']) }}</td>
-                <td class="text-end">{{ $fmt($item['stock_in_quantity'], 2) }}</td>
+                <td class="text-end">{{ $fmt($item['stock_in_quantity']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['stock_in_total']) }}</td>
-                <td class="text-end ">{{ $fmt($item['available_quantity'], 2) }}</td>
+                <td class="text-end ">{{ $fmt($item['available_quantity']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['available_price']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['available_total']) }}</td>
-                <td class="text-end">{{ $fmt($item['stock_out_quantity'], 2) }}</td>
+                <td class="text-end">{{ $fmt($item['stock_out_quantity']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['stock_out_total']) }}</td>
-                <td class="text-end">{{ $fmt($item['ending_quantity'], 2) }}</td>
-                <td class="text-end">{{ $fmt($item['counted_quantity'], 2) }}</td> <!-- Physical Count column is intentionally left blank -->
-                <td class="text-end">{{ $fmt($item['variance_quantity'], 2) }}</td> <!-- Variance column is intentionally left blank -->
-                <td class="text-end">{{ $fmt($item['counted_quantity'], 2) }}</td> <!-- Carried forward column is intentionally left blank -->
+                <td class="text-end">{{ $fmt($item['ending_quantity']) }}</td>
+                <td class="text-end">{{ $fmt($item['counted_quantity']) }}</td> <!-- Physical Count column is intentionally left blank -->
+                <td class="text-end">{{ $fmt($item['variance_quantity']) }}</td> <!-- Variance column is intentionally left blank -->
+                <td class="text-end">{{ $fmt($item['counted_quantity']) }}</td> <!-- Carried forward column is intentionally left blank -->
                 <td class="text-end currency">{{ $fmt($item['average_price']) }}</td>
                 <td class="text-end currency">{{ $fmt($item['ending_total']) }}</td>
             </tr>
@@ -219,22 +219,22 @@
             <!-- Total row -->
             <tr class="total-row">
                 <td colspan="4" class="text-center">សរុប<br>Total</td>
-                <td class="text-center">{{ $fmt($reportData->sum('beginning_quantity'), 2) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('beginning_quantity')) }}</td>
                 <td class="text-center">-</td>
-                <td class="text-right">{{ $fmt($reportData->sum('beginning_total'), 4) }}</td>
-                <td class="text-center">{{ $fmt($reportData->sum('stock_in_quantity'), 2) }}</td>
-                <td class="text-right">{{ $fmt($reportData->sum('stock_in_total'), 4) }}</td>
-                <td class="text-center available-cell">{{ $fmt($reportData->sum('available_quantity'), 2) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('beginning_total')) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('stock_in_quantity')) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('stock_in_total')) }}</td>
+                <td class="text-center available-cell">{{ $fmt($reportData->sum('available_quantity')) }}</td>
                 <td class="text-center available-cell">-</td>
-                <td class="text-right available-cell">{{ $fmt($reportData->sum('available_total'), 4) }}</td>
-                <td class="text-center">{{ $fmt($reportData->sum('stock_out_quantity'), 2) }}</td>
-                <td class="text-right">{{ $fmt($reportData->sum('stock_out_total'), 4) }}</td>
-                <td class="text-center">{{ $fmt($reportData->sum('ending_quantity'), 2) }}</td>
-                <td class="text-right">{{ $fmt($reportData->sum('counted_quantity'), 2) }}</td>
-                <td class="text-center">{{ $fmt($reportData->sum('variance_quantity'), 2) }}</td>
-                <td class="text-right">{{ $fmt($reportData->avg('counted_quantity'), 2) }}</td>
+                <td class="text-right available-cell">{{ $fmt($reportData->sum('available_total')) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('stock_out_quantity')) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('stock_out_total')) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('ending_quantity')) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('counted_quantity')) }}</td>
+                <td class="text-center">{{ $fmt($reportData->sum('variance_quantity')) }}</td>
+                <td class="text-right">{{ $fmt($reportData->avg('counted_quantity')) }}</td>
                 <td class="text-right">-</td>
-                <td class="text-right">{{ $fmt($reportData->sum('ending_total'), 4) }}</td>
+                <td class="text-right">{{ $fmt($reportData->sum('ending_total')) }}</td>
             </tr>
         </tbody>
     </table>
