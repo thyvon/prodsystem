@@ -111,7 +111,7 @@ const datatableHeaders = [
   { text: 'Requester', value: 'requester_name', width: '15%', sortable: false, minWidth: '150px' },
   { text: 'Position', value: 'requester_position', width: '10%', sortable: false, minWidth: '120px' },
   { text: 'Department', value: 'requester_department', width: '10%', sortable: false, minWidth: '120px' },
-  { text: 'Request Type', value: 'request_type', width: '5%', minWidth: '100px' },
+  { text: 'Action Type', value: 'request_type', width: '5%', minWidth: '100px' },
   { text: 'Status', value: 'approval_status', width: '10%', minWidth: '120px' },
   { text: 'Responded Date', value: 'responded_date', width: '15%', minWidth: '150px' },
 ]
@@ -136,6 +136,7 @@ const datatableHandlers = {
       'App\\Models\\PurchaseRequest': 'approvals/purchase-requests',
       'App\\Models\\MonthlyStockReport': 'approvals/monthly-stock-reports',
       'App\\Models\\StockCount': 'approvals/stock-counts',
+      'App\\Models\\WarehouseProductReport': 'approvals/stock-reports',
     }
     const routePrefix = typeRouteMap[approval.approvable_type]
     if (routePrefix) window.location.href = `/${routePrefix}/${approval.approvable_id}/show`

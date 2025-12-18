@@ -150,16 +150,14 @@
     /* ================= INITIAL APPROVAL FOOTER ================= */
 
         .initial-approval-footer {
-            position: fixed;
-            bottom: 12mm;
-            right: 10mm;
-            width: 90px;
+            width: auto;
             text-align: right;
+            margin-top: 5px; /* space after table */
         }
 
         .initial-approval-footer img {
             max-width: 50px;
-            max-height: 30px;
+            max-height: 20px;
             object-fit: contain;
         }
     </style>
@@ -249,6 +247,21 @@
             @endforeach
         </tbody>
     </table>
+
+    <!-- Initial Approval Footer -->
+    @foreach($approvals as $appr)
+        @if(
+            ($appr['request_type'] ?? null) === 'initial' &&
+            $appr['approval_status'] === 'Approved' &&
+            !empty($appr['signature_url'])
+        )
+        <div class="initial-approval-footer">
+            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
+        </div>
+        @endif
+    @endforeach
+
+    <!-- Remarks -->
     @if(!empty($remarks))
     <p>Remarks: {{$remarks}}</p>
     @endif
@@ -310,18 +323,6 @@
             @endforeach
         </div>
     </div>
-    <!-- Initial Approval Footer -->
-    @foreach($approvals as $appr)
-        @if(
-            ($appr['request_type'] ?? null) === 'check' &&
-            $appr['approval_status'] === 'Approved' &&
-            !empty($appr['signature_url'])
-        )
-        <div class="initial-approval-footer">
-            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
-        </div>
-        @endif
-    @endforeach
 
 </div>
 </body>

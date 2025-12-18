@@ -440,9 +440,15 @@ class WarehouseProductController extends Controller
         // Eager load only product-related relationships
         $warehouseProductReport->load([
             'items.product.product.unit',
-            // 'approvals.responder',            // ❌ approval flow disabled
+            'approvals.responder',
             'warehouse.building.campus'
         ]);
+
+        $mapLabel = [
+            'initial' => ['en' => 'Initialed By', 'kh' => 'រៀបចំដោយ'],
+            'check'   => ['en' => 'Checked By', 'kh' => 'ត្រួតពិនិត្យដោយ'],
+            'approve' => ['en' => 'Approved By', 'kh' => 'អនុម័តដោយ'],
+        ];
 
         $items = $warehouseProductReport->items->map(function ($item) {
             $product = $item->product?->product;
@@ -472,8 +478,6 @@ class WarehouseProductController extends Controller
             ];
         });
 
-        // ❌ Approval mapping disabled
-        /*
         $approvals = $warehouseProductReport->approvals->map(fn($a) => [
             'id' => $a->id,
             'user_id' => $a->responder_id,
@@ -485,12 +489,10 @@ class WarehouseProductController extends Controller
             'signature' => $a->responder?->signature_url ?? '',
             'responded_date' => $a->responded_date ?? '',
             'comment' => $a->comment ?? '',
-            'label' => ucfirst($a->request_type),
+            'request_type_label_en' => $mapLabel[$a->request_type]['en'] ?? ucfirst($a->request_type).' By',
+            'request_type_label_kh' => $mapLabel[$a->request_type]['kh'] ?? ucfirst($a->request_type).' ដោយ',
         ]);
-        */
 
-        // ❌ Approval button logic disabled
-        /*
         $approvalInfo = $this->canShowApprovalButton($warehouseProductReport->id);
 
         if ($approvalInfo['showButton']) {
@@ -500,7 +502,7 @@ class WarehouseProductController extends Controller
                 ->where('is_seen', false)
                 ->update(['is_seen' => true]);
         }
-        */
+
 
         return response()->json([
             'message' => 'Stock report retrieved successfully.',
@@ -520,9 +522,8 @@ class WarehouseProductController extends Controller
 
                 'items' => $items,
 
-                // ❌ Approval data disabled
-                // 'approvals' => $approvals,
-                // 'approval_buttons' => $approvalInfo,
+                'approvals' => $approvals,
+                'approval_buttons' => $approvalInfo,
             ],
         ]);
     }
@@ -575,7 +576,7 @@ class WarehouseProductController extends Controller
             'items.*.max_inventory_usage_day'      => 'nullable|numeric',
             'approvals'      => 'required|array|min:2',
             'approvals.*.user_id'      => 'required|exists:users,id',
-            'approvals.*.request_type' => 'required|in:check,approve',
+            'approvals.*.request_type' => 'required|in:initial,check,approve',
         ]);
 
         DB::beginTransaction();
@@ -764,7 +765,7 @@ class WarehouseProductController extends Controller
             'items.*.max_inventory_usage_day' => 'nullable|numeric',
             'approvals'    => 'required|array|min:2',
             'approvals.*.user_id'      => 'required|exists:users,id',
-            'approvals.*.request_type' => 'required|in:check,approve',
+            'approvals.*.request_type' => 'required|in:initial,check,approve',
         ]);
 
         DB::beginTransaction();
@@ -913,8 +914,7 @@ class WarehouseProductController extends Controller
         try {
             // Delete related items first
             $warehouseProductReport->items()->delete();
-
-            // Optionally soft-delete the main report
+            $warehouseProductReport->approvals()->delete();
             $warehouseProductReport->delete();
 
             DB::commit();
@@ -982,7 +982,7 @@ class WarehouseProductController extends Controller
 
     private function ordinal($type)
     {
-        return ['check' => 1, 'approve' => 2][$type] ?? 1;
+        return ['initial'=> 1,'check' => 2, 'approve' => 3][$type] ?? 1;
     }
 
     private function canShowApprovalButton(int $documentId): array
@@ -1062,16 +1062,16 @@ class WarehouseProductController extends Controller
     {
         // Validate request
         $validated = $request->validate([
-            'request_type' => 'required|string|in:check,approve',
+            'request_type' => 'required|string|in:initial,check,approve',
             'action'       => 'required|string|in:approve,reject,return',
             'comment'      => 'nullable|string|max:1000',
         ]);
 
         // Check user permission
-        $permission = "monthlyStockReport.{$validated['request_type']}";
+        $permission = "warehouseProductReport.{$validated['request_type']}";
         if (!auth()->user()->can($permission)) {
             return response()->json([
-                'message' => "You do not have permission to {$validated['request_type']} this stock transfer.",
+                'message' => "You do not have permission to {$validated['request_type']} this stock report.",
             ], 403);
         }
 
@@ -1086,25 +1086,37 @@ class WarehouseProductController extends Controller
         // Ensure $result has 'success' key
         $success = $result['success'] ?? false;
 
-        // Update StockTransfer approval_status if successful
+        // Update Stock Report approval_status if successful
         if ($success) {
-            $statusMap = [
-                'check' => 'Checked',
+
+            $statusByRequestType = [
+                'initial' => 'Initialed',
+                'check'   => 'Checked',
                 'approve' => 'Approved',
-                'reject'  => 'Rejected',
-                'return'  => 'Returned',
             ];
 
-            $warehouseProductReport->approval_status =
-                $statusMap[$validated['action']] ??
-                ($statusMap[$validated['request_type']] ?? 'Pending');
+            $statusByAction = [
+                'reject' => 'Rejected',
+                'return' => 'Returned',
+            ];
+
+            if ($validated['action'] === 'approve') {
+                // ✅ Approve → use request_type
+                $warehouseProductReport->approval_status =
+                    $statusByRequestType[$validated['request_type']] ?? 'Approved';
+            } else {
+                // ❌ Reject / Return → use action
+                $warehouseProductReport->approval_status =
+                    $statusByAction[$validated['action']] ?? 'Pending';
+            }
 
             $warehouseProductReport->save();
         }
 
+
         return response()->json([
             'message'      => $result['message'] ?? 'Action failed',
-            'redirect_url' => route('stock-reports.monthly-report.show', $warehouseProductReport->id),
+            'redirect_url' => route('approvals-stock-reports.show', $warehouseProductReport->id),
             'approval'     => $result['approval'] ?? null,
         ], $success ? 200 : 400);
     }
@@ -1114,7 +1126,7 @@ class WarehouseProductController extends Controller
         // $this->authorize('reassign', $warehouseProductReport);
 
         $validated = $request->validate([
-            'request_type'   => 'required|string|in:check,approve',
+            'request_type'   => 'required|string|in:initial,check,approve',
             'new_user_id'    => 'required|exists:users,id',
             'new_position_id'=> 'nullable|exists:positions,id',
             'comment'        => 'nullable|string|max:1000',
@@ -1130,7 +1142,7 @@ class WarehouseProductController extends Controller
             ], 422);
         }
 
-        if (!$user->hasPermissionTo("monthlyStockReport.{$validated['request_type']}")) {
+        if (!$user->hasPermissionTo("warehouseProductReport.{$validated['request_type']}")) {
             return response()->json([
                 'success' => false,
                 'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
@@ -1181,6 +1193,7 @@ class WarehouseProductController extends Controller
     public function getApprovalUsers(): JsonResponse
     {
         $users = [
+            'initial'   => $this->usersWithPermission('warehouseProductReport.initial'),
             'check'       => $this->usersWithPermission('warehouseProductReport.check'),
             'approve' => $this->usersWithPermission('warehouseProductReport.approve'),
         ];

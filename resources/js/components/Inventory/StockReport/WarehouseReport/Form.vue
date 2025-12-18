@@ -165,6 +165,7 @@
                         :disabled="approval.isDefault"
                       >
                         <option value="">Select Type</option>
+                        <option value="initial">Initial</option>
                         <option value="check">Check</option>
                         <option value="approve">Approve</option>
                       </select>
@@ -287,7 +288,7 @@ const approvalUsers = ref({})
 const setTypeSelectRef = (el, index) => { typeSelectRefs.value[index] = el }
 const setUserSelectRef = (el, index) => { userSelectRefs.value[index] = el }
 
-const defaultApprovalTypes = ['check', 'approve']
+const defaultApprovalTypes = ['initial', 'check', 'approve']
 
 const initApprovals = () => {
   if (!form.value.approvals.length) {

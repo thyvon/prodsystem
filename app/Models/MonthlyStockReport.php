@@ -47,7 +47,7 @@ class MonthlyStockReport extends Model
 
     public function approvals()
     {
-        return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
+        return $this->morphMany(Approval::class, 'approvable');
     }
 
     public function position()

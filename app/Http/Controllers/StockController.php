@@ -1170,7 +1170,7 @@ class StockController extends Controller
         $permission = "monthlyStockReport.{$validated['request_type']}";
         if (!auth()->user()->can($permission)) {
             return response()->json([
-                'message' => "You do not have permission to {$validated['request_type']} this stock transfer.",
+                'message' => "You do not have permission to {$validated['request_type']} this stock report.",
             ], 403);
         }
 
@@ -1185,27 +1185,37 @@ class StockController extends Controller
         // Ensure $result has 'success' key
         $success = $result['success'] ?? false;
 
-        // Update StockTransfer approval_status if successful
         if ($success) {
-            $statusMap = [
-                'initial' => 'Initialed',
-                'check' => 'Checked',
-                'verify' => 'Verified',
+
+            $statusByRequestType = [
+                'initial'     => 'Initialed',
+                'check'       => 'Checked',
+                'verify'      => 'Verified',
                 'acknowledge' => 'Acknowledged',
-                'reject'  => 'Rejected',
-                'return'  => 'Returned',
             ];
 
-            $monthlyStockReport->approval_status =
-                $statusMap[$validated['action']] ??
-                ($statusMap[$validated['request_type']] ?? 'Pending');
+            $statusByAction = [
+                'reject' => 'Rejected',
+                'return' => 'Returned',
+            ];
+
+            if ($validated['action'] === 'approve') {
+                // ✅ Approve → use request_type
+                $monthlyStockReport->approval_status =
+                    $statusByRequestType[$validated['request_type']] ?? 'Approved';
+            } else {
+                // ❌ Reject / Return → use action
+                $monthlyStockReport->approval_status =
+                    $statusByAction[$validated['action']] ?? 'Pending';
+            }
 
             $monthlyStockReport->save();
         }
 
+
         return response()->json([
             'message'      => $result['message'] ?? 'Action failed',
-            'redirect_url' => route('stock-reports.monthly-report.show', $monthlyStockReport->id),
+            'redirect_url' => route('approvals-monthly-stock-reports.show', $monthlyStockReport->id),
             'approval'     => $result['approval'] ?? null,
         ], $success ? 200 : 400);
     }

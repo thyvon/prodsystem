@@ -302,7 +302,7 @@ const formatAmount = val => (!val || Number(val) === 0 ? '-' : Number(val).toLoc
 const formatQty = val => (!val || Number(val) === 0 ? '-' : Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 , maximumFractionDigits: 2 }))
 const formatDate = date => formatDateShort(date)
 const total = key => stockItems.value.reduce((sum, i) => sum + (i[key] || 0), 0)
-const goBack = () => window.location.href = '/inventory/stock-reports/monthly-report'
+const goBack = () => window.location.href = '/approvals'
 
 const currentActionTitle = computed(() =>
   currentAction.value === 'approve'

@@ -57,6 +57,6 @@ class WarehouseProductReport extends Model
 
     public function approvals()
     {
-        return $this->morphMany(Approval::class, 'approvable')->orderBy('ordinal');
+        return $this->morphMany(Approval::class, 'approvable');
     }
 }

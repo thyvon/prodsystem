@@ -309,6 +309,9 @@ Route::middleware(['auth'])->group(function () {
         //Stock Count View
         Route::get('/approvals/stock-counts/{stockCount}/show', [StockCountController::class, 'show'])
         ->name('approvals-stock-counts.show');
+        //Stock Report View
+        Route::get('/approvals/stock-reports/{warehouseProductReport}/show', [WarehouseProductController::class, 'showReport'])
+        ->name('approvals-stock-reports.show');
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])
