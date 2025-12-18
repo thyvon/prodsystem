@@ -239,18 +239,103 @@ class StockController extends Controller
     // ===================================================================
     // View Approved Report as PDF
     // ===================================================================
+    // public function showpdf(MonthlyStockReport $monthlyStockReport)
+    // {
+    //     $this->authorize('view', $monthlyStockReport);
+
+    //     // Label mapping
+    //     $mapLabel = [
+    //         'verify'      => 'Verified By',
+    //         'check'       => 'Checked By',
+    //         'acknowledge' => 'Acknowledged By',
+    //     ];
+
+    //     // Transform approvals
+    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+    //         $typeKey = strtolower($approval->request_type);
+
+    //         return [
+    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
+    //             'position_name'      => $approval->responderPosition?->title ?? null,
+    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+    //             'request_type'       => $approval->request_type,
+    //             'approval_status'    => $approval->approval_status,
+    //             'responded_date'     => $approval->responded_date
+    //                                     ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
+    //                                     : null,
+    //             'comment'            => $approval->comment,
+    //             'signature_url'      => $approval->responder?->signature_url ?? null,
+    //         ];
+    //     })->toArray();
+
+    //     // Prepare PDF data
+    //     $data = $this->prepareReportData($monthlyStockReport);
+    //     $data['approvals'] = $approvals;
+
+    //     // Render Blade HTML
+    //     $html = view('Inventory.stock-report.print-report', $data)->render();
+
+    //     // ⚡ Generate PDF directly in memory (NO saving)
+    //     $pdf = Browsershot::html($html)
+    //         ->noSandbox()
+
+    //         // Reduce CPU
+    //         ->emulateMedia('print')
+    //         ->showBackground()
+
+    //         // Ultra low resource mode
+    //         ->addChromiumArguments([
+    //             '--disable-gpu',
+    //             '--blink-settings=imagesEnabled=true',
+    //             '--disable-extensions',
+    //             '--disable-dev-shm-usage',
+    //             '--disable-software-rasterizer',
+    //             '--single-process',
+    //             '--no-zygote',
+    //             '--no-sandbox',
+    //             '--disable-setuid-sandbox',
+    //             '--no-first-run',
+    //             '--no-default-browser-check',
+    //             '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
+    //             '--disable-background-networking',
+    //             '--disable-background-timer-throttling',
+    //             '--disable-backgrounding-occluded-windows',
+    //             '--disable-breakpad',
+    //             '--disable-ipc-flooding-protection',
+    //             '--disable-renderer-backgrounding',
+    //             '--disable-client-side-phishing-detection',
+    //             '--disable-hang-monitor',
+    //             '--disable-popup-blocking',
+    //             '--disable-sync',
+    //             '--metrics-recording-only',
+    //             '--mute-audio',
+    //         ])
+
+    //         ->setDelay(20)
+    //         ->format('A4')
+    //         ->landscape()
+    //         ->margins(5, 3, 5, 3)
+    //         ->timeout(40)
+    //         ->setTemporaryFolder('/tmp/chromium')
+
+    //         ->pdf(); // ← generate raw PDF bytes
+
+    //     // Return PDF directly to browser
+    //     return response($pdf)
+    //         ->header('Content-Type', 'application/pdf')
+    //         ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
+    // }
+
     public function showpdf(MonthlyStockReport $monthlyStockReport)
     {
         $this->authorize('view', $monthlyStockReport);
 
-        // Label mapping
         $mapLabel = [
             'verify'      => 'Verified By',
             'check'       => 'Checked By',
             'acknowledge' => 'Acknowledged By',
         ];
 
-        // Transform approvals
         $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
             $typeKey = strtolower($approval->request_type);
 
@@ -261,70 +346,40 @@ class StockController extends Controller
                 'request_type'       => $approval->request_type,
                 'approval_status'    => $approval->approval_status,
                 'responded_date'     => $approval->responded_date
-                                        ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
-                                        : null,
+                                            ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
+                                            : null,
                 'comment'            => $approval->comment,
                 'signature_url'      => $approval->responder?->signature_url ?? null,
             ];
         })->toArray();
 
-        // Prepare PDF data
         $data = $this->prepareReportData($monthlyStockReport);
         $data['approvals'] = $approvals;
 
-        // Render Blade HTML
         $html = view('Inventory.stock-report.print-report', $data)->render();
 
-        // ⚡ Generate PDF directly in memory (NO saving)
         $pdf = Browsershot::html($html)
             ->noSandbox()
-
-            // Reduce CPU
             ->emulateMedia('print')
             ->showBackground()
-
-            // Ultra low resource mode
             ->addChromiumArguments([
-                '--disable-gpu',
-                '--blink-settings=imagesEnabled=true',
-                '--disable-extensions',
-                '--disable-dev-shm-usage',
-                '--disable-software-rasterizer',
-                '--single-process',
-                '--no-zygote',
                 '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--no-first-run',
-                '--no-default-browser-check',
-                '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
-                '--disable-background-networking',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-breakpad',
-                '--disable-ipc-flooding-protection',
-                '--disable-renderer-backgrounding',
-                '--disable-client-side-phishing-detection',
-                '--disable-hang-monitor',
-                '--disable-popup-blocking',
-                '--disable-sync',
-                '--metrics-recording-only',
-                '--mute-audio',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--single-process',
             ])
-
-            ->setDelay(20)
             ->format('A4')
             ->landscape()
             ->margins(5, 3, 5, 3)
-            ->timeout(40)
-            ->setTemporaryFolder('/tmp/chromium')
+            ->timeout(20)
+            ->setTemporaryFolder(storage_path('tmp')) // Use storage for low RAM
+            ->pdf();
 
-            ->pdf(); // ← generate raw PDF bytes
-
-        // Return PDF directly to browser
         return response($pdf)
             ->header('Content-Type', 'application/pdf')
             ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
     }
+
 
     public function generateStockReportPdf(Request $request)
     {
