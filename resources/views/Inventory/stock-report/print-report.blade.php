@@ -156,8 +156,8 @@
             <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
-            <h3>របាយការណ៍ស្តុក</h3>
-            <h3>Stock Report
+            <h3>Monthly Stock Report</h3>
+            <h3>
                 @if($warehouseNames !== 'All Warehouses')
                     <small style="font-weight:normal; color:#555;">({{ $warehouseNames }})</small>
                 @else
