@@ -159,7 +159,7 @@
 
         .initial-approval-footer img {
             max-width: 50px;
-            max-height: 20px;
+            max-height: 30px;
             object-fit: contain;
         }
     </style>
