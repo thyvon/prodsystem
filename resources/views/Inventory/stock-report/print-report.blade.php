@@ -112,21 +112,17 @@
 
         /* ===== FOOTER INITIAL SIGNATURE ===== */
         .footer-initial-signature {
-            position: fixed;
-            bottom: 12mm;
-            right: 10mm;
-            width: 90px;
+            /* position: fixed; */
+            /* bottom: 12mm;
+            right: 10mm; */
+            width: auto;
             text-align: right;
+            margin-top: 5px; /* space after table */
         }
-
         .footer-initial-signature img {
             max-width: 50px;
             max-height: 20px;
             object-fit: contain;
-        }
-
-        .text-end {
-            text-align: end;
         }
 
     </style>
@@ -239,6 +235,19 @@
         </tbody>
     </table>
 
+    <!-- Initial signature next to table footer -->
+    @foreach($approvalBoxes as $appr)
+        @if(
+            ($appr['request_type'] ?? null) === 'initial' &&
+            $appr['approval_status'] === 'Approved' &&
+            !empty($appr['signature_url'])
+        )
+        <div class="footer-initial-signature">
+            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
+        </div>
+        @endif
+    @endforeach
+
     <!-- Signature section -->
     @if(!empty($created_by) || !empty($approvalBoxes))
     <div class="signature-section">
@@ -305,19 +314,6 @@
         @endforeach
     </div>
     @endif
-
-    @foreach($approvalBoxes as $appr)
-        @if(
-            ($appr['request_type'] ?? null) === 'initial' &&
-            $appr['approval_status'] === 'Approved' &&
-            !empty($appr['signature_url'])
-        )
-        <div class="footer-initial-signature">
-            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
-        </div>
-        @endif
-    @endforeach
-
 </div>
 </body>
 </html>
