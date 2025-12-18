@@ -88,11 +88,11 @@
             display: inline-block;
             width: 260px;          /* FIXED WIDTH */
             height: 200px;         /* FIXED HEIGHT */
-            margin: 0 30px;
+            margin: 0 80px;
             vertical-align: top;
             box-sizing: border-box;
             text-align: center;
-            font-size: 12px;
+            font-size: 14px;
         }
 
         .signature-title {
@@ -126,7 +126,7 @@
         .signature-info {
             text-align: left;
             line-height: 1.3;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         .text-right {
@@ -145,6 +145,22 @@
             content: '$';                /* your currency symbol */
             position: absolute;
             left: 5px;                   /* symbol on the left edge */
+        }
+
+    /* ================= INITIAL APPROVAL FOOTER ================= */
+
+        .initial-approval-footer {
+            position: fixed;
+            bottom: 12mm;
+            right: 10mm;
+            width: 90px;
+            text-align: right;
+        }
+
+        .initial-approval-footer img {
+            max-width: 50px;
+            max-height: 20px;
+            object-fit: contain;
         }
     </style>
 </head>
@@ -266,7 +282,10 @@
 
             <!-- Approvals -->
             @foreach($approvals as $appr)
-                @if(!empty($appr['user_name']))
+                @if(
+                    !empty($appr['user_name']) &&
+                    ($appr['request_type'] ?? null) !== 'initial'
+                )
                 <div class="signature-box">
                     <div class="signature-title">
                         {{ $appr['request_type_label_kh'] ?? 'Approved By' }}<br>
@@ -289,9 +308,21 @@
                 </div>
                 @endif
             @endforeach
-
         </div>
     </div>
+    <!-- Initial Approval Footer -->
+    @foreach($approvals as $appr)
+        @if(
+            ($appr['request_type'] ?? null) === 'check' &&
+            $appr['approval_status'] === 'Approved' &&
+            !empty($appr['signature_url'])
+        )
+        <div class="initial-approval-footer">
+            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
+        </div>
+        @endif
+    @endforeach
+
 </div>
 </body>
 </html>

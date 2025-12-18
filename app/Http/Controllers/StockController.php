@@ -258,6 +258,7 @@ class StockController extends Controller
                 'user_name'          => $approval->responder?->name ?? 'Unknown',
                 'position_name'      => $approval->responderPosition?->title ?? null,
                 'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+                'request_type'       => $approval->request_type,
                 'approval_status'    => $approval->approval_status,
                 'responded_date'     => $approval->responded_date
                                         ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')

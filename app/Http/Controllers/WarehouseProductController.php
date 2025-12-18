@@ -321,6 +321,7 @@ class WarehouseProductController extends Controller
             return [
                 'user_name'          => $approval->responder?->name ?? 'Unknown',
                 'position_name'      => $approval->responderPosition?->title ?? null,
+                'request_type'       => $approval->request_type,
                 'request_type_label_en' => $mapLabel[$typeKey]['en'] ?? ucfirst($typeKey).' By',
                 'request_type_label_kh' => $mapLabel[$typeKey]['kh'] ?? ucfirst($typeKey).' ដោយ',
                 'approval_status'    => $approval->approval_status,
