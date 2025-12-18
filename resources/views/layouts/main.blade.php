@@ -27,7 +27,7 @@
         /* Khmer font for Khmer characters only */
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ asset('fonts/KhmerOSBattambang.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
             unicode-range: U+1780-17FF;
         }
 
