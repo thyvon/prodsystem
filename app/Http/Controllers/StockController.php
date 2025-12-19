@@ -1080,7 +1080,7 @@ class StockController extends Controller
                 $availableTotal = round($beginTotal + $inTotal, 15);
                 $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 15) : 0;
                 $endingQty      = $availableQty - $outQty;
-                $endingTotal    = round($endingQty * $availablePrice, 15);
+                $endingTotal    = round($countedQty * $availablePrice, 15);
 
                 return [
                     'product_id'         => $id,
