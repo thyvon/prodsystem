@@ -44,7 +44,7 @@ class StockLedgerService
                     -- Current month movements
                     COALESCE(SUM(CASE 
                         WHEN transaction_type='Stock_In' AND transaction_date BETWEEN ? AND ? THEN quantity
-                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN -quantity
+                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN quantity
                         ELSE 0 END), 0)
                     AS stock_on_hand
                 FROM stock_ledgers
@@ -70,7 +70,7 @@ class StockLedgerService
                     +
                     COALESCE(SUM(CASE 
                         WHEN transaction_type='Stock_In' AND transaction_date BETWEEN ? AND ? THEN quantity
-                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN -quantity
+                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN quantity
                         ELSE 0 END), 0)
                     AS stock_on_hand
                 FROM stock_ledgers
