@@ -147,17 +147,20 @@ class StockInImport implements ToCollection, WithHeadingRow
 
                 // Insert item
                 StockInItem::create([
-                    'stock_in_id'   => $stockIn->id,
-                    'product_id'    => $validated['product_id'],
-                    'quantity'      => number_format($validated['quantity'], 10, '.', ''),
-                    'unit_price'    => number_format($validated['unit_price'], 10, '.', ''),
-                    'vat'           => number_format($validated['vat'], 10, '.', ''),
-                    'discount'      => number_format($validated['discount'], 10, '.', ''),
-                    'delivery_fee'  => number_format($validated['delivery_fee'], 10, '.', ''),
-                    'total_price' => round($validated['quantity'] * $validated['unit_price'], 15),
-                    'remarks'       => $row['item_remarks'] ?? null,
-                    'updated_by'    => $createdById,
-                    'deleted_by'    => null,
+                    'stock_in_id'  => $stockIn->id,
+                    'product_id'   => $validated['product_id'],
+                    'quantity'     => $validated['quantity'],              // keep numeric
+                    'unit_price'   => round($validated['unit_price'], 15), // ✅ 15 digits
+                    'vat'          => $validated['vat'],
+                    'discount'     => $validated['discount'],
+                    'delivery_fee' => $validated['delivery_fee'],
+                    'total_price'  => round(
+                        $validated['quantity'] * round($validated['unit_price'], 15),
+                        15
+                    ),
+                    'remarks'      => $row['item_remarks'] ?? null,
+                    'updated_by'   => $createdById,
+                    'deleted_by'   => null,
                 ]);
             }
         });
