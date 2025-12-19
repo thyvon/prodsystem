@@ -345,7 +345,7 @@ const fetchStockReport = async () => {
 
 // PDF
 const printReport = () =>
-  pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/showpdf`)
+  pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/print-pdf`)
 
 // Approval Modal
 const openConfirmModal = (action) => {

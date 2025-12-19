@@ -19,6 +19,7 @@ use App\Models\StockLedger;
 use App\Models\ProductVariant;
 use App\Models\Warehouse;
 use App\Models\MonthlyStockReport;
+use App\Models\MonthlyStockReportItems;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Models\Approval;
@@ -137,6 +138,25 @@ class StockController extends Controller
     // ===================================================================
     // Store New Monthly Stock Report
     // ===================================================================
+    // public function store(Request $request): JsonResponse
+    // {
+    //     $this->authorize('create', MonthlyStockReport::class);
+
+    //     $validated = $this->validateReportRequest($request);
+
+    //     return DB::transaction(function () use ($validated) {
+    //         $report = $this->createMonthlyReport($validated);
+    //         $this->storeApprovals($report, $validated['approvals']);
+
+    //         return response()->json([
+    //             'success'      => true,
+    //             'message'      => 'Monthly Stock Report submitted for approval.',
+    //             'reference_no' => $report->reference_no,
+    //             'id'           => $report->id,
+    //         ], 201);
+    //     });
+    // }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('create', MonthlyStockReport::class);
@@ -144,8 +164,47 @@ class StockController extends Controller
         $validated = $this->validateReportRequest($request);
 
         return DB::transaction(function () use ($validated) {
+
+            // 1️⃣ Create the main report
             $report = $this->createMonthlyReport($validated);
+
+            // 2️⃣ Store approvals
             $this->storeApprovals($report, $validated['approvals']);
+
+            // 3️⃣ Calculate stock report items
+            $reportItems = $this->calculateStockReport(
+                $validated['start_date'],
+                $validated['end_date'],
+                $validated['warehouse_ids'] ?? [],
+                $validated['product_ids'] ?? []
+            );
+
+            // 4️⃣ Insert only the specific fields
+            if ($reportItems->isNotEmpty()) {
+                $insertData = $reportItems->map(fn($item) => [
+                    'report_id'         => $report->id,
+                    'product_id'        => $item['product_id'],
+                    'beginning_quantity'=> $item['beginning_quantity'],
+                    'beginning_price'   => $item['beginning_price'],
+                    'beginning_total'   => $item['beginning_total'],
+                    'stock_in_quantity' => $item['stock_in_quantity'],
+                    'stock_in_total'    => $item['stock_in_total'],
+                    'available_quantity'=> $item['available_quantity'],
+                    'available_price'   => $item['available_price'],
+                    'available_total'   => $item['available_total'],
+                    'stock_out_quantity'=> $item['stock_out_quantity'],
+                    'stock_out_total'   => $item['stock_out_total'],
+                    'ending_quantity'   => $item['ending_quantity'],
+                    'ending_total'      => $item['ending_total'],
+                    'counted_quantity'  => $item['counted_quantity'],
+                    'variance_quantity' => $item['variance_quantity'],
+                    'average_price'     => $item['average_price'],
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ])->toArray();
+
+                DB::table('monthly_stock_report_items')->insert($insertData);
+            }
 
             return response()->json([
                 'success'      => true,
@@ -196,21 +255,91 @@ class StockController extends Controller
     // ===================================================================
     // Update Existing Report (Only Draft/Pending)
     // ===================================================================
+    // public function update(Request $request, MonthlyStockReport $monthlyStockReport): JsonResponse
+    // {
+    //     $this->authorize('update', $monthlyStockReport);
+
+    //     if (!in_array($monthlyStockReport->approval_status, ['Pending','Returned'])) {
+    //         return response()->json(['success' => false, 'message' => 'Cannot edit approved or rejected reports.'], 403);
+    //     }
+
+    //     $validated = $this->validateReportRequest($request);
+
+    //     return DB::transaction(function () use ($validated, $monthlyStockReport) {
+    //         $this->updateMonthlyReport($monthlyStockReport, $validated);
+    //         $monthlyStockReport->approvals()->delete();
+    //         $this->storeApprovals($monthlyStockReport, $validated['approvals']);
+
+    //         return response()->json([
+    //             'success'      => true,
+    //             'message'      => 'Report updated and re-submitted for approval.',
+    //             'reference_no' => $monthlyStockReport->reference_no,
+    //             'id'           => $monthlyStockReport->id,
+    //         ]);
+    //     });
+    // }
+
     public function update(Request $request, MonthlyStockReport $monthlyStockReport): JsonResponse
     {
         $this->authorize('update', $monthlyStockReport);
 
         if (!in_array($monthlyStockReport->approval_status, ['Pending','Returned'])) {
-            return response()->json(['success' => false, 'message' => 'Cannot edit approved or rejected reports.'], 403);
+            return response()->json([
+                'success' => false, 
+                'message' => 'Cannot edit approved or rejected reports.'
+            ], 403);
         }
 
         $validated = $this->validateReportRequest($request);
 
         return DB::transaction(function () use ($validated, $monthlyStockReport) {
+
+            // 1️⃣ Update main report
             $this->updateMonthlyReport($monthlyStockReport, $validated);
+
+            // 2️⃣ Reset approvals
             $monthlyStockReport->approvals()->delete();
             $this->storeApprovals($monthlyStockReport, $validated['approvals']);
 
+            // 3️⃣ Delete old report items
+            $monthlyStockReport->items()->delete();
+
+            // 4️⃣ Recalculate stock report items
+            $reportItems = $this->calculateStockReport(
+                $validated['start_date'],
+                $validated['end_date'],
+                $validated['warehouse_ids'] ?? [],
+                $validated['product_ids'] ?? []
+            );
+
+            // 5️⃣ Insert only the specific fields into items table
+            if ($reportItems->isNotEmpty()) {
+                $insertData = $reportItems->map(fn($item) => [
+                    'report_id'         => $monthlyStockReport->id,
+                    'product_id'        => $item['product_id'],
+                    'beginning_quantity'=> $item['beginning_quantity'],
+                    'beginning_price'   => $item['beginning_price'],
+                    'beginning_total'   => $item['beginning_total'],
+                    'stock_in_quantity' => $item['stock_in_quantity'],
+                    'stock_in_total'    => $item['stock_in_total'],
+                    'available_quantity'=> $item['available_quantity'],
+                    'available_price'   => $item['available_price'],
+                    'available_total'   => $item['available_total'],
+                    'stock_out_quantity'=> $item['stock_out_quantity'],
+                    'stock_out_total'   => $item['stock_out_total'],
+                    'ending_quantity'   => $item['ending_quantity'],
+                    'ending_total'      => $item['ending_total'],
+                    'counted_quantity'  => $item['counted_quantity'],
+                    'variance_quantity' => $item['variance_quantity'],
+                    'average_price'     => $item['average_price'],
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ])->toArray();
+
+                DB::table('monthly_stock_report_items')->insert($insertData);
+            }
+
+            // 6️⃣ Return response
             return response()->json([
                 'success'      => true,
                 'message'      => 'Report updated and re-submitted for approval.',
@@ -219,6 +348,7 @@ class StockController extends Controller
             ]);
         });
     }
+
 
     // ===================================================================
     // Delete Report (Only Draft/Pending/Rejected)
@@ -380,6 +510,113 @@ class StockController extends Controller
             ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
     }
 
+    public function pdfReport(MonthlyStockReport $monthlyStockReport)
+    {
+        $this->authorize('view', $monthlyStockReport);
+
+        // Load report items from DB with product/variant relationships
+        $items = $monthlyStockReport->items()->with(['productVariant.product.unit'])->get();
+
+        // Prepare report data array for Blade
+        $reportData = $items->map(function($item) {
+            $variant = $item->productVariant;
+            $product = $variant?->product;
+
+            return [
+                'product_id'         => $item->product_id,
+                'item_code'          => $variant->item_code ?? '-',
+                'description'        => trim(($product->name ?? '') . ' ' . ($variant->description ?? '')),
+                'unit_name'          => $product?->unit?->name ?? '-',
+                'beginning_quantity' => $item->beginning_quantity,
+                'beginning_price'    => $item->beginning_price,
+                'beginning_total'    => $item->beginning_total,
+                'stock_in_quantity'  => $item->stock_in_quantity,
+                'stock_in_total'     => $item->stock_in_total,
+                'available_quantity' => $item->available_quantity,
+                'available_price'    => $item->available_price,
+                'available_total'    => $item->available_total,
+                'stock_out_quantity' => $item->stock_out_quantity,
+                'stock_out_total'    => $item->stock_out_total,
+                'ending_quantity'    => $item->ending_quantity,
+                'ending_total'       => $item->ending_total,
+                'counted_quantity'   => $item->counted_quantity,
+                'variance_quantity'  => $item->variance_quantity,
+                'average_price'      => $item->average_price,
+            ];
+        });
+
+        // Prepare approvals
+        $mapLabel = [
+            'verify'      => 'Verified By',
+            'check'       => 'Checked By',
+            'acknowledge' => 'Acknowledged By',
+        ];
+
+        $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
+            $typeKey = strtolower($approval->request_type);
+
+            return [
+                'user_name'          => $approval->responder?->name ?? 'Unknown',
+                'position_name'      => $approval->responderPosition?->title ?? null,
+                'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
+                'request_type'       => $approval->request_type,
+                'approval_status'    => $approval->approval_status,
+                'responded_date'     => $approval->responded_date
+                                            ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
+                                            : null,
+                'comment'            => $approval->comment,
+                'signature_url'      => $approval->responder?->signature_url ?? null,
+            ];
+        })->toArray();
+
+        // Creator info
+        $creator = $monthlyStockReport->creator; // relationship to User
+        $created_by = $creator?->name;
+        $creator_position = $creator?->defaultPosition?->title;
+        $signature_url = $creator?->signature_url;
+        $created_at = $monthlyStockReport->created_at?->format('M d, Y');
+
+        // Warehouse names as string
+        $warehouseNames = implode(', ', $monthlyStockReport->warehouse_names ?? []);
+
+        // Pass data to Blade
+        $html = view('Inventory.stock-report.print-report', [
+            'report'           => $reportData,
+            'approvals'        => $approvals,
+            'created_by'       => $created_by,
+            'creator_position' => $creator_position,
+            'signature_url'    => $signature_url,
+            'created_at'       => $created_at,
+            'warehouseNames'   => $warehouseNames,
+            'start_date'       => $monthlyStockReport->start_date,
+            'end_date'         => $monthlyStockReport->end_date,
+        ])->render();
+
+        // Generate PDF
+        $pdf = Browsershot::html($html)
+            ->noSandbox()
+            ->emulateMedia('print')
+            ->showBackground()
+            ->addChromiumArguments([
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--single-process',
+            ])
+            ->format('A4')
+            ->landscape()
+            ->margins(5, 3, 5, 3)
+            ->timeout(20)
+            ->setTemporaryFolder(storage_path('tmp'))
+            ->pdf();
+
+        return response($pdf)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
+    }
+
+
+
 
     public function generateStockReportPdf(Request $request)
     {
@@ -457,7 +694,8 @@ class StockController extends Controller
             'creator',
             'creatorPosition',
             'approvals.responder',
-            'approvals.responderPosition'
+            'approvals.responderPosition',
+            'items.productVariant.product.unit' // load variant + product + unit
         ]);
 
         $labelMap = [
@@ -467,7 +705,33 @@ class StockController extends Controller
             'acknowledge'  => 'Acknowledged By',
         ];
 
-        $data = $this->prepareReportData($monthlyStockReport);
+        // Prepare report items directly from DB
+        $reportItems = $monthlyStockReport->items->map(function($item) {
+            $variant = $item->productVariant;
+            $product = $variant?->product;
+
+            return [
+                'product_id'         => $item->product_id,
+                'item_code'          => $variant->item_code ?? '-',
+                'description'        => trim(($product->name ?? '') . ' ' . ($variant->description ?? '')),
+                'unit_name'          => $product?->unit?->name ?? '-',
+                'beginning_quantity' => $item->beginning_quantity,
+                'beginning_price'    => $item->beginning_price,
+                'beginning_total'    => $item->beginning_total,
+                'stock_in_quantity'  => $item->stock_in_quantity,
+                'stock_in_total'     => $item->stock_in_total,
+                'available_quantity' => $item->available_quantity,
+                'available_price'    => $item->available_price,
+                'available_total'    => $item->available_total,
+                'stock_out_quantity' => $item->stock_out_quantity,
+                'stock_out_total'    => $item->stock_out_total,
+                'ending_quantity'    => $item->ending_quantity,
+                'ending_total'       => $item->ending_total,
+                'counted_quantity'   => $item->counted_quantity,
+                'variance_quantity'  => $item->variance_quantity,
+                'average_price'      => $item->average_price,
+            ];
+        });
 
         // Approval button logic
         $approvalInfo = $this->canShowApprovalButton($monthlyStockReport->id);
@@ -481,10 +745,10 @@ class StockController extends Controller
         }
 
         return response()->json([
-            'report'          => $data['report']->values(),
+            'report'          => $reportItems->values(),
             'start_date'      => $monthlyStockReport->start_date?->format('Y-m-d'),
             'end_date'        => $monthlyStockReport->end_date?->format('Y-m-d'),
-            'warehouse_names' => $data['warehouseNames'],
+            'warehouse_names' => implode(', ', $monthlyStockReport->warehouse_names ?? []),
             'reference_no'    => $monthlyStockReport->reference_no,
             'pdf_file_path'   => $monthlyStockReport->pdf_file_path,
             'report_date'     => $monthlyStockReport->report_date,
@@ -516,7 +780,6 @@ class StockController extends Controller
             })->toArray(),
         ]);
     }
-
 
     // ===================================================================
     // Generate Ad-hoc Stock Report (Live Search + PDF)

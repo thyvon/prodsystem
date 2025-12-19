@@ -34,6 +34,11 @@ class MonthlyStockReport extends Model
         'warehouse_names' => 'array',
     ];
 
+    public function items()
+    {
+        return $this->hasMany(MonthlyStockReportItems::class, 'report_id');
+    }
+
     // Relationships
     public function creator()
     {
