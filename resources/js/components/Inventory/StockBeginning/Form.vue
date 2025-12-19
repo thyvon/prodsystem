@@ -502,7 +502,7 @@ const importFile = async () => {
         description: r.description || '',
         unit_name: r.unit_name || '',
         quantity: parseFloat(r.quantity) || 0,
-        unit_price: parseFloat(r.unit_price) || 0,
+        unit_price: r.unit_price ? Number(parseFloat(r.unit_price).toFixed(15)) : 0,
         remarks: r.remarks || ''
       })
     })
