@@ -28,32 +28,66 @@ class StockLedgerService
 
     public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
     {
+        $transactionDate      = date('Y-m-d', strtotime($transactionDate));
+        $prevMonthStart       = date('Y-m-01', strtotime($transactionDate . ' -1 month'));
+        $prevMonthEnd         = date('Y-m-t', strtotime($transactionDate . ' -1 month'));
+        $currentMonthStart    = date('Y-m-01', strtotime($transactionDate));
+
         if ($warehouseId !== null) {
-            // Filter by specific warehouse
             $sql = "
-                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+                SELECT
+                    -- Beginning stock from Stock_Count of previous month
+                    COALESCE(SUM(CASE 
+                        WHEN transaction_type='Stock_Count' AND transaction_date BETWEEN ? AND ? THEN quantity
+                        ELSE 0 END), 0)
+                    +
+                    -- Current month movements
+                    COALESCE(SUM(CASE 
+                        WHEN transaction_type='Stock_In' AND transaction_date BETWEEN ? AND ? THEN quantity
+                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN -quantity
+                        ELSE 0 END), 0)
+                    AS stock_on_hand
                 FROM stock_ledgers
                 WHERE product_id = ?
                 AND parent_warehouse = ?
-                AND transaction_date <= ?
-                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
             ";
 
-            $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
+            $params = [
+                // Stock_Count previous month
+                $prevMonthStart, $prevMonthEnd,
+                // Current month movements
+                $currentMonthStart, $transactionDate, // Stock_In
+                $currentMonthStart, $transactionDate, // Stock_Out
+                // Where clause
+                $productId, $warehouseId
+            ];
         } else {
-            // Sum across all warehouses
             $sql = "
-                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+                SELECT
+                    COALESCE(SUM(CASE 
+                        WHEN transaction_type='Stock_Count' AND transaction_date BETWEEN ? AND ? THEN quantity
+                        ELSE 0 END), 0)
+                    +
+                    COALESCE(SUM(CASE 
+                        WHEN transaction_type='Stock_In' AND transaction_date BETWEEN ? AND ? THEN quantity
+                        WHEN transaction_type='Stock_Out' AND transaction_date BETWEEN ? AND ? THEN -quantity
+                        ELSE 0 END), 0)
+                    AS stock_on_hand
                 FROM stock_ledgers
                 WHERE product_id = ?
-                AND transaction_date <= ?
-                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
             ";
 
-            $result = DB::selectOne($sql, [$productId, $transactionDate]);
+            $params = [
+                $prevMonthStart, $prevMonthEnd,       // Stock_Count previous month
+                $currentMonthStart, $transactionDate, // Stock_In
+                $currentMonthStart, $transactionDate, // Stock_Out
+                $productId
+            ];
         }
 
-        return (float) $result->stock_on_hand;
+        $result = DB::selectOne($sql, $params);
+
+        return (float) ($result->stock_on_hand ?? 0);
     }
 
 
