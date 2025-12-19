@@ -46,50 +46,72 @@ class StockLedgerService
 
     public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
     {
-        $prevMonthStart = Carbon::parse($transactionDate)->subMonthNoOverflow()->startOfMonth();
-        $prevMonthEnd   = Carbon::parse($transactionDate)->subMonthNoOverflow()->endOfMonth();
-        $currentMonthStart = Carbon::parse($transactionDate)->startOfMonth();
+        $transactionDate      = date('Y-m-d', strtotime($transactionDate));
+        $prevMonthStart       = date('Y-m-01', strtotime($transactionDate . ' -1 month'));
+        $prevMonthEnd         = date('Y-m-t', strtotime($transactionDate . ' -1 month'));
+        $currentMonthStart    = date('Y-m-01', strtotime($transactionDate));
 
-        $ledgerQuery = StockLedger::query()
-            ->where('product_id', $productId)
-            ->when($warehouseId, fn($q) => $q->where('parent_warehouse', $warehouseId))
-            ->where(function ($q) use ($prevMonthStart, $prevMonthEnd, $currentMonthStart, $transactionDate) {
-                $q->where(function ($q) use ($prevMonthStart, $prevMonthEnd) {
-                    // Beginning stock from previous month
-                    $q->where('transaction_type', 'Stock_Begin')
-                    ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
-                })
-                ->orWhere(function ($q) use ($currentMonthStart, $transactionDate) {
-                    // Stock movements from start of current month to transaction date
-                    $q->whereIn('transaction_type', ['Stock_In','Stock_Out'])
-                    ->whereBetween('transaction_date', [$currentMonthStart, $transactionDate]);
-                });
-            })
-            ->selectRaw("
-                SUM(CASE 
-                    WHEN transaction_type='Stock_Begin' THEN quantity 
-                    ELSE 0 
-                END) AS begin_qty,
-                SUM(CASE 
-                    WHEN transaction_type='Stock_In' AND transaction_date >= ? THEN quantity 
-                    ELSE 0 
-                END) AS in_qty,
-                SUM(CASE 
-                    WHEN transaction_type='Stock_Out' AND transaction_date >= ? THEN quantity 
-                    ELSE 0 
-                END) AS out_qty
-            ", [$currentMonthStart, $currentMonthStart]);
+        if ($warehouseId !== null) {
+            $sql = "
+                SELECT
+                    COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_Begin' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    ) 
+                    + COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_In' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    )
+                    - COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_Out' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    ) AS stock_on_hand
+                FROM stock_ledgers
+                WHERE product_id = ?
+                AND parent_warehouse = ?
+            ";
 
-        $result = $ledgerQuery->first();
+            $params = [
+                // Stock_Begin previous month
+                $prevMonthStart, $prevMonthEnd,
+                // Stock_In current month
+                $currentMonthStart, $transactionDate,
+                // Stock_Out current month
+                $currentMonthStart, $transactionDate,
+                // Where clause
+                $productId, $warehouseId
+            ];
+        } else {
+            $sql = "
+                SELECT
+                    COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_Begin' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    ) 
+                    + COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_In' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    )
+                    - COALESCE(
+                        SUM(CASE WHEN transaction_type='Stock_Out' 
+                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
+                    ) AS stock_on_hand
+                FROM stock_ledgers
+                WHERE product_id = ?
+            ";
 
-        $beginQty = (float) ($result->begin_qty ?? 0);
-        $inQty    = (float) ($result->in_qty ?? 0);
-        $outQty   = (float) ($result->out_qty ?? 0);
+            $params = [
+                $prevMonthStart, $prevMonthEnd,    // Stock_Begin previous month
+                $currentMonthStart, $transactionDate, // Stock_In current month
+                $currentMonthStart, $transactionDate, // Stock_Out current month
+                $productId
+            ];
+        }
 
-        // Final stock
-        return $beginQty + $inQty - $outQty;
+        $result = DB::selectOne($sql, $params);
+
+        return (float) ($result->stock_on_hand ?? 0);
     }
-
 
 
     public function getAvgPrice(int $productId, ?string $endDate = null): float
