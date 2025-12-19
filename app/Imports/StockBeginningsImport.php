@@ -45,7 +45,7 @@ class StockBeginningsImport implements ToCollection, WithHeadingRow
             }, $row->toArray());
 
             $rowData['quantity'] = (float) $rowData['quantity'];
-            $rowData['unit_price'] = round((float) $rowData['unit_price'], 15);
+            $rowData['unit_price'] = (float) $rowData['unit_price'];
 
             $validator = Validator::make($rowData, [
                 'item_code' => 'required|string',
