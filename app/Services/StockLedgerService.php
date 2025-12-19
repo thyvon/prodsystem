@@ -28,10 +28,12 @@ class StockLedgerService
 
     public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
     {
-        $transactionDate      = date('Y-m-d', strtotime($transactionDate));
-        $prevMonthStart       = date('Y-m-01', strtotime($transactionDate . ' -1 month'));
-        $prevMonthEnd         = date('Y-m-t', strtotime($transactionDate . ' -1 month'));
-        $currentMonthStart    = date('Y-m-01', strtotime($transactionDate));
+        $transactionDate = date('Y-m-d', strtotime($transactionDate));
+        $prevMonthEnd   = date('Y-m-t', strtotime($transactionDate . ' -1 month'));
+        $prevMonthStart = date('Y-m-01', strtotime($prevMonthEnd));
+        $currentMonthStart = date('Y-m-01', strtotime($transactionDate));
+        $currentMonthEnd   = date('Y-m-t', strtotime($transactionDate));
+
 
         if ($warehouseId !== null) {
             $sql = "
