@@ -130,7 +130,7 @@
                     </td>
                   </tr>
                   <tr v-if="form.items.length === 0">
-                    <td colspan="10" class="text-center text-muted">No items added</td>
+                    <td colspan="12" class="text-center text-muted">No items added</td>
                   </tr>
                 </tbody>
               </table>
