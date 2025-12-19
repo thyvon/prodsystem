@@ -60,7 +60,7 @@ class StockLedgerService
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
-                        -
+                        +
 
                         -- Current month Stock Out
                         COALESCE(SUM(CASE
@@ -95,7 +95,7 @@ class StockLedgerService
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
-                        -
+                        +
 
                         COALESCE(SUM(CASE
                             WHEN transaction_type = 'Stock_Out'
