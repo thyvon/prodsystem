@@ -73,7 +73,7 @@ class StockBeginningsImport implements ToCollection, WithHeadingRow
                 'description'      => $product->product->name . ' ' . $product->description,
                 'unit_name' => $product->product->unit->name,
                 'quantity' => $rowData['quantity'],
-                'unit_price' => $rowData['unit_price'],
+                'unit_price' => round($rowData['unit_price'], 15),
                 'remarks' => $rowData['remarks'] ?? null,
             ];
         }
