@@ -10,113 +10,52 @@ use App\Models\StockLedger;
 class StockLedgerService
 {
 
-    // New Fomular
-
-    // public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
+    // public function getStockOnHand(int $productId, int $warehouseId, string $transactionDate): float
     // {
-    //     if ($warehouseId !== null) {
-    //         // Filter by specific warehouse
-    //         $sql = "
-    //             SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
-    //             FROM stock_ledgers
-    //             WHERE product_id = ?
-    //             AND parent_warehouse = ?
-    //             AND transaction_date <= ?
-    //             AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
-    //         ";
+    //     $sql = "
+    //         SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+    //         FROM stock_ledgers
+    //         WHERE product_id = ?
+    //         AND parent_warehouse = ?
+    //         AND transaction_date <= ?
+    //         AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //     ";
 
-    //         $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
-    //     } else {
-    //         // Sum across all warehouses
-    //         $sql = "
-    //             SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
-    //             FROM stock_ledgers
-    //             WHERE product_id = ?
-    //             AND transaction_date <= ?
-    //             AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
-    //         ";
-
-    //         $result = DB::selectOne($sql, [$productId, $transactionDate]);
-    //     }
+    //     $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
 
     //     return (float) $result->stock_on_hand;
     // }
 
-    // Old Fomular From Excel
-
     public function getStockOnHand(int $productId, ?int $warehouseId, string $transactionDate): float
     {
-        $transactionDate      = date('Y-m-d', strtotime($transactionDate));
-        $prevMonthStart       = date('Y-m-01', strtotime($transactionDate . ' -1 month'));
-        $prevMonthEnd         = date('Y-m-t', strtotime($transactionDate . ' -1 month'));
-        $currentMonthStart    = date('Y-m-01', strtotime($transactionDate));
-
         if ($warehouseId !== null) {
+            // Filter by specific warehouse
             $sql = "
-                SELECT
-                    COALESCE(
-                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Begin' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
-                                ELSE 0 END), 0
-                    ) AS beginning_stock,
-
-                    COALESCE(
-                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
-                                ELSE 0 END), 0
-                    ) AS current_month_movement
-                FROM stock_ledgers
-                WHERE product_id = ? AND parent_warehouse = ?
-            ";
-
-            $params = [
-                // Previous month movements (Nov 1 → Nov 30)
-                $prevMonthStart, $prevMonthEnd,
-                $prevMonthStart, $prevMonthEnd,
-                $prevMonthStart, $prevMonthEnd,
-                // Current month movements (Dec 1 → transaction date)
-                $currentMonthStart, $transactionDate,
-                $currentMonthStart, $transactionDate,
-                // Where clause
-                $productId, $warehouseId
-            ];
-        } else {
-            $sql = "
-                SELECT
-                    COALESCE(
-                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Begin' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
-                                ELSE 0 END), 0
-                    ) AS beginning_stock,
-
-                    COALESCE(
-                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
-                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
-                                ELSE 0 END), 0
-                    ) AS current_month_movement
+                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
                 FROM stock_ledgers
                 WHERE product_id = ?
+                AND parent_warehouse = ?
+                AND transaction_date <= ?
+                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
             ";
 
-            $params = [
-                $prevMonthStart, $prevMonthEnd,
-                $prevMonthStart, $prevMonthEnd,
-                $prevMonthStart, $prevMonthEnd,
-                $currentMonthStart, $transactionDate,
-                $currentMonthStart, $transactionDate,
-                $productId
-            ];
+            $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
+        } else {
+            // Sum across all warehouses
+            $sql = "
+                SELECT COALESCE(SUM(quantity), 0) AS stock_on_hand
+                FROM stock_ledgers
+                WHERE product_id = ?
+                AND transaction_date <= ?
+                AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+            ";
+
+            $result = DB::selectOne($sql, [$productId, $transactionDate]);
         }
 
-        $result = DB::selectOne($sql, $params);
-
-        $beginning = (float) ($result->beginning_stock ?? 0);
-        $current   = (float) ($result->current_month_movement ?? 0);
-
-        return $beginning + $current;
+        return (float) $result->stock_on_hand;
     }
+
 
     public function getAvgPrice(int $productId, ?string $endDate = null): float
     {
