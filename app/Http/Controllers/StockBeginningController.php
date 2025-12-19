@@ -227,7 +227,7 @@ class StockBeginningController extends Controller
                         'product_id'   => $item['product_id'],
                         'quantity'     => $item['quantity'],
                         'unit_price'   => $item['unit_price'],
-                        'total_value'  => $item['quantity'] * $item['unit_price'],
+                        'total_value'  => round($item['quantity'] * $item['unit_price'], 15),
                         'remarks'      => $item['remarks'] ?? null,
                         // 'warehouse_id' => $validated['warehouse_id'],
                         'created_by'   => auth()->id() ?? 1,
@@ -381,7 +381,7 @@ class StockBeginningController extends Controller
                             'product_id'  => $item['product_id'],
                             'quantity'    => $item['quantity'],
                             'unit_price'  => $item['unit_price'],
-                            'total_value' => $item['quantity'] * $item['unit_price'],
+                            'total_value'  => round($item['quantity'] * $item['unit_price'], 15),
                             'remarks'     => $item['remarks'] ?? null,
                             'updated_by'  => $userId,
                         ]);
