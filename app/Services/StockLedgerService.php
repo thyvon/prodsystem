@@ -46,9 +46,9 @@ class StockLedgerService
             $sql = "
                 SELECT
                     (
-                        -- Beginning stock from Stock_Count (previous month)
+                        -- Beginning stock from Stock_Begin (previous month)
                         COALESCE(SUM(CASE
-                            WHEN transaction_type = 'Stock_Count'
+                            WHEN transaction_type = 'Stock_Begin'
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
@@ -74,7 +74,7 @@ class StockLedgerService
             ";
 
             $params = [
-                $prevMonthStart, $prevMonthEnd,       // Stock_Count (prev month)
+                $prevMonthStart, $prevMonthEnd,       // Stock_Begin (prev month)
                 $currentMonthStart, $transactionDate, // Stock_In
                 $currentMonthStart, $transactionDate, // Stock_Out
                 $productId, $warehouseId
@@ -84,7 +84,7 @@ class StockLedgerService
                 SELECT
                     (
                         COALESCE(SUM(CASE
-                            WHEN transaction_type = 'Stock_Count'
+                            WHEN transaction_type = 'Stock_Begin'
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
