@@ -55,28 +55,28 @@ class StockLedgerService
             $sql = "
                 SELECT
                     COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_Begin' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    ) 
-                    + COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_In' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    )
-                    - COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_Out' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    ) AS stock_on_hand
+                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Begin' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
+                                ELSE 0 END), 0
+                    ) AS beginning_stock,
+
+                    COALESCE(
+                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
+                                ELSE 0 END), 0
+                    ) AS current_month_movement
                 FROM stock_ledgers
-                WHERE product_id = ?
-                AND parent_warehouse = ?
+                WHERE product_id = ? AND parent_warehouse = ?
             ";
 
             $params = [
-                // Stock_Begin previous month
+                // Previous month movements (Nov 1 → Nov 30)
                 $prevMonthStart, $prevMonthEnd,
-                // Stock_In current month
+                $prevMonthStart, $prevMonthEnd,
+                $prevMonthStart, $prevMonthEnd,
+                // Current month movements (Dec 1 → transaction date)
                 $currentMonthStart, $transactionDate,
-                // Stock_Out current month
                 $currentMonthStart, $transactionDate,
                 // Where clause
                 $productId, $warehouseId
@@ -85,34 +85,38 @@ class StockLedgerService
             $sql = "
                 SELECT
                     COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_Begin' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    ) 
-                    + COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_In' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    )
-                    - COALESCE(
-                        SUM(CASE WHEN transaction_type='Stock_Out' 
-                            AND transaction_date BETWEEN ? AND ? THEN quantity ELSE 0 END), 0
-                    ) AS stock_on_hand
+                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Begin' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
+                                ELSE 0 END), 0
+                    ) AS beginning_stock,
+
+                    COALESCE(
+                        SUM(CASE WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_In' THEN quantity
+                                WHEN transaction_date BETWEEN ? AND ? AND transaction_type='Stock_Out' THEN -quantity
+                                ELSE 0 END), 0
+                    ) AS current_month_movement
                 FROM stock_ledgers
                 WHERE product_id = ?
             ";
 
             $params = [
-                $prevMonthStart, $prevMonthEnd,    // Stock_Begin previous month
-                $currentMonthStart, $transactionDate, // Stock_In current month
-                $currentMonthStart, $transactionDate, // Stock_Out current month
+                $prevMonthStart, $prevMonthEnd,
+                $prevMonthStart, $prevMonthEnd,
+                $prevMonthStart, $prevMonthEnd,
+                $currentMonthStart, $transactionDate,
+                $currentMonthStart, $transactionDate,
                 $productId
             ];
         }
 
         $result = DB::selectOne($sql, $params);
 
-        return (float) ($result->stock_on_hand ?? 0);
-    }
+        $beginning = (float) ($result->beginning_stock ?? 0);
+        $current   = (float) ($result->current_month_movement ?? 0);
 
+        return $beginning + $current;
+    }
 
     public function getAvgPrice(int $productId, ?string $endDate = null): float
     {
