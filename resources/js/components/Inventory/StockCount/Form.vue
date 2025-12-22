@@ -389,6 +389,119 @@ const updateUserSelect = (index) => {
   $(select).val(currentValue).trigger('change')
 }
 
+// ==================== Products Modal Helpers ====================
+const addSelectedItems = () => {
+  const table = $(itemsModal.value).find('table').DataTable()
+  const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
+
+  const existingIds = new Set(form.value.items.map(i => i.product_id))
+  selected.forEach(p => {
+    if (!existingIds.has(p.id)) {
+      form.value.items.push({
+        product_id: p.id,
+        item_code: p.item_code,
+        product_name: p.product_name || '',
+        description: p.description || '',
+        unit_name: p.unit_name,
+        ending_quantity: parseFloat(p.stock_on_hand) || 0,
+        counted_quantity: parseFloat(p.stock_on_hand) || 0,
+        stock_on_hand: parseFloat(p.stock_on_hand) || 0,
+        average_price: 0,
+        remarks: ''
+      })
+    }
+  })
+
+  $(itemsModal.value).find('.select-item').prop('checked', false)
+  $(itemsModal.value).modal('hide')
+}
+
+const removeItem = i => form.value.items.splice(i, 1)
+const closeItemsModal = () => $(itemsModal.value).modal('hide')
+const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
+
+// ==================== File Import ====================
+const triggerFileInput = () => fileInput.value.click()
+const handleFileUpload = e => { if (e.target.files[0]) importFile() }
+
+const importFile = async () => {
+  const file = fileInput.value.files[0]
+  if (!file) return
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
+    return
+  }
+
+  isImporting.value = true
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const { data } = await axios.post('/api/inventory/stock-counts/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    if (data.errors?.length) {
+      showAlert('Error', `Errors:<br>${data.errors.join('<br>')}`, 'danger', { html: true })
+      return
+    }
+
+    const rows = data.data?.items || []
+    if (!rows.length) {
+      showAlert('Warning', 'No valid rows found in Excel.', 'warning')
+      return
+    }
+
+    const existingIds = new Set(form.value.items.map(i => i.product_id))
+    rows.forEach(r => {
+      if (!existingIds.has(r.product_id)) {
+        form.value.items.push({
+          product_id: r.product_id,
+          item_code: r.product_code,
+          product_name: r.product_name || '',
+          description: r.description || '',
+          unit_name: r.unit_name || '',
+          ending_quantity: 0,
+          stock_on_hand: 0,
+          average_price: 0,
+          counted_quantity: parseFloat(r.counted_quantity ?? 0),
+          remarks: r.remark || ''
+        })
+      }
+    })
+
+    const productIds = rows.map(r => r.product_id)
+    const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
+      warehouse_id: form.value.warehouse_id,
+      transaction_date: form.value.transaction_date,
+      product_ids: productIds
+    })
+
+    const updatedMap = Object.fromEntries((refreshed.data || []).map(u => [u.product_id, u]))
+    form.value.items = form.value.items.map(item => {
+      const updated = updatedMap[item.product_id]
+      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+    })
+
+    fileInput.value.value = ''
+    showAlert('Success', `Imported ${rows.length} items and refreshed stock successfully`, 'success')
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Failed to import', 'danger')
+  } finally {
+    isImporting.value = false
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+const downloadSampleExcel = () => {
+  const link = document.createElement('a')
+  link.href = '/sampleExcel/stock_count_sample.xlsx'
+  link.download = 'stock_count_sample.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 const addApproval = () => {
   form.value.approvals.push({ request_type: '', user_id: null, isDefault: false })
   const index = form.value.approvals.length - 1
