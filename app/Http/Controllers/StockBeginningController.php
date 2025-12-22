@@ -80,11 +80,10 @@ class StockBeginningController extends Controller
         try {
             // Load related data including approvals
             $mainStockBeginning->load([
-                'items.productVariant.product.unit',
-                'warehouse.building.campus',
-                'createdBy',
-                'updatedBy',
-                'creatorPosition',
+                'items.productVariant.product.unit:id,name',
+                'warehouse.building.campus:id,short_name',
+                'createdBy:id,name,current_position_id,profile_url,signature_url,card_number',
+                'creatorPosition:id,title',
                 'approvals.responder',
                 'approvals.responderPosition',
             ]);
@@ -265,7 +264,7 @@ class StockBeginningController extends Controller
 
         // Eager load necessary relationships
         $mainStockBeginning->load([
-            'items.productVariant.product.unit',
+            'items.productVariant.product.unit:id,name',
             'approvals.responder'
         ]);
 
