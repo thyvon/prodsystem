@@ -3,7 +3,7 @@
 
 @section('content')
 <stock-count-form
-    :initial-data='@json($initialData)'>
+    :initial-data='@json($initialData ?? [])'>
 />
 @endsection
 

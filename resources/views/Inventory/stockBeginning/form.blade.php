@@ -3,7 +3,7 @@
 
 @section('content')
 <stock-beginning-form
-    :initial-data='@json($stockBeginningData)'>
+    :initial-data='@json($stockBeginningData ?? [])'>
 />
 @endsection
 

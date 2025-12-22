@@ -3,7 +3,7 @@
 
 @section('content')
   <stock-count-show
-      :initial-data='@json($initialData)'
+      :initial-data='@json($initialData ?? [])'
   ></stock-count-show>
 @endsection
 
