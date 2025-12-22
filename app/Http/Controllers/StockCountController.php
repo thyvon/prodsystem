@@ -336,35 +336,14 @@ class StockCountController extends Controller
     {
         $this->authorize('update', $stockCount);
 
-        // Eager load relationships
+        // Eager load only needed relationships
         $stockCount->load([
-            'items.product.product.unit',
+            'items.product.product.unit:id,name',
             'approvals.responder'
         ]);
 
-        $items = $stockCount->items->map(function ($item) use ($stockCount) {
+        $items = $stockCount->items->map(function ($item) {
             $product = $item->product?->product;
-
-            // Compute stock and average price safely
-            $stockOnHand = 0;
-            $averagePrice = 0;
-
-            if ($item->product_id) {
-                try {
-                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
-                        $item->product_id,
-                        $stockCount->warehouse_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-
-                try {
-                    $averagePrice = $this->stockLedgerService->getAvgPrice(
-                        $item->product_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-            }
 
             return [
                 'id' => $item->id,
@@ -375,8 +354,6 @@ class StockCountController extends Controller
                 'ending_quantity' => $item->ending_quantity,
                 'counted_quantity' => $item->counted_quantity,
                 'remarks' => $item->remarks,
-                'stock_on_hand' => $stockOnHand,
-                'average_price' => $averagePrice,
             ];
         });
 
@@ -404,6 +381,7 @@ class StockCountController extends Controller
             'initialData' => $initialData,
         ]);
     }
+
 
     public function submitApproval(Request $request, StockCount $stockCount, ApprovalService $approvalService): JsonResponse 
     {
