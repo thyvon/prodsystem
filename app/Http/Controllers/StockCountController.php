@@ -135,8 +135,6 @@ class StockCountController extends Controller
             'approval_buttons' => $approvalButtons,
         ];
 
-        Log::info('Stock Count Show Initial Data', ['data' => $initialData]);
-
         return view('Inventory.stock-count.show', [
             'initialData' => $initialData
         ]);
