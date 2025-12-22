@@ -55,8 +55,7 @@
               <th>Unit</th>
               <th class="text-center">Ending Qty</th>
               <th class="text-center">Counted Qty</th>
-              <th class="text-end">Unit Price</th>
-              <th class="text-end">Total Value</th>
+              <th class="text-end">Variance</th>
               <th>Remarks</th>
             </tr>
           </thead>
@@ -68,8 +67,7 @@
               <td>{{ item.unit_name ?? 'N/A' }}</td>
               <td class="text-center">{{ formatQty(item.ending_quantity) }}</td>
               <td class="text-center">{{ formatQty(item.counted_quantity) }}</td>
-              <td class="text-end">{{ formatAmount(item.average_price) }}</td>
-              <td class="text-end">{{ formatAmount(item.counted_quantity * item.average_price) }}</td>
+              <td class="text-end">{{ formatQty(item.ending_quantity - item.counted_quantity) }}</td>
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
             <tr class="table-secondary font-weight-bold">

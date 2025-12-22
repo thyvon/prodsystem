@@ -72,29 +72,9 @@ class StockCountController extends Controller
             'approvals.responderPosition'
         ]);
 
-        // Map items
-        $items = $stockCount->items->map(function ($item) use ($stockCount) {
+        // Map items without stock and price
+        $items = $stockCount->items->map(function ($item) {
             $product = $item->product?->product;
-
-            $stockOnHand = 0;
-            $averagePrice = 0;
-
-            if ($item->product_id) {
-                try {
-                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
-                        $item->product_id,
-                        $stockCount->warehouse_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-
-                try {
-                    $averagePrice = $this->stockLedgerService->getAvgPrice(
-                        $item->product_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-            }
 
             return [
                 'id' => $item->id,
@@ -105,8 +85,6 @@ class StockCountController extends Controller
                 'ending_quantity' => $item->ending_quantity,
                 'counted_quantity' => $item->counted_quantity,
                 'remarks' => $item->remarks,
-                'stock_on_hand' => $stockOnHand,
-                'average_price' => $averagePrice,
             ];
         });
 
@@ -156,6 +134,8 @@ class StockCountController extends Controller
             'approvals' => $approvals,
             'approval_buttons' => $approvalButtons,
         ];
+
+        Log::info('Stock Count Show Initial Data', ['data' => $initialData]);
 
         return view('Inventory.stock-count.show', [
             'initialData' => $initialData
