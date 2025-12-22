@@ -58,23 +58,110 @@ class StockCountController extends Controller
         return view('Inventory.stock-count.form');
     }
 
-    public function edit(StockCount $stockCount): View
-    {
-        $this->authorize('update', $stockCount);
-
-        return view('Inventory.stock-count.form', [
-            'stockCountId' => $stockCount->id,
-        ]);
-    }
-
     public function show(StockCount $stockCount): View
     {
         $this->authorize('view', $stockCount);
 
+        // Eager load nested relationships
+        $stockCount->load([
+            'items.product.product.unit',
+            'approvals.responder',
+            'warehouse.building.campus',
+            'creator',
+            'creatorPosition',
+            'approvals.responderPosition'
+        ]);
+
+        // Map items
+        $items = $stockCount->items->map(function ($item) use ($stockCount) {
+            $product = $item->product?->product;
+
+            $stockOnHand = 0;
+            $averagePrice = 0;
+
+            if ($item->product_id) {
+                try {
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $item->product_id,
+                        $stockCount->warehouse_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+
+                try {
+                    $averagePrice = $this->stockLedgerService->getAvgPrice(
+                        $item->product_id,
+                        $stockCount->transaction_date
+                    );
+                } catch (\Exception $e) {}
+            }
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_code' => $item->product?->item_code ?? '',
+                'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
+                'unit_name' => $product?->unit->name ?? '',
+                'ending_quantity' => $item->ending_quantity,
+                'counted_quantity' => $item->counted_quantity,
+                'remarks' => $item->remarks,
+                'stock_on_hand' => $stockOnHand,
+                'average_price' => $averagePrice,
+            ];
+        });
+
+        // Map approvals
+        $approvalLabels = ['initial' => 'Initialed', 'approve' => 'Approved'];
+
+        $approvals = $stockCount->approvals->map(fn($a) => [
+            'id' => $a->id,
+            'user_id' => $a->responder_id,
+            'request_type' => $a->request_type,
+            'approval_status' => $a->approval_status,
+            'responder_name' => $a->responder?->name ?? '',
+            'position_name' => $a->responderPosition?->title ?? '',
+            'profile_picture' => $a->responder?->profile_url ?? '',
+            'signature' => $a->responder?->signature_url ?? '',
+            'responded_date' => $a->responded_date ?? '',
+            'comment' => $a->comment ?? '',
+            'label' => $approvalLabels[$a->request_type] ?? '',
+        ]);
+
+        $approvalButtons = $this->canShowApprovalButton($stockCount->id);
+
+        // Mark current user's pending approvals as seen
+        if ($approvalButtons['showButton']) {
+            $stockCount->approvals()
+                ->where('responder_id', auth()->id())
+                ->where('approval_status', 'Pending')
+                ->where('is_seen', false)
+                ->update(['is_seen' => true]);
+        }
+
+        // Prepare initial data for Vue props
+        $initialData = [
+            'id' => $stockCount->id,
+            'transaction_date' => $stockCount->transaction_date,
+            'warehouse_id' => $stockCount->warehouse_id,
+            'warehouse_name' => $stockCount->warehouse->name,
+            'warehouse_campus' => $stockCount->warehouse->building->campus->short_name ?? '',
+            'remarks' => $stockCount->remarks,
+            'reference_no' => $stockCount->reference_no,
+            'prepared_by' => $stockCount->creator->name,
+            'creator_position' => $stockCount->creatorPosition?->title ?? '',
+            'creator_profile_picture' => $stockCount->creator->profile_url ?? '',
+            'creator_signature' => $stockCount->creator->signature_url ?? '',
+            'card_number' => $stockCount->creator->card_number ?? '',
+            'items' => $items,
+            'approvals' => $approvals,
+            'approval_buttons' => $approvalButtons,
+        ];
+
         return view('Inventory.stock-count.show', [
-            'stockCountId' => $stockCount->id,
+            'initialData' => $initialData
         ]);
     }
+
 
     public function getStockCountList(Request $request): JsonResponse
     {
@@ -265,20 +352,20 @@ class StockCountController extends Controller
     }
 
 
-    public function getEditData(StockCount $stockCount): JsonResponse
+    public function edit(StockCount $stockCount): View
     {
         $this->authorize('update', $stockCount);
 
-        // Eager load nested relationships
+        // Eager load relationships
         $stockCount->load([
             'items.product.product.unit',
             'approvals.responder'
         ]);
 
         $items = $stockCount->items->map(function ($item) use ($stockCount) {
-            $product = $item->product?->product; // inner product
+            $product = $item->product?->product;
 
-            // Compute stock and price safely
+            // Compute stock and average price safely
             $stockOnHand = 0;
             $averagePrice = 0;
 
@@ -290,7 +377,7 @@ class StockCountController extends Controller
                         $stockCount->transaction_date
                     );
                 } catch (\Exception $e) {}
-                
+
                 try {
                     $averagePrice = $this->stockLedgerService->getAvgPrice(
                         $item->product_id,
@@ -321,116 +408,20 @@ class StockCountController extends Controller
             'responder_name' => $a->responder?->name ?? '',
         ]);
 
-        return response()->json([
-            'message' => 'Stock count edit data retrieved successfully.',
-            'data' => [
-                'id' => $stockCount->id,
-                'transaction_date' => $stockCount->transaction_date,
-                'warehouse_id' => $stockCount->warehouse_id,
-                'remarks' => $stockCount->remarks,
-                'reference_no' => $stockCount->reference_no,
-                'items' => $items,
-                'approvals' => $approvals,
-                'buttonSubmitText' => $stockCount->approval_status === 'Returned' ? 'Re-Submit' : 'Update',
-            ],
-        ]);
-    }
-
-    public function getShowData(StockCount $stockCount): JsonResponse
-    {
-        $this->authorize('view', $stockCount);
-
-        // Eager load nested relationships
-        $stockCount->load([
-            'items.product.product.unit',
-            'approvals.responder'
-        ]);
-
-        $items = $stockCount->items->map(function ($item) use ($stockCount) {
-            $product = $item->product?->product; // inner product
-
-            // Compute stock and price safely
-            $stockOnHand = 0;
-            $averagePrice = 0;
-
-            if ($item->product_id) {
-                try {
-                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
-                        $item->product_id,
-                        $stockCount->warehouse_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-
-                try {
-                    $averagePrice = $this->stockLedgerService->getAvgPrice(
-                        $item->product_id,
-                        $stockCount->transaction_date
-                    );
-                } catch (\Exception $e) {}
-            }
-
-            return [
-                'id' => $item->id,
-                'product_id' => $item->product_id,
-                'product_code' => $item->product?->item_code ?? '',
-                'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
-                'unit_name' => $product?->unit->name ?? '',
-                'ending_quantity' => $item->ending_quantity,
-                'counted_quantity' => $item->counted_quantity,
-                'remarks' => $item->remarks,
-                'stock_on_hand' => $stockOnHand,
-                'average_price' => $averagePrice,
-            ];
-        });
-
-        $approvalLabels = [
-            'initial' => 'Initialed',
-            'approve' => 'Approved',
+        // Prepare initial data for Vue props
+        $initialData = [
+            'id' => $stockCount->id,
+            'transaction_date' => $stockCount->transaction_date,
+            'warehouse_id' => $stockCount->warehouse_id,
+            'remarks' => $stockCount->remarks,
+            'reference_no' => $stockCount->reference_no,
+            'items' => $items,
+            'approvals' => $approvals,
+            'buttonSubmitText' => $stockCount->approval_status === 'Returned' ? 'Re-Submit' : 'Update',
         ];
 
-        $approvals = $stockCount->approvals->map(fn($a) => [
-            'id' => $a->id,
-            'user_id' => $a->responder_id,
-            'request_type' => $a->request_type,
-            'approval_status' => $a->approval_status,
-            'responder_name' => $a->responder?->name ?? '',
-            'position_name' => $a->responderPosition?->title ?? '',
-            'profile_picture' => $a->responder?->profile_url ?? '',
-            'signature' => $a->responder?->signature_url ?? '',
-            'responded_date' => $a->responded_date ?? '',
-            'comment' => $a->comment ?? '',
-            'label' => $approvalLabels[$a->request_type] ?? '',
-        ]);
-
-        $approvalInfo = $this->canShowApprovalButton($stockCount->id);
-        if ($approvalInfo['showButton']) {
-            $stockCount->approvals()
-                ->where('responder_id', auth()->id())
-                ->where('approval_status', 'Pending')
-                ->where('is_seen', false)
-                ->update(['is_seen' => true]);
-        }
-
-        return response()->json([
-            'message' => 'Stock count show data retrieved successfully.',
-            'data' => [
-                'id' => $stockCount->id,
-                'transaction_date' => $stockCount->transaction_date,
-                'warehouse_id' => $stockCount->warehouse_id,
-                'warehouse_name' => $stockCount->warehouse->name,
-                'warehouse_campus' => $stockCount->warehouse->building->campus->short_name,
-                'remarks' => $stockCount->remarks,
-                'reference_no' => $stockCount->reference_no,
-                'prepared_by' => $stockCount->creator->name,
-                'creator_position' => $stockCount->creatorPosition?->title,
-                'creator_profile_picture' => $stockCount->creator->profile_url,
-                'creator_signature' => $stockCount->creator->signature_url,
-                'card_number' => $stockCount->creator->card_number,
-                'items' => $items,
-                'approvals' => $approvals,
-                'approval_buttons' => $this->canShowApprovalButton($stockCount->id),
-            ],
+        return view('Inventory.stock-count.form', [
+            'initialData' => $initialData,
         ]);
     }
 
@@ -555,6 +546,123 @@ class StockCountController extends Controller
         }
     }
 
+    // public function update(Request $request, StockCount $stockCount): JsonResponse
+    // {
+    //     $this->authorize('update', $stockCount);
+    //     $user = auth()->user();
+
+    //     // 1️⃣ Validate request
+    //     $validated = Validator::make(
+    //         $request->all(),
+    //         array_merge(
+    //             $this->stockCountValidationRules(),
+    //             $this->stockCountItemValidationRules(),
+    //             [
+    //                 'approvals' => 'required|array|min:1',
+    //                 'approvals.*.user_id' => 'required|exists:users,id',
+    //                 'approvals.*.request_type' => 'required|string|in:approve,initial',
+    //             ]
+    //         )
+    //     )->validate();
+
+    //     // 2️⃣ Validate approval permissions
+    //     foreach ($validated['approvals'] as $approval) {
+    //         $approvalUser = User::find($approval['user_id']);
+    //         if (!$approvalUser) {
+    //             return response()->json([
+    //                 'message' => "User ID {$approval['user_id']} not found."
+    //             ], 404);
+    //         }
+
+    //         $permission = "stockCount.{$approval['request_type']}";
+    //         if (!$approvalUser->hasPermissionTo($permission)) {
+    //             return response()->json([
+    //                 'message' => "User ID {$approval['user_id']} does not have permission for {$approval['request_type']}.",
+    //             ], 403);
+    //         }
+    //     }
+
+    //     try {
+    //         return DB::transaction(function () use ($validated, $stockCount, $user) {
+
+    //             // 3️⃣ Update Stock Count header
+    //             $stockCount->update([
+    //                 'transaction_date' => $validated['transaction_date'],
+    //                 'warehouse_id'     => $validated['warehouse_id'],
+    //                 'remarks'          => $validated['remarks'] ?? null,
+    //                 'updated_by'       => $user->id,
+    //                 'position_id'      => $user->current_position_id,
+    //                 'approval_status'  => 'Pending',
+    //             ]);
+
+    //             // 4️⃣ Sync Stock Count Items
+    //             $existingItems = $stockCount->items()->get()->keyBy('id');
+    //             $submittedItemIds = [];
+
+    //             foreach ($validated['items'] as $item) {
+    //                 if (!empty($item['id']) && $existingItems->has($item['id'])) {
+    //                     // Update existing item
+    //                     $existingItem = $existingItems[$item['id']];
+    //                     $existingItem->update([
+    //                         'product_id'       => $item['product_id'],
+    //                         'ending_quantity'  => $item['ending_quantity'],
+    //                         'counted_quantity' => $item['counted_quantity'],
+    //                         'remarks'          => $item['remarks'] ?? null,
+    //                         'updated_by'       => $user->id,
+    //                     ]);
+    //                     $submittedItemIds[] = $item['id'];
+    //                 } else {
+    //                     // Create new item
+    //                     $newItem = $stockCount->items()->create([
+    //                         'product_id'       => $item['product_id'],
+    //                         'ending_quantity'  => $item['ending_quantity'],
+    //                         'counted_quantity' => $item['counted_quantity'],
+    //                         'remarks'          => $item['remarks'] ?? null,
+    //                         'created_by'       => $user->id,
+    //                     ]);
+    //                     $submittedItemIds[] = $newItem->id;
+    //                 }
+    //             }
+
+    //             // 5️⃣ Soft-delete removed items
+    //             $stockCount->items()
+    //                 ->whereNotIn('id', $submittedItemIds)
+    //                 ->get()
+    //                 ->each(function ($item) use ($user) {
+    //                     $item->deleted_by = $user->id;
+    //                     $item->save();
+    //                     $item->delete();
+    //                 });
+
+    //             // 6️⃣ Sync approvals
+    //             $stockCount->approvals()->delete(); // remove old approvals
+    //             $this->storeApprovals($stockCount, $validated['approvals']);
+
+    //             // 7️⃣ Return response with eager loaded relations
+    //             return response()->json([
+    //                 'message' => 'Stock count updated successfully.',
+    //                 'data' => $stockCount->load([
+    //                     'items.product', 
+    //                     'approvals.responder', 
+    //                     'approvals.requester.defaultPosition',
+    //                     'approvals.requester.defaultDepartment',
+    //                     'approvals.requester.defaultCampus'
+    //                 ]),
+    //             ], 200);
+
+    //         });
+    //     } catch (\Exception $e) {
+    //         Log::error('Failed to update Stock Count', [
+    //             'error' => $e->getMessage(),
+    //             'stock_count_id' => $stockCount->id,
+    //         ]);
+
+    //         return response()->json([
+    //             'message' => 'Failed to update Stock Count',
+    //             'error' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
     public function update(Request $request, StockCount $stockCount): JsonResponse
     {
         $this->authorize('update', $stockCount);
@@ -604,44 +712,19 @@ class StockCountController extends Controller
                     'approval_status'  => 'Pending',
                 ]);
 
-                // 4️⃣ Sync Stock Count Items
-                $existingItems = $stockCount->items()->get()->keyBy('id');
-                $submittedItemIds = [];
+                // 4️⃣ Delete all old items
+                $stockCount->items()->delete();
 
+                // 5️⃣ Create new items
                 foreach ($validated['items'] as $item) {
-                    if (!empty($item['id']) && $existingItems->has($item['id'])) {
-                        // Update existing item
-                        $existingItem = $existingItems[$item['id']];
-                        $existingItem->update([
-                            'product_id'       => $item['product_id'],
-                            'ending_quantity'  => $item['ending_quantity'],
-                            'counted_quantity' => $item['counted_quantity'],
-                            'remarks'          => $item['remarks'] ?? null,
-                            'updated_by'       => $user->id,
-                        ]);
-                        $submittedItemIds[] = $item['id'];
-                    } else {
-                        // Create new item
-                        $newItem = $stockCount->items()->create([
-                            'product_id'       => $item['product_id'],
-                            'ending_quantity'  => $item['ending_quantity'],
-                            'counted_quantity' => $item['counted_quantity'],
-                            'remarks'          => $item['remarks'] ?? null,
-                            'created_by'       => $user->id,
-                        ]);
-                        $submittedItemIds[] = $newItem->id;
-                    }
+                    $stockCount->items()->create([
+                        'product_id'       => $item['product_id'],
+                        'ending_quantity'  => $item['ending_quantity'],
+                        'counted_quantity' => $item['counted_quantity'],
+                        'remarks'          => $item['remarks'] ?? null,
+                        'created_by'       => $user->id,
+                    ]);
                 }
-
-                // 5️⃣ Soft-delete removed items
-                $stockCount->items()
-                    ->whereNotIn('id', $submittedItemIds)
-                    ->get()
-                    ->each(function ($item) use ($user) {
-                        $item->deleted_by = $user->id;
-                        $item->save();
-                        $item->delete();
-                    });
 
                 // 6️⃣ Sync approvals
                 $stockCount->approvals()->delete(); // remove old approvals

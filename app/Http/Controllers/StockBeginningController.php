@@ -263,21 +263,13 @@ class StockBeginningController extends Controller
     {
         $this->authorize('update', $mainStockBeginning);
 
-        return view('Inventory.stockBeginning.form', [
-            'stockBeginningId' => $mainStockBeginning->id,
-        ]);
-    }
-
-    public function getEditData(MainStockBeginning $mainStockBeginning): JsonResponse
-    {
-        $this->authorize('update', $mainStockBeginning);
-
-        // Eager load only what's needed
+        // Eager load necessary relationships
         $mainStockBeginning->load([
             'items.productVariant.product.unit',
             'approvals.responder'
         ]);
 
+        // Map items
         $items = $mainStockBeginning->items->map(function ($item) {
             $product = $item->productVariant?->product;
 
@@ -294,27 +286,79 @@ class StockBeginningController extends Controller
             ];
         });
 
+        // Map approvals
         $approvals = $mainStockBeginning->approvals->map(fn($a) => [
             'id' => $a->id,
             'user_id' => $a->responder_id,
-            'request_type' => $a->request_type, // review, check, approve
+            'request_type' => $a->request_type,
             'approval_status' => $a->approval_status,
             'user_name' => $a->responder?->name ?? '',
         ]);
 
-        return response()->json([
-            'message' => 'Stock beginning edit data retrieved successfully.',
-            'data' => [
-                'id' => $mainStockBeginning->id,
-                'beginning_date' => $mainStockBeginning->beginning_date,
-                'warehouse_id' => $mainStockBeginning->warehouse_id,
-                'remarks' => $mainStockBeginning->remarks,
-                'reference_no' => $mainStockBeginning->reference_no,
-                'items' => $items,
-                'approvals' => $approvals,
-            ],
+        // Prepare data for Vue props
+        $stockBeginningData = [
+            'id' => $mainStockBeginning->id,
+            'beginning_date' => $mainStockBeginning->beginning_date,
+            'warehouse_id' => $mainStockBeginning->warehouse_id,
+            'remarks' => $mainStockBeginning->remarks,
+            'reference_no' => $mainStockBeginning->reference_no,
+            'items' => $items,
+            'approvals' => $approvals,
+        ];
+
+        return view('Inventory.stockBeginning.form', [
+            'stockBeginningData' => $stockBeginningData, // Vue can receive this as a prop
         ]);
     }
+
+
+    // public function getEditData(MainStockBeginning $mainStockBeginning): JsonResponse
+    // {
+    //     $this->authorize('update', $mainStockBeginning);
+
+    //     // Eager load only what's needed
+    //     $mainStockBeginning->load([
+    //         'items.productVariant.product.unit',
+    //         'approvals.responder'
+    //     ]);
+
+    //     $items = $mainStockBeginning->items->map(function ($item) {
+    //         $product = $item->productVariant?->product;
+
+    //         return [
+    //             'id' => $item->id,
+    //             'product_id' => $item->product_id,
+    //             'item_code' => $item->productVariant?->item_code ?? '',
+    //             'description' => trim(($item->productVariant?->product?->name ?? '') . ' ' . ($item->productVariant?->description ?? '')),
+    //             'unit_name' => $product?->unit?->name ?? '',
+    //             'quantity' => $item->quantity,
+    //             'unit_price' => $item->unit_price,
+    //             'total' => $item->quantity * $item->unit_price,
+    //             'remarks' => $item->remarks,
+    //         ];
+    //     });
+
+    //     $approvals = $mainStockBeginning->approvals->map(fn($a) => [
+    //         'id' => $a->id,
+    //         'user_id' => $a->responder_id,
+    //         'request_type' => $a->request_type, // review, check, approve
+    //         'approval_status' => $a->approval_status,
+    //         'user_name' => $a->responder?->name ?? '',
+    //     ]);
+
+    //     return response()->json([
+    //         'message' => 'Stock beginning edit data retrieved successfully.',
+    //         'data' => [
+    //             'id' => $mainStockBeginning->id,
+    //             'beginning_date' => $mainStockBeginning->beginning_date,
+    //             'warehouse_id' => $mainStockBeginning->warehouse_id,
+    //             'remarks' => $mainStockBeginning->remarks,
+    //             'reference_no' => $mainStockBeginning->reference_no,
+    //             'items' => $items,
+    //             'approvals' => $approvals,
+    //         ],
+    //     ]);
+    // }
 
 
     /**
@@ -355,7 +399,6 @@ class StockBeginningController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $mainStockBeginning) {
-
                 $userId = auth()->id() ?? 1;
 
                 // 3️⃣ Update Main Stock Beginning Header
@@ -368,51 +411,25 @@ class StockBeginningController extends Controller
                     'position_id'    => auth()->user()->defaultPosition?->id,
                 ]);
 
-                // 4️⃣ Sync Line Items
-                $existingItems = $mainStockBeginning->items()->get()->keyBy('id');
-                $submittedItemIds = [];
+                // 4️⃣ Delete all old items
+                $mainStockBeginning->items()->get()->each(function ($item) use ($userId) {
+                    $item->deleted_by = $userId;
+                    $item->save();
+                    $item->delete(); // triggers booted deleted()
+                });
 
+                // 5️⃣ Create new items
                 foreach ($validated['items'] as $item) {
-                    if (!empty($item['id']) && $existingItems->has($item['id'])) {
-
-                        // UPDATE existing item
-                        $existing = $existingItems[$item['id']];
-                        $existing->update([
-                            'product_id'  => $item['product_id'],
-                            'quantity'    => $item['quantity'],
-                            'unit_price'  => $item['unit_price'],
-                            'total_value'  => round($item['quantity'] * $item['unit_price'], 15),
-                            'remarks'     => $item['remarks'] ?? null,
-                            'updated_by'  => $userId,
-                        ]);
-
-                        $submittedItemIds[] = $item['id'];
-
-                    } else {
-                        // INSERT new item (fires boot event)
-                        $new = $mainStockBeginning->items()->create([
-                            'product_id'  => $item['product_id'],
-                            'quantity'    => $item['quantity'],
-                            'unit_price'  => $item['unit_price'],
-                            'total_value' => $item['quantity'] * $item['unit_price'],
-                            'remarks'     => $item['remarks'] ?? null,
-                            'created_by'  => $userId,
-                            'updated_by'  => $userId,
-                        ]);
-
-                        $submittedItemIds[] = $new->id;
-                    }
+                    $mainStockBeginning->items()->create([
+                        'product_id'  => $item['product_id'],
+                        'quantity'    => $item['quantity'],
+                        'unit_price'  => $item['unit_price'],
+                        'total_value' => round($item['quantity'] * $item['unit_price'], 15),
+                        'remarks'     => $item['remarks'] ?? null,
+                        'created_by'  => $userId,
+                        'updated_by'  => $userId,
+                    ]);
                 }
-
-                // 5️⃣ Soft delete removed items
-                $mainStockBeginning->items()
-                    ->whereNotIn('id', $submittedItemIds)
-                    ->get()
-                    ->each(function ($item) use ($userId) {
-                        $item->deleted_by = $userId;
-                        $item->save();
-                        $item->delete(); // triggers booted deleted()
-                    });
 
                 // 6️⃣ Sync Approvals (delete and recreate)
                 $mainStockBeginning->approvals()->delete();
@@ -440,7 +457,6 @@ class StockBeginningController extends Controller
                     'message' => 'Stock beginning updated successfully.',
                     'data' => $mainStockBeginning->load('items.productVariant', 'approvals.responder'),
                 ]);
-
             });
 
         } catch (\Exception $e) {
@@ -455,6 +471,7 @@ class StockBeginningController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Retrieve users with specific approval permissions for a request type.

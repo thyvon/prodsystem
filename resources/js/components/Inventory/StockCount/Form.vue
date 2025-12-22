@@ -276,15 +276,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import axios from 'axios'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
+import axios from 'axios'
 
-const props = defineProps({ stockCountId: [String, Number] })
+// ==================== Props & Emits ====================
+const props = defineProps({ initialData: Object })
 const emit = defineEmits(['submitted'])
 
-const isEditMode = ref(false)
+// ==================== State ====================
+const isEditMode = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 
@@ -294,25 +296,27 @@ const form = ref({
   reference_no: '',
   remarks: '',
   items: [],
-  approvals: []
+  approvals: [],
+  actionButtonText: 'Submit'
 })
 
 const warehouses = ref([])
 const fileInput = ref(null)
 const itemsModal = ref(null)
 const warehouseSelect = ref(null)
-
 let productsTable = null
 let approvalUsers = ref({ initial: [], approve: [] })
 
+// ==================== Navigation ====================
 const goToIndex = () => window.location.href = '/inventory/stock-counts'
 
-// ==================== Fetching Data ====================
+// ==================== Fetch Warehouses ====================
 const fetchWarehouses = async () => {
   const { data } = await axios.get('/api/main-value-lists/get-warehouses')
   warehouses.value = data.data || data
 }
 
+// ==================== Fetch Approval Users ====================
 const fetchApprovalUsers = async () => {
   const { data } = await axios.get('/api/inventory/stock-counts/get-approval-users')
   approvalUsers.value = { initial: data.initial || [], approve: data.approve || [] }
@@ -330,7 +334,7 @@ const initDatepicker = () => {
   })
 }
 
-// ==================== Warehouse Select ====================
+// ==================== Warehouse Select2 ====================
 const initWarehouseSelect2 = () => {
   if (!warehouseSelect.value) return
   initSelect2(warehouseSelect.value, {
@@ -339,14 +343,15 @@ const initWarehouseSelect2 = () => {
     allowClear: false
   }, val => form.value.warehouse_id = val)
 
-  if (form.value.warehouse_id) {
-    $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
-  }
+  nextTick(() => {
+    if (form.value.warehouse_id) {
+      $(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
+    }
+  })
 }
 
-// ==================== Approvals ====================
+// ==================== Approval Select2 ====================
 const initApprovalSelect2 = () => {
-  // Type selects
   document.querySelectorAll('.approval-type-select').forEach((el, index) => {
     initSelect2(el, { placeholder: 'Select Type', width: '100%' }, val => {
       form.value.approvals[index].request_type = val
@@ -355,8 +360,11 @@ const initApprovalSelect2 = () => {
     $(el).val(form.value.approvals[index].request_type || '').trigger('change')
   })
 
-  // User selects
-  document.querySelectorAll('.user-select').forEach((el, index) => updateUserSelect(index))
+  document.querySelectorAll('.user-select').forEach((el, index) => {
+    updateUserSelect(index)
+    const selectedUserId = form.value.approvals[index].user_id
+    if (selectedUserId) $(el).val(selectedUserId).trigger('change')
+  })
 }
 
 const updateUserSelect = (index) => {
@@ -364,7 +372,6 @@ const updateUserSelect = (index) => {
   if (!select) return
   const type = form.value.approvals[index].request_type
   const users = approvalUsers.value[type] || []
-
   const data = users.map(u => ({ id: u.id, text: u.name }))
 
   if ($(select).hasClass('select2-hidden-accessible')) {
@@ -375,16 +382,13 @@ const updateUserSelect = (index) => {
     })
   }
 
-  $(select).val(form.value.approvals[index].user_id || '').trigger('change')
+  if (form.value.approvals[index].user_id) {
+    $(select).val(form.value.approvals[index].user_id).trigger('change')
+  }
 }
 
 const addApproval = () => {
-  form.value.approvals.push({
-    request_type: '',
-    user_id: null,
-    isDefault: false,
-    availableUsers: []
-  })
+  form.value.approvals.push({ request_type: '', user_id: null, isDefault: false })
   const index = form.value.approvals.length - 1
   nextTick(() => updateUserSelect(index))
 }
@@ -403,175 +407,43 @@ const validateApprovals = () => {
   return types.includes('initial') && types.includes('approve') && new Set(types).size === 2
 }
 
-// ==================== Products Modal ====================
-const openProductsModal = () => {
-  if (!form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
-    return
-  }
+// ==================== Load Edit Data ====================
+const loadEditDataFromProps = async () => {
+  const d = props.initialData
+  if (!d) return
 
-  const table = $(itemsModal.value).find('table')
-  if (!productsTable) {
-    productsTable = table.DataTable({
-      serverSide: true,
-      processing: true,
-      responsive: true,
-      autoWidth: false,
-      ajax: {
-        url: '/api/inventory/stock-counts/get-products',
-        type: 'GET',
-        data: d => ({ ...d, warehouse_id: form.value.warehouse_id, cutoff_date: form.value.transaction_date })
-      },
-      columns: [
-        {
-          data: 'id',
-          orderable: false,
-          render: id => `<div class="custom-control custom-checkbox">
-                          <input type="checkbox" class="custom-control-input select-item" id="chk-${id}" value="${id}">
-                          <label class="custom-control-label" for="chk-${id}"></label>
-                        </div>`
-        },
-        { data: 'item_code' },
-        { data: null, render: (d,t,r) => r.description || '' },
-        { data: 'unit_name' },
-        { data: 'stock_on_hand', className: 'text-right' }
-      ]
-    })
-  } else productsTable.ajax.reload()
+  form.value.transaction_date = d.transaction_date
+  form.value.warehouse_id = d.warehouse_id
+  form.value.reference_no = d.reference_no
+  form.value.remarks = d.remarks
+  form.value.actionButtonText = d.buttonSubmitText || 'Update'
 
-  $(itemsModal.value).modal('show')
+  form.value.items = d.items.map(i => ({
+    id: i.id,
+    product_id: i.product_id,
+    item_code: i.product_code,
+    product_name: (i.description || '').split(' ')[0] || '',
+    description: i.description || '',
+    unit_name: i.unit_name || '',
+    ending_quantity: parseFloat(i.ending_quantity ?? 0),
+    counted_quantity: parseFloat(i.counted_quantity ?? 0),
+    remarks: i.remarks || '',
+    stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
+    average_price: parseFloat(i.average_price ?? 0)
+  }))
+
+  form.value.approvals = d.approvals.map(a => ({
+    id: a.id,
+    request_type: a.request_type,
+    user_id: a.user_id,
+    isDefault: true
+  }))
+
+  await nextTick()
+  initWarehouseSelect2()
+  await fetchApprovalUsers()
+  nextTick(() => initApprovalSelect2())
 }
-
-const addSelectedItems = () => {
-  const table = $(itemsModal.value).find('table').DataTable()
-  const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
-
-  const existingIds = new Set(form.value.items.map(i => i.product_id))
-  selected.forEach(p => {
-    if (!existingIds.has(p.id)) {
-      form.value.items.push({
-        product_id: p.id,
-        item_code: p.item_code,
-        product_name: p.product_name || '',
-        description: p.description || '',
-        unit_name: p.unit_name,
-        ending_quantity: parseFloat(p.stock_on_hand) || 0,
-        counted_quantity: parseFloat(p.stock_on_hand) || 0,
-        stock_on_hand: parseFloat(p.stock_on_hand) || 0,
-        average_price: 0,
-        remarks: ''
-      })
-    }
-  })
-
-  $(itemsModal.value).find('.select-item').prop('checked', false)
-  $(itemsModal.value).modal('hide')
-}
-
-const removeItem = i => form.value.items.splice(i, 1)
-const closeItemsModal = () => $(itemsModal.value).modal('hide')
-const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
-
-// ==================== File Import ====================
-const triggerFileInput = () => fileInput.value.click()
-const handleFileUpload = e => { if (e.target.files[0]) importFile() }
-
-const importFile = async () => {
-  const file = fileInput.value.files[0]
-  if (!file) return
-  if (!form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
-    return
-  }
-
-  isImporting.value = true
-  const formData = new FormData()
-  formData.append("file", file)
-
-  try {
-    const { data } = await axios.post("/api/inventory/stock-counts/import", formData, {
-      headers: { "Content-Type": "multipart/form-data" }
-    })
-
-    if (data.errors?.length) {
-      showAlert("Error", `Errors:<br>${data.errors.join('<br>')}`, "danger", { html: true })
-      return
-    }
-
-    const rows = data.data?.items || []
-    if (!rows.length) {
-      showAlert("Warning", "No valid rows found in Excel.", "warning")
-      return
-    }
-
-    const existingIds = new Set(form.value.items.map(i => i.product_id))
-    rows.forEach(r => {
-      if (!existingIds.has(r.product_id)) {
-        form.value.items.push({
-          product_id: r.product_id,
-          item_code: r.product_code,
-          product_name: r.product_name || "",
-          description: r.description || "",
-          unit_name: r.unit_name || "",
-          ending_quantity: 0,
-          stock_on_hand: 0,
-          average_price: 0,
-          counted_quantity: parseFloat(r.counted_quantity ?? 0),
-          remarks: r.remark || ""
-        })
-      }
-    })
-
-    const productIds = rows.map(r => r.product_id)
-    const { data: refreshed } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
-      warehouse_id: form.value.warehouse_id,
-      transaction_date: form.value.transaction_date,
-      product_ids: productIds
-    })
-
-    const updatedMap = Object.fromEntries((refreshed.data || []).map(u => [u.product_id, u]))
-    form.value.items = form.value.items.map(item => {
-      const updated = updatedMap[item.product_id]
-      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
-    })
-
-    fileInput.value.value = ""
-    showAlert("Success", `Imported ${rows.length} items and refreshed stock successfully`, "success")
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to import', 'danger')
-  } finally {
-    isImporting.value = false
-    if (fileInput.value) fileInput.value.value = ""
-  }
-}
-
-const downloadSampleExcel = () => {
-  const link = document.createElement('a')
-  link.href = '/sampleExcel/stock_count_sample.xlsx'
-  link.download = 'stock_count_sample.xlsx'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
-
-// ==================== Refresh Stock on Change ====================
-watch(
-  () => [form.value.warehouse_id, form.value.transaction_date],
-  async ([whId, date]) => {
-    if (!whId || !date || !form.value.items.length) return
-    const productIds = form.value.items.map(i => i.product_id)
-    try {
-      const { data } = await axios.patch('/api/inventory/stock-counts/refresh-stock', { warehouse_id: whId, transaction_date: date, product_ids: productIds })
-      const updatedMap = Object.fromEntries((data.data || []).map(u => [u.product_id, u]))
-      form.value.items = form.value.items.map(item => {
-        const updated = updatedMap[item.product_id]
-        return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
-      })
-    } catch {
-      showAlert('Error', 'Failed to refresh stock data', 'danger')
-    }
-  }
-)
 
 // ==================== Form Submission ====================
 const submitForm = async () => {
@@ -590,12 +462,17 @@ const submitForm = async () => {
       transaction_date: form.value.transaction_date,
       warehouse_id: form.value.warehouse_id,
       remarks: form.value.remarks || null,
-      items: form.value.items.map(i => ({ product_id: i.product_id, ending_quantity: i.ending_quantity, counted_quantity: i.counted_quantity, remarks: i.remarks || null })),
+      items: form.value.items.map(i => ({
+        product_id: i.product_id,
+        ending_quantity: i.ending_quantity,
+        counted_quantity: i.counted_quantity,
+        remarks: i.remarks || null
+      })),
       approvals: form.value.approvals.map(a => ({ user_id: a.user_id, request_type: a.request_type }))
     }
 
     const url = isEditMode.value
-      ? `/api/inventory/stock-counts/${props.stockCountId}`
+      ? `/api/inventory/stock-counts/${props.initialData.id}`
       : '/api/inventory/stock-counts'
 
     await axios[isEditMode.value ? 'put' : 'post'](url, payload)
@@ -609,69 +486,21 @@ const submitForm = async () => {
   }
 }
 
-// ==================== Load Edit Data ====================
-const loadEditData = async (id) => {
-  try {
-    const { data } = await axios.get(`/api/inventory/stock-counts/${id}/edit`)
-    const d = data.data
-
-    form.value.transaction_date = d.transaction_date
-    form.value.warehouse_id = d.warehouse_id
-    form.value.reference_no = d.reference_no
-    form.value.remarks = d.remarks
-    form.value.actionButtonText = d.buttonSubmitText
-
-    form.value.items = d.items.map(i => ({
-      id: i.id,
-      product_id: i.product_id,
-      item_code: i.product_code,
-      product_name: (i.description || '').split(' ')[0] || '',
-      description: i.description || '',
-      unit_name: i.unit_name || '',
-      ending_quantity: parseFloat(i.ending_quantity ?? 0),
-      counted_quantity: parseFloat(i.counted_quantity ?? 0),
-      remarks: i.remarks || '',
-      stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
-      average_price: parseFloat(i.average_price ?? 0)
-    }))
-
-    form.value.approvals = d.approvals.map(a => ({
-      id: a.id,
-      request_type: a.request_type,
-      user_id: a.user_id,
-      isDefault: true,
-      availableUsers: []
-    }))
-
-    initWarehouseSelect2()
-    await fetchApprovalUsers()
-    nextTick(() => initApprovalSelect2())
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to load stock count data', 'danger')
-  }
-}
-
 // ==================== Lifecycle ====================
 onMounted(async () => {
   await fetchWarehouses()
   initDatepicker()
   initWarehouseSelect2()
-  
-  await fetchApprovalUsers() // wait for users
+  await fetchApprovalUsers()
 
-  // Default approvals for create mode
-  if (!props.stockCountId) {
+  if (isEditMode.value) {
+    await loadEditDataFromProps()
+  } else {
     form.value.approvals = [
-      { request_type: 'initial', user_id: null, isDefault: true, availableUsers: [] },
-      { request_type: 'approve', user_id: null, isDefault: true, availableUsers: [] }
+      { request_type: 'initial', user_id: null, isDefault: true },
+      { request_type: 'approve', user_id: null, isDefault: true }
     ]
-  }
-
-  nextTick(() => initApprovalSelect2()) // init dropdowns after DOM exists
-
-  if (props.stockCountId) {
-    isEditMode.value = true
-    await loadEditData(props.stockCountId)
+    nextTick(() => initApprovalSelect2())
   }
 })
 
@@ -681,6 +510,7 @@ onUnmounted(() => {
   document.querySelectorAll('.approval-type-select, .user-select').forEach(destroySelect2)
 })
 </script>
+
 
 
 <style scoped>

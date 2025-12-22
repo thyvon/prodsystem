@@ -47,7 +47,7 @@
       <!-- Line Items Table -->
       <div class="table-responsive">
         <table class="table table-sm table-bordered table-striped table-hover">
-          <thead class="table-primary">
+          <thead class="table-secondary">
             <tr>
               <th class="text-center">#</th>
               <th>Item Code</th>
@@ -72,7 +72,7 @@
               <td class="text-end">{{ formatAmount(item.counted_quantity * item.average_price) }}</td>
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
-            <tr class="table-primary font-weight-bold">
+            <tr class="table-secondary font-weight-bold">
               <td colspan="4" class="text-end">Total</td>
               <td class="text-center">{{ formatTotal(stock.items, 'ending_quantity') }}</td>
               <td class="text-center">{{ formatTotal(stock.items, 'counted_quantity') }}</td>
@@ -240,16 +240,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import axios from 'axios'
 import { formatDateWithTime, formatDateShort } from '@/Utils/dateFormat'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({ stockCountId: [String, Number] })
+const props = defineProps({ initialData: Object }) // Use initialData from backend
 
-const stock = ref({})
-const approvals = ref([])
+// Reactive refs
+const stock = ref(props.initialData || {})
+const approvals = ref(stock.value.approvals || [])
 const usersList = ref([])
 const currentAction = ref('approve')
 const commentInput = ref('')
@@ -279,91 +280,44 @@ const currentActionDisplay = computed(() => {
   return 'Return'
 })
 
-// Fetch stock count
-const fetchStockCount = async () => {
-  try {
-    const res = await axios.get(`/api/inventory/stock-counts/${props.stockCountId}/show`)
-    stock.value = res.data.data
-    approvals.value = res.data.data.approvals || []
-
-    // Ensure requestType is lowercase for backend
-    if (stock.value?.approval_buttons?.requestType) {
-      stock.value.approval_buttons.requestType = stock.value.approval_buttons.requestType.toLowerCase()
-    }
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to fetch stock count data', 'danger')
-  }
-}
-
 // Approval actions
-const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
-const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
+const openConfirmModal = (action) => { 
+  currentAction.value = action
+  commentInput.value = ''
+  $('#confirmModal').modal('show') 
+}
+const resetConfirmModal = () => { 
+  commentInput.value = ''
+  $('#confirmModal').modal('hide') 
+}
 
 const submitApproval = async (action) => {
   if (!stock.value.approval_buttons?.requestType) {
-    showAlert('Error', 'Request type not found.', 'danger');
-    return;
+    showAlert('Error', 'Request type not found.', 'danger')
+    return
   }
 
   try {
     const res = await axios.post(
-      `/api/inventory/stock-counts/${props.stockCountId}/submit-approval`,
+      `/api/inventory/stock-counts/${stock.value.id}/submit-approval`,
       { 
         request_type: stock.value.approval_buttons.requestType, 
         action, 
         comment: commentInput.value?.trim() || '' 
       }
-    );
-    
-    showAlert('success', res.data.message || 'Action submitted successfully.');
-    $('#confirmModal').modal('hide');
-    
+    )
+
+    showAlert('success', res.data.message || 'Action submitted successfully.')
+    $('#confirmModal').modal('hide')
+
     setTimeout(() => {
-      window.location.href = res.data.redirect_url || window.location.href;
-    }, 1500);
+      window.location.href = res.data.redirect_url || window.location.href
+    }, 1500)
 
   } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Action failed.', 'danger');
+    showAlert('Error', err.response?.data?.message || 'Action failed.', 'danger')
   }
-};
-
-const confirmReassign = async () => {
-  const userSelectEl = document.getElementById('userSelect');
-  const commentEl = document.getElementById('reassignComment');
-
-  const newUserId = userSelectEl?.value;
-  const comment = commentEl?.value?.trim() || '';
-
-  if (!newUserId) {
-    showAlert('Error', 'Please select a user.', 'danger');
-    return;
-  }
-
-  if (!stock.value.approval_buttons?.requestType) {
-    showAlert('Error', 'Request type not found.', 'danger');
-    return;
-  }
-
-  try {
-    await axios.post(
-      `/api/inventory/stock-counts/${props.stockCountId}/reassign-approval`,
-      { 
-        request_type: stock.value.approval_buttons.requestType, 
-        new_user_id: newUserId, 
-        comment 
-      }
-    );
-
-    showAlert('success', 'Responder reassigned successfully.');
-    $('#reassignModal').modal('hide');
-    destroySelect2(userSelectEl);
-
-    setTimeout(() => window.location.reload(), 1500);
-
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger');
-  }
-};
+}
 
 // Reassign
 const openReassignModal = async () => {
@@ -371,6 +325,7 @@ const openReassignModal = async () => {
     const res = await axios.get(`/api/inventory/stock-counts/get-approval-users`)
     const action = currentAction.value || 'approve'
     usersList.value = Array.isArray(res.data?.[action]) ? res.data[action] : []
+
     await nextTick()
     initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
     $('#reassignModal').modal('show')
@@ -379,14 +334,52 @@ const openReassignModal = async () => {
   }
 }
 
+const confirmReassign = async () => {
+  const userSelectEl = document.getElementById('userSelect')
+  const commentEl = document.getElementById('reassignComment')
+
+  const newUserId = userSelectEl?.value
+  const comment = commentEl?.value?.trim() || ''
+
+  if (!newUserId) {
+    showAlert('Error', 'Please select a user.', 'danger')
+    return
+  }
+
+  if (!stock.value.approval_buttons?.requestType) {
+    showAlert('Error', 'Request type not found.', 'danger')
+    return
+  }
+
+  try {
+    await axios.post(
+      `/api/inventory/stock-counts/${stock.value.id}/reassign-approval`,
+      { 
+        request_type: stock.value.approval_buttons.requestType, 
+        new_user_id: newUserId, 
+        comment 
+      }
+    )
+
+    showAlert('success', 'Responder reassigned successfully.')
+    $('#reassignModal').modal('hide')
+    destroySelect2(userSelectEl)
+
+    setTimeout(() => window.location.reload(), 1500)
+
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger')
+  }
+}
+
 const cleanupReassignModal = () => {
   const el = document.getElementById('userSelect')
   if (el) destroySelect2(el)
 }
 
-// Init
-onMounted(() => { if (props.stockCountId) fetchStockCount() })
+// No API fetch needed since we use initialData
 </script>
+
 
 <style scoped>
 .table-secondary { background-color: #f7f7f7 !important; }

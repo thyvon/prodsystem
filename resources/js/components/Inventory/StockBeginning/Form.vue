@@ -257,15 +257,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 
-const props = defineProps({ stockBeginningId: [String, Number] })
+// Props
+const props = defineProps({
+  initialData: { type: Object, required: true } // contains id, items, approvals, warehouse_id, beginning_date, etc.
+})
 const emit = defineEmits(['submitted'])
 
-const isEditMode = ref(false)
+// State
+const isEditMode = ref(!!props.initialData.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 
@@ -281,15 +285,16 @@ const fileInput = ref(null)
 const itemsModal = ref(null)
 const warehouseSelect = ref(null)
 
+// Navigation
 const goToIndex = () => window.location.href = '/inventory/stock-beginnings'
 
-/* -------------------- Fetch Warehouses -------------------- */
+// -------------------- Fetch Warehouses --------------------
 const fetchWarehouses = async () => {
   const { data } = await axios.get('/api/main-value-lists/get-warehouses')
   warehouses.value = data.data || data
 }
 
-/* -------------------- Datepicker -------------------- */
+// -------------------- Datepicker --------------------
 const initDatepicker = () => {
   $('#beginning_date').datepicker({
     format: 'yyyy-mm-dd',
@@ -301,11 +306,10 @@ const initDatepicker = () => {
   })
 }
 
-/* -------------------- Warehouse Select2 -------------------- */
+// -------------------- Warehouse Select2 --------------------
 const initWarehouseSelect2 = async () => {
   if (!warehouseSelect.value) return
   const warehouseData = (warehouses.value || []).map(w => ({ id: w.id, text: w.name || w.text }))
-
   initSelect2(warehouseSelect.value, {
     placeholder: 'Select Warehouse',
     width: '100%',
@@ -320,7 +324,7 @@ const initWarehouseSelect2 = async () => {
   }
 }
 
-/* -------------------- Approval Select2 -------------------- */
+// -------------------- Approval Select2 --------------------
 const initApprovalSelect2 = async () => {
   const { data } = await axios.get('/api/inventory/stock-beginnings/users')
   const users = {
@@ -359,7 +363,6 @@ const updateUserSelect = (index, users) => {
   nextTick(() => {
     const select = document.querySelector(`.user-select[data-index="${index}"]`)
     if (!select) return
-
     const type = form.value.approvals[index].request_type
     const userList = users[type] || []
 
@@ -376,7 +379,7 @@ const updateUserSelect = (index, users) => {
   })
 }
 
-/* -------------------- Approvals -------------------- */
+// -------------------- Approvals --------------------
 const addApproval = async () => {
   form.value.approvals.push({ request_type: '', user_id: null, isDefault: false })
   await nextTick()
@@ -399,7 +402,7 @@ const validateApprovals = () => {
   return ['review', 'check', 'approve'].every(t => types.includes(t))
 }
 
-/* -------------------- Products Modal -------------------- */
+// -------------------- Products Modal --------------------
 const openProductsModal = async () => {
   if (!form.value.warehouse_id || !form.value.beginning_date) {
     showAlert('Warning', 'Please select Warehouse and Beginning Date first.', 'warning')
@@ -468,7 +471,6 @@ const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', 
 const triggerFileInput = () => fileInput.value.click()
 const handleFileUpload = e => { if (e.target.files[0]) importFile() }
 
-
 const downloadSampleExcel = () => {
   const link = document.createElement('a')
   link.href = '/sampleExcel/stock_beginnings_sample.xlsx'
@@ -477,7 +479,8 @@ const downloadSampleExcel = () => {
   link.click()
   document.body.removeChild(link)
 }
-/* -------------------- File Import -------------------- */
+
+// -------------------- File Import --------------------
 const importFile = async () => {
   const file = fileInput.value.files[0]
   if (!file || !form.value.warehouse_id || !form.value.beginning_date) {
@@ -491,29 +494,36 @@ const importFile = async () => {
 
   try {
     const { data } = await axios.post('/api/inventory/stock-beginnings/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-
-    if (data.errors?.length) { showAlert('Error', data.errors.join('<br>'), 'danger', { html: true }); return }
+    if (data.errors?.length) {
+      showAlert('Error', data.errors.join('<br>'), 'danger', { html: true })
+      return
+    }
 
     (data.data?.items || []).forEach(r => {
-      if (!form.value.items.find(i => i.product_id === r.product_id)) form.value.items.push({
-        product_id: r.product_id,
-        item_code: r.item_code,
-        product_name: r.product_name || '',
-        description: r.description || '',
-        unit_name: r.unit_name || '',
-        quantity: parseFloat(r.quantity) || 0,
-        unit_price: r.unit_price ? Number(parseFloat(r.unit_price).toFixed(15)) : 0,
-        remarks: r.remarks || ''
-      })
+      if (!form.value.items.find(i => i.product_id === r.product_id)) {
+        form.value.items.push({
+          product_id: r.product_id,
+          item_code: r.item_code,
+          product_name: r.product_name || '',
+          description: r.description || '',
+          unit_name: r.unit_name || '',
+          quantity: parseFloat(r.quantity) || 0,
+          unit_price: r.unit_price ? Number(parseFloat(r.unit_price).toFixed(15)) : 0,
+          remarks: r.remarks || ''
+        })
+      }
     })
+
     fileInput.value.value = ''
     showAlert('Success', `Imported ${(data.data?.items || []).length} items`, 'success')
   } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to import', 'danger')
-  } finally { isImporting.value = false }
+  } finally {
+    isImporting.value = false
+  }
 }
 
-/* -------------------- Submit -------------------- */
+// -------------------- Submit --------------------
 const submitForm = async () => {
   if (!form.value.beginning_date || !form.value.warehouse_id || !form.value.items.length) {
     showAlert('Error', 'Please fill all required fields and add items.', 'danger')
@@ -539,7 +549,7 @@ const submitForm = async () => {
     }
 
     const url = isEditMode.value
-      ? `/api/inventory/stock-beginnings/${props.stockBeginningId}`
+      ? `/api/inventory/stock-beginnings/${props.initialData.id}`
       : '/api/inventory/stock-beginnings'
 
     await axios[isEditMode.value ? 'put' : 'post'](url, payload)
@@ -548,52 +558,51 @@ const submitForm = async () => {
     goToIndex()
   } catch (err) {
     showAlert('Error', err.response?.data?.message || 'Failed to save', 'danger')
-  } finally { isSubmitting.value = false }
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
-/* -------------------- Load Edit Data -------------------- */
-const loadEditData = async id => {
-  try {
-    const { data } = await axios.get(`/api/inventory/stock-beginnings/${id}/edit`)
-    const d = data.data
+// -------------------- Mounted & Unmounted --------------------
+onMounted(async () => {
+  await fetchWarehouses()
+  initDatepicker()
+  initWarehouseSelect2()
+
+  // Populate form from props.initialData if editing
+  if (props.initialData) {
+    const d = props.initialData
+    if (d.id) isEditMode.value = true
 
     form.value.beginning_date = d.beginning_date
     form.value.warehouse_id = d.warehouse_id
-    form.value.items = d.items.map(i => ({
+    form.value.items = (d.items || []).map(i => ({
       product_id: i.product_id,
       item_code: i.item_code,
       product_name: i.product_name || '',
       description: i.description || '',
       unit_name: i.unit_name || '',
-      quantity: parseFloat(i.quantity),
-      unit_price: parseFloat(i.unit_price),
+      quantity: parseFloat(i.quantity) || 0,
+      unit_price: i.unit_price ? Number(parseFloat(i.unit_price).toFixed(15)) : 0,
       remarks: i.remarks || ''
     }))
-    form.value.approvals = d.approvals.map(a => ({ request_type: a.request_type, user_id: a.user_id, isDefault: true }))
+    form.value.approvals = (d.approvals || []).map(a => ({
+      request_type: a.request_type,
+      user_id: a.user_id,
+      isDefault: true
+    }))
 
     await nextTick()
     initWarehouseSelect2()
     await initApprovalSelect2()
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to load Stock Beginning', 'danger')
-  }
-}
-
-/* -------------------- Mounted & Unmounted -------------------- */
-onMounted(async () => {
-  await fetchWarehouses()
-  form.value.approvals = [
-    { request_type: 'review', user_id: null, isDefault: true },
-    { request_type: 'check', user_id: null, isDefault: true },
-    { request_type: 'approve', user_id: null, isDefault: true }
-  ]
-  initDatepicker()
-  initWarehouseSelect2()
-  await initApprovalSelect2()
-
-  if (props.stockBeginningId) {
-    isEditMode.value = true
-    await loadEditData(props.stockBeginningId)
+  } else {
+    // Default approvals for create mode
+    form.value.approvals = [
+      { request_type: 'review', user_id: null, isDefault: true },
+      { request_type: 'check', user_id: null, isDefault: true },
+      { request_type: 'approve', user_id: null, isDefault: true }
+    ]
+    await initApprovalSelect2()
   }
 })
 
@@ -603,4 +612,5 @@ onUnmounted(() => {
   $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
 })
 </script>
+
 

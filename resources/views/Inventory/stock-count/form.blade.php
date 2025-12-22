@@ -3,7 +3,7 @@
 
 @section('content')
 <stock-count-form
-    :stock-count-id="{{ $stockCountId ?? 'null' }}"
+    :initial-data='@json($initialData)'>
 />
 @endsection
 
