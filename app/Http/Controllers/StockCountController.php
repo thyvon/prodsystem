@@ -64,12 +64,14 @@ class StockCountController extends Controller
 
         // Eager load nested relationships
         $stockCount->load([
-            'items.product.product.unit',
-            'approvals.responder',
-            'warehouse.building.campus',
-            'creator',
-            'creatorPosition',
-            'approvals.responderPosition'
+            'items.product.product.unit:id,name',
+            'approvals.responder:id,name,profile_url,signature_url',
+            'warehouse:id,name,building_id',
+            'warehouse.building:id,name,campus_id',
+            'warehouse.building.campus:id,short_name',
+            'creator:id,name,profile_url,signature_url,card_number',
+            'creatorPosition:id,title',
+            'approvals.responderPosition:id,title',
         ]);
 
         // Map items without stock and price

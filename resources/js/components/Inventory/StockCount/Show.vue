@@ -62,20 +62,21 @@
           <tbody>
             <tr v-for="(item, i) in stock.items || []" :key="i">
               <td class="text-center">{{ i + 1 }}</td>
-              <td>{{ item.product_code ?? 'N/A' }}</td>
+              <td class="text-center">{{ item.product_code ?? 'N/A' }}</td>
               <td>{{ item.description ?? 'N/A' }}</td>
               <td>{{ item.unit_name ?? 'N/A' }}</td>
               <td class="text-center">{{ formatQty(item.ending_quantity) }}</td>
               <td class="text-center">{{ formatQty(item.counted_quantity) }}</td>
-              <td class="text-end">{{ formatQty(item.ending_quantity - item.counted_quantity) }}</td>
+              <td class="text-center">{{ formatQty(item.ending_quantity - item.counted_quantity) }}</td>
               <td>{{ item.remarks ?? '-' }}</td>
             </tr>
             <tr class="table-secondary font-weight-bold">
               <td colspan="4" class="text-end">Total</td>
               <td class="text-center">{{ formatTotal(stock.items, 'ending_quantity') }}</td>
               <td class="text-center">{{ formatTotal(stock.items, 'counted_quantity') }}</td>
-              <td>-</td>
-              <td class="text-end">{{ formatTotalValue(stock.items) }}</td>
+                <td class="text-center">
+                  {{ formatQty(formatTotalVariance(stock.items, 'ending_quantity') - formatTotalVariance(stock.items, 'counted_quantity')) }}
+                </td>
               <td></td>
             </tr>
           </tbody>
@@ -255,14 +256,16 @@ const commentInput = ref('')
 const reassignComment = ref('')
 
 // Helpers
-const formatAmount = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 4 })
 const formatQty = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => (s && typeof s === 'string') ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 const formatTotal = (items, field) => formatQty((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
-const formatTotalValue = (items) => formatAmount((items || []).reduce((sum, i) => sum + ((i.ending_quantity || 0) * (i.average_price || 0)), 0))
+// Change formatTotal to return number
+const formatTotalVariance = (items, field) =>
+  (items || []).reduce((sum, i) => sum + (Number(i[field]) || 0), 0)
+
 
 // Computed
 const currentActionBtnClass = computed(() =>
