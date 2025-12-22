@@ -416,6 +416,70 @@ const addSelectedItems = () => {
   $(itemsModal.value).modal('hide')
 }
 
+const openProductsModal = () => {
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
+    return
+  }
+
+  const table = $(itemsModal.value).find('table')
+  if (!productsTable) {
+    productsTable = table.DataTable({
+      serverSide: true,
+      processing: true,
+      responsive: true,
+      autoWidth: false,
+      ajax: {
+        url: '/api/inventory/stock-counts/get-products',
+        type: 'GET',
+        data: d => ({ ...d, warehouse_id: form.value.warehouse_id, cutoff_date: form.value.transaction_date })
+      },
+      columns: [
+        {
+          data: 'id',
+          orderable: false,
+          render: id => `<div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input select-item" id="chk-${id}" value="${id}">
+                          <label class="custom-control-label" for="chk-${id}"></label>
+                        </div>`
+        },
+        { data: 'item_code' },
+        { data: null, render: (d,t,r) => r.description || '' },
+        { data: 'unit_name' },
+        { data: 'stock_on_hand', className: 'text-right' }
+      ]
+    })
+  } else productsTable.ajax.reload()
+
+  $(itemsModal.value).modal('show')
+}
+
+// const addSelectedItems = () => {
+//   const table = $(itemsModal.value).find('table').DataTable()
+//   const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
+
+//   const existingIds = new Set(form.value.items.map(i => i.product_id))
+//   selected.forEach(p => {
+//     if (!existingIds.has(p.id)) {
+//       form.value.items.push({
+//         product_id: p.id,
+//         item_code: p.item_code,
+//         product_name: p.product_name || '',
+//         description: p.description || '',
+//         unit_name: p.unit_name,
+//         ending_quantity: parseFloat(p.stock_on_hand) || 0,
+//         counted_quantity: parseFloat(p.stock_on_hand) || 0,
+//         stock_on_hand: parseFloat(p.stock_on_hand) || 0,
+//         average_price: 0,
+//         remarks: ''
+//       })
+//     }
+//   })
+
+//   $(itemsModal.value).find('.select-item').prop('checked', false)
+//   $(itemsModal.value).modal('hide')
+// }
+
 const removeItem = i => form.value.items.splice(i, 1)
 const closeItemsModal = () => $(itemsModal.value).modal('hide')
 const toggleAll = e => $(itemsModal.value).find('.select-item').prop('checked', e.target.checked)
