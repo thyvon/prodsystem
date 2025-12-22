@@ -570,9 +570,9 @@ onMounted(async () => {
   initWarehouseSelect2()
 
   // Populate form from props.initialData if editing
-  if (props.initialData) {
+  if (props.initialData && props.initialData.id) {
     const d = props.initialData
-    if (d.id) isEditMode.value = true
+    isEditMode.value = true
 
     form.value.beginning_date = d.beginning_date
     form.value.warehouse_id = d.warehouse_id
@@ -596,15 +596,17 @@ onMounted(async () => {
     initWarehouseSelect2()
     await initApprovalSelect2()
   } else {
-    // Default approvals for create mode
+    // Create mode: FIXED three default approvals
     form.value.approvals = [
       { request_type: 'review', user_id: null, isDefault: true },
       { request_type: 'check', user_id: null, isDefault: true },
       { request_type: 'approve', user_id: null, isDefault: true }
     ]
+    await nextTick()
     await initApprovalSelect2()
   }
 })
+
 
 onUnmounted(() => {
   $('#beginning_date').datepicker('destroy')
@@ -612,5 +614,6 @@ onUnmounted(() => {
   $('.approval-type-select, .user-select').each(function () { destroySelect2(this) })
 })
 </script>
+
 
 

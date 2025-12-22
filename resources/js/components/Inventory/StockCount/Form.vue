@@ -374,17 +374,19 @@ const updateUserSelect = (index) => {
   const users = approvalUsers.value[type] || []
   const data = users.map(u => ({ id: u.id, text: u.name }))
 
+  // Always allow clearing selection and explicitly pass current value to avoid auto-selecting first item
+  const currentValue = form.value.approvals[index].user_id ? String(form.value.approvals[index].user_id) : ''
+
   if ($(select).hasClass('select2-hidden-accessible')) {
-    $(select).empty().select2({ data, placeholder: 'Select User', width: '100%' })
+    $(select).empty().select2({ data, placeholder: 'Select User', width: '100%', allowClear: true })
   } else {
-    initSelect2(select, { data, placeholder: 'Select User', width: '100%' }, val => {
+    initSelect2(select, { data, placeholder: 'Select User', width: '100%', allowClear: true, value: currentValue }, val => {
       form.value.approvals[index].user_id = val ? Number(val) : null
     })
   }
 
-  if (form.value.approvals[index].user_id) {
-    $(select).val(form.value.approvals[index].user_id).trigger('change')
-  }
+  // Ensure the DOM select reflects the model (set empty string explicitly to prevent Select2 from choosing the first option)
+  $(select).val(currentValue).trigger('change')
 }
 
 const addApproval = () => {
