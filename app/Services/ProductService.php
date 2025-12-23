@@ -244,8 +244,8 @@ class ProductService
             return $warehouseStockService->calculateProductStock(
                 $whProduct,
                 $warehouseId,
-                \Carbon\Carbon::parse($transactionDate)->subMonths(3),
-                \Carbon\Carbon::parse($transactionDate)->subMonths(6)
+                \Carbon\Carbon::parse($transactionDate)->subMonths(3)->startOfMonth(),
+                \Carbon\Carbon::parse($transactionDate)->subMonths(6)->startOfMonth()
             );
         });
 
