@@ -186,10 +186,14 @@ class WarehouseStockService
             ->groupBy('year', 'month')
             ->get();
 
-        \Log::info("3-Month Usage Data for product_id {$product->product_id} in warehouse {$warehouseId}: ", $monthlyUsage3m->toArray());
+        $monthlyUsage3m->transform(fn($m) => [
+            'year' => $m->year,
+            'month' => $m->month,
+            'total_qty' => (float) $m->total_qty
+        ]);
 
-        $monthsWithUsage3m = $monthlyUsage3m->filter(fn($m) => $m->total_qty > 0);
-        $avgUsage3m = $monthsWithUsage3m->isNotEmpty() ? $monthsWithUsage3m->avg('total_qty') : 0;
+        $monthsWithUsage3m = $monthlyUsage3m->where('total_qty', '>', 0);
+        $avgUsage3m = $monthsWithUsage3m->avg('total_qty');
 
         // --- 6-Month Usage ---
         $monthlyUsage6m = StockLedger::select(
@@ -203,10 +207,13 @@ class WarehouseStockService
             ->where('transaction_type', 'Stock_Out')
             ->groupBy('year', 'month')
             ->get();
-
-        \Log::info("6-Month Usage Data for product_id {$product->product_id} in warehouse {$warehouseId}: ", $monthlyUsage6m->toArray());
-        $monthsWithUsage6m = $monthlyUsage6m->filter(fn($m) => $m->total_qty > 0);
-        $avgUsage6m = $monthsWithUsage6m->isNotEmpty() ? $monthsWithUsage6m->avg('total_qty') : 0;
+        $monthlyUsage6m->transform(fn($m) => [
+            'year' => $m->year,
+            'month' => $m->month,
+            'total_qty' => (float) $m->total_qty
+        ]);
+        $monthsWithUsage6m = $monthlyUsage6m->where('total_qty', '>', 0);
+        $avgUsage6m = $monthsWithUsage6m->avg('total_qty');
 
         // --- Decide which 3-month average to use for planning ---
         $avgUsage = $avgUsage3m > 0 ? $avgUsage3m : $avgUsage6m;
