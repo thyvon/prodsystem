@@ -253,7 +253,7 @@
             !empty($appr['signature_url'])
         )
         <div class="footer-initial-signature">
-            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
+            <img src="{{ asset('storage/' . $appr['signature_url']) }}">
         </div>
         @endif
     @endforeach
@@ -272,7 +272,7 @@
 
             {{-- Signature image --}}
             <div class="signature-image-box">
-                <img src="{{ public_path('storage/' . $signature_url) }}" class="signature-image">
+                <img src="{{ asset('storage/' . $signature_url) }}" class="signature-image">
             </div>
 
             <div class="signature-line"></div>
@@ -306,7 +306,7 @@
                         $appr['approval_status'] === 'Approved' &&
                         !empty($appr['signature_url'])
                     )
-                        <img src="{{ public_path('storage/' . $appr['signature_url']) }}"
+                        <img src="{{ asset('storage/' . $appr['signature_url']) }}"
                             class="signature-image">
                     @endif
                 </div>
