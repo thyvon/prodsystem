@@ -116,8 +116,8 @@ class WarehouseStockService
 
         // ================= Stock Calculations =================
         $avgDailyUse = $avgUsage / 21; // average 21 working days
-        $orderPlanQty = ceil($avgDailyUse) * ceil($targetInvTurnoverDays);
-        $demandForecastQty = ceil($avgDailyUse) * ceil($stockOutForecastDays);
+        $orderPlanQty = round($avgDailyUse) * round($targetInvTurnoverDays);
+        $demandForecastQty = round($avgDailyUse) * round($stockOutForecastDays);
         $endingStockQty = $beginningStockQty + $orderPlanQty - $demandForecastQty;
 
         $endingStockCoverDays = ($demandForecastQty > 0)
@@ -126,15 +126,15 @@ class WarehouseStockService
 
         $buffer15DaysQty = $avgUsage / 1.4;
         $orderLeadTimeSafetyDays = $orderLeadTimeDays / 21;
-        $safetyStockQty = ceil(($avgUsage * $orderLeadTimeSafetyDays) + $buffer15DaysQty);
+        $safetyStockQty = round(($avgUsage * $orderLeadTimeSafetyDays) + $buffer15DaysQty);
 
         $stockInDays = ($avgUsage > 0)
-            ? ceil(($safetyStockQty / $avgUsage) * 21)
+            ? round(($safetyStockQty / $avgUsage) * 21)
             : 0;
 
         $targetSafetyStockDays = $stockInDays;
         $stockValueUSD = $endingStockQty * $avgPrice;
-        $inventoryReorderQty = ceil($avgDailyUse) * $targetInvTurnoverDays;
+        $inventoryReorderQty = round($avgDailyUse) * $targetInvTurnoverDays;
 
         $reorderLevelQty = ($avgDailyUse * $orderLeadTimeDays)
             + $safetyStockQty
