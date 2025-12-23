@@ -237,7 +237,7 @@ class StockLedgerService
         $totalQty = $beginQty + $inQty;
         $totalAmount = $beginTotal + $inTotal;
 
-        return $totalQty > 0 ? round($totalAmount / $totalQty, 6) : 0;
+        return $totalQty > 0 ? round($totalAmount / $totalQty, 15) : 0;
     }
 
 }
