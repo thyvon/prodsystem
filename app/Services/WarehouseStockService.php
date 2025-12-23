@@ -66,6 +66,7 @@ class WarehouseStockService
 
         $avgPrice = $this->stockLedgerService->getAvgPrice(
             $product->product_id,
+            $warehouseId,
             now()->toDateString()
         );
 

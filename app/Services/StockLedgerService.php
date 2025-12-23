@@ -133,34 +133,111 @@ class StockLedgerService
         return (float) ($result->stock_on_hand ?? 0);
     }
 
-    public function getAvgPrice(int $productId, ?string $endDate = null): float
-    {
-        $bindings = [$productId];
-        $dateCondition = '';
+    // public function getAvgPrice(int $productId, ?string $endDate = null): float
+    // {
+    //     $bindings = [$productId];
+    //     $dateCondition = '';
 
-        if ($endDate) {
-            $dateCondition = "AND transaction_date <= ?";
-            $bindings[] = $endDate;
+    //     if ($endDate) {
+    //         $dateCondition = "AND transaction_date <= ?";
+    //         $bindings[] = $endDate;
+    //     }
+
+    //     $sql = "
+    //         SELECT
+    //             COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) AS in_qty,
+    //             COALESCE(SUM(CASE WHEN quantity > 0 THEN total_price ELSE 0 END), 0) AS in_total,
+    //             COALESCE(SUM(CASE WHEN quantity < 0 THEN quantity ELSE 0 END), 0) AS out_qty,
+    //             COALESCE(SUM(CASE WHEN quantity < 0 THEN total_price ELSE 0 END), 0) AS out_total
+    //         FROM stock_ledgers
+    //         WHERE product_id = ?
+    //         AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //         $dateCondition
+    //     ";
+
+    //     $totals = DB::selectOne($sql, $bindings);
+
+    //     $balanceQty   = (float) $totals->in_qty + (float) $totals->out_qty;
+    //     $balanceTotal = (float) $totals->in_total + (float) $totals->out_total;
+
+    //     return $balanceQty > 0 ? round($balanceTotal / $balanceQty, 6) : 0;
+    // }
+
+
+    public function getAvgPrice(int $productId, ?int $warehouseId, string $transactionDate): float
+    {
+        $transactionDate = Carbon::parse($transactionDate);
+
+        // Previous month (Excel EOMONTH -1)
+        $prevMonthStart = $transactionDate->copy()
+            ->subMonthNoOverflow()
+            ->startOfMonth();
+
+        $prevMonthEnd = $transactionDate->copy()
+            ->subMonthNoOverflow()
+            ->endOfMonth();
+
+        // Current month
+        $currentMonthStart = $transactionDate->copy()->startOfMonth();
+
+        if ($warehouseId !== null) {
+            $sql = "
+                SELECT
+                    -- Beginning (prev month) qty & amount
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
+
+                    -- Current month Stock_In qty & amount
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS in_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS in_total
+                FROM stock_ledgers
+                WHERE product_id = ?
+                AND parent_warehouse = ?
+            ";
+
+            $params = [
+                $prevMonthStart, $prevMonthEnd, // Stock_Begin qty
+                $prevMonthStart, $prevMonthEnd, // Stock_Begin total
+
+                $currentMonthStart, $transactionDate, // Stock_In qty
+                $currentMonthStart, $transactionDate, // Stock_In total
+
+                $productId, $warehouseId
+            ];
+        } else {
+            $sql = "
+                SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
+
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS in_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS in_total
+                FROM stock_ledgers
+                WHERE product_id = ?
+            ";
+
+            $params = [
+                $prevMonthStart, $prevMonthEnd, // Stock_Begin qty
+                $prevMonthStart, $prevMonthEnd, // Stock_Begin total
+
+                $currentMonthStart, $transactionDate, // Stock_In qty
+                $currentMonthStart, $transactionDate, // Stock_In total
+
+                $productId
+            ];
         }
 
-        $sql = "
-            SELECT
-                COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) AS in_qty,
-                COALESCE(SUM(CASE WHEN quantity > 0 THEN total_price ELSE 0 END), 0) AS in_total,
-                COALESCE(SUM(CASE WHEN quantity < 0 THEN quantity ELSE 0 END), 0) AS out_qty,
-                COALESCE(SUM(CASE WHEN quantity < 0 THEN total_price ELSE 0 END), 0) AS out_total
-            FROM stock_ledgers
-            WHERE product_id = ?
-            AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
-            $dateCondition
-        ";
+        $totals = DB::selectOne($sql, $params);
 
-        $totals = DB::selectOne($sql, $bindings);
+        $beginQty = (float) ($totals->begin_qty ?? 0);
+        $beginTotal = (float) ($totals->begin_total ?? 0);
+        $inQty = (float) ($totals->in_qty ?? 0);
+        $inTotal = (float) ($totals->in_total ?? 0);
 
-        $balanceQty   = (float) $totals->in_qty + (float) $totals->out_qty;
-        $balanceTotal = (float) $totals->in_total + (float) $totals->out_total;
+        $totalQty = $beginQty + $inQty;
+        $totalAmount = $beginTotal + $inTotal;
 
-        return $balanceQty > 0 ? round($balanceTotal / $balanceQty, 6) : 0;
+        return $totalQty > 0 ? round($totalAmount / $totalQty, 6) : 0;
     }
 
 }
