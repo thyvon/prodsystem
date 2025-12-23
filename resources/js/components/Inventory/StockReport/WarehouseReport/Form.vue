@@ -513,15 +513,15 @@ const addSelectedItems = () => {
         last_month_usage: p.last_month_usage || 0,
         stock_beginning: p.stock_onhand || 0,
         order_plan_qty: p.order_plan_qty || 0,
-        demand_forecast: p.demand_forecast || 0,
+        demand_forecast: p.demand_stock_out_forecast_qty || 0,
         stock_ending_quantity: p.ending_stock_qty || 0,
-        stock_ending_cover_day: p.stock_ending_cover_day || 0,
-        target_safety_stock_day: p.target_safety_stock_day || 0,
+        stock_ending_cover_day: p.ending_stock_cover_days || 0,
+        target_safety_stock_day: p.target_safety_stock_days || 0,
         stock_value: p.stock_value_usd || 0,
-        inv_reorder_qty: p.inv_reorder_qty || 0,
+        inv_reorder_qty: p.inventory_reorder_qty || 0,
         reoder_level_qty: p.reorder_level_qty || 0,
-        max_inv_level_qty: p.max_inv_level_qty || 0,
-        max_inv_usage_day: p.max_inv_usage_day || 0, 
+        max_inv_level_qty: p.max_inventory_level_qty || 0,
+        max_inv_usage_day: p.max_usage_days || 0, 
       })
     }
   })
