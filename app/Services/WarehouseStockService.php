@@ -38,7 +38,6 @@ class WarehouseStockService
 
         $threeMonthsAgo = $now->copy()->subMonths(3)->startOfMonth();
         $sixMonthsAgo   = $now->copy()->subMonths(6)->startOfMonth();
-        $endDate = $now;
 
         return $this->calculateProductStock($product, $warehouseId, $threeMonthsAgo, $sixMonthsAgo);
     }
@@ -185,7 +184,7 @@ class WarehouseStockService
             ->where('parent_warehouse', $warehouseId)
             ->whereBetween('transaction_date', [
                 $threeMonthsAgo,
-                $endDate
+                Carbon::now()
             ])
             ->where('transaction_type', 'Stock_Out')
             ->groupBy('year', 'month')
@@ -204,7 +203,7 @@ class WarehouseStockService
             ->where('parent_warehouse', $warehouseId)
             ->whereBetween('transaction_date', [
                 $sixMonthsAgo,
-                $endDate
+                Carbon::now()
             ])
             ->where('transaction_type', 'Stock_Out')
             ->groupBy('year', 'month')
