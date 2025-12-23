@@ -7,11 +7,11 @@
     <style type="text/css">
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ public_path('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
         }
         @font-face {
             font-family: 'TW Cen MT';
-            src: url("{{ public_path('fonts/TwCenMT.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
         @page {
@@ -159,7 +159,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-section">
-            <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
+            <img src="{{ asset('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
             <h3>Monthly Stock Report</h3>

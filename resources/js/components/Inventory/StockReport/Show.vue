@@ -357,7 +357,7 @@ const printReport = () => {
     }, 300)
   }
 
-  iframe.src = `/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/print-pdf?print=1`
+  iframe.src = `/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/print-report?print=1`
   document.body.appendChild(iframe)
 }
 
