@@ -34,8 +34,8 @@ class WarehouseStockService
         }
 
         $now = Carbon::now();
-        $threeMonthsAgo = $now->copy()->subMonths(3);
-        $sixMonthsAgo = $now->copy()->subMonths(6);
+        $threeMonthsAgo = $now->copy()->subMonths(3)->startOfMonth();
+        $sixMonthsAgo = $now->copy()->subMonths(6)->startOfMonth();
 
         return $this->calculateProductStock($product, $warehouseId, $threeMonthsAgo, $sixMonthsAgo);
     }
