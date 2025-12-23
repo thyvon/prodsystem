@@ -7,11 +7,11 @@
     <style type="text/css">
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
+            src: url("{{ public_path('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
         }
         @font-face {
             font-family: 'TW Cen MT';
-            src: url("{{ asset('fonts/TwCenMT.ttf') }}") format('truetype');
+            src: url("{{ public_path('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
         @page {
