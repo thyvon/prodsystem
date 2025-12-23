@@ -67,7 +67,7 @@ class WarehouseStockService
         $avgPrice = $this->stockLedgerService->getAvgPrice(
             $product->product_id,
             $warehouseId,
-            now()->toDateString()
+            now()->subMonthNoOverflow()->endOfMonth()->toDateString()
         );
 
         // --- 3-Month Usage ---
