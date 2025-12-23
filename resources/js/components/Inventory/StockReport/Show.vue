@@ -217,8 +217,6 @@
       </div>
     </div>
 
-    <StockReportModal ref="pdfViewer" title="Monthly Stock Report PDF" />
-
     <!-- Confirm Modal -->
     <div class="modal fade" id="confirmModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -272,7 +270,6 @@
 <script setup>
 import { ref, onMounted, nextTick, computed } from 'vue'
 import axios from 'axios'
-import StockReportModal from '@/components/Reusable/StockReportModal.vue'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
@@ -289,7 +286,6 @@ const reportParams = ref({})
 const warehouseNames = ref('All Warehouses')
 const responders = ref([])
 const approvalButton = ref(false)
-const pdfViewer = ref(null)
 const loading = ref(false)
 const usersList = ref([])
 const commentInput = ref('')
@@ -344,8 +340,27 @@ const fetchStockReport = async () => {
 }
 
 // PDF
-const printReport = () =>
-  pdfViewer.value.open(`/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/print-pdf`)
+const printReport = () => {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      document.body.removeChild(iframe)
+    }, 300)
+  }
+
+  iframe.src = `/inventory/stock-reports/monthly-report/${props.monthlyStockReportId}/print-pdf?print=1`
+  document.body.appendChild(iframe)
+}
+
 
 // Approval Modal
 const openConfirmModal = (action) => {
