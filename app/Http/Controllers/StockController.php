@@ -366,256 +366,6 @@ class StockController extends Controller
         return response()->json(['success' => true, 'message' => 'Report deleted successfully.']);
     }
 
-    // ===================================================================
-    // View Approved Report as PDF
-    // ===================================================================
-    // public function showpdf(MonthlyStockReport $monthlyStockReport)
-    // {
-    //     $this->authorize('view', $monthlyStockReport);
-
-    //     // Label mapping
-    //     $mapLabel = [
-    //         'verify'      => 'Verified By',
-    //         'check'       => 'Checked By',
-    //         'acknowledge' => 'Acknowledged By',
-    //     ];
-
-    //     // Transform approvals
-    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-    //         $typeKey = strtolower($approval->request_type);
-
-    //         return [
-    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
-    //             'position_name'      => $approval->responderPosition?->title ?? null,
-    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-    //             'request_type'       => $approval->request_type,
-    //             'approval_status'    => $approval->approval_status,
-    //             'responded_date'     => $approval->responded_date
-    //                                     ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
-    //                                     : null,
-    //             'comment'            => $approval->comment,
-    //             'signature_url'      => $approval->responder?->signature_url ?? null,
-    //         ];
-    //     })->toArray();
-
-    //     // Prepare PDF data
-    //     $data = $this->prepareReportData($monthlyStockReport);
-    //     $data['approvals'] = $approvals;
-
-    //     // Render Blade HTML
-    //     $html = view('Inventory.stock-report.print-report', $data)->render();
-
-    //     // ⚡ Generate PDF directly in memory (NO saving)
-    //     $pdf = Browsershot::html($html)
-    //         ->noSandbox()
-
-    //         // Reduce CPU
-    //         ->emulateMedia('print')
-    //         ->showBackground()
-
-    //         // Ultra low resource mode
-    //         ->addChromiumArguments([
-    //             '--disable-gpu',
-    //             '--blink-settings=imagesEnabled=true',
-    //             '--disable-extensions',
-    //             '--disable-dev-shm-usage',
-    //             '--disable-software-rasterizer',
-    //             '--single-process',
-    //             '--no-zygote',
-    //             '--no-sandbox',
-    //             '--disable-setuid-sandbox',
-    //             '--no-first-run',
-    //             '--no-default-browser-check',
-    //             '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
-    //             '--disable-background-networking',
-    //             '--disable-background-timer-throttling',
-    //             '--disable-backgrounding-occluded-windows',
-    //             '--disable-breakpad',
-    //             '--disable-ipc-flooding-protection',
-    //             '--disable-renderer-backgrounding',
-    //             '--disable-client-side-phishing-detection',
-    //             '--disable-hang-monitor',
-    //             '--disable-popup-blocking',
-    //             '--disable-sync',
-    //             '--metrics-recording-only',
-    //             '--mute-audio',
-    //         ])
-
-    //         ->setDelay(20)
-    //         ->format('A4')
-    //         ->landscape()
-    //         ->margins(5, 3, 5, 3)
-    //         ->timeout(40)
-    //         ->setTemporaryFolder('/tmp/chromium')
-
-    //         ->pdf(); // ← generate raw PDF bytes
-
-    //     // Return PDF directly to browser
-    //     return response($pdf)
-    //         ->header('Content-Type', 'application/pdf')
-    //         ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
-    // }
-
-    // public function showpdf(MonthlyStockReport $monthlyStockReport)
-    // {
-    //     $this->authorize('view', $monthlyStockReport);
-
-    //     $mapLabel = [
-    //         'verify'      => 'Verified By',
-    //         'check'       => 'Checked By',
-    //         'acknowledge' => 'Acknowledged By',
-    //     ];
-
-    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-    //         $typeKey = strtolower($approval->request_type);
-
-    //         return [
-    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
-    //             'position_name'      => $approval->responderPosition?->title ?? null,
-    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-    //             'request_type'       => $approval->request_type,
-    //             'approval_status'    => $approval->approval_status,
-    //             'responded_date'     => $approval->responded_date
-    //                                         ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
-    //                                         : null,
-    //             'comment'            => $approval->comment,
-    //             'signature_url'      => $approval->responder?->signature_url ?? null,
-    //         ];
-    //     })->toArray();
-
-    //     $data = $this->prepareReportData($monthlyStockReport);
-    //     $data['approvals'] = $approvals;
-
-    //     $html = view('Inventory.stock-report.print-report', $data)->render();
-
-    //     $pdf = Browsershot::html($html)
-    //         ->noSandbox()
-    //         ->emulateMedia('print')
-    //         ->showBackground()
-    //         ->addChromiumArguments([
-    //             '--no-sandbox',
-    //             '--disable-gpu',
-    //             '--disable-dev-shm-usage',
-    //             '--single-process',
-    //         ])
-    //         ->format('A4')
-    //         ->landscape()
-    //         ->margins(5, 3, 5, 3)
-    //         ->timeout(20)
-    //         ->setTemporaryFolder(storage_path('tmp')) // Use storage for low RAM
-    //         ->pdf();
-
-    //     return response($pdf)
-    //         ->header('Content-Type', 'application/pdf')
-    //         ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
-    // }
-
-
-    // public function pdfReport(MonthlyStockReport $monthlyStockReport)
-    // {
-    //     $this->authorize('view', $monthlyStockReport);
-
-    //     // Load report items from DB with product/variant relationships
-    //     $items = $monthlyStockReport->items()->with(['productVariant.product.unit'])->get();
-
-    //     // Prepare report data array for Blade
-    //     $reportData = $items->map(function($item) {
-    //         $variant = $item->productVariant;
-    //         $product = $variant?->product;
-
-    //         return [
-    //             'product_id'         => $item->product_id,
-    //             'item_code'          => $variant->item_code ?? '-',
-    //             'description'        => trim(($product->name ?? '') . ' ' . ($variant->description ?? '')),
-    //             'unit_name'          => $product?->unit?->name ?? '-',
-    //             'beginning_quantity' => $item->beginning_quantity,
-    //             'beginning_price'    => $item->beginning_price,
-    //             'beginning_total'    => $item->beginning_total,
-    //             'stock_in_quantity'  => $item->stock_in_quantity,
-    //             'stock_in_total'     => $item->stock_in_total,
-    //             'available_quantity' => $item->available_quantity,
-    //             'available_price'    => $item->available_price,
-    //             'available_total'    => $item->available_total,
-    //             'stock_out_quantity' => $item->stock_out_quantity,
-    //             'stock_out_total'    => $item->stock_out_total,
-    //             'ending_quantity'    => $item->ending_quantity,
-    //             'ending_total'       => $item->ending_total,
-    //             'counted_quantity'   => $item->counted_quantity,
-    //             'variance_quantity'  => $item->variance_quantity,
-    //             'average_price'      => $item->average_price,
-    //         ];
-    //     });
-
-    //     // Prepare approvals
-    //     $mapLabel = [
-    //         'verify'      => 'Verified By',
-    //         'check'       => 'Checked By',
-    //         'acknowledge' => 'Acknowledged By',
-    //     ];
-
-    //     $approvals = $monthlyStockReport->approvals->map(function ($approval) use ($mapLabel) {
-    //         $typeKey = strtolower($approval->request_type);
-
-    //         return [
-    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
-    //             'position_name'      => $approval->responderPosition?->title ?? null,
-    //             'request_type_label' => $mapLabel[$typeKey] ?? ucfirst($typeKey) . ' By',
-    //             'request_type'       => $approval->request_type,
-    //             'approval_status'    => $approval->approval_status,
-    //             'responded_date'     => $approval->responded_date
-    //                                         ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
-    //                                         : null,
-    //             'comment'            => $approval->comment,
-    //             'signature_url'      => $approval->responder?->signature_url ?? null,
-    //         ];
-    //     })->toArray();
-
-    //     // Creator info
-    //     $creator = $monthlyStockReport->creator; // relationship to User
-    //     $created_by = $creator?->name;
-    //     $creator_position = $creator?->defaultPosition?->title;
-    //     $signature_url = $creator?->signature_url;
-    //     $created_at = $monthlyStockReport->created_at?->format('M d, Y');
-
-    //     // Warehouse names as string
-    //     $warehouseNames = implode(', ', $monthlyStockReport->warehouse_names ?? []);
-
-    //     // Pass data to Blade
-    //     $html = view('Inventory.stock-report.print-report', [
-    //         'report'           => $reportData,
-    //         'approvals'        => $approvals,
-    //         'created_by'       => $created_by,
-    //         'creator_position' => $creator_position,
-    //         'signature_url'    => $signature_url,
-    //         'created_at'       => $created_at,
-    //         'warehouseNames'   => $warehouseNames,
-    //         'start_date'       => $monthlyStockReport->start_date,
-    //         'end_date'         => $monthlyStockReport->end_date,
-    //     ])->render();
-
-    //     // Generate PDF
-    //     $pdf = Browsershot::html($html)
-    //         ->noSandbox()
-    //         ->emulateMedia('print')
-    //         ->showBackground()
-    //         ->addChromiumArguments([
-    //             '--no-sandbox',
-    //             '--disable-gpu',
-    //             '--disable-dev-shm-usage',
-    //             '--single-process',
-    //         ])
-    //         ->format('A4')
-    //         ->landscape()
-    //         ->margins(5, 3, 5, 3)
-    //         ->timeout(20)
-    //         ->setTemporaryFolder(storage_path('tmp'))
-    //         ->pdf();
-
-    //     return response($pdf)
-    //         ->header('Content-Type', 'application/pdf')
-    //         ->header('Content-Disposition', 'inline; filename="Monthly_Stock_Report.pdf"');
-    // }
-
     public function htmlReport(MonthlyStockReport $monthlyStockReport)
     {
         $this->authorize('view', $monthlyStockReport);
@@ -692,11 +442,73 @@ class StockController extends Controller
         ]);
     }
 
+    // public function generateStockReportPdf(Request $request)
+    // {
+    //     $this->authorize('viewAny', MonthlyStockReport::class);
 
+    //     $startDate    = $request->input('start_date') ?? now()->startOfMonth()->toDateString();
+    //     $endDate      = $request->input('end_date') ?? now()->endOfMonth()->toDateString();
+    //     $warehouseIds = $this->parseIntArray($request->input('warehouse_ids', []));
+    //     $productIds   = $this->parseIntArray($request->input('product_ids', []));
 
+    //     $report = $this->calculateStockReport(
+    //         $startDate, $endDate, $warehouseIds, $productIds,
+    //         $request->input('search', ''),
+    //         $request->input('sortColumn', 'item_code'),
+    //         $request->input('sortDirection', 'asc'),
+    //         paginate: false
+    //     );
 
+    //     $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-    public function generateStockReportPdf(Request $request)
+    //     // Render HTML from Blade
+    //     $html = view('Inventory.stock-report.print-report', [
+    //         'report'         => collect($report),
+    //         'approvals'      => [],
+    //         'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
+    //         'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
+    //         'warehouseNames' => $warehouseNames,
+    //         'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
+    //         'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
+    //         'preparedBy'    => Auth::user()->name,
+    //         'preparedByPosition' => Auth::user()->defaultPosition?->title,
+    //         'preparedDate'  => Carbon::now()->format('d-m-Y'),
+    //     ])->render();
+
+    //     $fileName = 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf';
+    //     $filePath = storage_path('app/public/' . $fileName);
+
+    //     // ---- Browsershot Ultra Low RAM / Fast Setup ----
+    //     Browsershot::html($html)
+    //         ->noSandbox()
+    //         ->setDelay(80)                  // small delay for table rendering
+    //         ->setTemporaryFolder('/tmp/chromium')
+    //         ->emulateMedia('print')
+    //         ->format('A4')
+    //         ->landscape()
+    //         ->timeout(40)
+    //         ->showBackground()
+    //         ->addChromiumArguments([
+    //             '--disable-gpu',
+    //             '--disable-dev-shm-usage',
+    //             '--no-zygote',
+    //             '--single-process',           // <-- low memory
+    //             '--no-sandbox',
+    //             '--disable-setuid-sandbox',
+    //             '--disable-software-rasterizer',
+    //             '--disable-extensions',
+    //             '--blink-settings=imagesEnabled=true',
+    //             '--font-render-hinting=none',
+    //             '--no-first-run',
+    //             '--no-default-browser-check',
+    //         ])
+    //         ->save($filePath);
+
+    //     // Return PDF inline
+    //     return response()->file($filePath);
+    // }
+
+    public function generateStockReportHtml(Request $request)
     {
         $this->authorize('viewAny', MonthlyStockReport::class);
 
@@ -715,51 +527,19 @@ class StockController extends Controller
 
         $warehouseNames = $this->getWarehouseNames($warehouseIds);
 
-        // Render HTML from Blade
-        $html = view('Inventory.stock-report.print-report', [
-            'report'         => collect($report),
-            'approvals'      => [],
-            'start_date'     => Carbon::parse($startDate)->format('d-m-Y'),
-            'end_date'       => Carbon::parse($endDate)->format('d-m-Y'),
-            'warehouseNames' => $warehouseNames,
-            'reference_no'   => 'DRAFT-'.now()->format('YmdHis'),
-            'report_date'    => Carbon::parse($endDate)->format('d-m-Y'),
-            'preparedBy'    => Auth::user()->name,
+        // Return Blade view directly as HTML
+        return view('Inventory.stock-report.print-report', [
+            'report'             => collect($report),
+            'approvals'          => [], // pass actual approvals if needed
+            'start_date'         => Carbon::parse($startDate)->format('d-m-Y'),
+            'end_date'           => Carbon::parse($endDate)->format('d-m-Y'),
+            'warehouseNames'     => $warehouseNames,
+            'reference_no'       => 'DRAFT-'.now()->format('YmdHis'),
+            'report_date'        => Carbon::parse($endDate)->format('d-m-Y'),
+            'preparedBy'         => Auth::user()->name,
             'preparedByPosition' => Auth::user()->defaultPosition?->title,
-            'preparedDate'  => Carbon::now()->format('d-m-Y'),
-        ])->render();
-
-        $fileName = 'Stock_Report_' . Carbon::parse($endDate)->format('M-Y') . '.pdf';
-        $filePath = storage_path('app/public/' . $fileName);
-
-        // ---- Browsershot Ultra Low RAM / Fast Setup ----
-        Browsershot::html($html)
-            ->noSandbox()
-            ->setDelay(80)                  // small delay for table rendering
-            ->setTemporaryFolder('/tmp/chromium')
-            ->emulateMedia('print')
-            ->format('A4')
-            ->landscape()
-            ->timeout(40)
-            ->showBackground()
-            ->addChromiumArguments([
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--no-zygote',
-                '--single-process',           // <-- low memory
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-software-rasterizer',
-                '--disable-extensions',
-                '--blink-settings=imagesEnabled=true',
-                '--font-render-hinting=none',
-                '--no-first-run',
-                '--no-default-browser-check',
-            ])
-            ->save($filePath);
-
-        // Return PDF inline
-        return response()->file($filePath);
+            'preparedDate'       => Carbon::now()->format('d-m-Y'),
+        ]);
     }
 
 

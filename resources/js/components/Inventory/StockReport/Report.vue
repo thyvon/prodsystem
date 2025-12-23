@@ -17,7 +17,7 @@
         <div class="d-flex flex-column mb-2">
           <!-- Top Row: Print + Filters -->
           <div class="d-flex mb-2 align-items-center">
-            <button class="btn btn-success mr-2" :disabled="isGeneratingPdf" @click="openPdfViewer">
+            <button class="btn btn-success mr-2" :disabled="isGeneratingPdf" @click="printReport">
               <i class="fal fa-print mr-1" v-if="!isGeneratingPdf"></i>
               <span v-if="!isGeneratingPdf">Print Stock Report</span>
               <span v-else class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -126,27 +126,82 @@ const datatableOptions = {
   pageLength: 10 }
 
 // --- PDF export ---
-const openPdfViewer = async () => {
+const printReport = async () => {
   try {
     isGeneratingPdf.value = true
-    pdfUrl.value = null
 
-    const res = await axios.post('/inventory/stock-reports/pdf', datatableParams, {
-      responseType: 'blob',
-      headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') }
+    // Create a visible but small iframe
+    const iframe = document.createElement('iframe')
+    iframe.name = 'print-iframe'
+    iframe.style.position = 'fixed'
+    iframe.style.width = '1px'
+    iframe.style.height = '1px'
+    iframe.style.top = '0'
+    iframe.style.left = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    // Trigger print after iframe loads
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+        // Cleanup
+        document.body.removeChild(iframe)
+        isGeneratingPdf.value = false
+      }, 300)
+    }
+
+    // Create hidden form pointing to the iframe
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = '/inventory/stock-reports/print-report'
+    form.target = 'print-iframe'
+
+    // CSRF token
+    const tokenInput = document.createElement('input')
+    tokenInput.type = 'hidden'
+    tokenInput.name = '_token'
+    tokenInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    form.appendChild(tokenInput)
+
+    // Datatable params
+    Object.entries(datatableParams).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = `${key}[]`
+          input.value = v
+          form.appendChild(input)
+        })
+      } else {
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = key
+        input.value = value
+        form.appendChild(input)
+      }
     })
 
-    const blob = new Blob([res.data], { type: 'application/pdf' })
-    pdfUrl.value = URL.createObjectURL(blob)
+    // Optional print flag
+    const printInput = document.createElement('input')
+    printInput.type = 'hidden'
+    printInput.name = 'print'
+    printInput.value = '1'
+    form.appendChild(printInput)
 
-    $('#pdfModal').modal('show')
+    document.body.appendChild(form)
+    form.submit()
+    document.body.removeChild(form)
+
   } catch (err) {
     console.error(err)
-    alert('Failed to generate PDF')
-  } finally {
+    alert('Failed to load report for printing')
     isGeneratingPdf.value = false
   }
 }
+
 
 // --- Filters ---
 const fetchWarehouses = async () => {
