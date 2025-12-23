@@ -35,8 +35,10 @@ class WarehouseStockService
         }
 
         $now = Carbon::now();
+
         $threeMonthsAgo = $now->copy()->subMonths(3)->startOfMonth();
-        $sixMonthsAgo = $now->copy()->subMonths(6)->startOfMonth();
+        $sixMonthsAgo   = $now->copy()->subMonths(6)->startOfMonth();
+        $endDate = $now;
 
         return $this->calculateProductStock($product, $warehouseId, $threeMonthsAgo, $sixMonthsAgo);
     }
@@ -181,7 +183,10 @@ class WarehouseStockService
             )
             ->where('product_id', $product->product_id)
             ->where('parent_warehouse', $warehouseId)
-            ->where('transaction_date', '>=', $threeMonthsAgo)
+            ->whereBetween('transaction_date', [
+                $threeMonthsAgo,
+                $endDate
+            ])
             ->where('transaction_type', 'Stock_Out')
             ->groupBy('year', 'month')
             ->get();
@@ -197,12 +202,15 @@ class WarehouseStockService
             )
             ->where('product_id', $product->product_id)
             ->where('parent_warehouse', $warehouseId)
-            ->where('transaction_date', '>=', $sixMonthsAgo)
+            ->whereBetween('transaction_date', [
+                $sixMonthsAgo,
+                $endDate
+            ])
             ->where('transaction_type', 'Stock_Out')
             ->groupBy('year', 'month')
             ->get();
 
-        Log::info('Monthly Usage 6m', ['data' => $monthlyUsage6m->toArray(),'sexmonthsAgo' => $sixMonthsAgo->toDateString()]);
+        // Log::info('Monthly Usage 6m', ['data' => $monthlyUsage6m->toArray(),'sexmonthsAgo' => $sixMonthsAgo->toDateString()]);
 
         $monthsWithUsage6m = $monthlyUsage6m->filter(fn($m) => $m->total_qty > 0);
         $avgUsage6m = $monthsWithUsage6m->isNotEmpty() ? $monthsWithUsage6m->avg('total_qty') : 0;
