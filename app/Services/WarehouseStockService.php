@@ -6,6 +6,7 @@ use App\Models\WarehouseProduct;
 use App\Models\StockLedger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WarehouseStockService
 {
@@ -185,6 +186,8 @@ class WarehouseStockService
             ->groupBy('year', 'month')
             ->get();
 
+        \Log::info("3-Month Usage Data for product_id {$product->product_id} in warehouse {$warehouseId}: ", $monthlyUsage3m->toArray());
+
         $monthsWithUsage3m = $monthlyUsage3m->filter(fn($m) => $m->total_qty > 0);
         $avgUsage3m = $monthsWithUsage3m->isNotEmpty() ? $monthsWithUsage3m->avg('total_qty') : 0;
 
@@ -201,6 +204,7 @@ class WarehouseStockService
             ->groupBy('year', 'month')
             ->get();
 
+        \Log::info("6-Month Usage Data for product_id {$product->product_id} in warehouse {$warehouseId}: ", $monthlyUsage6m->toArray());
         $monthsWithUsage6m = $monthlyUsage6m->filter(fn($m) => $m->total_qty > 0);
         $avgUsage6m = $monthsWithUsage6m->isNotEmpty() ? $monthsWithUsage6m->avg('total_qty') : 0;
 
