@@ -149,7 +149,7 @@ class WarehouseStockService
 
         return array_merge($product->toArray(), [
             'stock_onhand' => round($beginningStockQty, 0),
-            'avg_price' => $avgPrice,
+            'avg_price' => round($avgPrice, 2),
             'avg_daily_use_per_day' => round($avgDailyUse, 0),
             'order_plan_qty' => round($orderPlanQty, 0),
             'demand_stock_out_forecast_qty' => round($demandForecastQty, 0),
