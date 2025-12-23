@@ -164,7 +164,7 @@ class WarehouseStockService
         $beginningStockQty = $this->stockLedgerService->getStockOnHand(
             $product->product_id,
             $warehouseId,
-            now()->toDateString()
+            now()->subMonthNoOverflow()->endOfMonth()->toDateString()
         );
 
         $avgPrice = $this->stockLedgerService->getAvgPrice(
@@ -255,13 +255,13 @@ class WarehouseStockService
             'avg_daily_use_per_day' => round($avgDailyUse, 2),
             'order_plan_qty' => round($orderPlanQty, 0),
             'demand_stock_out_forecast_qty' => round($demandForecastQty, 2),
-            'ending_stock_qty' => round($endingStockQty, 2),
             'ending_stock_cover_days' => round($endingStockCoverDays, 2),
             'buffer_15_days_qty' => round($buffer15DaysQty, 2),
             'order_lead_time_ss_days' => round($orderLeadTimeSafetyDays, 2),
             'safety_stock_qty' => round($safetyStockQty, 2),
             'stock_in_days' => round($stockInDays, 2),
             'target_safety_stock_days' => round($targetSafetyStockDays, 2),
+            'ending_stock_qty' => round($endingStockQty, 2),
             'stock_value_usd' => round($stockValueUSD, 2),
             'inventory_reorder_qty' => round($inventoryReorderQty, 2),
             'reorder_level_qty' => round($reorderLevelQty, 2),
