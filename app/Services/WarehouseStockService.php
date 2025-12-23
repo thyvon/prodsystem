@@ -202,7 +202,7 @@ class WarehouseStockService
             ->groupBy('year', 'month')
             ->get();
 
-        Log::info('Monthly Usage 6m', ['data' => $monthlyUsage6m->toArray()]);
+        Log::info('Monthly Usage 6m', ['data' => $monthlyUsage6m->toArray(),'sexmonthsAgo' => $sixMonthsAgo->toDateString()]);
 
         $monthsWithUsage6m = $monthlyUsage6m->filter(fn($m) => $m->total_qty > 0);
         $avgUsage6m = $monthsWithUsage6m->isNotEmpty() ? $monthsWithUsage6m->avg('total_qty') : 0;
