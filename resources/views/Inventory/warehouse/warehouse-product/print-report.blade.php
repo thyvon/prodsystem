@@ -212,7 +212,7 @@
                 <th style="min-width:50px;">Stock Ending</th>
                 <th style="min-width:50px;">Ending Cover Day</th>
                 <th style="min-width:50px;">Target SS. Day</th>
-                <th style="min-width:50px;">Stock Value</th>
+                <th style="min-width:90px;">Stock Value</th>
                 <th style="min-width:50px;">Inv. Reorder Qty</th>
                 <th style="min-width:50px;">Reorder Level Qty</th>
                 <th style="min-width:50px;">Max Inv. Level Qty</th>
