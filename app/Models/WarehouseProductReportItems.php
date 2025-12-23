@@ -44,6 +44,7 @@ class WarehouseProductReportItems extends Model
         'demand_forecast_quantity' => 'float',
         'ending_stock_cover_day' => 'float',
         'target_safety_stock_day' => 'float',
+        'stock_ending_quantity' => 'float',
         'stock_value' => 'float',
         'inventory_reorder_quantity' => 'float',
         'reorder_level_day' => 'float',
