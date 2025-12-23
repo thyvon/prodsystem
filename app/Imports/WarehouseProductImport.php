@@ -43,14 +43,11 @@ class WarehouseProductImport implements ToCollection, WithHeadingRow
                     throw new \Exception("Row " . ($index + 2) . ": Product '{$row['product_code']}' not found.");
                 }
 
-                // Find the warehouse product
-                $warehouseProduct = WarehouseProduct::where('product_id', $productId)
-                    ->where('warehouse_id', $warehouseId)
-                    ->first();
-
-                if (!$warehouseProduct) {
-                    throw new \Exception("Row " . ($index + 2) . ": Warehouse product does not exist.");
-                }
+                // Find existing warehouse product OR create new
+                $warehouseProduct = WarehouseProduct::firstOrNew([
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
+                ]);
 
                 // Validate row
                 $validator = Validator::make([
@@ -76,16 +73,15 @@ class WarehouseProductImport implements ToCollection, WithHeadingRow
 
                 $validated = $validator->validated();
 
-                // Update warehouse product
-                $warehouseProduct->update([
-                    'alert_quantity'             => $validated['alert_quantity'],
+                // Fill and save (will create new if it doesn't exist)
+                $warehouseProduct->fill([
+                    'alert_quantity'             => $validated['alert_quantity'] ?? 0,
                     'is_active'                  => $validated['is_active'] ?? 1,
-                    'order_leadtime_days'        => $validated['order_leadtime_days'],
-                    'stock_out_forecast_days'    => $validated['stock_out_forecast_days'],
-                    'target_inv_turnover_days'   => $validated['target_inv_turnover_days'],
-                ]);
+                    'order_leadtime_days'        => $validated['order_leadtime_days'] ?? 0, // default 0
+                    'stock_out_forecast_days'    => $validated['stock_out_forecast_days'] ?? 0, // default 0
+                    'target_inv_turnover_days'   => $validated['target_inv_turnover_days'] ?? 0, // default 0
+                ])->save();
             }
         });
     }
 }
-
