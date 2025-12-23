@@ -28,6 +28,7 @@ class WarehouseProductReportItems extends Model
         'stock_value',
         'inventory_reorder_quantity',
         'reorder_level_day',
+        'reorder_level_qty',
         'max_inventory_level_quantity',
         'max_inventory_usage_day',
         'remarks',
@@ -48,6 +49,7 @@ class WarehouseProductReportItems extends Model
         'stock_value' => 'float',
         'inventory_reorder_quantity' => 'float',
         'reorder_level_day' => 'float',
+        'reorder_level_qty' => 'float',
         'max_inventory_level_quantity' => 'float',
         'max_inventory_usage_day' => 'float',
     ];

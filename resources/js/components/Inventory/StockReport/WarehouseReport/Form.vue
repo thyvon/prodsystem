@@ -105,7 +105,14 @@
                     <td>{{ item.item_code }}</td>
                     <td>{{ item.product_name }} {{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <td>{{ item.unit_price }}</td>
+                    <td>
+                      <input type="number" 
+                              v-model.number="item.unit_price" 
+                              class="form-control form-control-sm" 
+                              min="0.0001"
+                              step="0.0001" 
+                              placeholder="Unit Price" />
+                    </td>
                     <td>{{ item.avg_6_month_usage }}</td>
                     <td>{{ item.last_month_usage }}</td>
                     <td>{{ item.stock_beginning }}</td>
@@ -122,7 +129,13 @@
                     <td>{{ item.target_safety_stock_day }}</td>
                     <td>{{ item.stock_value }}</td>
                     <td>{{ item.inv_reorder_qty }}</td>
-                    <td>{{ item.reoder_level_qty }}</td>
+                    <td>
+                      <input type="number"
+                              v-model.number="item.reorder_level_qty"
+                              class="form-control form-control-sm"
+                              min="0.00"
+                              placeholder="Reorder Level Qty" />
+                    </td>
                     <td>{{ item.max_inv_level_qty }}</td>
                     <td>{{ item.max_inv_usage_day }}</td>
                     <td>
@@ -519,7 +532,7 @@ const addSelectedItems = () => {
         target_safety_stock_day: p.target_safety_stock_days || 0,
         stock_value: p.stock_value_usd || 0,
         inv_reorder_qty: p.inventory_reorder_qty || 0,
-        reoder_level_qty: p.reorder_level_qty || 0,
+        reorder_level_qty: p.reorder_level_qty || 0,
         max_inv_level_qty: p.max_inventory_level_qty || 0,
         max_inv_usage_day: p.max_usage_days || 0, 
       })
@@ -605,7 +618,7 @@ const submitForm = async () => {
         target_safety_stock_day: i.target_safety_stock_day,
         stock_value: i.stock_value,
         inv_reorder_qty: i.inv_reorder_qty,
-        reoder_level_qty: i.reoder_level_qty,
+        reorder_level_qty: i.reorder_level_qty,
         max_inv_level_qty: i.max_inv_level_qty,
         max_inv_usage_day: i.max_inv_usage_day,
         remarks: i.remarks || null
