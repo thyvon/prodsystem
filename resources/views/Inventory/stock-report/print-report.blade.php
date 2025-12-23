@@ -159,7 +159,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-section">
-            <img src="{{ asset('img/logo/logo-dark.png') }}" alt="Logo">
+            <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
             <h3>Monthly Stock Report</h3>
