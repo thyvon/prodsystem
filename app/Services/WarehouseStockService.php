@@ -6,6 +6,7 @@ use App\Models\WarehouseProduct;
 use App\Models\StockLedger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WarehouseStockService
 {
