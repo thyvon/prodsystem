@@ -47,14 +47,14 @@
                 <label>Unit <span class="text-danger">*</span></label>
                 <select ref="unitSelect" v-model="form.unit_id" class="form-control" required>
                   <option value="">Select Unit</option>
-                  <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
+                  <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.text }}</option>
                 </select>
               </div>
               <div class="form-group col-md-3">
                 <label>Main Category <span class="text-danger">*</span></label>
                 <select ref="categorySelect" v-model="form.category_id" class="form-control" required>
                   <option value="">Select Main Category</option>
-                  <option v-for="cat in mainCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                  <option v-for="cat in mainCategories" :key="cat.id" :value="cat.id">{{ cat.text }}</option>
                 </select>
               </div>
             </div>
@@ -63,7 +63,7 @@
                 <label>Sub-Category</label>
                 <select ref="subCategorySelect" v-model="form.sub_category_id" class="form-control">
                   <option value="">Select Sub-Category</option>
-                  <option v-for="cat in filteredSubCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                  <option v-for="cat in filteredSubCategories" :key="cat.id" :value="cat.id">{{ cat.text }}</option>
                 </select>
               </div>
               <div class="form-group col-md-9">
@@ -578,9 +578,9 @@ const syncFormWarehouses = () => {
 const loadInitialData = async () => {
   try {
     const [mainCategoriesRes, subCategoriesRes, unitsRes] = await Promise.all([
-      axios.get('/api/main-categories'),
-      axios.get('/api/sub-categories'),
-      axios.get('/api/unit-of-measures'),
+      axios.get('/api/main-value-lists/get-main-categories'),
+      axios.get('/api/main-value-lists/get-sub-categories'),
+      axios.get('/api/main-value-lists/get-unit-of-measures'),
     ])
     mainCategories.value = mainCategoriesRes.data?.data || mainCategoriesRes.data || []
     subCategories.value = subCategoriesRes.data?.data || subCategoriesRes.data || []

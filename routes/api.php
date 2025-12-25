@@ -439,6 +439,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->name('api.purchase-requests.import-items');
 
     // Main Value List
+    Route::get('/main-value-lists/get-main-categories', [MainValueListController::class, 'getMainCategories'])->name('api.main-value-lists.get-main-categories');
+    Route::get('/main-value-lists/get-sub-categories', [MainValueListController::class, 'getSubCategories'])->name('api.main-value-lists.get-sub-categories');
+    Route::get('/main-value-lists/get-unit-of-measures', [MainValueListController::class, 'getUoms'])->name('api.main-value-lists.get-units-of-measure');
     Route::get('/main-value-lists/get-users', [MainValueListController::class, 'getUsers'])->name('api.main-value-lists.get-users');
     Route::get('/main-value-lists/get-campuses', [MainValueListController::class, 'getCampuses'])->name('api.main-value-lists.get-campuses');
     Route::get('/main-value-lists/get-departments', [MainValueListController::class, 'getDepartments'])->name('api.main-value-lists.get-departments');

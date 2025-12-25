@@ -7,6 +7,9 @@ use App\Models\Warehouse;
 use App\Models\Campus;
 use App\Models\Division;
 use App\Models\Department;
+use App\Models\UnitOfMeasure;
+use App\Models\MainCategory;
+use App\Models\SubCategory;
 use App\Models\User;
 
 class MainValueListController extends Controller
@@ -18,6 +21,37 @@ class MainValueListController extends Controller
         return $campuses->map(fn($c) => [
             'id'   => $c->id,
             'text' => $c->short_name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getUoms(Request $request)
+    {
+        $uoms = UnitOfMeasure::where('is_active', 1)->get();
+
+        return $uoms->map(fn($u) => [
+            'id'   => $u->id,
+            'text' => $u->short_name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getMainCategories(Request $request)
+    {
+        $categories = MainCategory::where('is_active', 1)->get();
+
+        return $categories->map(fn($c) => [
+            'id'   => $c->id,
+            'text' => $c->short_name, // Select2 needs "text"
+        ]);
+    }
+
+    public function getSubCategories(Request $request)
+    {
+        $subCategories = SubCategory::where('is_active', 1)->get();
+
+        return $subCategories->map(fn($sc) => [
+            'id'   => $sc->id,
+            'main_category_id' => $sc->main_category_id,
+            'text' => $sc->name, // Select2 needs "text"
         ]);
     }
 
