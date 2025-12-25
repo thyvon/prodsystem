@@ -557,6 +557,42 @@ const importFile = async () => {
   }
 }
 
+// Refresh stock helper - triggers server refresh for current items and reloads products table
+const refreshStock = async () => {
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    if (productsTable) productsTable.ajax.reload()
+    return
+  }
+
+  const productIds = form.value.items.map(i => i.product_id).filter(Boolean)
+  if (!productIds.length) {
+    if (productsTable) productsTable.ajax.reload()
+    return
+  }
+
+  try {
+    const { data } = await axios.patch('/api/inventory/stock-counts/refresh-stock', {
+      warehouse_id: form.value.warehouse_id,
+      transaction_date: form.value.transaction_date,
+      product_ids: productIds
+    })
+
+    const updatedMap = Object.fromEntries((data.data || []).map(u => [u.product_id, u]))
+    form.value.items = form.value.items.map(item => {
+      const updated = updatedMap[item.product_id]
+      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+    })
+
+    if (productsTable) productsTable.ajax.reload()
+  } catch (err) {
+    console.error('Failed to refresh stock', err)
+  }
+}
+
+// Watch transaction date and warehouse changes to refresh stock
+watch(() => form.value.transaction_date, (nv, ov) => { if (nv !== ov) refreshStock() })
+watch(() => form.value.warehouse_id, (nv, ov) => { if (nv !== ov) refreshStock() })
+
 const downloadSampleExcel = () => {
   const link = document.createElement('a')
   link.href = '/sampleExcel/stock_count_sample.xlsx'
