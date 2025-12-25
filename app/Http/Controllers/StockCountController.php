@@ -790,6 +790,7 @@ class StockCountController extends Controller
 
                     $avgPrice = $this->stockLedgerService->getAvgPrice(
                         $productId,
+                        $warehouseId,
                         $transactionDate
                     );
 
