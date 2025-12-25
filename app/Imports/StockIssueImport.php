@@ -145,7 +145,8 @@ class StockIssueImport implements ToCollection, WithHeadingRow
 
                 // Get average unit price from StockLedgerService
                 $unitPrice = (float) $this->ledgerService->getAvgPrice(
-                    $productId,
+                    $validated['product_id'],
+                    $validated['warehouse_id'],
                     $validated['transaction_date']
                 );
 
