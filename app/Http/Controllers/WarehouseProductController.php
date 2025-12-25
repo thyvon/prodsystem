@@ -323,14 +323,13 @@ class WarehouseProductController extends Controller
         $offset = ($page - 1) * $limit;
 
         $transactionDate = Carbon::parse($cutoffDate);
+        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
 
         // ------------------- 1️⃣ Fetch warehouses -------------------
         $warehouses = Warehouse::select('id', 'name')
             ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
             ->orderBy('name')
             ->get();
-
-        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
 
         // ------------------- 2️⃣ Prepare product query -------------------
         $productQuery = WarehouseProduct::with([
@@ -350,14 +349,19 @@ class WarehouseProductController extends Controller
             });
         }
 
-        $totalRows = $productQuery->count(); // total before filtering
+        // ------------------- 3️⃣ Count total products -------------------
+        $recordsTotal = $productQuery->count();
 
-        // ------------------- 3️⃣ Get all products -------------------
-        $allWarehouseProducts = $productQuery->get()->groupBy('product_id');
+        // ------------------- 4️⃣ Apply pagination -------------------
+        $warehouseProducts = $productQuery->offset($offset)
+            ->limit($limit)
+            ->get()
+            ->groupBy('product_id');
+
         $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
 
-        // ------------------- 4️⃣ Build pivot rows -------------------
-        $allRows = $allWarehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
+        // ------------------- 5️⃣ Build pivot rows -------------------
+        $rows = $warehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
             $variant = $items->first()->variant;
 
             $row = [
@@ -380,10 +384,6 @@ class WarehouseProductController extends Controller
         ->filter(fn($row) => $row['total'] > 0) // keep only rows with total > 0
         ->values();
 
-        // ------------------- 5️⃣ Apply pagination manually -------------------
-        $paginatedRows = $allRows->slice($offset, $limit)->values();
-        $recordsFiltered = $allRows->count(); // total after filtering
-
         // ------------------- 6️⃣ Response -------------------
         return response()->json([
             'warehouses' => $warehouses->map(fn($wh) => [
@@ -391,12 +391,11 @@ class WarehouseProductController extends Controller
                 'name' => $wh->name,
                 'slug' => $slugify($wh->name)
             ]),
-            'data' => $paginatedRows,
-            'recordsTotal' => $totalRows,
-            'recordsFiltered' => $recordsFiltered,
+            'data' => $rows,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsTotal, // filtered count could be adjusted if needed
         ]);
     }
-
 
     public function exportWarehouseStockPivot(Request $request)
     {
