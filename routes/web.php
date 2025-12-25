@@ -291,6 +291,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-reports/reports/{warehouseProductReport}/print-report', [WarehouseProductController::class, 'showPdf'])->name('warehouses.reports.print-report');
         Route::get('/stock-reports/stock-onhand-by-warehouse', [WarehouseProductController::class, 'stockOnhandByWarehouseIndex'])
             ->name('warehouses.stock-onhand-by-warehouse-index');
+        Route::get('/stock-reports/stock-onhand-by-warehouse/export', [WarehouseProductController::class, 'exportWarehouseStockPivot'])
+            ->name('stock-reports.export');
     });
 
     //Approval View Route

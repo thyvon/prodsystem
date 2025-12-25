@@ -18,11 +18,8 @@
         <div class="d-flex flex-column mb-2">
           <!-- Top Row: Print + Filter Button -->
           <div class="d-flex mb-2 align-items-center">
-            <button class="btn btn-success mr-2" @click="printReport">
-              <i class="fal fa-print mr-1"></i> Print Stock Report
-            </button>
             <button class="btn btn-info" type="button" data-toggle="collapse" data-target="#filterCollapse">
-              <i class="fal fa-filter mr-2"></i> Filters
+              <i class="fal fa-filter mr-2"></i> Filters & Export
             </button>
           </div>
 
@@ -36,6 +33,9 @@
             <div class="d-flex justify-content-end">
               <button class="btn btn-primary" @click="applyFilters">
                 <i class="fal fa-filter mr-2"></i> Apply
+              </button>
+              <button class="btn btn-success mr-2" @click="exportReport">
+                <i class="fal fa-file-export mr-1"></i> Export Stock Report
               </button>
             </div>
           </div>
@@ -62,7 +62,7 @@ const datatableParams = reactive({
   search: '',
   warehouse_ids: [],
   cutoff_date: null,
-  limit: 10,
+  limit: 15,
   page: 1,
   sortColumn: 'item_code',
   sortDirection: 'asc'
@@ -71,7 +71,7 @@ const datatableParams = reactive({
 // ---------------- STATIC DATATABLE HEADERS ----------------
 const datatableHeaders = ref([
   { text: 'Item Code', value: 'item_code', minWidth: '120px' },
-  { text: 'Product', value: 'product', minWidth: '300px', sortable: false },
+  { text: 'Product', value: 'description', minWidth: '300px', sortable: false },
   { text: 'Unit', value: 'unit', minWidth: '60px', sortable: false },
 
   // Warehouse columns
@@ -92,7 +92,7 @@ const datatableHeaders = ref([
 
 // ---------------- DATATABLE CONFIG ----------------
 const datatableFetchUrl = '/api/inventory/stock-reports/stock-onhand-by-warehouse'
-const datatableOptions = { autoWidth: false, responsive: false, pageLength: 10 }
+const datatableOptions = { autoWidth: false, responsive: false, pageLength: 15 }
 
 // ---------------- DATATABLE EVENTS ----------------
 const handleSortChange = ({ column, direction }) => {
@@ -133,10 +133,40 @@ const applyFilters = () => {
   datatableRef.value.reload()
 }
 
-// ---------------- PRINT ----------------
-const printReport = () => {
-  window.open('/inventory/warehouse-stock-pivot/print', '_blank')
+// ---------------- EXPORT ----------------
+// ---------------- EXPORT ----------------
+const exportReport = async () => {
+  try {
+    const params = {
+      search: datatableParams.search,
+      warehouse_ids: datatableParams.warehouse_ids,
+      cutoff_date: datatableParams.cutoff_date,
+      sortColumn: datatableParams.sortColumn,
+      sortDirection: datatableParams.sortDirection
+    }
+
+    const res = await axios.get('/inventory/stock-reports/stock-onhand-by-warehouse/export', {
+      params,
+      responseType: 'blob' // important for file download
+    })
+
+    // Create blob and trigger download
+    const blob = new Blob([res.data], { type: res.headers['content-type'] })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', 'warehouse_stock_report.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+
+  } catch (err) {
+    console.error('Export failed:', err)
+  }
 }
+
+
 
 // ---------------- ON MOUNT ----------------
 onMounted(() => {

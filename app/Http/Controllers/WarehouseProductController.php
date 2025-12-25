@@ -22,6 +22,7 @@ use App\Services\ProductService;
 use Illuminate\Support\Facades\Log;
 use Spatie\Browsershot\Browsershot;
 use Carbon\Carbon;
+use App\Exports\WarehouseStockPivotExport;
 
 class WarehouseProductController extends Controller
 {
@@ -329,7 +330,6 @@ class WarehouseProductController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Slugify warehouse name function
         $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
 
         // ------------------- 2️⃣ Prepare product query -------------------
@@ -339,7 +339,6 @@ class WarehouseProductController extends Controller
             'variant.product.unit:id,name'
         ])->where('is_active', 1);
 
-        // Apply search filter
         if ($search) {
             $productQuery->where(function ($q) use ($search) {
                 $q->whereHas('variant', fn($v) =>
@@ -351,55 +350,125 @@ class WarehouseProductController extends Controller
             });
         }
 
-        $totalRows = $productQuery->count();
+        $totalRows = $productQuery->count(); // total before filtering
 
-        // ------------------- 3️⃣ Pagination -------------------
-        $warehouseProducts = $productQuery
-            ->skip($offset)
-            ->take($limit)
-            ->get()
-            ->groupBy('product_id');
-
+        // ------------------- 3️⃣ Get all products -------------------
+        $allWarehouseProducts = $productQuery->get()->groupBy('product_id');
         $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
 
         // ------------------- 4️⃣ Build pivot rows -------------------
-        $rows = $warehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
+        $allRows = $allWarehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
             $variant = $items->first()->variant;
 
             $row = [
                 'item_code'   => $variant->item_code,
-                'product'     => $variant->product->name,
-                'description' => $variant->description,
+                'description' => $variant->product->name . ' ' . $variant->description,
                 'unit'        => $variant->product->unit->name,
             ];
 
             $total = 0;
-
             foreach ($warehouses as $wh) {
                 $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
-                $colKey = $slugify($wh->name); // <-- Use slugified name as column key
+                $colKey = $slugify($wh->name);
                 $row[$colKey] = $qty;
                 $total += $qty;
             }
 
             $row['total'] = $total;
-
             return $row;
-        })->values();
+        })
+        ->filter(fn($row) => $row['total'] > 0) // keep only rows with total > 0
+        ->values();
 
-        // ------------------- 5️⃣ Response -------------------
+        // ------------------- 5️⃣ Apply pagination manually -------------------
+        $paginatedRows = $allRows->slice($offset, $limit)->values();
+        $recordsFiltered = $allRows->count(); // total after filtering
+
+        // ------------------- 6️⃣ Response -------------------
         return response()->json([
             'warehouses' => $warehouses->map(fn($wh) => [
                 'id' => $wh->id,
                 'name' => $wh->name,
-                'slug' => $slugify($wh->name) // frontend can use this slug for columns
+                'slug' => $slugify($wh->name)
             ]),
-            'data' => $rows,
+            'data' => $paginatedRows,
             'recordsTotal' => $totalRows,
-            'recordsFiltered' => $totalRows,
+            'recordsFiltered' => $recordsFiltered,
         ]);
     }
 
+
+    public function exportWarehouseStockPivot(Request $request)
+    {
+        $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
+        $search = $request->input('search', '');
+        $warehouseIds = $request->input('warehouse_ids', []);
+
+        $transactionDate = Carbon::parse($cutoffDate);
+
+        // ------------------- 1️⃣ Fetch warehouses -------------------
+        $warehouses = Warehouse::select('id','name')
+            ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
+            ->orderBy('name')
+            ->get();
+
+        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
+
+        // ------------------- 2️⃣ Prepare product query -------------------
+        $productQuery = WarehouseProduct::with([
+            'variant:id,item_code,product_id,description',
+            'variant.product:id,name,unit_id',
+            'variant.product.unit:id,name'
+        ])->where('is_active', 1);
+
+        if ($search) {
+            $productQuery->where(function($q) use ($search) {
+                $q->whereHas('variant', fn($v) =>
+                    $v->where('item_code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                )->orWhereHas('variant.product', fn($p) =>
+                    $p->where('name', 'like', "%{$search}%")
+                );
+            });
+        }
+
+        $warehouseProducts = $productQuery->get()->groupBy('product_id');
+        $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+
+        // ------------------- 3️⃣ Build pivot rows -------------------
+        $rows = $warehouseProducts->map(function($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
+            $variant = $items->first()->variant;
+            $row = [
+                'item_code' => $variant->item_code,
+                'description' => $variant->product->name . ' ' . $variant->description,
+                'unit' => $variant->product->unit->name,
+            ];
+
+            $total = 0;
+            foreach ($warehouses as $wh) {
+                $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
+                $colKey = $slugify($wh->name);
+                $row[$colKey] = $qty;
+                $total += $qty;
+            }
+
+            $row['total'] = $total;
+            return $row;
+        })
+        // Filter only rows with total > 0
+        ->filter(fn($row) => $row['total'] > 0)
+        ->values()
+        ->toArray();
+
+        // ------------------- 4️⃣ Format warehouses for headings -------------------
+        $warehousesFormatted = $warehouses->map(fn($wh) => [
+            'name' => $wh->name,
+            'slug' => $slugify($wh->name)
+        ])->toArray();
+
+        // ------------------- 5️⃣ Export to Excel -------------------
+        return Excel::download(new WarehouseStockPivotExport($warehousesFormatted, $rows), 'warehouse_stock_report.xlsx');
+    }
 
 
     public function showpdf(WarehouseProductReport $warehouseProductReport)

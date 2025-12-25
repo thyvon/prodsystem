@@ -2,7 +2,7 @@
 @extends('layouts.main')
 
 @section('content')
-  <stock-onhand-by-warehouse :page-length="{{ $pageLength ?? 10 }}" />
+  <stock-onhand-by-warehouse :page-length="{{ $pageLength ?? 15 }}" />
 @endsection
 
 @push('vite')

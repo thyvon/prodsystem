@@ -293,7 +293,7 @@
             <li class="{{ $reportActive ? 'active open' : '' }}">
                 <a href="#" title="Reports" data-filter-tags="reports">
                     <i class="fal fa-chart-line"></i>
-                    <span class="nav-link-text">Stock Report</span>
+                    <span class="nav-link-text">Stock Reports</span>
                 </a>
                 <ul>
                     <li class="{{ request()->is('inventory/stock-reports/track-report') ? 'active' : '' }}">
@@ -308,7 +308,12 @@
                     </li>
                     <li class="{{ request()->is('inventory/stock-reports/reports-list') ? 'active' : '' }}">
                         <a href="{{ url('inventory/stock-reports/reports-list') }}" title="Stock Report" data-filter-tags="stock report" data-filter-tags="stock report">
-                            <span class="nav-link-text">Stock Report</span>
+                            <span class="nav-link-text">Stock Report Attach</span>
+                        </a>
+                    </li>
+                    <li class="{{ request()->is('inventory/stock-reports/stock-onhand-by-warehouse') ? 'active' : '' }}">
+                        <a href="{{ url('inventory/stock-reports/stock-onhand-by-warehouse') }}" title="Stock Onhand" data-filter-tags="stock onhand" data-filter-tags="stock onhand">
+                            <span class="nav-link-text">Stock Onhand</span>
                         </a>
                     </li>
 
