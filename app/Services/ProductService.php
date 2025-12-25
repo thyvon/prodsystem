@@ -74,14 +74,18 @@ class ProductService
                         ->get();
 
         $data = $variants->map(function ($variant) use ($warehouseId, $transactionDate) {
+            // Ensure warehouseId is int or null
+            $warehouseIdInt = $warehouseId !== null ? (int) $warehouseId : null;
+
             $stockOnHand = $this->stockLedgerService->getStockOnHand(
                 $variant->id,
-                $warehouseId,
+                $warehouseIdInt,
                 $transactionDate
             );
 
             $averagePrice = $this->stockLedgerService->getAvgPrice(
                 $variant->id,
+                $warehouseIdInt,
                 $transactionDate
             );
 

@@ -77,6 +77,7 @@ class StockIssueItem extends Model
     {
         // CREATE
         static::created(function ($item) {
+            $item->load('stockIssue'); // ensure relation is loaded
             DB::table('stock_ledgers')->insert([
                 'item_id'            => $item->id,
                 'transaction_date'  => $item->stockIssue->transaction_date,
@@ -96,6 +97,7 @@ class StockIssueItem extends Model
         // UPDATE
         static::updated(function ($item) {
             // Delete old ledger row(s) for this item
+            $item->load('stockIssue');
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Out')
                 ->where('parent_reference', $item->stockIssue->reference_no ?? null)
@@ -124,6 +126,7 @@ class StockIssueItem extends Model
 
         // DELETE
         static::deleted(function ($item) {
+            $item->load('stockIssue');
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Out')
                 ->where('parent_reference', $item->stockIssue->reference_no ?? null)
@@ -136,6 +139,7 @@ class StockIssueItem extends Model
 
         // RESTORE
         static::restored(function ($item) {
+            $item->load('stockIssue');
             DB::table('stock_ledgers')->insert([
                 'item_id'            => $item->id,
                 'transaction_date'  => $item->stockIssue->transaction_date,

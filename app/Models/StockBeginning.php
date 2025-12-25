@@ -48,6 +48,7 @@ class StockBeginning extends Model
     {
         // CREATE
         static::created(function ($item) {
+            $item->load('mainStockBeginning'); // ensure relation is loaded
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
                 'transaction_date'  => $item->mainStockBeginning->beginning_date,
@@ -66,6 +67,7 @@ class StockBeginning extends Model
 
         // UPDATE
         static::updated(function ($item) {
+            $item->load('mainStockBeginning');
             // Remove existing ledger row for this item
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Begin')
@@ -91,6 +93,7 @@ class StockBeginning extends Model
 
         // DELETE (soft delete)
         static::deleted(function ($item) {
+            $item->load('mainStockBeginning');
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Begin')
                 ->where('item_id', $item->id)
@@ -99,6 +102,7 @@ class StockBeginning extends Model
 
         // RESTORE (soft delete restore)
         static::restored(function ($item) {
+            $item->load('mainStockBeginning');
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
                 'transaction_date'  => $item->mainStockBeginning->beginning_date,

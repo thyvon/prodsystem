@@ -671,7 +671,11 @@ class StockCountController extends Controller
                 ]);
 
                 // 4️⃣ Delete all old items
-                $stockCount->items()->delete();
+                $stockCount->items->each(function ($item) use ($user) {
+                    $item->deleted_by = $user->id;
+                    $item->save();
+                    $item->delete(); // triggers booted deleted()
+                });
 
                 // 5️⃣ Create new items
                 foreach ($validated['items'] as $item) {

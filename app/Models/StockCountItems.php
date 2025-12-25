@@ -59,6 +59,8 @@ class StockCountItems extends Model
     {
         // CREATE
         static::created(function ($item) {
+            $item->load('stockCount'); // ensure relation is loaded
+
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
                 'transaction_date'  => $item->stockCount->transaction_date,
@@ -77,14 +79,18 @@ class StockCountItems extends Model
 
         // UPDATE
         static::updated(function ($item) {
+            $item->load('stockCount'); // ensure relation is loaded
 
-            // Remove existing ledger row for this item
+            // Delete old ledger row(s) for this stock count item
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Count')
+                ->where('parent_reference', $item->stockCount->reference_no)
                 ->where('item_id', $item->id)
+                ->where('product_id', $item->product_id)
+                ->where('quantity', $item->getOriginal('counted_quantity'))
                 ->delete();
 
-            // Insert updated ledger row
+            // Insert new ledger row with updated values
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
                 'transaction_date'  => $item->stockCount->transaction_date,
@@ -95,7 +101,7 @@ class StockCountItems extends Model
                 'transaction_type'  => 'Stock_Count',
                 'parent_reference'  => $item->stockCount->reference_no,
                 'parent_warehouse'  => $item->stockCount->warehouse_id,
-                'created_by'        => $item->updated_by ?? $item->created_by,
+                'created_by'        => $item->updated_by ?? $item->created_by ?? auth()->id(),
                 'created_at'        => now(),
                 'updated_at'        => now(),
             ]);
@@ -103,15 +109,21 @@ class StockCountItems extends Model
 
         // DELETE (soft delete)
         static::deleted(function ($item) {
+            $item->load('stockCount'); // ensure relation is loaded
+
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_Count')
+                ->where('parent_reference', $item->stockCount->reference_no)
                 ->where('item_id', $item->id)
+                ->where('product_id', $item->product_id)
+                ->where('quantity', $item->counted_quantity)
                 ->delete();
         });
 
-
         // RESTORE (soft delete restore)
         static::restored(function ($item) {
+            $item->load('stockCount'); // ensure relation is loaded
+
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
                 'transaction_date'  => $item->stockCount->transaction_date,
@@ -128,5 +140,4 @@ class StockCountItems extends Model
             ]);
         });
     }
-
 }

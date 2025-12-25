@@ -53,6 +53,7 @@ class StockInItem extends Model
     {
         // CREATE
         static::created(function ($item) {
+            $item->load('stockIn'); // ensure relation is loaded
 
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
@@ -73,6 +74,7 @@ class StockInItem extends Model
 
         // UPDATE
         static::updated(function ($item) {
+            $item->load('stockIn'); // ensure relation is loaded
             // Delete old ledger row(s) for this stock in item
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_In')
@@ -102,6 +104,7 @@ class StockInItem extends Model
 
         // DELETE (soft delete or force delete)
         static::deleted(function ($item) {
+            $item->load('stockIn'); // ensure relation is loaded
 
             DB::table('stock_ledgers')
                 ->where('transaction_type', 'Stock_In')
@@ -114,6 +117,7 @@ class StockInItem extends Model
 
         // RESTORE (for soft deletes)
         static::restored(function ($item) {
+            $item->load('stockIn'); // ensure relation is loaded
 
             DB::table('stock_ledgers')->insert([
                 'item_id'           => $item->id,
