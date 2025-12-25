@@ -680,11 +680,6 @@ class StockController extends Controller
         ]);
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // 2. Ad-hoc / Live Stock Report PDF
-    // ──────────────────────────────────────────────────────────────
-
-
     // ===================================================================
     // Helpers & Core Logic
     // ===================================================================
@@ -864,14 +859,13 @@ class StockController extends Controller
         $ledgerQuery = StockLedger::query()
             ->whereIn('product_id', $productIds)
             ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
+            ->whereBetween('transaction_date', [$prevMonthStart, $endDate])
             ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
                 $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
-                    // ONLY Stock_Begin in previous month
                     $q->where('transaction_type', 'Stock_Begin')
                     ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
                 })
                 ->orWhere(function($q) use ($startDate, $endDate) {
-                    // Only Stock_In, Stock_Out, Stock_Count in current month
                     $q->whereIn('transaction_type', ['Stock_In','Stock_Out','Stock_Count'])
                     ->whereBetween('transaction_date', [$startDate, $endDate]);
                 });
