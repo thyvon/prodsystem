@@ -40,7 +40,7 @@ class MainValueListController extends Controller
 
         return $categories->map(fn($c) => [
             'id'   => $c->id,
-            'text' => $c->short_name, // Select2 needs "text"
+            'text' => $c->name, // Select2 needs "text"
         ]);
     }
 
