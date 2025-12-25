@@ -21,6 +21,7 @@ use App\Services\ApprovalService;
 use App\Services\ProductService;
 use Illuminate\Support\Facades\Log;
 use Spatie\Browsershot\Browsershot;
+use Carbon\Carbon;
 
 class WarehouseProductController extends Controller
 {
@@ -305,6 +306,101 @@ class WarehouseProductController extends Controller
             'page'            => $paginated->currentPage(),
         ]);
     }
+
+    public function stockOnhandByWarehouseIndex()
+    {
+        return view('Inventory.warehouse.warehouse-product.stock-onhand-wh');
+    }
+
+    public function getWarehouseStockPivot(Request $request)
+    {
+        $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
+        $search = $request->input('search', '');
+        $warehouseIds = $request->input('warehouse_ids', []);
+        $limit = intval($request->input('limit', 50));
+        $page = intval($request->input('page', 1));
+        $offset = ($page - 1) * $limit;
+
+        $transactionDate = Carbon::parse($cutoffDate);
+
+        // ------------------- 1️⃣ Fetch warehouses -------------------
+        $warehouses = Warehouse::select('id', 'name')
+            ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
+            ->orderBy('name')
+            ->get();
+
+        // Slugify warehouse name function
+        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
+
+        // ------------------- 2️⃣ Prepare product query -------------------
+        $productQuery = WarehouseProduct::with([
+            'variant:id,item_code,product_id,description',
+            'variant.product:id,name,unit_id',
+            'variant.product.unit:id,name'
+        ])->where('is_active', 1);
+
+        // Apply search filter
+        if ($search) {
+            $productQuery->where(function ($q) use ($search) {
+                $q->whereHas('variant', fn($v) =>
+                    $v->where('item_code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                )->orWhereHas('variant.product', fn($p) =>
+                    $p->where('name', 'like', "%{$search}%")
+                );
+            });
+        }
+
+        $totalRows = $productQuery->count();
+
+        // ------------------- 3️⃣ Pagination -------------------
+        $warehouseProducts = $productQuery
+            ->skip($offset)
+            ->take($limit)
+            ->get()
+            ->groupBy('product_id');
+
+        $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+
+        // ------------------- 4️⃣ Build pivot rows -------------------
+        $rows = $warehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
+            $variant = $items->first()->variant;
+
+            $row = [
+                'item_code'   => $variant->item_code,
+                'product'     => $variant->product->name,
+                'description' => $variant->description,
+                'unit'        => $variant->product->unit->name,
+            ];
+
+            $total = 0;
+
+            foreach ($warehouses as $wh) {
+                $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
+                $colKey = $slugify($wh->name); // <-- Use slugified name as column key
+                $row[$colKey] = $qty;
+                $total += $qty;
+            }
+
+            $row['total'] = $total;
+
+            return $row;
+        })->values();
+
+        // ------------------- 5️⃣ Response -------------------
+        return response()->json([
+            'warehouses' => $warehouses->map(fn($wh) => [
+                'id' => $wh->id,
+                'name' => $wh->name,
+                'slug' => $slugify($wh->name) // frontend can use this slug for columns
+            ]),
+            'data' => $rows,
+            'recordsTotal' => $totalRows,
+            'recordsFiltered' => $totalRows,
+        ]);
+    }
+
+
 
     public function showpdf(WarehouseProductReport $warehouseProductReport)
     {
@@ -656,94 +752,7 @@ class WarehouseProductController extends Controller
             ], 500);
         }
     }
-
-        // Update an existing stock report
-    // public function updateReport(Request $request, WarehouseProductReport $warehouseProductReport): JsonResponse
-    // {
-    //     $validated = $request->validate([
-    //         'report_date'  => 'required|date',
-    //         'remarks'      => 'nullable|string',
-    //         'items'        => 'required|array|min:1',
-    //         'items.*.warehouse_product_id' => 'required|exists:warehouse_products,id',
-    //         'items.*.remarks' => 'nullable|string',
-    //         'approvals'    => 'required|array|min:2',
-    //         'approvals.*.user_id'      => 'required|exists:users,id',
-    //         'approvals.*.request_type' => 'required|in:check,approve',
-    //     ]);
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         // Update main report
-    //         $warehouseProductReport->update([
-    //             'report_date' => $validated['report_date'],
-    //             'remarks'     => $validated['remarks'] ?? null,
-    //             'updated_by'  => Auth::id(),
-    //             'position_id' => Auth::user()->current_position_id,
-    //         ]);
-    //         $warehouseProductReport->approvals()->delete();
-    //         $this->storeApprovals($warehouseProductReport, $validated['approvals']);
-
-    //         // Map items by warehouse_product_id for easy lookup
-    //         $itemsData = collect($validated['items'])->keyBy('warehouse_product_id');
-
-    //         // Get current warehouse products
-    //         $warehouseProducts = WarehouseProduct::whereIn('id', $itemsData->keys())
-    //             ->where('warehouse_id', $warehouseProductReport->warehouse_id)
-    //             ->get();
-
-    //         // Update or create report items
-    //         foreach ($warehouseProducts as $whProduct) {
-    //             $stockData = $this->warehouseStockService->getStockReportByProduct(
-    //                 $warehouseProductReport->warehouse_id,
-    //                 $whProduct->product_id
-    //             );
-
-    //             if (!$stockData) continue;
-
-    //             $itemRemarks = $itemsData->get($whProduct->id)['remarks'] ?? null;
-
-    //             WarehouseProductReportItems::updateOrCreate(
-    //                 [
-    //                     'report_id' => $warehouseProductReport->id,
-    //                     'warehouse_product_id' => $whProduct->id
-    //                 ],
-    //                 [
-    //                     'product_id' => $whProduct->product_id,
-    //                     'unit_price' => $stockData['avg_price'] ?? 0,
-    //                     'avg_6_month_usage' => $stockData['avg_usage'] ?? 0,
-    //                     'last_month_usage' => $stockData['avg_daily_use_per_day'] ?? 0,
-    //                     'stock_on_hand' => $stockData['stock_onhand'] ?? 0,
-    //                     'order_plan_quantity' => $stockData['order_plan_qty'] ?? 0,
-    //                     'demand_forecast_quantity' => $stockData['demand_stock_out_forecast_qty'] ?? 0,
-    //                     'ending_stock_cover_day' => $stockData['ending_stock_cover_days'] ?? 0,
-    //                     'target_safety_stock_day' => $stockData['target_safety_stock_days'] ?? 0,
-    //                     'stock_value' => $stockData['stock_value_usd'] ?? 0,
-    //                     'inventory_reorder_quantity' => $stockData['inventory_reorder_qty'] ?? 0,
-    //                     'reorder_level_day' => $stockData['reorder_level_qty'] ?? 0,
-    //                     'max_inventory_level_quantity' => $stockData['max_inventory_level_qty'] ?? 0,
-    //                     'max_inventory_usage_day' => $stockData['max_usage_days'] ?? 0,
-    //                     'remarks' => $itemRemarks,
-    //                     'updated_by' => Auth::id(),
-    //                 ]
-    //             );
-    //         }
-
-    //         DB::commit();
-
-    //         return response()->json([
-    //             'message' => '✅ Stock report updated successfully.',
-    //             'success' => true,
-    //         ]);
-    //     } catch (\Throwable $e) {
-    //         DB::rollBack();
-    //         return response()->json([
-    //             'message' => '❌ Failed to update stock report.',
-    //             'error'   => $e->getMessage(),
-    //         ], 500);
-    //     }
-    // }
-
+   
     public function updateReport(Request $request, WarehouseProductReport $warehouseProductReport): JsonResponse
     {
         $validated = $request->validate([

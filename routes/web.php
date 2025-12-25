@@ -289,6 +289,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-reports/reports/{warehouseProductReport}/edit-report', [WarehouseProductController::class, 'editReport'])->name('warehouses.reports.edit-report');
         Route::get('/stock-reports/reports/{warehouseProductReport}/show-report', [WarehouseProductController::class, 'showReport'])->name('warehouses.reports.show-report');
         Route::get('/stock-reports/reports/{warehouseProductReport}/print-report', [WarehouseProductController::class, 'showPdf'])->name('warehouses.reports.print-report');
+        Route::get('/stock-reports/stock-onhand-by-warehouse', [WarehouseProductController::class, 'stockOnhandByWarehouseIndex'])
+            ->name('warehouses.stock-onhand-by-warehouse-index');
     });
 
     //Approval View Route

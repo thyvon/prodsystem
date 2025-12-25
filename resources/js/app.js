@@ -73,6 +73,7 @@ import MonthlyStockReport from './components/Inventory/StockReport/MonthlyReport
 import WarehouseProductReportForm from './components/Inventory/StockReport/WarehouseReport/Form.vue'
 import WarehouseProductReportShow from './components/Inventory/StockReport/WarehouseReport/Show.vue'
 import WarehouseProductReportList from './components/Inventory/StockReport/WarehouseReport/ReportList.vue'
+import StockOnhandByWarehouse from './components/Inventory/StockReport/WarehouseReport/StockByWh.vue'
 
 import StockCountForm from './components/Inventory/StockCount/Form.vue'
 import StockCountList from './components/Inventory/StockCount/StockCountList.vue'
@@ -167,6 +168,7 @@ import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
  app.component('stock-report-form', StockReportForm)
  app.component('stock-monthly-report', MonthlyStockReport)
  app.component('monthly-stock-report-show', MonthlyStockReportShow)
+ app.component('stock-onhand-by-warehouse', StockOnhandByWarehouse)
 
  // Stock Report Attach PR
  app.component('wh-product-report-form', WarehouseProductReportForm)

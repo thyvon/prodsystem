@@ -370,6 +370,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/stock-reports/{warehouseProductReport}/delete-report', [WarehouseProductController::class, 'destroyReport'])->name('api.stock-reports.delete-report');
         Route::post('/stock-reports/report/{warehouseProductReport}/submit-approval', [WarehouseProductController::class, 'submitApproval'])->name('api.stock-reports.submit-approval');
         Route::post('/stock-reports/report/{warehouseProductReport}/reassign-approval', [WarehouseProductController::class, 'reassignResponder'])->name('api.stock-reports.reassign-approval');
+        Route::get('/stock-reports/stock-onhand-by-warehouse', [WarehouseProductController::class, 'getWarehouseStockPivot'])->name('api.stock-reports.stock-onhand-by-warehouse');
 
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);
