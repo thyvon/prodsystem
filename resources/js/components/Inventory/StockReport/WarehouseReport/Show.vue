@@ -254,23 +254,44 @@ const goBack = () => window.location.href = '/approvals'
 const formatTotal = (items, field) => formatQty((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
 const formatTotalAmount = (items, field) => formatAmount((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
 
-const printReport = async (warehouseProductReportId) => {
-  try {
-    const res = await axios.get(
-      `/inventory/stock-reports/reports/${warehouseProductReportId}/print-report`,
-      {
-        responseType: 'blob',
-        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content }
-      }
-    )
+// const printReport = async (warehouseProductReportId) => {
+//   try {
+//     const res = await axios.get(
+//       `/inventory/stock-reports/reports/${warehouseProductReportId}/print-report`,
+//       {
+//         responseType: 'blob',
+//         headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content }
+//       }
+//     )
 
-    const blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-    fileModal.value.openModal(blobUrl, `Stock Report - ${report.value.reference_no}.pdf`)
+//     const blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+//     fileModal.value.openModal(blobUrl, `Stock Report - ${report.value.reference_no}.pdf`)
 
-  } catch (err) {
-    console.error(err)
-    showAlert('Error', 'Failed to generate PDF.', 'danger')
+//   } catch (err) {
+//     console.error(err)
+//     showAlert('Error', 'Failed to generate PDF.', 'danger')
+//   }
+// }
+
+const printReport = () => {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      document.body.removeChild(iframe)
+    }, 300)
   }
+
+  iframe.src = `/inventory/stock-reports/reports/${props.warehouseProductReportId}/print-report?print=1`
+  document.body.appendChild(iframe)
 }
 
 // Computed

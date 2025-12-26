@@ -472,7 +472,7 @@ class WarehouseProductController extends Controller
 
     public function showpdf(WarehouseProductReport $warehouseProductReport)
     {
-        // Label mapping (use your 3-step approval)
+        // Label mapping
         $mapLabel = [
             'check'   => ['en' => 'Checked By', 'kh' => 'ត្រួតពិនិត្យដោយ'],
             'approve' => ['en' => 'Approved By', 'kh' => 'អនុម័តដោយ'],
@@ -540,53 +540,128 @@ class WarehouseProductController extends Controller
             'approvals' => $approvals,
         ];
 
-        // Render Blade HTML
-        $html = view('Inventory.warehouse.warehouse-product.print-report', $data)->render();
-
-        // Generate PDF bytes directly (NO file saved)
-        $pdf = Browsershot::html($html)
-            ->noSandbox()
-            ->emulateMedia('print')
-            ->showBackground()
-            ->addChromiumArguments([
-                '--disable-gpu',
-                '--blink-settings=imagesEnabled=true',
-                '--disable-extensions',
-                '--disable-dev-shm-usage',
-                '--disable-software-rasterizer',
-                '--single-process',
-                '--no-zygote',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--no-first-run',
-                '--no-default-browser-check',
-                '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
-                '--disable-background-networking',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-breakpad',
-                '--disable-ipc-flooding-protection',
-                '--disable-renderer-backgrounding',
-                '--disable-client-side-phishing-detection',
-                '--disable-hang-monitor',
-                '--disable-popup-blocking',
-                '--disable-sync',
-                '--metrics-recording-only',
-                '--mute-audio',
-            ])
-            ->setDelay(20)
-            ->format('A4')
-            ->landscape()
-            ->margins(5, 3, 5, 3)
-            ->timeout(40)
-            ->setTemporaryFolder('/tmp/chromium')
-            ->pdf(); // return raw bytes
-
-        // Return PDF directly to browser
-        return response($pdf)
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'inline; filename="Warehouse_Product_Report.pdf"');
+        // Return the HTML view directly
+        return view('Inventory.warehouse.warehouse-product.print-report', $data);
     }
+
+
+    // public function showpdf(WarehouseProductReport $warehouseProductReport)
+    // {
+    //     // Label mapping (use your 3-step approval)
+    //     $mapLabel = [
+    //         'check'   => ['en' => 'Checked By', 'kh' => 'ត្រួតពិនិត្យដោយ'],
+    //         'approve' => ['en' => 'Approved By', 'kh' => 'អនុម័តដោយ'],
+    //     ];
+
+    //     // Transform approvals
+    //     $approvals = $warehouseProductReport->approvals->map(function ($approval) use ($mapLabel) {
+    //         $typeKey = strtolower($approval->request_type);
+
+    //         return [
+    //             'user_name'          => $approval->responder?->name ?? 'Unknown',
+    //             'position_name'      => $approval->responderPosition?->title ?? null,
+    //             'request_type'       => $approval->request_type,
+    //             'request_type_label_en' => $mapLabel[$typeKey]['en'] ?? ucfirst($typeKey).' By',
+    //             'request_type_label_kh' => $mapLabel[$typeKey]['kh'] ?? ucfirst($typeKey).' ដោយ',
+    //             'approval_status'    => $approval->approval_status,
+    //             'responded_date'     => $approval->responded_date
+    //                                     ? \Carbon\Carbon::parse($approval->responded_date)->format('M d, Y h:i A')
+    //                                     : null,
+    //             'comment'            => $approval->comment,
+    //             'signature_url'      => $approval->responder?->signature_url ?? null,
+    //         ];
+    //     })->toArray();
+
+    //     // Prepare report data
+    //     $data = [
+    //         'id'                        => $warehouseProductReport->id,
+    //         'report_date'               => $warehouseProductReport->report_date,
+    //         'reference_no'              => $warehouseProductReport->reference_no,
+    //         'remarks'                   => $warehouseProductReport->remarks,
+    //         'warehouse_name'            => $warehouseProductReport->warehouse->name,
+    //         'warehouse_campus'          => $warehouseProductReport->warehouse->building->campus->short_name ?? null,
+    //         'prepared_by'               => $warehouseProductReport->creater->name ?? null,
+    //         'creator_position'          => $warehouseProductReport->createrPosition?->title ?? null,
+    //         'creator_profile_picture'   => $warehouseProductReport->creater->profile_url ?? null,
+    //         'creator_signature'         => $warehouseProductReport->creater->signature_url ?? null,
+    //         'card_number'               => $warehouseProductReport->creater->card_number ?? null,
+
+    //         'items' => $warehouseProductReport->items->map(function ($item) {
+    //             $product = $item->product?->product;
+
+    //             return [
+    //                 'product_code'              => $item->product?->item_code ?? '',
+    //                 'description'               => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
+    //                 'unit_name'                 => $product?->unit->name ?? '',
+    //                 'unit_price'                => $item->unit_price ?? 0,
+    //                 'avg_6_month_usage'         => $item->avg_6_month_usage ?? 0,
+    //                 'last_month_usage'          => $item->last_month_usage ?? 0,
+    //                 'stock_beginning'           => $item->stock_on_hand ?? 0,
+    //                 'order_plan_qty'            => $item->order_plan_quantity ?? 0,
+    //                 'demand_forecast'           => $item->demand_forecast_quantity ?? 0,
+    //                 'stock_ending'              => $item->stock_ending_quantity ?? 0,
+    //                 'ending_stock_cover_day'    => $item->ending_stock_cover_day ?? 0,
+    //                 'target_safety_stock_day'   => $item->target_safety_stock_day ?? 0,
+    //                 'stock_value'               => $item->stock_value ?? 0,
+    //                 'inventory_reorder_quantity'=> $item->inventory_reorder_quantity ?? 0,
+    //                 'reorder_level_day'         => $item->reorder_level_day ?? 0,
+    //                 'reorder_level_qty'         => $item->reorder_level_qty ?? 0,
+    //                 'max_inventory_level_qty'   => $item->max_inventory_level_quantity ?? 0,
+    //                 'max_inventory_usage_day'   => $item->max_inventory_usage_day ?? 0,
+    //                 'remarks'                   => $item->remarks ?? '',
+    //             ];
+    //         }),
+
+    //         'approvals' => $approvals,
+    //     ];
+
+    //     // Render Blade HTML
+    //     $html = view('Inventory.warehouse.warehouse-product.print-report', $data)->render();
+
+    //     // Generate PDF bytes directly (NO file saved)
+    //     $pdf = Browsershot::html($html)
+    //         ->noSandbox()
+    //         ->emulateMedia('print')
+    //         ->showBackground()
+    //         ->addChromiumArguments([
+    //             '--disable-gpu',
+    //             '--blink-settings=imagesEnabled=true',
+    //             '--disable-extensions',
+    //             '--disable-dev-shm-usage',
+    //             '--disable-software-rasterizer',
+    //             '--single-process',
+    //             '--no-zygote',
+    //             '--no-sandbox',
+    //             '--disable-setuid-sandbox',
+    //             '--no-first-run',
+    //             '--no-default-browser-check',
+    //             '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess',
+    //             '--disable-background-networking',
+    //             '--disable-background-timer-throttling',
+    //             '--disable-backgrounding-occluded-windows',
+    //             '--disable-breakpad',
+    //             '--disable-ipc-flooding-protection',
+    //             '--disable-renderer-backgrounding',
+    //             '--disable-client-side-phishing-detection',
+    //             '--disable-hang-monitor',
+    //             '--disable-popup-blocking',
+    //             '--disable-sync',
+    //             '--metrics-recording-only',
+    //             '--mute-audio',
+    //         ])
+    //         ->setDelay(20)
+    //         ->format('A4')
+    //         ->landscape()
+    //         ->margins(5, 3, 5, 3)
+    //         ->timeout(40)
+    //         ->setTemporaryFolder('/tmp/chromium')
+    //         ->pdf(); // return raw bytes
+
+    //     // Return PDF directly to browser
+    //     return response($pdf)
+    //         ->header('Content-Type', 'application/pdf')
+    //         ->header('Content-Disposition', 'inline; filename="Warehouse_Product_Report.pdf"');
+    // }
 
     public function showReport(WarehouseProductReport $warehouseProductReport): View
     {

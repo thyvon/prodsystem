@@ -7,11 +7,11 @@
     <style type="text/css">
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ public_path('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
         }
         @font-face {
             font-family: 'TW Cen MT';
-            src: url("{{ public_path('fonts/TwCenMT.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
         @page {
@@ -182,7 +182,7 @@
     <!-- Header -->
     <div class="header">
         <div class="logo-section">
-            <img src="{{ public_path('img/logo/logo-dark.png') }}" alt="Logo">
+            <img src="{{ asset('img/logo/logo-dark.png') }}" alt="Logo">
         </div>
         <div class="title-section">
             <h3>Stock Report</h3>
@@ -256,7 +256,7 @@
             !empty($appr['signature_url'])
         )
         <div class="initial-approval-footer">
-            <img src="{{ public_path('storage/' . $appr['signature_url']) }}">
+            <img src="{{ asset('storage/' . $appr['signature_url']) }}">
         </div>
         @endif
     @endforeach
@@ -279,7 +279,7 @@
 
                 <div class="signature-image-box">
                     @if(!empty($creator_signature))
-                        <img src="{{ public_path('storage/' . $creator_signature) }}" class="signature-image">
+                        <img src="{{ asset('storage/' . $creator_signature) }}" class="signature-image">
                     @endif
                 </div>
 
@@ -307,7 +307,7 @@
 
                     <div class="signature-image-box">
                         @if($appr['approval_status'] === 'Approved' && !empty($appr['signature_url']))
-                            <img src="{{ public_path('storage/' . $appr['signature_url']) }}" class="signature-image">
+                            <img src="{{ asset('storage/' . $appr['signature_url']) }}" class="signature-image">
                         @endif
                     </div>
 

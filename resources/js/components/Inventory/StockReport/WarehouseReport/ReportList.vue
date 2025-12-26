@@ -86,30 +86,10 @@ const datatableFetchUrl = '/api/inventory/stock-reports/get-report-list'
 const datatableOptions = { autoWidth: false, responsive: true, pageLength: 10 }
 
 // --- DATATABLE ACTIONS & HANDLERS ---
-const datatableActions = ['edit','print', 'view','delete']
+const datatableActions = ['edit', 'view','delete']
 
 const createReport = () => {
   window.location.href = '/inventory/stock-reports/reports/create-report'
-}
-
-// Print report using reusable modal
-const printReport = async (row) => {
-  try {
-    const res = await axios.get(
-      `/inventory/stock-reports/reports/${row.id}/print-report`,
-      {
-        responseType: 'blob',
-        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content }
-      }
-    )
-
-    const blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
-    fileModal.value.openModal(blobUrl, `Stock Report - ${row.reference_no}.pdf`)
-
-  } catch (err) {
-    console.error(err)
-    showAlert('Error', 'Failed to generate PDF.', 'danger')
-  }
 }
 
 const viewReport = (row) => window.location.href = `/inventory/stock-reports/reports/${row.id}/show-report`
@@ -131,7 +111,7 @@ const deleteReport = async (row) => {
   }
 }
 
-const datatableHandlers = { print: printReport, view: viewReport, edit: editReport, delete: deleteReport }
+const datatableHandlers = { view: viewReport, edit: editReport, delete: deleteReport }
 
 // --- FILTERS ---
 const fetchWarehouses = async () => {
