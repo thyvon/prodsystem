@@ -957,7 +957,7 @@ class WarehouseProductController extends Controller
                 'target_safety_stock_day' => $item->target_safety_stock_day ?? 0,
                 'stock_value' => $item->stock_value ?? 0,
                 'inv_reorder_qty' => $item->inventory_reorder_quantity ?? 0,
-                'reoder_level_qty' => $item->reorder_level_day ?? 0,
+                'reoder_level_qty' => $item->reorder_level_qty ?? 0,
                 'max_inv_level_qty' => $item->max_inventory_level_quantity ?? 0,
                 'max_inv_usage_day' => $item->max_inventory_usage_day ?? 0,
                 'remarks' => $item->remarks ?? '',
