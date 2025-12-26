@@ -74,13 +74,18 @@ class WarehouseProductImport implements ToCollection, WithHeadingRow
                 $validated = $validator->validated();
 
                 // Fill and save (will create new if it doesn't exist)
+                // Fill attributes and save. Then ensure the related product variant is loaded
                 $warehouseProduct->fill([
                     'alert_quantity'             => $validated['alert_quantity'] ?? 0,
                     'is_active'                  => $validated['is_active'] ?? 1,
-                    'order_leadtime_days'        => $validated['order_leadtime_days'] ?? 0, // default 0
-                    'stock_out_forecast_days'    => $validated['stock_out_forecast_days'] ?? 0, // default 0
-                    'target_inv_turnover_days'   => $validated['target_inv_turnover_days'] ?? 0, // default 0
-                ])->save();
+                    'order_leadtime_days'        => $validated['order_leadtime_days'] ?? 0,
+                    'stock_out_forecast_days'    => $validated['stock_out_forecast_days'] ?? 0,
+                    'target_inv_turnover_days'   => $validated['target_inv_turnover_days'] ?? 0,
+                ]);
+
+                $warehouseProduct->save();
+                // Load the related ProductVariant so consumers have the product data after create/update
+                $warehouseProduct->load('variant');
             }
         });
     }
