@@ -327,6 +327,7 @@ class ProductController extends Controller
                             'product_id' => $createdVariant->id,
                             'warehouse_id'       => $warehouseId,
                             'alert_quantity'                => 0,
+                            'is_active'                  => 1,
                         ]);
                     }
                 }
@@ -356,6 +357,7 @@ class ProductController extends Controller
                         'product_id' => $createdVariant->id,
                         'warehouse_id'       => $warehouseId,
                         'alert_quantity'     => 0,
+                        'is_active'          => 1,
                     ]);
                 }
             }
