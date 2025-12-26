@@ -485,6 +485,7 @@ class StockIssueController extends Controller
                     // Get average price using StockLedgerService
                     $averagePrice = $this->stockLedgerService->getAvgPrice(
                         $item->product_id,
+                        $warehouseId,
                         $cutoffDate
                     );
 

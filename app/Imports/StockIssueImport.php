@@ -42,19 +42,37 @@ class StockIssueImport implements ToCollection, WithHeadingRow
             // -----------------------
             $existingUsers = User::all()->keyBy(fn($u) => strtolower($u->email));
 
+            // -----------------------
+            // Track reference and date from current Excel
+            // -----------------------
+            $referenceDateMap = [];        // baseRef => [transaction_dates in current Excel]
+            $referenceSequenceMap = [];    // baseRef => next sequence number (starts from DB count +1)
+
+            // -----------------------
+            // DB reference counts (existing references)
+            // -----------------------
+            $existingRefCounts = StockIssue::select('reference_no')
+                ->get()
+                ->groupBy(fn($i) => preg_replace('/-\d+$/', '', $i->reference_no))
+                ->map(fn($g) => $g->count());
+
             foreach ($rows as $index => $row) {
 
                 $row = collect($row)->map(fn($v) => is_string($v) ? trim($v) : $v)->toArray();
 
                 if (empty($row['product_code'])) continue;
 
-                // Convert Excel numeric date to Y-m-d
+                // -----------------------
+                // Excel date conversion
+                // -----------------------
                 if (!empty($row['transaction_date']) && is_numeric($row['transaction_date'])) {
                     $row['transaction_date'] = Date::excelToDateTimeObject($row['transaction_date'])
                         ->format('Y-m-d');
                 }
 
-                // Lookup related IDs
+                // -----------------------
+                // Lookups
+                // -----------------------
                 $stockRequestId = !empty($row['stock_request_no'])
                     ? StockRequest::where('reference_no', $row['stock_request_no'])->value('id')
                     : null;
@@ -74,20 +92,18 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                     : null;
 
                 // -----------------------
-                // Optimized requested_by user creation
+                // requested_by user
                 // -----------------------
                 $requestedByName = $row['requested_by_name'] ?? null;
                 $requestedById = null;
 
                 if ($requestedByName) {
-                    // Generate email from name
                     $parts = array_values(array_filter(explode(' ', strtolower($requestedByName))));
                     $email = strtolower("{$parts[0]}.{$parts[count($parts)-1]}@mjqeducation.edu.kh");
 
                     if (isset($existingUsers[$email])) {
                         $requestedById = $existingUsers[$email]->id;
                     } else {
-                        // Optional: double-check DB just in case
                         $existingUser = User::where('email', $email)->first();
                         if ($existingUser) {
                             $requestedById = $existingUser->id;
@@ -100,7 +116,7 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                                 'is_active' => 1,
                             ]);
                             $requestedById = $newUser->id;
-                            $existingUsers[$email] = $newUser; // add to cache
+                            $existingUsers[$email] = $newUser;
                         }
                     }
                 }
@@ -143,67 +159,83 @@ class StockIssueImport implements ToCollection, WithHeadingRow
 
                 $validated = $validator->validated();
 
-                // Get average unit price from StockLedgerService
+                // -----------------------
+                // Unit price from ledger
+                // -----------------------
                 $unitPrice = (float) $this->ledgerService->getAvgPrice(
                     $validated['product_id'],
                     $validated['warehouse_id'],
                     $validated['transaction_date']
                 );
+                if ($unitPrice <= 0) $unitPrice = 0;
 
-                if ($unitPrice <= 0) {
-                    $unitPrice = 0;
+                // -----------------------
+                // Reference logic (DB + Excel)
+                // -----------------------
+                $baseRef = $validated['reference_no'] ?? 'REF-' . date('YmdHis') . '-' . ($index + 1);
+                $date = $validated['transaction_date'];
+
+                // Initialize sequence map if first time
+                if (!isset($referenceSequenceMap[$baseRef])) {
+                    $dbCount = $existingRefCounts[$baseRef] ?? 0;
+                    $referenceSequenceMap[$baseRef] = $dbCount > 0 ? $dbCount + 1 : 1;
+                    $referenceDateMap[$baseRef] = [];
                 }
+
+                // Determine sequence for this Excel row
+                if (in_array($date, $referenceDateMap[$baseRef], true)) {
+                    // Same date in Excel (rare), increase sequence
+                    $seq = array_search($date, $referenceDateMap[$baseRef], true) + 1;
+                } else {
+                    $referenceDateMap[$baseRef][] = $date;
+                    $seq = $referenceSequenceMap[$baseRef]++;
+                }
+
+                $finalReference = ($seq === 1 && ($existingRefCounts[$baseRef] ?? 0) === 0)
+                    ? $baseRef
+                    : "{$baseRef}-{$seq}";
+
+                // Prepend YYYYMM (e.g., 202512) from transaction date to the reference
+                $monthYm = date('Ym', strtotime($date));
+                $finalReferenceWithMonth = "{$monthYm}-{$finalReference}";
+
+                $cacheKey = $finalReferenceWithMonth . '|' . $date;
 
                 // -----------------------
                 // StockIssue creation
                 // -----------------------
-                $referenceNo = $validated['reference_no'] ?? null;
-
-                if ($referenceNo && isset($stockIssuesCache[$referenceNo])) {
-                    $stockIssue = $stockIssuesCache[$referenceNo];
+                if (isset($stockIssuesCache[$cacheKey])) {
+                    $stockIssue = $stockIssuesCache[$cacheKey];
                 } else {
-                    // Handle duplicate reference_no with sequence
-                    $originalRefNo = $referenceNo;
-                    if ($referenceNo) {
-                        $sequence = 2;
-                        while (StockIssue::where('reference_no', $referenceNo)->exists()) {
-                            $referenceNo = "{$originalRefNo}-{$sequence}";
-                            $sequence++;
-                        }
-                    }
-
                     $stockIssue = StockIssue::create([
                         'transaction_date' => $validated['transaction_date'],
                         'transaction_type' => $validated['transaction_type'],
                         'account_code'     => $validated['account_code'],
-                        'stock_request_id' => $validated['stock_request_id'],
+                        'stock_request_id' => $stockRequestId,
                         'warehouse_id'     => $validated['warehouse_id'],
-                        'requested_by'     => $validated['requested_by'] ?? ($user?->id),
+                        'requested_by'     => $requestedById ?? $user?->id,
                         'remarks'          => $row['remarks'] ?? null,
-                        'reference_no'     => $referenceNo,
+                        'reference_no'     => $finalReferenceWithMonth,
                         'created_by'       => $user?->id ?? 1,
                         'updated_by'       => $user?->id ?? 1,
                     ]);
-
-                    if ($originalRefNo) {
-                        $stockIssuesCache[$originalRefNo] = $stockIssue;
-                    }
+                    $stockIssuesCache[$cacheKey] = $stockIssue;
                 }
 
                 // -----------------------
-                // StockIssueItem creation
+                // StockIssueItem creation (Excel unit price)
                 // -----------------------
                 $qty = (float) $validated['quantity'];
                 $unitPriceExcel = isset($row['unit_price'])
-                ? round((float) $row['unit_price'], 15)
-                : 0;
-                $total = round($qty * $unitPriceExcel, 15);
+                    ? round((float) $row['unit_price'], 15)
+                    : 0;
+                $total = round($qty * $unitPrice, 15);
 
                 StockIssueItem::create([
                     'stock_issue_id' => $stockIssue->id,
                     'product_id'     => $validated['product_id'],
                     'quantity'       => $qty,
-                    'unit_price'     => $unitPriceExcel,
+                    'unit_price'     => $unitPrice,
                     'total_price'    => $total,
                     'campus_id'      => $validated['campus_id'],
                     'department_id'  => $validated['department_id'],
