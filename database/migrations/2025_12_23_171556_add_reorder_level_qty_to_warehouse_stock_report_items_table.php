@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('warehouse_stock_report_items', function (Blueprint $table) {
-            $table->integer('reorder_level_qty')->default(0);
+            $table->integer('reorder_level_qty')->default(0)->after('inventory_reorder_quantity');
         });
     }
 
