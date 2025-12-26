@@ -104,23 +104,28 @@ class StockIssueItemsExport implements FromQuery, WithHeadings, WithMapping, Wit
         $variantDescription = $item->productVariant->description ?? '';
         $description = trim($productName . ' ' . $variantDescription);
 
+        // Extract formatted reference number
+        $referenceNo = $item->stockIssue->reference_no ?? '';
+        preg_match('/^[^-]+-([A-Z]+-\d+)(?:-\d+)?$/', $referenceNo, $matches);
+        $referenceNoFormatted = $matches[1] ?? $referenceNo;
+
         return [
-            $item->stockIssue->transaction_date ?? null,          // Transaction Date
-            $item->stockIssue->reference_no ?? null,             // Reference Number
-            $item->productVariant->item_code ?? null,            // Product Code
-            $description,                                        // Description
-            $item->quantity,                                     // Quantity
-            $item->productVariant->product->unit->name ?? null,  // Unit
-            $item->unit_price,                                   // Unit Price
-            $item->total_price,                                  // Total Amount
-            $item->stockIssue->requestedBy->name ?? null,       // Requester
-            $item->campus->short_name ?? null,                  // Campus
-            $item->department->division->short_name ?? null,    // Division
-            $item->department->short_name ?? null,              // Department
-            $item->stockIssue->remarks ?? null,                 // Purpose
-            $item->stockIssue->transaction_type ?? null,        // Transaction Type
-            $item->stockIssue->warehouse->name ?? null,         // Warehouse
-            $item->remarks,                                     // Remarks
+            $item->stockIssue->transaction_date ?? null,  // Transaction Date
+            $referenceNoFormatted,                         // Reference Number
+            $item->productVariant->item_code ?? null,      // Product Code
+            $description,                                  // Description
+            $item->quantity,                               // Quantity
+            $item->productVariant->product->unit->name ?? null, // Unit
+            $item->unit_price,                             // Unit Price
+            $item->total_price,                            // Total Amount
+            $item->stockIssue->requestedBy->name ?? null, // Requester
+            $item->campus->short_name ?? null,            // Campus
+            $item->department->division->short_name ?? null, // Division
+            $item->department->short_name ?? null,        // Department
+            $item->stockIssue->remarks ?? null,           // Purpose
+            $item->stockIssue->transaction_type ?? null,  // Transaction Type
+            $item->stockIssue->warehouse->name ?? null,   // Warehouse
+            $item->remarks,                                // Remarks
         ];
     }
 
