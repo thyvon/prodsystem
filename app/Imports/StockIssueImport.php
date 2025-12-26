@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Carbon\Carbon;
 
 class StockIssueImport implements ToCollection, WithHeadingRow
 {
@@ -162,10 +163,11 @@ class StockIssueImport implements ToCollection, WithHeadingRow
                 // -----------------------
                 // Unit price from ledger
                 // -----------------------
+                $transactionDate = Carbon::parse($validated['transaction_date'])->endOfMonth();
                 $unitPrice = (float) $this->ledgerService->getAvgPrice(
                     $validated['product_id'],
                     $validated['warehouse_id'],
-                    $validated['transaction_date']
+                    $transactionDate
                 );
                 if ($unitPrice <= 0) $unitPrice = 0;
 
