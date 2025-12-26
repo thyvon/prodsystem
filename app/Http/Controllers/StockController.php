@@ -789,344 +789,181 @@ class StockController extends Controller
         return array_map('intval', is_array($input) ? $input : json_decode($input, true) ?? []);
     }
 
-    // private function calculateStockReport(
-    //     $startDate, $endDate,
-    //     array $warehouseIds = [], array $productIds = [],
-    //     ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
-    //     bool $paginate = false, int $perPage = 50, int $page = 1
-    // ) {
-    //     $prevMonthStart = Carbon::parse($startDate)->subMonthNoOverflow()->startOfMonth();
-    //     $prevMonthEnd   = Carbon::parse($startDate)->subMonthNoOverflow()->endOfMonth();
-
-    //     // 1) Only products with relevant stock movement
-    //     $productIdsWithLedger = StockLedger::query()
-    //         ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
-    //         ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
-    //             $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
-    //                 $q->where('transaction_type', 'Stock_Begin')
-    //                 ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
-    //             })
-    //             ->orWhereBetween('transaction_date', [$startDate, $endDate]);
-    //         })
-    //         ->pluck('product_id')
-    //         ->unique();
-
-    //     if ($productIds) {
-    //         $productIdsWithLedger = $productIdsWithLedger->intersect($productIds);
-    //     }
-
-    //     if ($productIdsWithLedger->isEmpty()) return collect();
-
-    //     // 2) Base product query
-    //     $baseQuery = ProductVariant::query()
-    //         ->whereIn('id', $productIdsWithLedger)
-    //         ->whereNull('deleted_at')
-    //         ->where('is_active', 1)
-    //         ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
-    //         ->with(['product:id,name,unit_id', 'product.unit:id,name']);
-
-    //     if ($search) {
-    //         $like = "%$search%";
-    //         $baseQuery->where(function ($q) use ($like) {
-    //             $q->where('item_code', 'like', $like)
-    //             ->orWhere('description', 'like', $like)
-    //             ->orWhereHas('product', fn($p) => $p->where('name', 'like', $like));
-    //         });
-    //     }
-
-    //     // Sorting
-    //     if ($sortColumn === 'item_code') {
-    //         $baseQuery->orderBy('item_code', $sortDirection);
-    //     } else {
-    //         $baseQuery->orderBy($sortColumn, $sortDirection)->orderBy('item_code', 'asc');
-    //     }
-
-    //     // 3) Load variants
-    //     if ($paginate) {
-    //         $paginator = $baseQuery->paginate($perPage, ['*'], 'page', $page);
-    //         $products  = $paginator->getCollection();
-    //     } else {
-    //         $products = $baseQuery->get();
-    //     }
-
-    //     if ($products->isEmpty()) {
-    //         return $paginate ? $paginator->setCollection(collect()) : collect();
-    //     }
-
-    //     $productIds = $products->pluck('id')->all();
-
-    //     // 4) Aggregate ledgers
-    //     $ledgerQuery = StockLedger::query()
-    //         ->whereIn('product_id', $productIds)
-    //         ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
-    //         ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
-    //             $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
-    //                 // ONLY Stock_Begin in previous month
-    //                 $q->where('transaction_type', 'Stock_Begin')
-    //                 ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
-    //             })
-    //             ->orWhere(function($q) use ($startDate, $endDate) {
-    //                 // Only Stock_In, Stock_Out, Stock_Count in current month
-    //                 $q->whereIn('transaction_type', ['Stock_In','Stock_Out','Stock_Count'])
-    //                 ->whereBetween('transaction_date', [$startDate, $endDate]);
-    //             });
-    //         });
-
-    //     $ledgerAggregates = $ledgerQuery->selectRaw("
-    //         product_id,
-    //         SUM(CASE WHEN transaction_type='Stock_Begin' THEN quantity ELSE 0 END) AS begin_qty,
-    //         SUM(CASE WHEN transaction_type='Stock_Begin' THEN total_price ELSE 0 END) AS begin_total,
-    //         SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
-    //         SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) AS in_qty,
-    //         SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) AS in_total,
-    //         SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
-    //         SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) AS out_total
-    //     ")
-    //     ->groupBy('product_id')
-    //     ->get()
-    //     ->keyBy('product_id');
-
-    //     // 5) Calculate averages
-    //     $priceBase = StockLedger::query()->whereIn('product_id', $productIds);
-    //     if ($warehouseIds) $priceBase->whereIn('parent_warehouse', $warehouseIds);
-
-    //     $beginAvgs = (clone $priceBase)
-    //         ->where('transaction_date', '>=', $prevMonthStart)
-    //         ->where('transaction_date', '<', $startDate)
-    //         ->where('transaction_type', 'Stock_Begin')
-    //         ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS begin_avg')
-    //         ->groupBy('product_id')
-    //         ->pluck('begin_avg', 'product_id')
-    //         ->all();
-
-    //     $avgPrices = (clone $priceBase)
-    //         ->where('transaction_date', '<=', $endDate)
-    //         ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out'])
-    //         ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS avg_price')
-    //         ->groupBy('product_id')
-    //         ->pluck('avg_price', 'product_id')
-    //         ->all();
-
-    //     // 6) Build report (only products with movement)
-    //     $report = $products->filter(fn($v) => isset($ledgerAggregates[$v->id]))
-    //         ->map(function ($v) use ($ledgerAggregates, $beginAvgs, $avgPrices) {
-    //             $id   = $v->id;
-    //             $prod = $v->product;
-
-    //             $row = $ledgerAggregates[$id];
-
-    //             $beginQty   = (float)$row->begin_qty;
-    //             $inQty      = (float)$row->in_qty;
-    //             $inTotal    = (float)$row->in_total;
-    //             $outQty     = abs((float)$row->out_qty);
-    //             $outTotal   = abs((float)$row->out_total);
-    //             $countedQty = (float)$row->counted_quantity;
-
-    //             // Skip if no movement at all
-    //             if ($beginQty + $inQty + $outQty + $countedQty == 0) return null;
-
-    //             $beginAvg = (float)($beginAvgs[$id] ?? 0);
-    //             $avgPrice = (float)($avgPrices[$id] ?? 0);
-
-    //             $beginTotal     = round($beginQty * $beginAvg, 15);
-    //             $availableQty   = $beginQty + $inQty;
-    //             $availableTotal = round($beginTotal + $inTotal, 15);
-    //             $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 15) : 0;
-    //             $endingQty      = $availableQty - $outQty;
-    //             $endingTotal    = round($countedQty * $availablePrice, 15);
-
-    //             return [
-    //                 'product_id'         => $id,
-    //                 'item_code'          => $v->item_code,
-    //                 'description'        => trim(($prod->name ?? '') . ' ' . ($v->description ?? '')),
-    //                 'unit_name'          => $prod->unit->name ?? '',
-    //                 'beginning_quantity' => $beginQty,
-    //                 'beginning_price'    => $beginAvg,
-    //                 'beginning_total'    => $beginTotal,
-    //                 'stock_in_quantity'  => $inQty,
-    //                 'stock_in_total'     => $inTotal,
-    //                 'available_quantity' => $availableQty,
-    //                 'available_price'    => $availablePrice,
-    //                 'available_total'    => $availableTotal,
-    //                 'stock_out_quantity' => $outQty,
-    //                 'stock_out_total'    => $outTotal,
-    //                 'ending_quantity'    => $endingQty,
-    //                 'ending_total'       => $endingTotal,
-    //                 'counted_quantity'   => $countedQty,
-    //                 'variance_quantity'  => $countedQty - $endingQty,
-    //                 'average_price'      => $avgPrice,
-    //             ];
-    //         })
-    //         ->filter() // remove null rows
-    //         ->values();
-
-    //     return $paginate
-    //         ? $paginator->setCollection($report)
-    //         : $report;
-    // }
-
     private function calculateStockReport(
         $startDate, $endDate,
         array $warehouseIds = [], array $productIds = [],
         ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
         bool $paginate = false, int $perPage = 50, int $page = 1
-        ) 
-    {
-            $prevMonthStart = Carbon::parse($startDate)->subMonthNoOverflow()->startOfMonth();
-            $prevMonthEnd   = Carbon::parse($startDate)->subMonthNoOverflow()->endOfMonth();
+    ) {
+        $prevMonthStart = Carbon::parse($startDate)->subMonthNoOverflow()->startOfMonth();
+        $prevMonthEnd   = Carbon::parse($startDate)->subMonthNoOverflow()->endOfMonth();
 
-            // 1) Get products with any movement (Stock_Begin, Stock_In, Stock_Out, Stock_Count)
-            $productIdsWithMovement = StockLedger::query()
-                ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
-                ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out','Stock_Count'])
-                ->whereBetween('transaction_date', [$prevMonthStart, $endDate])
-                ->pluck('product_id')
-                ->unique();
-
-            // Filter by requested product IDs if provided
-            if ($productIds) {
-                $productIdsWithMovement = $productIdsWithMovement->intersect($productIds);
-            }
-
-            if ($productIdsWithMovement->isEmpty()) return collect();
-
-            // 2) Base product query
-            $baseQuery = ProductVariant::query()
-                ->whereIn('id', $productIdsWithMovement)
-                ->whereNull('deleted_at')
-                ->where('is_active', 1)
-                ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
-                ->with(['product:id,name,unit_id', 'product.unit:id,name']);
-
-            if ($search) {
-                $like = "%$search%";
-                $baseQuery->where(function ($q) use ($like) {
-                    $q->where('item_code', 'like', $like)
-                    ->orWhere('description', 'like', $like)
-                    ->orWhereHas('product', fn($p) => $p->where('name', 'like', $like));
-                });
-            }
-
-            // Sorting
-            if ($sortColumn === 'item_code') {
-                $baseQuery->orderBy('item_code', $sortDirection);
-            } else {
-                $baseQuery->orderBy($sortColumn, $sortDirection)->orderBy('item_code', 'asc');
-            }
-
-            // 3) Load products (paginate or not)
-            if ($paginate) {
-                $paginator = $baseQuery->paginate($perPage, ['*'], 'page', $page);
-                $products  = $paginator->getCollection();
-            } else {
-                $products = $baseQuery->get();
-            }
-
-            if ($products->isEmpty()) {
-                return $paginate ? $paginator->setCollection(collect()) : collect();
-            }
-
-            $productIds = $products->pluck('id')->all();
-
-            // 4) Aggregate ledgers
-            $ledgerAggregates = StockLedger::query()
-                ->whereIn('product_id', $productIds)
-                ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
-                ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out','Stock_Count'])
-                ->whereBetween('transaction_date', [$prevMonthStart, $endDate])
-                ->selectRaw("
-                    product_id,
-                    SUM(CASE WHEN transaction_type='Stock_Begin' THEN quantity ELSE 0 END) AS begin_qty,
-                    SUM(CASE WHEN transaction_type='Stock_Begin' THEN total_price ELSE 0 END) AS begin_total,
-                    SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
-                    SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) AS in_qty,
-                    SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) AS in_total,
-                    SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
-                    SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) AS out_total
-                ")
-                ->groupBy('product_id')
-                ->get()
-                ->keyBy('product_id');
-
-            // 5) Calculate averages
-            $priceBase = StockLedger::query()->whereIn('product_id', $productIds);
-            if ($warehouseIds) $priceBase->whereIn('parent_warehouse', $warehouseIds);
-
-            $beginAvgs = (clone $priceBase)
-                ->where('transaction_date', '>=', $prevMonthStart)
-                ->where('transaction_date', '<', $startDate)
-                ->where('transaction_type', 'Stock_Begin')
-                ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS begin_avg')
-                ->groupBy('product_id')
-                ->pluck('begin_avg', 'product_id')
-                ->all();
-
-            $avgPrices = (clone $priceBase)
-                ->where('transaction_date', '<=', $endDate)
-                ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out'])
-                ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS avg_price')
-                ->groupBy('product_id')
-                ->pluck('avg_price', 'product_id')
-                ->all();
-
-            // 6) Build report (only products with movement)
-            $report = $products->filter(fn($v) => isset($ledgerAggregates[$v->id]))
-                ->map(function ($v) use ($ledgerAggregates, $beginAvgs, $avgPrices) {
-                    $id   = $v->id;
-                    $prod = $v->product;
-
-                    $row = $ledgerAggregates[$id];
-
-                    $beginQty   = (float)$row->begin_qty;
-                    $inQty      = (float)$row->in_qty;
-                    $inTotal    = (float)$row->in_total;
-                    $outQty     = abs((float)$row->out_qty);
-                    $outTotal   = abs((float)$row->out_total);
-                    $countedQty = (float)$row->counted_quantity;
-
-                    // Include product only if it has any movement
-                    if ($beginQty + $inQty + $outQty + $countedQty == 0) return null;
-
-                    $beginAvg = (float)($beginAvgs[$id] ?? 0);
-                    $avgPrice = (float)($avgPrices[$id] ?? 0);
-
-                    $beginTotal     = round($beginQty * $beginAvg, 15);
-                    $availableQty   = $beginQty + $inQty;
-                    $availableTotal = round($beginTotal + $inTotal, 15);
-                    $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 15) : 0;
-                    $endingQty      = $availableQty - $outQty;
-                    $endingTotal    = round($countedQty * $availablePrice, 15);
-
-                    return [
-                        'product_id'         => $id,
-                        'item_code'          => $v->item_code,
-                        'description'        => trim(($prod->name ?? '') . ' ' . ($v->description ?? '')),
-                        'unit_name'          => $prod->unit->name ?? '',
-                        'beginning_quantity' => $beginQty,
-                        'beginning_price'    => $beginAvg,
-                        'beginning_total'    => $beginTotal,
-                        'stock_in_quantity'  => $inQty,
-                        'stock_in_total'     => $inTotal,
-                        'available_quantity' => $availableQty,
-                        'available_price'    => $availablePrice,
-                        'available_total'    => $availableTotal,
-                        'stock_out_quantity' => $outQty,
-                        'stock_out_total'    => $outTotal,
-                        'ending_quantity'    => $endingQty,
-                        'ending_total'       => $endingTotal,
-                        'counted_quantity'   => $countedQty,
-                        'variance_quantity'  => $countedQty - $endingQty,
-                        'average_price'      => $avgPrice,
-                    ];
+        // 1) Only products with relevant stock movement
+        $productIdsWithLedger = StockLedger::query()
+            ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
+            ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
+                $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
+                    $q->where('transaction_type', 'Stock_Begin')
+                    ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
                 })
-                ->filter() // remove null rows
-                ->values();
+                ->orWhereBetween('transaction_date', [$startDate, $endDate]);
+            })
+            ->pluck('product_id')
+            ->unique();
 
-            return $paginate
-                ? $paginator->setCollection($report)
-                : $report;
+        if ($productIds) {
+            $productIdsWithLedger = $productIdsWithLedger->intersect($productIds);
+        }
+
+        if ($productIdsWithLedger->isEmpty()) return collect();
+
+        // 2) Base product query
+        $baseQuery = ProductVariant::query()
+            ->whereIn('id', $productIdsWithLedger)
+            ->whereNull('deleted_at')
+            ->where('is_active', 1)
+            ->whereHas('product', fn($q) => $q->where('manage_stock', 1))
+            ->with(['product:id,name,unit_id', 'product.unit:id,name']);
+
+        if ($search) {
+            $like = "%$search%";
+            $baseQuery->where(function ($q) use ($like) {
+                $q->where('item_code', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhereHas('product', fn($p) => $p->where('name', 'like', $like));
+            });
+        }
+
+        // Sorting
+        if ($sortColumn === 'item_code') {
+            $baseQuery->orderBy('item_code', $sortDirection);
+        } else {
+            $baseQuery->orderBy($sortColumn, $sortDirection)->orderBy('item_code', 'asc');
+        }
+
+        // 3) Load variants
+        if ($paginate) {
+            $paginator = $baseQuery->paginate($perPage, ['*'], 'page', $page);
+            $products  = $paginator->getCollection();
+        } else {
+            $products = $baseQuery->get();
+        }
+
+        if ($products->isEmpty()) {
+            return $paginate ? $paginator->setCollection(collect()) : collect();
+        }
+
+        $productIds = $products->pluck('id')->all();
+
+        // 4) Aggregate ledgers
+        $ledgerQuery = StockLedger::query()
+            ->whereIn('product_id', $productIds)
+            ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
+            ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
+                $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
+                    // ONLY Stock_Begin in previous month
+                    $q->where('transaction_type', 'Stock_Begin')
+                    ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
+                })
+                ->orWhere(function($q) use ($startDate, $endDate) {
+                    // Only Stock_In, Stock_Out, Stock_Count in current month
+                    $q->whereIn('transaction_type', ['Stock_In','Stock_Out','Stock_Count'])
+                    ->whereBetween('transaction_date', [$startDate, $endDate]);
+                });
+            });
+
+        $ledgerAggregates = $ledgerQuery->selectRaw("
+            product_id,
+            SUM(CASE WHEN transaction_type='Stock_Begin' THEN quantity ELSE 0 END) AS begin_qty,
+            SUM(CASE WHEN transaction_type='Stock_Begin' THEN total_price ELSE 0 END) AS begin_total,
+            SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
+            SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) AS in_qty,
+            SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) AS in_total,
+            SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
+            SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) AS out_total
+        ")
+        ->groupBy('product_id')
+        ->get()
+        ->keyBy('product_id');
+
+        // 5) Calculate averages
+        $priceBase = StockLedger::query()->whereIn('product_id', $productIds);
+        if ($warehouseIds) $priceBase->whereIn('parent_warehouse', $warehouseIds);
+
+        $beginAvgs = (clone $priceBase)
+            ->where('transaction_date', '>=', $prevMonthStart)
+            ->where('transaction_date', '<', $startDate)
+            ->where('transaction_type', 'Stock_Begin')
+            ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS begin_avg')
+            ->groupBy('product_id')
+            ->pluck('begin_avg', 'product_id')
+            ->all();
+
+        $avgPrices = (clone $priceBase)
+            ->where('transaction_date', '<=', $endDate)
+            ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out'])
+            ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS avg_price')
+            ->groupBy('product_id')
+            ->pluck('avg_price', 'product_id')
+            ->all();
+
+        // 6) Build report (only products with movement)
+        $report = $products->filter(fn($v) => isset($ledgerAggregates[$v->id]))
+            ->map(function ($v) use ($ledgerAggregates, $beginAvgs, $avgPrices) {
+                $id   = $v->id;
+                $prod = $v->product;
+
+                $row = $ledgerAggregates[$id];
+
+                $beginQty   = (float)$row->begin_qty;
+                $inQty      = (float)$row->in_qty;
+                $inTotal    = (float)$row->in_total;
+                $outQty     = abs((float)$row->out_qty);
+                $outTotal   = abs((float)$row->out_total);
+                $countedQty = (float)$row->counted_quantity;
+
+                // Skip if no movement at all
+                if ($beginQty + $inQty + $outQty + $countedQty == 0) return null;
+
+                $beginAvg = (float)($beginAvgs[$id] ?? 0);
+                $avgPrice = (float)($avgPrices[$id] ?? 0);
+
+                $beginTotal     = round($beginQty * $beginAvg, 15);
+                $availableQty   = $beginQty + $inQty;
+                $availableTotal = round($beginTotal + $inTotal, 15);
+                $availablePrice = $availableQty != 0 ? round($availableTotal / $availableQty, 15) : 0;
+                $endingQty      = $availableQty - $outQty;
+                $endingTotal    = round($countedQty * $availablePrice, 15);
+
+                return [
+                    'product_id'         => $id,
+                    'item_code'          => $v->item_code,
+                    'description'        => trim(($prod->name ?? '') . ' ' . ($v->description ?? '')),
+                    'unit_name'          => $prod->unit->name ?? '',
+                    'beginning_quantity' => $beginQty,
+                    'beginning_price'    => $beginAvg,
+                    'beginning_total'    => $beginTotal,
+                    'stock_in_quantity'  => $inQty,
+                    'stock_in_total'     => $inTotal,
+                    'available_quantity' => $availableQty,
+                    'available_price'    => $availablePrice,
+                    'available_total'    => $availableTotal,
+                    'stock_out_quantity' => $outQty,
+                    'stock_out_total'    => $outTotal,
+                    'ending_quantity'    => $endingQty,
+                    'ending_total'       => $endingTotal,
+                    'counted_quantity'   => $countedQty,
+                    'variance_quantity'  => $countedQty - $endingQty,
+                    'average_price'      => $avgPrice,
+                ];
+            })
+            ->filter() // remove null rows
+            ->values();
+
+        return $paginate
+            ? $paginator->setCollection($report)
+            : $report;
     }
-
     // New Method: Calculate Stock Report
     // private function calculateStockReport(
     //     $startDate, $endDate,
