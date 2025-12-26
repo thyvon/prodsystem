@@ -98,6 +98,8 @@ use App\Http\Controllers\TelegramController;
 // Main Value List
 use App\Http\Controllers\MainValueListController;
 
+use App\Http\Controllers\DebitNoteController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -392,6 +394,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         //Stock Transaction
         // Route::get('/stock-transactions', [StockTransactionController::class, 'getStockTransactions'])->name('api.stock-transactions.index');
+
+        Route::get('/debit-note/emails', [DebitNoteController::class, 'getDebitNoteEmails'])->name('api.debit-note.emails.index');
+        Route::post('/debit-note/emails/store', [DebitNoteController::class, 'storeDebitNoteEmail'])->name('api.debit-note.emails.store');
+        Route::put('/debit-note/emails/{id}/update', [DebitNoteController::class, 'updateDebitNoteEmail'])->name('api.debit-note.emails.update');
+        Route::get('/debit-note/emails/{id}/edit', [DebitNoteController::class, 'editDebitNoteEmail'])->name('api.debit-note.emails.edit');
     });
     
 

@@ -99,6 +99,7 @@ use App\Http\Controllers\AttachementController;
 // use App\Http\Controllers\StockRequestController;
 // use App\Models\StockRequest;
 
+use App\Http\Controllers\DebitNoteController;
 /*
 |----------------------------------------------------------------------
 | Web Routes
@@ -293,6 +294,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('warehouses.stock-onhand-by-warehouse-index');
         Route::get('/stock-reports/stock-onhand-by-warehouse/export', [WarehouseProductController::class, 'exportWarehouseStockPivot'])
             ->name('stock-reports.export');
+
+        Route::get('/debit-note/emails', [DebitNoteController::class, 'debitNoteEmailIndex'])
+            ->name('debit-note-emails.index');
+        Route::post('/debit-note/emails/import', [DebitNoteController::class, 'importDebitNoteEmails'])
+            ->name('debit-note-emails.import');
     });
 
     //Approval View Route

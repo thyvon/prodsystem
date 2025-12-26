@@ -110,6 +110,9 @@ import PurchaseRequestForm from './components/PurchaseRequest/Form.vue'
 import PurchaseRequestList from './components/PurchaseRequest/List.vue'
 import PurchaseRequestShow from './components/PurchaseRequest/Show.vue'
 
+// Debit Note Email List
+import DebitNoteEmailList from './components/Inventory/DebitNote/DebitNoteEmailList.vue'
+
 // Create Vue app instance
  const app = createApp({})
 
@@ -206,6 +209,9 @@ app.component('digital-docs-approval-show', DigitalDocsApprovalShow)
 app.component('purchase-request-form', PurchaseRequestForm)
 app.component('purchase-request-list', PurchaseRequestList)
 app.component('purchase-request-show', PurchaseRequestShow)
+
+// Debit Note Email List
+app.component('debit-note-email-list', DebitNoteEmailList)
 
 // Mount the Vue app
 app.mount('#app')

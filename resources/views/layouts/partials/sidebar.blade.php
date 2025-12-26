@@ -195,7 +195,8 @@
                 || request()->is('inventory/stock-ins*')
                 || request()->is('inventory/stock-in/items*')
                 || request()->is('inventory/stock-transfers*')
-                || request()->is('inventory/stock-counts*');
+                || request()->is('inventory/stock-counts*')
+                || request()->is('inventory/debit-note*');
             @endphp
 
             @if (auth()->user()->hasAnyRole(['admin', 'stock']) || auth()->user()->hasPermissionTo('product.view'))
@@ -281,6 +282,24 @@
                                 </a>
                             </li>
                         @endcan
+
+                        <li class="{{ request()->is('inventory/debit-note*') ? 'active open' : '' }}">
+                            <a href="#" title="Debit Note" data-filter-tags="debit note">
+                                <span class="nav-link-text">Debit Note</span>
+                            </a>
+                            <ul>
+                                <li class="{{ request()->is('inventory/debit-note/emails') ? 'active' : '' }}">
+                                    <a href="{{ url('inventory/debit-note/emails') }}" title="Email List" data-filter-tags="email list">
+                                        <span class="nav-link-text">Email List</span>
+                                    </a>
+                                </li>
+                                <!-- <li class="{{ request()->is('inventory/warehouses/products') ? 'active' : '' }}">
+                                    <a href="{{ url('inventory/warehouses/products') }}" title="Products" data-filter-tags="products">
+                                        <span class="nav-link-text">Products</span>
+                                    </a>
+                                </li> -->
+                            </ul>
+                        </li>
                     </ul>
                 </li>
             @endif
