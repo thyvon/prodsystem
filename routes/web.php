@@ -295,10 +295,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-reports/stock-onhand-by-warehouse/export', [WarehouseProductController::class, 'exportWarehouseStockPivot'])
             ->name('stock-reports.export');
 
+        // Debit  
         Route::get('/debit-note/emails', [DebitNoteController::class, 'debitNoteEmailIndex'])
             ->name('debit-note-emails.index');
         Route::post('/debit-note/emails/import', [DebitNoteController::class, 'importDebitNoteEmails'])
             ->name('debit-note-emails.import');
+
+        Route::get('/debit-notes', [DebitNoteController::class, 'debitNoteIndex'])
+            ->name('debit-notes.index');
     });
 
     //Approval View Route

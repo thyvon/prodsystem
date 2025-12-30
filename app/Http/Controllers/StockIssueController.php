@@ -10,6 +10,10 @@ use App\Models\Campus;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\ProductVariant;
+use App\Models\DebitNote;
+use App\Models\DebitNoteEmail;
+use App\Models\DebitNoteItem;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -294,6 +298,269 @@ class StockIssueController extends Controller
             'recordsFiltered' => $items->total(),
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
+    }
+
+    // Debit Note
+    // public function upsertDebitNote(Request $request): JsonResponse
+    // {
+    //     $validated = $request->validate([
+    //         'warehouse_id'  => 'required|exists:warehouses,id',
+    //         'department_id' => 'nullable|exists:departments,id', // department is now optional
+    //         'start_date'    => 'required|date',
+    //         'end_date'      => 'required|date|after_or_equal:start_date',
+    //     ]);
+
+    //     try {
+    //         DB::transaction(function () use ($validated) {
+
+    //             // ------------------------------
+    //             // 1. Resolve Debit Note Email(s)
+    //             // ------------------------------
+    //             $debitNoteEmails = DebitNoteEmail::where('warehouse_id', $validated['warehouse_id']);
+
+    //             if (!empty($validated['department_id'])) {
+    //                 $debitNoteEmails->where('department_id', $validated['department_id']);
+    //             }
+
+    //             $debitNoteEmails = $debitNoteEmails->get();
+
+    //             if ($debitNoteEmails->isEmpty()) {
+    //                 abort(422, 'Debit note email configuration not found for this warehouse and department(s).');
+    //             }
+
+    //             // ------------------------------
+    //             // 2. Determine Year & Month
+    //             // ------------------------------
+    //             $date  = Carbon::parse($validated['start_date']);
+    //             $year  = $date->year;
+    //             $month = $date->month;
+
+    //             // ------------------------------
+    //             // 3. Loop through each department email configuration
+    //             // ------------------------------
+    //             foreach ($debitNoteEmails as $debitNoteEmail) {
+
+    //                 $departmentId = $debitNoteEmail->department_id;
+
+    //                 // ------------------------------
+    //                 // 4. Find Existing Debit Note
+    //                 // ------------------------------
+    //                 $debitNote = DebitNote::where('warehouse_id', $validated['warehouse_id'])
+    //                     ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+    //                     ->whereYear('start_date', $year)
+    //                     ->whereMonth('start_date', $month)
+    //                     ->first();
+
+    //                 // ------------------------------
+    //                 // 5. Create or Update Debit Note
+    //                 // ------------------------------
+    //                 if ($debitNote) {
+    //                     // Update
+    //                     $debitNote->update([
+    //                         'start_date'          => $validated['start_date'],
+    //                         'end_date'            => $validated['end_date'],
+    //                         'debit_note_email_id' => $debitNoteEmail->id,
+    //                     ]);
+
+    //                     // Remove old items
+    //                     $debitNote->items()->delete();
+    //                 } else {
+    //                     // Create
+    //                     $debitNote = DebitNote::create([
+    //                         'reference_number'     => $this->generateDebitNoteNo(
+    //                             $validated['warehouse_id'],
+    //                             $departmentId,
+    //                             $year,
+    //                             $month
+    //                         ),
+    //                         'warehouse_id'        => $validated['warehouse_id'],
+    //                         'department_id'       => $departmentId,
+    //                         'start_date'          => $validated['start_date'],
+    //                         'end_date'            => $validated['end_date'],
+    //                         'debit_note_email_id' => $debitNoteEmail->id,
+    //                         'status'              => 'pending',
+    //                         'created_by'          => auth()->id(),
+    //                     ]);
+    //                 }
+
+    //                 // ------------------------------
+    //                 // 6. Get Filtered Stock Issue Items
+    //                 // ------------------------------
+    //                 $stockItems = StockIssueItem::when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+    //                     ->whereHas('stockIssue', function ($q) use ($validated) {
+    //                         $q->where('warehouse_id', $validated['warehouse_id'])
+    //                         ->whereBetween('transaction_date', [
+    //                             $validated['start_date'],
+    //                             $validated['end_date']
+    //                         ]);
+    //                     })
+    //                     ->get();
+
+    //                 // ------------------------------
+    //                 // 7. Insert Debit Note Items
+    //                 // ------------------------------
+    //                 foreach ($stockItems as $item) {
+    //                     $debitNote->items()->create([
+    //                         'stock_issue_id'      => $item->stock_issue_id,
+    //                         'stock_issue_item_id' => $item->id,
+    //                         'remarks'             => $item->remarks,
+    //                     ]);
+    //                 }
+    //             }
+    //         });
+
+    //         return response()->json([
+    //             'message' => 'Debit Note(s) created or updated successfully.'
+    //         ]);
+
+    //     } catch (\Throwable $e) {
+    //         return response()->json([
+    //             'message' => 'Failed to create or update Debit Note(s).',
+    //             'error'   => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+    public function upsertDebitNote(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_id'  => 'required|exists:warehouses,id',
+            'department_id' => 'nullable|exists:departments,id',
+            'start_date'    => 'required|date',
+            'end_date'      => 'required|date|after_or_equal:start_date',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated) {
+
+                $departmentFilter = $validated['department_id'] ?? null;
+
+                // ------------------------------
+                // 1. Determine departments to process
+                // ------------------------------
+                $departments = [];
+                if ($departmentFilter) {
+                    $departments = [$departmentFilter];
+                } else {
+                    // Fetch all departments from stock issue items within warehouse/date range
+                    $departments = StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
+                        $q->where('warehouse_id', $validated['warehouse_id'])
+                        ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']]);
+                    })
+                    ->distinct('department_id')
+                    ->pluck('department_id')
+                    ->toArray();
+                }
+
+                if (empty($departments)) {
+                    abort(422, 'No departments found for the selected warehouse and date range.');
+                }
+
+                // ------------------------------
+                // 2. Check DebitNoteEmail for all departments
+                // ------------------------------
+                $missingEmailDepartments = [];
+                foreach ($departments as $deptId) {
+                    $emailConfig = DebitNoteEmail::where([
+                        'warehouse_id'  => $validated['warehouse_id'],
+                        'department_id' => $deptId
+                    ])->first();
+
+                    if (! $emailConfig) {
+                        $missingEmailDepartments[] = $deptId;
+                    }
+                }
+
+                if (! empty($missingEmailDepartments)) {
+                    // Fetch department short_names
+                    $deptNames = \App\Models\Department::whereIn('id', $missingEmailDepartments)
+                        ->pluck('short_name')
+                        ->toArray();
+
+                    $names = implode(', ', $deptNames);
+                    abort(422, "Missing Debit Note Email configuration for departments: {$names}");
+                }
+
+                // ------------------------------
+                // 3. Loop through each department
+                // ------------------------------
+                foreach ($departments as $deptId) {
+
+                    $debitNoteEmail = DebitNoteEmail::where([
+                        'warehouse_id'  => $validated['warehouse_id'],
+                        'department_id' => $deptId
+                    ])->first();
+
+                    $date  = Carbon::parse($validated['start_date']);
+                    $year  = $date->year;
+                    $month = $date->month;
+
+                    // Check for existing Debit Note
+                    $debitNote = DebitNote::where([
+                        'warehouse_id'  => $validated['warehouse_id'],
+                        'department_id' => $deptId
+                    ])
+                    ->whereYear('start_date', $year)
+                    ->whereMonth('start_date', $month)
+                    ->first();
+
+                    if ($debitNote) {
+                        // Update existing
+                        $debitNote->update([
+                            'start_date'          => $validated['start_date'],
+                            'end_date'            => $validated['end_date'],
+                            'debit_note_email_id' => $debitNoteEmail->id,
+                        ]);
+
+                        // Remove old items
+                        $debitNote->items()->delete();
+                    } else {
+                        // Create new
+                        $debitNote = DebitNote::create([
+                            'reference_number'     => $this->generateDebitNoteNo(
+                                $validated['warehouse_id'],
+                                $deptId,
+                                $year,
+                                $month
+                            ),
+                            'warehouse_id'        => $validated['warehouse_id'],
+                            'department_id'       => $deptId,
+                            'start_date'          => $validated['start_date'],
+                            'end_date'            => $validated['end_date'],
+                            'debit_note_email_id' => $debitNoteEmail->id,
+                            'status'              => 'pending',
+                            'created_by'          => auth()->id(),
+                        ]);
+                    }
+
+                    // Insert Debit Note Items
+                    $stockItems = StockIssueItem::where('department_id', $deptId)
+                        ->whereHas('stockIssue', function ($q) use ($validated) {
+                            $q->where('warehouse_id', $validated['warehouse_id'])
+                            ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']]);
+                        })
+                        ->get();
+
+                    foreach ($stockItems as $item) {
+                        $debitNote->items()->create([
+                            'stock_issue_id'      => $item->stock_issue_id,
+                            'stock_issue_item_id' => $item->id,
+                            'remarks'             => $item->remarks,
+                        ]);
+                    }
+                }
+            });
+
+            return response()->json([
+                'message' => 'Debit Notes created or updated successfully.'
+            ]);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to create or update Debit Notes.',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function create()
@@ -836,4 +1103,19 @@ class StockIssueController extends Controller
             'text' => $r->name, // Select2 needs "text"
         ]);
     }
+
+    private function generateDebitNoteNo(
+        int $warehouseId,
+        int $departmentId,
+        int $year,
+        int $month
+        ): string {
+            return sprintf(
+                'DN-%s-%02d-WH%s-DP%s',
+                $year,
+                $month,
+                $warehouseId,
+                $departmentId
+            );
+        }
 }

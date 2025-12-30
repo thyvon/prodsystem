@@ -73,8 +73,12 @@
                 <button class="btn btn-success d-flex align-items-center" @click="exportData">
                   <i class="fal fa-file-excel mr-2"></i> Export
                 </button>
+                <button
+                  class="btn btn-warning"
+                  :disabled="selectedWarehouses.length !== 1"
+                  @click="createOrUpdateDebitNote"
+                > <i class="fal fa-file-invoice-dollar mr-2"></i> Create Debit Note</button>
               </div>
-
             </div>
           </div>
 
@@ -290,7 +294,59 @@ const exportData = async () => {
     console.error('Export failed:', error)
   }
 }
+const createOrUpdateDebitNote = async () => {
+  // -----------------------------
+  // FRONTEND VALIDATION
+  // -----------------------------
+  if (selectedWarehouses.value.length !== 1) {
+    showAlert('Warning', 'Please select exactly ONE warehouse.', 'warning')
+    return
+  }
 
+  const startDate = startDateRef.value ? window.$(startDateRef.value).val() : null
+  const endDate = endDateRef.value ? window.$(endDateRef.value).val() : null
+
+  if (!startDate || !endDate) {
+    showAlert('Warning', 'Please select start and end date.', 'warning')
+    return
+  }
+
+  // -----------------------------
+  // PREPARE PAYLOAD
+  // -----------------------------
+  const payload = {
+    warehouse_id: selectedWarehouses.value[0],
+    department_id: selectedDepartments.value[0] || null, // optional
+    start_date: startDate,
+    end_date: endDate,
+  }
+
+  // -----------------------------
+  // API CALL
+  // -----------------------------
+  try {
+    const response = await axios.post('/api/inventory/stock-issues/debit-notes', payload)
+    showAlert('Success', response.data.message || 'Debit Note created or updated successfully.', 'success')
+
+  } catch (error) {
+    console.error(error)
+
+    let message = 'Failed to create or update Debit Note.'
+
+    // Handle backend errors
+    if (error.response) {
+      // 422 validation or missing debit note email
+      if (error.response.status === 422 || error.response.data?.error) {
+        // Display backend message including department short_name
+        message = error.response.data?.error || error.response.data?.message || message
+      } else if (error.response.data?.message) {
+        message = error.response.data.message
+      }
+    }
+
+    showAlert('Error', message, 'danger')
+  }
+}
 
 // -------------------- DATATABLE EVENTS --------------------
 const handleSortChange = ({ column, direction }) => {

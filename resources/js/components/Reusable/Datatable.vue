@@ -167,6 +167,8 @@ const renderColumnData = (key, val) => {
     case 'responded_date': return formatDateTime(val);
     case 'request_date': return formatDate(val);
     case 'deadline_date': return formatDate(val);
+    case 'start_date': return formatDate(val);
+    case 'end_date': return formatDate(val);
 
     // Boolean status badges
     case 'is_active':

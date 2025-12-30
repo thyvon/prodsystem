@@ -7,6 +7,10 @@ use Illuminate\Http\JsonResponse;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\DebitNoteEmailImport;
 use App\Models\DebitNoteEmail;
+use App\Models\DebitNote;
+use App\Models\DebitNoteItem;
+use Illuminate\Support\Facades\Mail;
+use App\Exports\DebitNoteItemsExport;
 
 class DebitNoteController extends Controller
 {
@@ -149,6 +153,220 @@ class DebitNoteController extends Controller
             'success' => true,
             'message' => 'Debit Note Email updated successfully',
             'data' => $email
+        ]);
+    }
+
+    // Debit Note
+    public function debitNoteIndex()
+    {
+        return view('Inventory.debit-note.debit-note-index');
+    }
+
+    public function getDebitNoteList(Request $request): JsonResponse
+    {
+        // ----------------------------
+        // VALIDATION
+        // ----------------------------
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:1000',
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+
+            // Filters from frontend
+            'warehouse_ids' => 'nullable|array',
+            'warehouse_ids.*' => 'integer|exists:warehouses,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'integer|exists:departments,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+        ]);
+
+        $sortColumn = $validated['sortColumn'] ?? 'debit_notes.id';
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $limit = $validated['limit'] ?? 10;
+        $page = $validated['page'] ?? 1;
+
+        // ----------------------------
+        // QUERY
+        // ----------------------------
+        $query = DebitNote::with([
+            'warehouse',
+            'department',
+            'debitNoteEmail',
+            'creator',
+            'items.stockIssueItem'
+        ])
+        // Search filter
+        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) =>
+            $subQ->where('reference_number', 'like', "%{$search}%")
+                ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                ->orWhereHas('department', fn($dQ) => $dQ->where('name', 'like', "%{$search}%"))
+        ))
+        // Warehouse filter
+        ->when(!empty($validated['warehouse_ids']), fn($q) =>
+            $q->whereIn('warehouse_id', $validated['warehouse_ids'])
+        )
+        // Department filter
+        ->when(!empty($validated['department_ids']), fn($q) =>
+            $q->whereIn('department_id', $validated['department_ids'])
+        )
+        // Date filter
+        ->when(!empty($validated['start_date']), fn($q) =>
+            $q->whereDate('start_date', '>=', $validated['start_date'])
+        )
+        ->when(!empty($validated['end_date']), fn($q) =>
+            $q->whereDate('end_date', '<=', $validated['end_date'])
+        );
+
+        // ----------------------------
+        // SORTING
+        // ----------------------------
+        if ($sortColumn === 'warehouse_name') {
+            $query->join('warehouses', 'debit_notes.warehouse_id', '=', 'warehouses.id')
+                ->orderBy('warehouses.name', $sortDirection)
+                ->select('debit_notes.*');
+        } elseif ($sortColumn === 'department_name') {
+            $query->join('departments', 'debit_notes.department_id', '=', 'departments.id')
+                ->orderBy('departments.name', $sortDirection)
+                ->select('debit_notes.*');
+        } elseif ($sortColumn === 'created_by') {
+            $query->join('users', 'debit_notes.created_by', '=', 'users.id')
+                ->orderBy('users.name', $sortDirection)
+                ->select('debit_notes.*');
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
+
+        // ----------------------------
+        // PAGINATION
+        // ----------------------------
+        $debitNotes = $query->paginate($limit, ['*'], 'page', $page);
+
+        // ----------------------------
+        // MAP DATA
+        // ----------------------------
+        $debitNotesMapped = $debitNotes->map(fn($note) => [
+            'id' => $note->id,
+            'reference_number' => $note->reference_number,
+            'warehouse_name' => $note->warehouse->name ?? null,
+            'department_name' => $note->department->short_name ?? null,
+            'debit_note_email' => isset($note->debitNoteEmail->send_to_email) 
+                ? str_replace(',', ' ', $note->debitNoteEmail->send_to_email) 
+                : null,
+            'cc_email' => isset($note->debitNoteEmail->cc_to_email) 
+                ? str_replace(',', ' ', $note->debitNoteEmail->cc_to_email) 
+                : null,
+            'start_date' => $note->start_date,
+            'end_date' => $note->end_date,
+            'status' => $note->status,
+            'total_items' => $note->items->count(),
+            'total_price' => number_format(
+                $note->items->sum(fn($i) => $i->stockIssueItem->total_price ?? 0),
+                4,
+                '.',
+                ''
+            ),
+            'created_by' => $note->creator->name ?? null,
+            'created_at' => $note->created_at,
+            'updated_at' => $note->updated_at,
+        ]);
+
+        // ----------------------------
+        // RESPONSE
+        // ----------------------------
+        return response()->json([
+            'data' => $debitNotesMapped,
+            'recordsTotal' => $debitNotes->total(),
+            'recordsFiltered' => $debitNotes->total(),
+            'draw' => (int) ($validated['draw'] ?? 1),
+        ]);
+    }
+
+    public function sendDebitNoteEmails(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_ids'   => 'required|array|min:1',
+            'warehouse_ids.*' => 'exists:warehouses,id',
+            'department_ids'  => 'nullable|array',
+            'department_ids.*'=> 'exists:departments,id',
+            'start_date'      => 'required|date',
+            'end_date'        => 'required|date|after_or_equal:start_date',
+        ]);
+
+        $query = DebitNote::with(['debitNoteEmail', 'items.stockIssueItem'])
+            ->whereIn('warehouse_id', $validated['warehouse_ids'])
+            ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
+            ->where('status', 'pending');
+
+        // Only filter by department if provided
+        if (!empty($validated['department_ids'])) {
+            $query->whereIn('department_id', $validated['department_ids']);
+        }
+
+        $debitNotes = $query->get();
+
+        if ($debitNotes->isEmpty()) {
+            return response()->json([
+                'message' => 'No pending Debit Notes found for the selected filters.'
+            ], 404);
+        }
+
+        $sentDate = now();
+        $successCount = 0;
+        $failedNotes = [];
+
+        $logoPath = public_path('img/logo/logo-dark.png');
+        $user = auth()->user();
+
+        if (!$user || !$user->email) {
+            return response()->json([
+                'message' => 'Authenticated user email is required to send emails.'
+            ], 422);
+        }
+
+        foreach ($debitNotes as $note) {
+            try {
+                $to = $note->debitNoteEmail->send_to_email ?? null;
+                $cc = $note->debitNoteEmail->cc_to_email ?? null;
+
+                if (!$to) {
+                    $failedNotes[] = $note->reference_number . ' (No recipient)';
+                    continue;
+                }
+
+                $toEmails = array_map('trim', explode(',', $to));
+                $ccEmails = $cc ? array_map('trim', explode(',', $cc)) : [];
+
+                $excelContent = Excel::raw(new DebitNoteItemsExport($note, $logoPath), 'Xlsx');
+
+                Mail::send('Inventory.debit-note.email-template', ['note' => $note], function($message) use ($toEmails, $ccEmails, $note, $excelContent, $user) {
+                    $message->from($user->email, $user->name ?? 'System');
+                    $message->to($toEmails)
+                            ->cc($ccEmails)
+                            ->subject("Debit Note: {$note->reference_number}")
+                            ->attachData($excelContent, "DebitNote_{$note->reference_number}.xlsx", [
+                                'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            ]);
+                });
+
+                $note->status = 'sent';
+                $note->send_date = now();
+                $note->save();
+
+                $successCount++;
+
+            } catch (\Throwable $e) {
+                $failedNotes[] = $note->reference_number . ' (' . $e->getMessage() . ')';
+                continue;
+            }
+        }
+
+        return response()->json([
+            'message' => "Emails sent successfully for {$successCount} debit notes.",
+            'failed' => $failedNotes
         ]);
     }
 }

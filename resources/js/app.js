@@ -55,6 +55,11 @@ import StockIssueForm from './components/Inventory/StockIssue/Form.vue'
 import StockIssueList from './components/Inventory/StockIssue/StockIssueList.vue'
 import StockIssueItemList from './components/Inventory/StockIssue/StockIssueItem.vue'
 
+// Debit Note
+// import DebitNoteForm from './components/Inventory/StockIssue/DebitNote/Form.vue'
+import DebitNoteList from './components/Inventory/StockIssue/DebitNote/Index.vue'
+// import DebitNoteShow from './components/Inventory/StockIssue/DebitNote/Show.vue'
+
 import StockTransferForm from './components/Inventory/StockTransfer/Form.vue'
 import StockTransferList from './components/Inventory/StockTransfer/StockTransferList.vue'
 import StockTransferShow from './components/Inventory/StockTransfer/Show.vue'
@@ -155,6 +160,11 @@ import DebitNoteEmailList from './components/Inventory/DebitNote/DebitNoteEmailL
  app.component('stock-issue-form', StockIssueForm)
  app.component('stock-issue-list', StockIssueList)
  app.component('stock-issue-item-list', StockIssueItemList)
+
+  // Debit Note
+//  app.component('debit-note-form', DebitNoteForm)
+ app.component('debit-note-list', DebitNoteList)
+//  app.component('debit-note-show', DebitNoteShow)
 
   //=======Stock Transfer
  app.component('stock-transfer-form', StockTransferForm)

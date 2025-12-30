@@ -322,6 +322,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/stock-issues/get-products', [StockIssueController::class, 'getProducts'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.get-products');
         Route::post('/stock-issues/import', [StockIssueController::class, 'import'])->name('api.stock-issues.import');
         Route::post('/stock-issues/export-items', [StockIssueController::class, 'exportItems'])->name('api.stock-issues.export');
+        // Debit Notes
+        Route::post('/stock-issues/debit-notes', [StockIssueController::class, 'upsertDebitNote'])->name('api.stock-issues.debit-notes.upsert');
+        Route::get('/debit-notes', [DebitNoteController::class, 'getDebitNoteList'])->name('api.inventory.debit-notes.index');
+        Route::post('/debit-notes/send-emails', [DebitNoteController::class, 'sendDebitNoteEmails'])->name('api.inventory.debit-notes.send-debit-note-emails');
 
         // Stock Transfer
         Route::get('/stock-transfers', [StockTransferController::class, 'getStockTransfers'])->middleware('can:viewAny,' . StockTransfer::class)->name('api.stock-transfers.index');
