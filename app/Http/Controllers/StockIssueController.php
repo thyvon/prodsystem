@@ -433,57 +433,45 @@ class StockIssueController extends Controller
         try {
             DB::transaction(function () use ($validated) {
 
-                $departmentFilter = $validated['department_id'] ?? null;
+                $startDate = Carbon::parse($validated['start_date']);
+                $endDate   = Carbon::parse($validated['end_date']);
+                $year  = $startDate->year;
+                $month = $startDate->month;
 
-                // ------------------------------
-                // 1. Determine departments to process
-                // ------------------------------
-                $departments = [];
-                if ($departmentFilter) {
-                    $departments = [$departmentFilter];
-                } else {
-                    // Fetch all departments from stock issue items within warehouse/date range
-                    $departments = StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
+                // --------------------------
+                // 1. Determine departments
+                // --------------------------
+                $departments = $validated['department_id']
+                    ? [$validated['department_id']]
+                    : StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
                         $q->where('warehouse_id', $validated['warehouse_id'])
                         ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']]);
-                    })
-                    ->distinct('department_id')
-                    ->pluck('department_id')
-                    ->toArray();
-                }
+                    })->distinct()->pluck('department_id')->toArray();
 
                 if (empty($departments)) {
                     abort(422, 'No departments found for the selected warehouse and date range.');
                 }
 
-                // ------------------------------
-                // 2. Check DebitNoteEmail for all departments
-                // ------------------------------
-                $missingEmailDepartments = [];
-                foreach ($departments as $deptId) {
-                    $emailConfig = DebitNoteEmail::where([
-                        'warehouse_id'  => $validated['warehouse_id'],
+                // --------------------------
+                // 2. Check DebitNoteEmail
+                // --------------------------
+                $missingEmailDepartments = collect($departments)
+                    ->filter(fn($deptId) => !DebitNoteEmail::where([
+                        'warehouse_id' => $validated['warehouse_id'],
                         'department_id' => $deptId
-                    ])->first();
+                    ])->exists())
+                    ->toArray();
 
-                    if (! $emailConfig) {
-                        $missingEmailDepartments[] = $deptId;
-                    }
-                }
-
-                if (! empty($missingEmailDepartments)) {
-                    // Fetch department short_names
+                if (!empty($missingEmailDepartments)) {
                     $deptNames = \App\Models\Department::whereIn('id', $missingEmailDepartments)
                         ->pluck('short_name')
-                        ->toArray();
-
-                    $names = implode(', ', $deptNames);
-                    abort(422, "Missing Debit Note Email configuration for departments: {$names}");
+                        ->implode(', ');
+                    abort(422, "Missing Debit Note Email configuration for departments: {$deptNames}");
                 }
 
-                // ------------------------------
-                // 3. Loop through each department
-                // ------------------------------
+                // --------------------------
+                // 3. Process each department
+                // --------------------------
                 foreach ($departments as $deptId) {
 
                     $debitNoteEmail = DebitNoteEmail::where([
@@ -491,62 +479,68 @@ class StockIssueController extends Controller
                         'department_id' => $deptId
                     ])->first();
 
-                    $date  = Carbon::parse($validated['start_date']);
-                    $year  = $date->year;
-                    $month = $date->month;
-
-                    // Check for existing Debit Note
-                    $debitNote = DebitNote::where([
-                        'warehouse_id'  => $validated['warehouse_id'],
-                        'department_id' => $deptId
-                    ])
-                    ->whereYear('start_date', $year)
-                    ->whereMonth('start_date', $month)
-                    ->first();
-
-                    if ($debitNote) {
-                        // Update existing
-                        $debitNote->update([
-                            'start_date'          => $validated['start_date'],
-                            'end_date'            => $validated['end_date'],
-                            'debit_note_email_id' => $debitNoteEmail->id,
-                        ]);
-
-                        // Remove old items
-                        $debitNote->items()->delete();
-                    } else {
-                        // Create new
-                        $debitNote = DebitNote::create([
+                    // Create or update DebitNote
+                    $debitNote = DebitNote::updateOrCreate(
+                        [
+                            'warehouse_id'  => $validated['warehouse_id'],
+                            'department_id' => $deptId,
+                            'start_date'    => $startDate, // optional, month grouping
+                            'end_date'      => $endDate,
+                        ],
+                        [
                             'reference_number'     => $this->generateDebitNoteNo(
                                 $validated['warehouse_id'],
                                 $deptId,
                                 $year,
                                 $month
                             ),
-                            'warehouse_id'        => $validated['warehouse_id'],
-                            'department_id'       => $deptId,
-                            'start_date'          => $validated['start_date'],
-                            'end_date'            => $validated['end_date'],
-                            'debit_note_email_id' => $debitNoteEmail->id,
-                            'status'              => 'pending',
-                            'created_by'          => auth()->id(),
-                        ]);
-                    }
+                            'debit_note_email_id'  => $debitNoteEmail->id,
+                            'status'               => 'pending',
+                            'created_by'           => auth()->id(),
+                        ]
+                    );
 
-                    // Insert Debit Note Items
+                    // Remove old items
+                    $debitNote->items()->delete();
+
+                    // Fetch stock items
                     $stockItems = StockIssueItem::where('department_id', $deptId)
-                        ->whereHas('stockIssue', function ($q) use ($validated) {
-                            $q->where('warehouse_id', $validated['warehouse_id'])
-                            ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']]);
-                        })
+                        ->whereHas('stockIssue', fn($q) => $q
+                            ->where('warehouse_id', $validated['warehouse_id'])
+                            ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']])
+                        )
+                        ->with([
+                            'productVariant.product.unit',
+                            'campus',
+                            'department.division',
+                            'stockIssue'
+                        ])
                         ->get();
 
-                    foreach ($stockItems as $item) {
-                        $debitNote->items()->create([
-                            'stock_issue_id'      => $item->stock_issue_id,
-                            'stock_issue_item_id' => $item->id,
-                            'remarks'             => $item->remarks,
-                        ]);
+                    // Prepare data for batch insert
+                    $itemsData = $stockItems->map(fn($item) => [
+                        'debit_note_id'       => $debitNote->id,
+                        'stock_issue_id'      => $item->stock_issue_id,
+                        'stock_issue_item_id' => $item->id,
+                        'item_code'           => $item->productVariant->item_code,
+                        'description'         => ($item->productVariant->product->name ?? '') . ' ' . ($item->productVariant->description ?? ''),
+                        'quantity'            => $item->quantity ?? 0,
+                        'uom'                 => $item->productVariant->product->unit->name ?? '',
+                        'unit_price'          => $item->unit_price ?? 0,
+                        'total_price'         => $item->total_price ?? 0,
+                        'requester_name'      => $item->stockIssue->requestedBy->name ?? '',
+                        'campus_name'         => $item->campus->short_name ?? '',
+                        'division_name'       => $item->department->division->short_name ?? '',
+                        'department_name'     => $item->department->short_name ?? '',
+                        'reference_no'        => $item->stockIssue->reference_no ?? '',
+                        'remarks'             => $item->remarks ?? null,
+                        'created_at'          => now(),
+                        'updated_at'          => now(),
+                    ])->toArray();
+
+                    // Insert all items at once
+                    if (!empty($itemsData)) {
+                        $debitNote->items()->insert($itemsData);
                     }
                 }
             });

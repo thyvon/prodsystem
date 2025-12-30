@@ -292,6 +292,121 @@ class DebitNoteController extends Controller
         ]);
     }
 
+    // public function sendDebitNoteEmails(Request $request): JsonResponse
+    // {
+    //     $validated = $request->validate([
+    //         'warehouse_ids'    => 'required|array|min:1',
+    //         'warehouse_ids.*'  => 'exists:warehouses,id',
+    //         'department_ids'   => 'nullable|array',
+    //         'department_ids.*' => 'exists:departments,id',
+    //         'start_date'       => 'required|date',
+    //         'end_date'         => 'required|date|after_or_equal:start_date',
+    //     ]);
+
+    //     $query = DebitNote::with(['debitNoteEmail', 'items.stockIssueItem'])
+    //         ->whereIn('warehouse_id', $validated['warehouse_ids'])
+    //         ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
+    //         ->where('status', 'pending');
+
+    //     if (!empty($validated['department_ids'])) {
+    //         $query->whereIn('department_id', $validated['department_ids']);
+    //     }
+
+    //     $debitNotes = $query->get();
+
+    //     if ($debitNotes->isEmpty()) {
+    //         return response()->json([
+    //             'message' => 'No pending Debit Notes found for the selected filters.'
+    //         ], 404);
+    //     }
+
+    //     $user = auth()->user();
+
+    //     if (!$user || !$user->email) {
+    //         return response()->json([
+    //             'message' => 'Authenticated user email is required to send emails.'
+    //         ], 422);
+    //     }
+
+    //     $logoPath     = public_path('img/logo/logo-dark.png');
+    //     $successCount = 0;
+    //     $failedNotes  = [];
+
+    //     foreach ($debitNotes as $note) {
+
+    //         /** ----------------------------------------
+    //          * 1️⃣ Validate recipient first
+    //          * ------------------------------------- */
+    //         $to = $note->debitNoteEmail->send_to_email ?? null;
+    //         $cc = $note->debitNoteEmail->cc_to_email ?? null;
+
+    //         if (!$to) {
+    //             $failedNotes[] = $note->reference_number . ' (No recipient)';
+    //             continue;
+    //         }
+
+    //         $toEmails = array_map('trim', explode(',', $to));
+    //         $ccEmails = $cc ? array_map('trim', explode(',', $cc)) : [];
+
+    //         /** ----------------------------------------
+    //          * 2️⃣ Generate Excel (STOP if error)
+    //          * ------------------------------------- */
+    //         try {
+    //             $excelContent = Excel::raw(
+    //                 new DebitNoteItemsExport($note, $logoPath),
+    //                 \Maatwebsite\Excel\Excel::XLSX
+    //             );
+    //         } catch (Throwable $e) {
+
+    //             // ❌ STOP EVERYTHING if Excel fails
+    //             return response()->json([
+    //                 'message' => 'Excel export failed. Process stopped.',
+    //                 'debit_note' => $note->reference_number,
+    //                 'error' => $e->getMessage(),
+    //             ], 500);
+    //         }
+
+    //         /** ----------------------------------------
+    //          * 3️⃣ Send email
+    //          * ------------------------------------- */
+    //         try {
+    //             Mail::send(
+    //                 'Inventory.debit-note.email-template',
+    //                 ['note' => $note],
+    //                 function ($message) use ($toEmails, $ccEmails, $note, $excelContent, $user) {
+    //                     $message->from($user->email, $user->name ?? 'System');
+    //                     $message->to($toEmails)
+    //                             ->cc($ccEmails)
+    //                             ->subject("Debit Note: {$note->reference_number}")
+    //                             ->attachData(
+    //                                 $excelContent,
+    //                                 "DebitNote_{$note->reference_number}.xlsx",
+    //                                 [
+    //                                     'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    //                                 ]
+    //                             );
+    //                 }
+    //             );
+
+    //             $note->update([
+    //                 'status'    => 'sent',
+    //                 'send_date' => now(),
+    //             ]);
+
+    //             $successCount++;
+
+    //         } catch (Throwable $e) {
+    //             $failedNotes[] = $note->reference_number . ' (' . $e->getMessage() . ')';
+    //             continue;
+    //         }
+    //     }
+
+    //     return response()->json([
+    //         'message' => "Emails sent successfully for {$successCount} debit notes.",
+    //         'failed'  => $failedNotes,
+    //     ]);
+    // }
+
     public function sendDebitNoteEmails(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -303,16 +418,19 @@ class DebitNoteController extends Controller
             'end_date'         => 'required|date|after_or_equal:start_date',
         ]);
 
-        $query = DebitNote::with(['debitNoteEmail', 'items.stockIssueItem'])
-            ->whereIn('warehouse_id', $validated['warehouse_ids'])
-            ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
-            ->where('status', 'pending');
-
-        if (!empty($validated['department_ids'])) {
-            $query->whereIn('department_id', $validated['department_ids']);
+        $user = auth()->user();
+        if (!$user || !$user->email) {
+            return response()->json([
+                'message' => 'Authenticated user email is required.'
+            ], 422);
         }
 
-        $debitNotes = $query->get();
+        $debitNotes = DebitNote::with(['debitNoteEmail', 'items.stockIssueItem'])
+            ->whereIn('warehouse_id', $validated['warehouse_ids'])
+            ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
+            ->where('status', 'pending')
+            ->when(!empty($validated['department_ids']), fn($q) => $q->whereIn('department_id', $validated['department_ids']))
+            ->get();
 
         if ($debitNotes->isEmpty()) {
             return response()->json([
@@ -320,45 +438,30 @@ class DebitNoteController extends Controller
             ], 404);
         }
 
-        $user = auth()->user();
-
-        if (!$user || !$user->email) {
-            return response()->json([
-                'message' => 'Authenticated user email is required to send emails.'
-            ], 422);
-        }
-
-        $logoPath     = public_path('img/logo/logo-dark.png');
+        $logoPath = public_path('img/logo/logo-dark.png');
         $successCount = 0;
-        $failedNotes  = [];
+        $failedNotes = [];
 
         foreach ($debitNotes as $note) {
 
-            /** ----------------------------------------
-             * 1️⃣ Validate recipient first
-             * ------------------------------------- */
-            $to = $note->debitNoteEmail->send_to_email ?? null;
-            $cc = $note->debitNoteEmail->cc_to_email ?? null;
+            $toEmails = optional($note->debitNoteEmail)->send_to_email ? 
+                array_map('trim', explode(',', $note->debitNoteEmail->send_to_email)) : null;
 
-            if (!$to) {
+            $ccEmails = optional($note->debitNoteEmail)->cc_to_email ? 
+                array_map('trim', explode(',', $note->debitNoteEmail->cc_to_email)) : [];
+
+            if (!$toEmails) {
                 $failedNotes[] = $note->reference_number . ' (No recipient)';
                 continue;
             }
 
-            $toEmails = array_map('trim', explode(',', $to));
-            $ccEmails = $cc ? array_map('trim', explode(',', $cc)) : [];
-
-            /** ----------------------------------------
-             * 2️⃣ Generate Excel (STOP if error)
-             * ------------------------------------- */
+            // Generate Excel
             try {
                 $excelContent = Excel::raw(
                     new DebitNoteItemsExport($note, $logoPath),
                     \Maatwebsite\Excel\Excel::XLSX
                 );
             } catch (Throwable $e) {
-
-                // ❌ STOP EVERYTHING if Excel fails
                 return response()->json([
                     'message' => 'Excel export failed. Process stopped.',
                     'debit_note' => $note->reference_number,
@@ -366,38 +469,35 @@ class DebitNoteController extends Controller
                 ], 500);
             }
 
-            /** ----------------------------------------
-             * 3️⃣ Send email
-             * ------------------------------------- */
+            // Send Email
             try {
                 Mail::send(
                     'Inventory.debit-note.email-template',
                     ['note' => $note],
                     function ($message) use ($toEmails, $ccEmails, $note, $excelContent, $user) {
-                        $message->from($user->email, $user->name ?? 'System');
+                        // Use system email as "from" and auth user as reply-to
+                        $message->from(config('mail.from.address'), config('mail.from.name'));
+                        $message->replyTo($user->email, $user->name ?? 'System');
                         $message->to($toEmails)
                                 ->cc($ccEmails)
                                 ->subject("Debit Note: {$note->reference_number}")
                                 ->attachData(
                                     $excelContent,
                                     "DebitNote_{$note->reference_number}.xlsx",
-                                    [
-                                        'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                                    ]
+                                    ['mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
                                 );
                     }
                 );
 
+                // Mark as sent
                 $note->update([
                     'status'    => 'sent',
                     'send_date' => now(),
                 ]);
 
                 $successCount++;
-
             } catch (Throwable $e) {
                 $failedNotes[] = $note->reference_number . ' (' . $e->getMessage() . ')';
-                continue;
             }
         }
 
