@@ -293,11 +293,11 @@
                                         <span class="nav-link-text">Email List</span>
                                     </a>
                                 </li>
-                                <!-- <li class="{{ request()->is('inventory/warehouses/products') ? 'active' : '' }}">
-                                    <a href="{{ url('inventory/warehouses/products') }}" title="Products" data-filter-tags="products">
-                                        <span class="nav-link-text">Products</span>
+                                <li class="{{ request()->is('inventory/debit-notes') ? 'active' : '' }}">
+                                    <a href="{{ url('inventory/debit-notes') }}" title="Debit Note" data-filter-tags="debit note">
+                                        <span class="nav-link-text">Debit Note List</span>
                                     </a>
-                                </li> -->
+                                </li>
                             </ul>
                         </li>
                     </ul>

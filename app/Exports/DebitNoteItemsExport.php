@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\DebitNote;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
@@ -14,14 +15,18 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Carbon\Carbon;
 
-class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFormatting, WithStyles, WithEvents
+class DebitNoteItemsExport implements
+    FromCollection,
+    WithMapping,
+    WithColumnFormatting,
+    WithStyles,
+    WithEvents
 {
     protected DebitNote $debitNote;
     protected ?string $logoPath;
-
     protected array $headings = [
         'No',
         'Date',
@@ -39,50 +44,68 @@ class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFor
         'IO Number',
     ];
 
+    protected Collection $rows;
+
     public function __construct(DebitNote $debitNote, ?string $logoPath = null)
     {
         $this->debitNote = $debitNote;
-        $this->logoPath = $logoPath;
+        $this->logoPath  = $logoPath;
+
+        // Preload all necessary data efficiently
+        $items = $this->debitNote
+            ->items()
+            ->with([
+                'stockIssueItem:id,stock_issue_id,product_id,quantity,unit_price,total_price,campus_id,department_id',
+                'stockIssueItem.stockIssue:id,transaction_date,requested_by',
+                'stockIssueItem.stockIssue.requestedBy:id,name',
+                'stockIssueItem.productVariant:id,item_code,product_id,description',
+                'stockIssueItem.productVariant.product:id,name,unit_id',
+                'stockIssueItem.productVariant.product.unit:id,name',
+                'stockIssueItem.campus:id,short_name',
+                'stockIssueItem.department:id,short_name,division_id',
+                'stockIssueItem.department.division:id,short_name'
+            ])
+            ->get();
+
+        // Precompute rows for speed
+        $this->rows = $items->map(function ($item, $index) {
+            $stockItem = $item->stockIssueItem;
+            $transactionDate = $stockItem->stockIssue->transaction_date instanceof Carbon
+                ? $stockItem->stockIssue->transaction_date
+                : Carbon::parse($stockItem->stockIssue->transaction_date);
+
+            return [
+                $index,
+                $transactionDate->format('M d, Y'),
+                $stockItem->productVariant->item_code ?? '',
+                trim(($stockItem->productVariant->product->name ?? '') . ' ' . ($stockItem->productVariant->description ?? '')),
+                $stockItem->quantity ?? 0,
+                $stockItem->productVariant->product->unit->name ?? '',
+                $stockItem->unit_price ?? 0,
+                $stockItem->total_price ?? 0,
+                $stockItem->stockIssue->requestedBy->name ?? '',
+                $stockItem->campus->short_name ?? '',
+                $stockItem->department->division->short_name ?? '',
+                $stockItem->department->short_name ?? '',
+                $item->remarks ?? '',
+                $stockItem->stockIssue->reference_no ?? '',
+            ];
+        });
     }
 
     public function collection()
     {
-        return $this->debitNote->items()->with('stockIssueItem.productVariant.product.unit')->get();
+        return $this->rows;
     }
 
-    public function map($item): array
+    public function map($row): array
     {
-        $stockItem = $item->stockIssueItem;
-
-        // Format transaction date as "Dec 30, 2025"
-        $transactionDate = $stockItem->stockIssue->transaction_date instanceof Carbon
-            ? $stockItem->stockIssue->transaction_date
-            : Carbon::parse($stockItem->stockIssue->transaction_date);
-
-        $formattedDate = $transactionDate->format('M d, Y');
-
-        return [
-            $item->id,
-            $formattedDate,
-            $stockItem->productVariant->item_code ?? '',
-            trim(($stockItem->productVariant->product->name ?? '') . ' ' . ($stockItem->productVariant->description ?? '')),
-            $stockItem->quantity ?? 0,
-            $stockItem->productVariant->product->unit->name ?? '',
-            $stockItem->unit_price ?? 0,
-            $stockItem->total_price ?? 0,
-            $item->user->name ?? '',
-            $item->campus->name ?? '',
-            $item->division->name ?? '',
-            $item->department->name ?? '',
-            $item->remarks ?? '',
-            $item->io_number ?? '',
-        ];
+        return $row;
     }
 
     public function columnFormats(): array
     {
         return [
-            // All date columns can be text because we format them manually
             'B' => NumberFormat::FORMAT_TEXT,
             'E' => NumberFormat::FORMAT_NUMBER,
             'G' => NumberFormat::FORMAT_NUMBER_00,
@@ -92,10 +115,7 @@ class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFor
 
     public function styles(Worksheet $sheet)
     {
-        // Set small width for No column
         $sheet->getColumnDimension('A')->setWidth(5);
-
-        // Auto size other columns
         foreach (range('B', 'N') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
@@ -108,11 +128,12 @@ class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFor
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
+                $headerRow = 4;
 
-                // Insert 3 rows at the top for logo and title
+                // Insert space for logo + title
                 $sheet->insertNewRowBefore(1, 3);
 
-                // Insert logo
+                // Logo
                 if ($this->logoPath && file_exists($this->logoPath)) {
                     $drawing = new Drawing();
                     $drawing->setName('Company Logo');
@@ -122,41 +143,38 @@ class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFor
                     $drawing->setWorksheet($sheet);
                 }
 
-                // Title row
+                // Title
                 $sheet->mergeCells('A2:N2');
                 $sheet->setCellValue('A2', 'Debit Note');
                 $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(14);
                 $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getRowDimension(2)->setRowHeight(30);
 
-                // Department & Warehouse row
-                $departmentName = $this->debitNote->department->name ?? '';
-                $warehouseName  = $this->debitNote->warehouse->name ?? '';
+                // Department / Warehouse
                 $sheet->mergeCells('A3:N3');
-                $sheet->setCellValue('A3', "{$departmentName} - {$warehouseName}");
-                $sheet->getStyle('A3')->getFont()->setBold(true)->setSize(12);
+                $sheet->setCellValue(
+                    'A3',
+                    ($this->debitNote->department->name ?? '') . ' - ' .
+                    ($this->debitNote->warehouse->name ?? '')
+                );
+                $sheet->getStyle('A3')->getFont()->setBold(true);
                 $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getRowDimension(3)->setRowHeight(20);
 
-                // Header row
-                $headerRow = 4;
-                foreach ($this->headings as $colIndex => $heading) {
-                    $sheet->setCellValueByColumnAndRow($colIndex + 1, $headerRow, $heading);
+                // Header
+                foreach ($this->headings as $i => $heading) {
+                    $sheet->setCellValueByColumnAndRow($i + 1, $headerRow, $heading);
                 }
 
-                // Style header
                 $sheet->getStyle("A{$headerRow}:N{$headerRow}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$headerRow}:N{$headerRow}")->getFill()
-                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                $sheet->getStyle("A{$headerRow}:N{$headerRow}")
+                    ->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()->setRGB('CCFFCC');
-                $sheet->getStyle("A{$headerRow}:N{$headerRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Data rows
-                $dataCount = $this->debitNote->items()->count();
+                // Table borders
+                $dataCount    = $this->rows->count();
                 $firstDataRow = $headerRow + 1;
-                $lastDataRow = $headerRow + $dataCount;
+                $lastDataRow  = $headerRow + $dataCount;
 
-                // Borders only for actual table
                 if ($dataCount > 0) {
                     $sheet->getStyle("A{$headerRow}:N{$lastDataRow}")
                         ->getBorders()->getAllBorders()
@@ -165,27 +183,12 @@ class DebitNoteItemsExport implements FromCollection, WithMapping, WithColumnFor
 
                 // TOTAL row
                 $totalRow = $lastDataRow + 1;
-                $sheet->setCellValue('G' . $totalRow, 'TOTAL');
-                if ($dataCount > 0) {
-                    $sheet->setCellValue('H' . $totalRow, "=SUM(H{$firstDataRow}:H{$lastDataRow})");
-                } else {
-                    $sheet->setCellValue('H' . $totalRow, 0);
-                }
-                $sheet->getStyle('G' . $totalRow . ':H' . $totalRow)->getFont()->setBold(true);
-
-                // Footer with dynamic data in same cell
-                $footerRow = $totalRow + 2;
-                $preparedBy = $this->debitNote->creator; // relation to user
-                $preparedName = $preparedBy->name ?? '';
-                $preparedPosition = $preparedBy->defaultPosition->title ?? '';
-                $preparedDate = $this->debitNote->created_at
-                    ? Carbon::parse($this->debitNote->created_at)->format('M d, Y')
-                    : '';
-
-                $sheet->setCellValue('A' . $footerRow, 'Prepared by');
-                $sheet->setCellValue('A' . ($footerRow + 3), 'Name: ' . $preparedName);
-                $sheet->setCellValue('A' . ($footerRow + 4), 'Position: ' . $preparedPosition);
-                $sheet->setCellValue('A' . ($footerRow + 5), 'Date: ' . $preparedDate);
+                $sheet->setCellValue("G{$totalRow}", 'TOTAL');
+                $sheet->setCellValue(
+                    "H{$totalRow}",
+                    $dataCount > 0 ? "=SUM(H{$firstDataRow}:H{$lastDataRow})" : 0
+                );
+                $sheet->getStyle("G{$totalRow}:H{$totalRow}")->getFont()->setBold(true);
             },
         ];
     }

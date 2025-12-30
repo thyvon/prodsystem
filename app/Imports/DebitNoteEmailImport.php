@@ -37,6 +37,7 @@ class DebitNoteEmailImport implements ToCollection, WithHeadingRow
                     'warehouse_id'  => $warehouseId,
                 ],
                 [
+                    'receiver_name' => $this->receiverName($row['receiver_name'] ?? null),
                     'send_to_email' => $this->emails($row['send_to_email'] ?? null),
                     'cc_to_email'   => $this->emails($row['cc_to_email'] ?? null),
                 ]
@@ -51,5 +52,9 @@ class DebitNoteEmailImport implements ToCollection, WithHeadingRow
         return array_values(array_filter(
             array_map('trim', explode(',', $value))
         ));
+    }
+    private function receiverName(?string $value): ?string
+    {
+        return $value ? trim($value) : null;
     }
 }

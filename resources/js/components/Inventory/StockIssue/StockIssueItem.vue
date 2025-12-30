@@ -31,7 +31,7 @@
               aria-expanded="false"
               aria-controls="filterCollapse"
             >
-              <i class="fal fa-filter mr-2"></i> Filter + Export
+              <i class="fal fa-filter mr-2"></i> Filter + Export + Debit Note
             </button>
           </div>
 

@@ -14,7 +14,7 @@
           </div>
           <div class="card-body">
             <div class="form-row">
-              <div class="form-group col-md-6">
+              <div class="form-group col-md-4">
                 <label>Department <span class="text-danger">*</span></label>
                 <select
                   ref="departmentSelect"
@@ -33,7 +33,7 @@
                 </select>
               </div>
 
-              <div class="form-group col-md-6">
+              <div class="form-group col-md-4">
                 <label>Warehouse <span class="text-danger">*</span></label>
                 <select
                   ref="warehouseSelect"
@@ -50,6 +50,10 @@
                     {{ warehouse.text }}
                   </option>
                 </select>
+              </div>
+              <div class="form-group col-md-4">
+                <label>Receipient <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" v-model="form.receiver_name" required />
               </div>
             </div>
 
@@ -115,6 +119,7 @@ const form = ref({
   id: null,
   department_id: null,
   warehouse_id: null,
+  receiver_name: '',
   send_to_email: '',
   cc_to_email: ''
 })
@@ -152,6 +157,7 @@ const resetForm = () => {
     id: null,
     department_id: null,
     warehouse_id: null,
+    receiver_name: '',
     send_to_email: '',
     cc_to_email: ''
   }
@@ -169,6 +175,7 @@ const show = async (row = null) => {
       id: row.id,
       department_id: row.department_id,
       warehouse_id: row.warehouse_id,
+      receiver_name: row.receiver_name,
       send_to_email: (row.send_to_email || []).join(', '),
       cc_to_email: (row.cc_to_email || []).join(', ')
     }
@@ -195,6 +202,7 @@ const submitForm = async () => {
     const payload = {
       department_id: form.value.department_id,
       warehouse_id: form.value.warehouse_id,
+      receiver_name: form.value.receiver_name,
       send_to_email: form.value.send_to_email
         .split(',')
         .map(e => e.trim())

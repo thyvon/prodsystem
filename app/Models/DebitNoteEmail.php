@@ -13,6 +13,7 @@ class DebitNoteEmail extends Model
         'department_id',
         'warehouse_id',
         'send_to_email',
+        'receiver_name',
         'cc_to_email',
     ];
 

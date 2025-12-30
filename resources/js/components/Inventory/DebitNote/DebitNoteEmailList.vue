@@ -78,6 +78,7 @@ const datatableParams = reactive({
 const datatableHeaders = [
   { text: 'Department', value: 'department_name', width: '20%', sortable: true },
   { text: 'Warehouse', value: 'warehouse_name', width: '20%', sortable: true },
+  { text: 'Receiver Name', value: 'receiver_name', width: '20%', sortable: true },
   { text: 'Send To', value: 'send_to_email', width: '20%', sortable: false },
   { text: 'CC', value: 'cc_to_email', width: '20%', sortable: false },
   { text: 'Created', value: 'created_at', width: '20%', sortable: true }
