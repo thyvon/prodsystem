@@ -55,9 +55,14 @@
                 <button class="btn btn-primary" @click="applyFilters">
                   <i class="fal fa-filter mr-2"></i> Apply
                 </button>
-                <button class="btn btn-warning" @click="sendDebitNoteEmail">
+                <button class="btn btn-warning" @click="sendDebitNoteEmail" :disabled="sendingEmails">
                   <i class="fal fa-envelope mr-2"></i> Send Email
                 </button>
+              </div>
+
+              <!-- Progress -->
+              <div v-if="sendingEmails" class="mt-2 text-info font-weight-medium">
+                {{ progressText }}
               </div>
             </div>
           </div>
@@ -82,6 +87,9 @@ const endDateRef = ref(null)
 
 const selectedWarehouses = ref([])
 const selectedDepartments = ref([])
+
+const sendingEmails = ref(false)
+const progressText = ref('')
 
 const datatableParams = reactive({
   sortColumn: 'id',
@@ -173,16 +181,19 @@ const applyFilters = () => {
   datatableRef.value.reload()
 }
 
-// Send filtered emails
+// Send filtered emails with progress
 const sendDebitNoteEmail = async () => {
-  // Confirm action with the user
   const confirmed = await confirmAction(
     'Send emails for all filtered Debit Notes?', 
     'This will send emails to all recipients of the current filtered list.'
   )
   if (!confirmed) return
 
+  sendingEmails.value = true
+  progressText.value = 'Starting...'
+
   try {
+    // Start sending emails
     await axios.post('/api/inventory/debit-notes/send-emails', {
       warehouse_ids: selectedWarehouses.value || [],
       department_ids: selectedDepartments.value || [],
@@ -190,9 +201,28 @@ const sendDebitNoteEmail = async () => {
       end_date: datatableParams.end_date || null,
     })
 
-    showAlert('Success', 'Emails sent successfully!', 'success')
+    // Poll progress every 1 second
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get('/api/inventory/debit-notes/email-progress')
+        progressText.value = res.data.status
+
+        if (res.data.finished) {
+          clearInterval(interval)
+          sendingEmails.value = false
+          showAlert('Success', 'Emails sent successfully!', 'success')
+          datatableRef.value.reload()
+        }
+      } catch (e) {
+        console.error('Progress fetch error:', e)
+        clearInterval(interval)
+        sendingEmails.value = false
+      }
+    }, 1000)
+
   } catch (e) {
     console.error('Send emails failed:', e)
+    sendingEmails.value = false
     showAlert('Failed', e.response?.data?.message || 'Something went wrong.', 'danger')
   }
 }
