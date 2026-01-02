@@ -64,9 +64,9 @@ class DebitNoteItemsExport implements
     public function map($item): array
     {
         $this->index++;
-        $transactionDate = $item->created_at instanceof Carbon
-            ? $item->created_at
-            : Carbon::parse($item->created_at);
+        $transactionDate = $item->transaction_date instanceof Carbon
+            ? $item->transaction_date
+            : Carbon::parse($item->transaction_date);
 
         return [
             $this->index-1,

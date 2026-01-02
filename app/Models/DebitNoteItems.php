@@ -12,6 +12,7 @@ class DebitNoteItems extends Model
         'debit_note_id',
         'stock_issue_id',
         'stock_issue_item_id',
+        'transaction_date',
         'item_code',
         'description',
         'quantity',

@@ -522,6 +522,7 @@ class StockIssueController extends Controller
                         'debit_note_id'       => $debitNote->id,
                         'stock_issue_id'      => $item->stock_issue_id,
                         'stock_issue_item_id' => $item->id,
+                        'transaction_date'    => $item->stockIssue->transaction_date,
                         'item_code'           => $item->productVariant->item_code,
                         'description'         => ($item->productVariant->product->name ?? '') . ' ' . ($item->productVariant->description ?? ''),
                         'quantity'            => $item->quantity ?? 0,
