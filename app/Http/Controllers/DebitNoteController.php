@@ -86,30 +86,31 @@ class DebitNoteController extends Controller
     // Store a new Debit Note Email
     public function storeDebitNoteEmail(Request $request): JsonResponse
     {
-        $request->validate([
-            'department_id' => 'required|exists:departments,id',
-            'warehouse_id' => 'required|exists:warehouses,id',
-            'receiver_name' => 'required',
-            'send_to_email' => 'required|array',
-            'send_to_email.*' => 'email',
-            'cc_to_email' => 'nullable|array',
-            'cc_to_email.*' => 'email',
+        $validated = $request->validate([
+            'department_id'    => 'required|exists:departments,id',
+            'warehouse_id'     => 'required|exists:warehouses,id',
+            'receiver_name'    => 'required|string',
+            'send_to_email'    => 'required|array|min:1',
+            'send_to_email.*'  => 'email',
+            'cc_to_email'      => 'nullable|array',
+            'cc_to_email.*'    => 'email',
         ]);
 
         $email = DebitNoteEmail::create([
-            'department_id' => $request->input('department_id'),
-            'warehouse_id' => $request->input('warehouse_id'),
-            'receiver_name' => $request->input('receiver_name'),
-            'send_to_email' => implode(',', $request->input('send_to_email', [])),
-            'cc_to_email' => implode(',', $request->input('cc_to_email', [])),
+            'department_id' => $validated['department_id'],
+            'warehouse_id'  => $validated['warehouse_id'],
+            'receiver_name' => $validated['receiver_name'],
+            'send_to_email' => array_values($validated['send_to_email']),
+            'cc_to_email'   => array_values($validated['cc_to_email'] ?? []),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Debit Note Email created successfully',
-            'data' => $email
+            'data'    => $email
         ], 201);
     }
+
 
     // Get single Debit Note Email for editing
     public function editDebitNoteEmail($id): JsonResponse
@@ -138,32 +139,33 @@ class DebitNoteController extends Controller
     // Update a Debit Note Email
     public function updateDebitNoteEmail(Request $request, $id): JsonResponse
     {
-        $request->validate([
-            'department_id' => 'required|exists:departments,id',
-            'warehouse_id' => 'required|exists:warehouses,id',
-            'receiver_name' => 'required',
-            'send_to_email' => 'required|array',
-            'send_to_email.*' => 'email',
-            'cc_to_email' => 'nullable|array',
-            'cc_to_email.*' => 'email',
+        $validated = $request->validate([
+            'department_id'    => 'required|exists:departments,id',
+            'warehouse_id'     => 'required|exists:warehouses,id',
+            'receiver_name'    => 'required|string',
+            'send_to_email'    => 'required|array|min:1',
+            'send_to_email.*'  => 'email',
+            'cc_to_email'      => 'nullable|array',
+            'cc_to_email.*'    => 'email',
         ]);
 
         $email = DebitNoteEmail::findOrFail($id);
 
         $email->update([
-            'department_id' => $request->input('department_id'),
-            'warehouse_id' => $request->input('warehouse_id'),
-            'receiver_name' => $request->input('receiver_name'),
-            'send_to_email' => implode(',', $request->input('send_to_email', [])),
-            'cc_to_email' => implode(',', $request->input('cc_to_email', [])),
+            'department_id' => $validated['department_id'],
+            'warehouse_id'  => $validated['warehouse_id'],
+            'receiver_name' => $validated['receiver_name'],
+            'send_to_email' => array_values($validated['send_to_email']),
+            'cc_to_email'   => array_values($validated['cc_to_email'] ?? []),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Debit Note Email updated successfully',
-            'data' => $email
+            'data'    => $email
         ]);
     }
+
 
     // Debit Note
     public function debitNoteIndex()
