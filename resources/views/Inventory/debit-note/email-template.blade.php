@@ -15,7 +15,7 @@
             padding: 20px;
             margin: 20px auto;
             border-radius: 8px;
-            max-width: 700px;
+            max-width: 100%;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         .header {
@@ -44,6 +44,11 @@
             color: #6c757d;
             text-align: center;
             margin-top: 20px;
+            text-align: left;
+        }
+        .footer img {
+            max-width: 150px; /* adjust as needed */
+            margin-bottom: 10px;
         }
         .btn-primary {
             display: inline-block;
@@ -58,52 +63,38 @@
 <body>
     <div class="container">
         <div class="header">
-            <h2>Debit Note Notification</h2>
-            <p>Reference No: <strong>{{ $note->reference_number }}</strong></p>
+            <h2>Monthly Debit Note</h2>
+            <p>From Warehouse: <strong>{{ $note->warehouse->name }}</strong></p>
         </div>
+        
+        <h5>Dear {{ $note->debitNoteEmail->receiver_name ?? '-' }},</h5>
 
-        <table class="details">
-            <tr>
-                <th>Warehouse</th>
-                <td>{{ $note->warehouse->name ?? '-' }}</td>
-            </tr>
-            <tr>
-                <th>Department</th>
-                <td>{{ $note->department->name ?? '-' }}</td>
-            </tr>
-            <tr>
-                <th>Start Date</th>
-                <td>{{ $note->start_date }}</td>
-            </tr>
-            <tr>
-                <th>End Date</th>
-                <td>{{ $note->end_date }}</td>
-            </tr>
-            <tr>
-                <th>Total Items</th>
-                <td>{{ $note->items->count() }}</td>
-            </tr>
-            <tr>
-                <th>Total Amount</th>
-                <td>{{ number_format($note->items->sum(fn($i) => $i->stockIssueItem->total_price ?? 0), 4) }}</td>
-            </tr>
-            <tr>
-                <th>Status</th>
-                <td>{{ $note->status }}</td>
-            </tr>
-            <tr>
-                <th>Created By</th>
-                <td>{{ $note->creator->name ?? '-' }}</td>
-            </tr>
-        </table>
+        <p>I hope this message finds you well.</p>
 
-        <p>Please review the debit note and process accordingly.</p>
         <p>
-            <a href="{{ url("/inventory/debit-notes/{$note->id}/show") }}" class="btn-primary">View Debit Note</a>
+            Please find attached the Monthly Debit Note for 
+            <strong>{{ $note->department->short_name ?? '-' }}</strong> 
+            for the period from 
+            <strong>{{ $note->start_date ? \Carbon\Carbon::parse($note->start_date)->format('M d, Y') : '-' }}</strong> 
+            to 
+            <strong>{{ $note->end_date ? \Carbon\Carbon::parse($note->end_date)->format('M d, Y') : '-' }}</strong>. 
+            This document details all materials requested from stock during the month for operational usage. 
+            The debit note includes quantities, item descriptions, and relevant references to help you verify the records efficiently.
         </p>
 
+        <p>Kindly review the attached file at your earliest convenience. Should you have any questions, discrepancies, or require additional supporting information, please do not hesitate to contact me. I am happy to provide clarification or any further documentation needed.</p>
+
+        <p>Thank you for your time and attention to this matter. I appreciate your cooperation and prompt review.</p>
+        
         <div class="footer">
-            This is an automated email. Please do not reply.
+            <!-- Footer Image -->
+            <p>Best regards,<br>
+            {{$note->creator->name ?? '-'}}<br>
+            {{$note->creator->defaultPosition->title ?? '-'}}<br>
+            {{$note->creator->phone ?? '-'}}<br>
+            {{$note->creator->email ?? '-'}}<br>
+            </p>
+        <img src="https://example.com/footer-logo.png" alt="Company Logo">
         </div>
     </div>
 </body>

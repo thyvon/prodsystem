@@ -81,10 +81,10 @@ class SendDebitNotesEmailJob implements ShouldQueue
                             $message->cc($ccEmails);
                         }
 
-                        $message->subject("Debit Note: {$note->reference_number}")
+                        $message->subject("Monthly Debit Note for {$note->department->short_name} - {$note->warehouse->name}")
                                 ->attachData(
                                     $excelContent,
-                                    "DebitNote_{$note->reference_number}.xlsx",
+                                    "DebitNote_{$note->department->short_name}.xlsx",
                                     [
                                         'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                                     ]
