@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::table('debit_note_items', function (Blueprint $table) {
             $table->string('item_code')->nullable()->after('stock_issue_item_id');
             $table->text('description')->nullable()->after('item_code');
-            $table->decimal('quantity', 15, 4)->default(0)->after('description');
+            $table->decimal('quantity', 10, 4)->default(0)->after('description');
             $table->string('uom')->nullable()->after('quantity');
-            $table->decimal('unit_price', 15, 2)->default(0)->after('uom');
-            $table->decimal('total_price', 15, 2)->default(0)->after('unit_price');
+            $table->decimal('unit_price', 20, 15)->default(0)->after('uom');
+            $table->decimal('total_price', 20, 15)->default(0)->after('unit_price');
             $table->string('requester_name')->nullable()->after('total_price');
             $table->string('campus_name')->nullable()->after('total_price');
             $table->string('division_name')->nullable()->after('campus_name');
