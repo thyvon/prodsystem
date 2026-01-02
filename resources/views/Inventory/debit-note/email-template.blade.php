@@ -67,7 +67,7 @@
             <p>From Warehouse: <strong>{{ $note->warehouse->name }}</strong></p>
         </div>
         
-        <h5>Dear {{ $note->debitNoteEmail->receiver_name ?? '-' }},</h5>
+        <p>Dear <strong>{{ $note->debitNoteEmail->receiver_name ?? '-' }}</strong>,</p>
 
         <p>I hope this message finds you well.</p>
 
@@ -94,7 +94,7 @@
             {{$note->creator->phone ?? '-'}}<br>
             {{$note->creator->email ?? '-'}}<br>
             </p>
-        <img src="https://example.com/footer-logo.png" alt="Company Logo">
+        <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4zsFWN0XTmb1CVNaUS-BqiFPyZpKwge_qnFJ5x7vfn77RaF1FldZ8ebYBrhuszIuQHYxgi8l4BB7ojF" alt="Company Logo" style="max-width: 400px; margin-bottom: 10px;">
         </div>
     </div>
 </body>
