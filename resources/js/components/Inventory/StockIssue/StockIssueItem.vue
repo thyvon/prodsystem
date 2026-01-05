@@ -311,6 +311,12 @@ const createOrUpdateDebitNote = async () => {
     return
   }
 
+  // ✅ Validate transaction type
+  if (!selectedTransactionTypes.value) {
+    showAlert('Warning', 'Please select transaction type (Issue or Transfer).', 'warning')
+    return
+  }
+
   // -----------------------------
   // PREPARE PAYLOAD
   // -----------------------------
@@ -319,14 +325,23 @@ const createOrUpdateDebitNote = async () => {
     department_id: selectedDepartments.value[0] || null, // optional
     start_date: startDate,
     end_date: endDate,
+    transaction_type: selectedTransactionTypes.value, // ✅ ADD THIS
   }
 
   // -----------------------------
   // API CALL
   // -----------------------------
   try {
-    const response = await axios.post('/api/inventory/stock-issues/debit-notes', payload)
-    showAlert('Success', response.data.message || 'Debit Note created or updated successfully.', 'success')
+    const response = await axios.post(
+      '/api/inventory/stock-issues/debit-notes',
+      payload
+    )
+
+    showAlert(
+      'Success',
+      response.data.message || 'Debit Note created or updated successfully.',
+      'success'
+    )
 
   } catch (error) {
     console.error(error)
@@ -337,8 +352,10 @@ const createOrUpdateDebitNote = async () => {
     if (error.response) {
       // 422 validation or missing debit note email
       if (error.response.status === 422 || error.response.data?.error) {
-        // Display backend message including department short_name
-        message = error.response.data?.error || error.response.data?.message || message
+        message =
+          error.response.data?.error ||
+          error.response.data?.message ||
+          message
       } else if (error.response.data?.message) {
         message = error.response.data.message
       }

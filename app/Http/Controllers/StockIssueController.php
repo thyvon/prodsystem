@@ -424,10 +424,12 @@ class StockIssueController extends Controller
     public function upsertDebitNote(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'warehouse_id'  => 'required|exists:warehouses,id',
-            'department_id' => 'nullable|exists:departments,id',
-            'start_date'    => 'required|date',
-            'end_date'      => 'required|date|after_or_equal:start_date',
+            'warehouse_id'        => 'required|exists:warehouses,id',
+            'department_id'       => 'nullable|exists:departments,id',
+            'start_date'          => 'required|date',
+            'end_date'            => 'required|date|after_or_equal:start_date',
+            'transaction_type'    => 'required|array|min:1',
+            'transaction_type.*'  => 'in:Issue,Transfer',
         ]);
 
         try {
@@ -435,43 +437,56 @@ class StockIssueController extends Controller
 
                 $startDate = Carbon::parse($validated['start_date']);
                 $endDate   = Carbon::parse($validated['end_date']);
-                $year  = $startDate->year;
-                $month = $startDate->month;
+                $year      = $startDate->year;
+                $month     = $startDate->month;
 
-                // --------------------------
-                // 1. Determine departments
-                // --------------------------
+                /*
+                |--------------------------------------------------------------------------
+                | 1. Determine Departments (filter ONLY StockIssue)
+                |--------------------------------------------------------------------------
+                */
                 $departments = $validated['department_id']
                     ? [$validated['department_id']]
                     : StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
                         $q->where('warehouse_id', $validated['warehouse_id'])
-                        ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']]);
-                    })->distinct()->pluck('department_id')->toArray();
+                        ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
+                        ->whereBetween('transaction_date', [
+                            $validated['start_date'],
+                            $validated['end_date']
+                        ]);
+                    })
+                    ->distinct()
+                    ->pluck('department_id')
+                    ->toArray();
 
                 if (empty($departments)) {
-                    abort(422, 'No departments found for the selected warehouse and date range.');
+                    abort(422, 'No departments found for the selected warehouse, date range, and transaction type.');
                 }
 
-                // --------------------------
-                // 2. Check DebitNoteEmail
-                // --------------------------
+                /*
+                |--------------------------------------------------------------------------
+                | 2. Validate DebitNote Email Configuration
+                |--------------------------------------------------------------------------
+                */
                 $missingEmailDepartments = collect($departments)
-                    ->filter(fn($deptId) => !DebitNoteEmail::where([
-                        'warehouse_id' => $validated['warehouse_id'],
+                    ->filter(fn ($deptId) => !DebitNoteEmail::where([
+                        'warehouse_id'  => $validated['warehouse_id'],
                         'department_id' => $deptId
                     ])->exists())
                     ->toArray();
 
                 if (!empty($missingEmailDepartments)) {
-                    $deptNames = \App\Models\Department::whereIn('id', $missingEmailDepartments)
+                    $deptNames = Department::whereIn('id', $missingEmailDepartments)
                         ->pluck('short_name')
                         ->implode(', ');
                     abort(422, "Missing Debit Note Email configuration for departments: {$deptNames}");
                 }
 
-                // --------------------------
-                // 3. Process each department
-                // --------------------------
+                /*
+                |--------------------------------------------------------------------------
+                | 3. Process Each Department (NO transaction_type on DebitNote)
+                |--------------------------------------------------------------------------
+                */
                 foreach ($departments as $deptId) {
 
                     $debitNoteEmail = DebitNoteEmail::where([
@@ -479,52 +494,66 @@ class StockIssueController extends Controller
                         'department_id' => $deptId
                     ])->first();
 
-                    // Create or update DebitNote
                     $debitNote = DebitNote::updateOrCreate(
                         [
                             'warehouse_id'  => $validated['warehouse_id'],
                             'department_id' => $deptId,
-                            'start_date'    => $startDate, // optional, month grouping
+                            'start_date'    => $startDate,
                             'end_date'      => $endDate,
                         ],
                         [
-                            'reference_number'     => $this->generateDebitNoteNo(
+                            'reference_number'    => $this->generateDebitNoteNo(
                                 $validated['warehouse_id'],
                                 $deptId,
                                 $year,
                                 $month
                             ),
-                            'debit_note_email_id'  => $debitNoteEmail->id,
-                            'status'               => 'pending',
-                            'created_by'           => auth()->id(),
+                            'debit_note_email_id' => $debitNoteEmail->id,
+                            'status'              => 'pending',
+                            'created_by'          => auth()->id(),
                         ]
                     );
 
                     // Remove old items
                     $debitNote->items()->delete();
 
-                    // Fetch stock items
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 4. Fetch Stock Items (filter ONLY StockIssue)
+                    |--------------------------------------------------------------------------
+                    */
                     $stockItems = StockIssueItem::where('department_id', $deptId)
-                        ->whereHas('stockIssue', fn($q) => $q
-                            ->where('warehouse_id', $validated['warehouse_id'])
-                            ->whereBetween('transaction_date', [$validated['start_date'], $validated['end_date']])
-                        )
+                        ->whereHas('stockIssue', function ($q) use ($validated) {
+                            $q->where('warehouse_id', $validated['warehouse_id'])
+                            ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
+                            ->whereBetween('transaction_date', [
+                                $validated['start_date'],
+                                $validated['end_date']
+                            ]);
+                        })
                         ->with([
                             'productVariant.product.unit',
                             'campus',
                             'department.division',
-                            'stockIssue'
+                            'stockIssue.requestedBy',
                         ])
                         ->get();
 
-                    // Prepare data for batch insert
-                    $itemsData = $stockItems->map(fn($item) => [
+                    /*
+                    |--------------------------------------------------------------------------
+                    | 5. Insert Items
+                    |--------------------------------------------------------------------------
+                    */
+                    $itemsData = $stockItems->map(fn ($item) => [
                         'debit_note_id'       => $debitNote->id,
                         'stock_issue_id'      => $item->stock_issue_id,
                         'stock_issue_item_id' => $item->id,
                         'transaction_date'    => $item->stockIssue->transaction_date,
                         'item_code'           => $item->productVariant->item_code,
-                        'description'         => ($item->productVariant->product->name ?? '') . ' ' . ($item->productVariant->description ?? ''),
+                        'description'         => trim(
+                            ($item->productVariant->product->name ?? '') . ' ' .
+                            ($item->productVariant->description ?? '')
+                        ),
                         'quantity'            => $item->quantity ?? 0,
                         'uom'                 => $item->productVariant->product->unit->name ?? '',
                         'unit_price'          => $item->unit_price ?? 0,
@@ -534,13 +563,12 @@ class StockIssueController extends Controller
                         'division_name'       => $item->department->division->short_name ?? '',
                         'department_name'     => $item->department->short_name ?? '',
                         'reference_no'        => $item->stockIssue->reference_no ?? '',
-                        'remarks'             => $item->remarks ?? null,
+                        'remarks'             => $item->remarks,
                         'created_at'          => now(),
                         'updated_at'          => now(),
                     ])->toArray();
 
-                    // Insert all items at once
-                    if (!empty($itemsData)) {
+                    if ($itemsData) {
                         $debitNote->items()->insert($itemsData);
                     }
                 }

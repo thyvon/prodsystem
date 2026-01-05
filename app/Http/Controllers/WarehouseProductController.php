@@ -84,6 +84,9 @@ class WarehouseProductController extends Controller
                 'warehouses.id as warehouse_id',
                 'warehouses.name as warehouse_name',
                 'warehouse_products.alert_quantity',
+                'warehouse_products.order_leadtime_days',
+                'warehouse_products.stock_out_forecast_days',
+                'warehouse_products.target_inv_turnover_days',
                 'warehouse_products.is_active',
                 'warehouse_products.created_at',
                 'warehouse_products.updated_at'
@@ -896,11 +899,15 @@ class WarehouseProductController extends Controller
         }
     }
    
-    public function updateReport(Request $request, WarehouseProductReport $warehouseProductReport): JsonResponse
+    public function updateReport(
+        Request $request,
+        WarehouseProductReport $warehouseProductReport
+    ): JsonResponse
     {
         $validated = $request->validate([
             'report_date'  => 'required|date',
             'remarks'      => 'nullable|string',
+
             'items'        => 'required|array|min:1',
             'items.*.warehouse_product_id' => 'required|exists:warehouse_products,id',
             'items.*.remarks' => 'nullable|string',
@@ -919,6 +926,7 @@ class WarehouseProductController extends Controller
             'items.*.reorder_level_qty' => 'nullable|numeric',
             'items.*.max_inventory_level_quantity' => 'nullable|numeric',
             'items.*.max_inventory_usage_day' => 'nullable|numeric',
+
             'approvals'    => 'required|array|min:2',
             'approvals.*.user_id'      => 'required|exists:users,id',
             'approvals.*.request_type' => 'required|in:initial,check,approve',
@@ -927,7 +935,11 @@ class WarehouseProductController extends Controller
         DB::beginTransaction();
 
         try {
-            // Update main report
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Update main report
+            |--------------------------------------------------------------------------
+            */
             $warehouseProductReport->update([
                 'report_date' => $validated['report_date'],
                 'remarks'     => $validated['remarks'] ?? null,
@@ -935,54 +947,72 @@ class WarehouseProductController extends Controller
                 'position_id' => Auth::user()->current_position_id,
             ]);
 
-            // Reset approvals
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Reset approvals
+            |--------------------------------------------------------------------------
+            */
             $warehouseProductReport->approvals()->delete();
             $this->storeApprovals($warehouseProductReport, $validated['approvals']);
 
-            // Map items by warehouse_product_id for easy lookup
+            /*
+            |--------------------------------------------------------------------------
+            | 3. 🔥 DELETE ALL existing report items
+            |--------------------------------------------------------------------------
+            */
+            $warehouseProductReport->items()->delete();
+
+            /*
+            |--------------------------------------------------------------------------
+            | 4. Prepare items for insert
+            |--------------------------------------------------------------------------
+            */
             $itemsData = collect($validated['items'])->keyBy('warehouse_product_id');
 
-            // Get current warehouse products
-            $warehouseProducts = WarehouseProduct::whereIn('id', $itemsData->keys())
+            $warehouseProducts = WarehouseProduct::whereIn(
+                    'id',
+                    $itemsData->keys()
+                )
                 ->where('warehouse_id', $warehouseProductReport->warehouse_id)
                 ->get();
 
             foreach ($warehouseProducts as $whProduct) {
+
                 $stockData = $this->warehouseStockService->getStockReportByProduct(
                     $warehouseProductReport->warehouse_id,
                     $whProduct->product_id
                 );
 
-                if (!$stockData) continue;
+                if (!$stockData) {
+                    continue;
+                }
 
                 $item = $itemsData->get($whProduct->id);
 
-                WarehouseProductReportItems::updateOrCreate(
-                    [
-                        'report_id' => $warehouseProductReport->id,
-                        'warehouse_product_id' => $whProduct->id
-                    ],
-                    [
-                        'product_id' => $whProduct->product_id,
-                        'unit_price' => $item['unit_price'] ?? $stockData['avg_price'] ?? 0,
-                        'avg_6_month_usage' => $item['avg_6_month_usage'] ?? $stockData['avg_usage'] ?? 0,
-                        'last_month_usage' => $item['last_month_usage'] ?? $stockData['avg_daily_use_per_day'] ?? 0,
-                        'stock_on_hand' => $item['stock_on_hand'] ?? $stockData['stock_onhand'] ?? 0,
-                        'order_plan_quantity' => $item['order_plan_qty'] ?? $stockData['order_plan_qty'] ?? 0,
-                        'demand_forecast_quantity' => $item['demand_forecast_quantity'] ?? $stockData['demand_stock_out_forecast_qty'] ?? 0,
-                        'ending_stock_cover_day' => $item['ending_stock_cover_day'] ?? $stockData['ending_stock_cover_days'] ?? 0,
-                        'stock_ending_quantity' => $item['stock_ending_quantity'] ?? $stockData['ending_stock_qty'] ?? 0,
-                        'target_safety_stock_day' => $item['target_safety_stock_day'] ?? $stockData['target_safety_stock_days'] ?? 0,
-                        'stock_value' => $item['stock_value'] ?? $stockData['stock_value_usd'] ?? 0,
-                        'inventory_reorder_quantity' => $item['inventory_reorder_quantity'] ?? $stockData['inventory_reorder_qty'] ?? 0,
-                        'reorder_level_day' => $item['reorder_level_day'] ?? $stockData['reorder_level_days'] ?? 0,
-                        'reorder_level_qty' => $item['reorder_level_qty'] ?? $stockData['reorder_level_qty'] ?? 0,
-                        'max_inventory_level_quantity' => $item['max_inventory_level_quantity'] ?? $stockData['max_inventory_level_qty'] ?? 0,
-                        'max_inventory_usage_day' => $item['max_inventory_usage_day'] ?? $stockData['max_usage_days'] ?? 0,
-                        'remarks' => $item['remarks'] ?? null,
-                        'updated_by' => Auth::id(),
-                    ]
-                );
+                WarehouseProductReportItems::create([
+                    'report_id' => $warehouseProductReport->id,
+                    'warehouse_product_id' => $whProduct->id,
+                    'product_id' => $whProduct->product_id,
+
+                    'unit_price' => $item['unit_price'] ?? $stockData['avg_price'] ?? 0,
+                    'avg_6_month_usage' => $item['avg_6_month_usage'] ?? $stockData['avg_usage'] ?? 0,
+                    'last_month_usage' => $item['last_month_usage'] ?? $stockData['avg_daily_use_per_day'] ?? 0,
+                    'stock_on_hand' => $item['stock_on_hand'] ?? $stockData['stock_onhand'] ?? 0,
+                    'order_plan_quantity' => $item['order_plan_qty'] ?? $stockData['order_plan_qty'] ?? 0,
+                    'demand_forecast_quantity' => $item['demand_forecast_quantity'] ?? $stockData['demand_stock_out_forecast_qty'] ?? 0,
+                    'ending_stock_cover_day' => $item['ending_stock_cover_day'] ?? $stockData['ending_stock_cover_days'] ?? 0,
+                    'stock_ending_quantity' => $item['stock_ending_quantity'] ?? $stockData['ending_stock_qty'] ?? 0,
+                    'target_safety_stock_day' => $item['target_safety_stock_day'] ?? $stockData['target_safety_stock_days'] ?? 0,
+                    'stock_value' => $item['stock_value'] ?? $stockData['stock_value_usd'] ?? 0,
+                    'inventory_reorder_quantity' => $item['inventory_reorder_quantity'] ?? $stockData['inventory_reorder_qty'] ?? 0,
+                    'reorder_level_day' => $item['reorder_level_day'] ?? $stockData['reorder_level_days'] ?? 0,
+                    'reorder_level_qty' => $item['reorder_level_qty'] ?? $stockData['reorder_level_qty'] ?? 0,
+                    'max_inventory_level_quantity' => $item['max_inventory_level_quantity'] ?? $stockData['max_inventory_level_qty'] ?? 0,
+                    'max_inventory_usage_day' => $item['max_inventory_usage_day'] ?? $stockData['max_usage_days'] ?? 0,
+
+                    'remarks' => $item['remarks'] ?? null,
+                    'updated_by' => Auth::id(),
+                ]);
             }
 
             DB::commit();
@@ -991,15 +1021,16 @@ class WarehouseProductController extends Controller
                 'message' => '✅ Stock report updated successfully.',
                 'success' => true,
             ]);
+
         } catch (\Throwable $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => '❌ Failed to update stock report.',
                 'error'   => $e->getMessage(),
             ], 500);
         }
     }
-
 
     // Fetch data for editing a stock report
     public function getReportEditData(WarehouseProductReport $warehouseProductReport): JsonResponse
