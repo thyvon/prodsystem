@@ -135,6 +135,14 @@
                     </td>
                     <td>
                       <input
+                        type="hidden"
+                        v-model.number="item.unit_price"
+                        min="0"
+                        class="form-control"
+                      />
+                    </td>
+                    <td>
+                      <input
                         type="number"
                         :value="(item.counted_quantity - item.ending_quantity).toFixed(4)"
                         :class="{
@@ -406,7 +414,7 @@ const addSelectedItems = () => {
         ending_quantity: parseFloat(p.stock_on_hand) || 0,
         counted_quantity: parseFloat(p.stock_on_hand) || 0,
         stock_on_hand: parseFloat(p.stock_on_hand) || 0,
-        average_price: 0,
+        unit_price: parseFloat(p.average_price) || 0,
         remarks: ''
       })
     }
@@ -527,8 +535,8 @@ const importFile = async () => {
           unit_name: r.unit_name || '',
           ending_quantity: 0,
           stock_on_hand: 0,
-          average_price: 0,
           counted_quantity: parseFloat(r.counted_quantity ?? 0),
+          unit_price: parseFloat(r.unit_price || 0),
           remarks: r.remark || ''
         })
       }
@@ -544,7 +552,7 @@ const importFile = async () => {
     const updatedMap = Object.fromEntries((refreshed.data || []).map(u => [u.product_id, u]))
     form.value.items = form.value.items.map(item => {
       const updated = updatedMap[item.product_id]
-      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0) } : item
     })
 
     fileInput.value.value = ''
@@ -580,7 +588,7 @@ const refreshStock = async () => {
     const updatedMap = Object.fromEntries((data.data || []).map(u => [u.product_id, u]))
     form.value.items = form.value.items.map(item => {
       const updated = updatedMap[item.product_id]
-      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), average_price: parseFloat(updated.average_price || 0) } : item
+      return updated ? { ...item, ending_quantity: parseFloat(updated.stock_on_hand || 0), stock_on_hand: parseFloat(updated.stock_on_hand || 0), unit_price: parseFloat(updated.average_price || 0) } : item
     })
 
     if (productsTable) productsTable.ajax.reload()
@@ -644,7 +652,7 @@ const loadEditDataFromProps = async () => {
     counted_quantity: parseFloat(i.counted_quantity ?? 0),
     remarks: i.remarks || '',
     stock_on_hand: parseFloat(i.stock_on_hand ?? 0),
-    average_price: parseFloat(i.average_price ?? 0)
+    unit_price: parseFloat(i.unit_price ?? 0)
   }))
 
   form.value.approvals = d.approvals.map(a => ({
@@ -681,10 +689,12 @@ const submitForm = async () => {
         product_id: i.product_id,
         ending_quantity: i.ending_quantity,
         counted_quantity: i.counted_quantity,
+        unit_price: i.unit_price,
         remarks: i.remarks || null
       })),
       approvals: form.value.approvals.map(a => ({ user_id: a.user_id, request_type: a.request_type }))
     }
+    console.log(payload);
 
     const url = isEditMode.value
       ? `/api/inventory/stock-counts/${props.initialData.id}`

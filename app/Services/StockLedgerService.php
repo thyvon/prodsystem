@@ -20,7 +20,7 @@ class StockLedgerService
     //             WHERE product_id = ?
     //             AND parent_warehouse = ?
     //             AND transaction_date <= ?
-    //             AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //             AND transaction_type IN ('Stock_Count', 'Stock_In', 'Stock_Out')
     //         ";
 
     //         $result = DB::selectOne($sql, [$productId, $warehouseId, $transactionDate]);
@@ -31,7 +31,7 @@ class StockLedgerService
     //             FROM stock_ledgers
     //             WHERE product_id = ?
     //             AND transaction_date <= ?
-    //             AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //             AND transaction_type IN ('Stock_Count', 'Stock_In', 'Stock_Out')
     //         ";
 
     //         $result = DB::selectOne($sql, [$productId, $transactionDate]);
@@ -60,9 +60,9 @@ class StockLedgerService
             $sql = "
                 SELECT
                     (
-                        -- Beginning stock from Stock_Begin (previous month)
+                        -- Beginning stock from Stock_Count (previous month)
                         COALESCE(SUM(CASE
-                            WHEN transaction_type = 'Stock_Begin'
+                            WHEN transaction_type = 'Stock_Count'
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
@@ -88,7 +88,7 @@ class StockLedgerService
             ";
 
             $params = [
-                $prevMonthStart, $prevMonthEnd,       // Stock_Begin (prev month)
+                $prevMonthStart, $prevMonthEnd,       // Stock_Count (prev month)
                 $currentMonthStart, $transactionDate, // Stock_In
                 $currentMonthStart, $transactionDate, // Stock_Out
                 $productId, $warehouseId
@@ -98,7 +98,7 @@ class StockLedgerService
                 SELECT
                     (
                         COALESCE(SUM(CASE
-                            WHEN transaction_type = 'Stock_Begin'
+                            WHEN transaction_type = 'Stock_Count'
                                 AND transaction_date BETWEEN ? AND ?
                             THEN quantity ELSE 0 END), 0)
 
@@ -151,7 +151,7 @@ class StockLedgerService
     //             COALESCE(SUM(CASE WHEN quantity < 0 THEN total_price ELSE 0 END), 0) AS out_total
     //         FROM stock_ledgers
     //         WHERE product_id = ?
-    //         AND transaction_type IN ('Stock_Begin', 'Stock_In', 'Stock_Out')
+    //         AND transaction_type IN ('Stock_Count', 'Stock_In', 'Stock_Out')
     //         $dateCondition
     //     ";
 
@@ -184,8 +184,8 @@ class StockLedgerService
             $sql = "
                 SELECT
                     -- Beginning (prev month) qty & amount
-                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
-                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Count' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Count' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
 
                     -- Current month Stock_In qty & amount
                     COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS in_qty,
@@ -196,8 +196,8 @@ class StockLedgerService
             ";
 
             $params = [
-                $prevMonthStart, $prevMonthEnd, // Stock_Begin qty
-                $prevMonthStart, $prevMonthEnd, // Stock_Begin total
+                $prevMonthStart, $prevMonthEnd, // Stock_Count qty
+                $prevMonthStart, $prevMonthEnd, // Stock_Count total
 
                 $currentMonthStart, $transactionDate, // Stock_In qty
                 $currentMonthStart, $transactionDate, // Stock_In total
@@ -207,8 +207,8 @@ class StockLedgerService
         } else {
             $sql = "
                 SELECT
-                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
-                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Begin' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Count' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS begin_qty,
+                    COALESCE(SUM(CASE WHEN transaction_type = 'Stock_Count' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS begin_total,
 
                     COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN quantity ELSE 0 END ELSE 0 END), 0) AS in_qty,
                     COALESCE(SUM(CASE WHEN transaction_type = 'Stock_In' AND transaction_date BETWEEN ? AND ? THEN CASE WHEN quantity > 0 THEN total_price ELSE 0 END ELSE 0 END), 0) AS in_total
@@ -217,8 +217,8 @@ class StockLedgerService
             ";
 
             $params = [
-                $prevMonthStart, $prevMonthEnd, // Stock_Begin qty
-                $prevMonthStart, $prevMonthEnd, // Stock_Begin total
+                $prevMonthStart, $prevMonthEnd, // Stock_Count qty
+                $prevMonthStart, $prevMonthEnd, // Stock_Count total
 
                 $currentMonthStart, $transactionDate, // Stock_In qty
                 $currentMonthStart, $transactionDate, // Stock_In total

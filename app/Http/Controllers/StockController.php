@@ -803,7 +803,7 @@ class StockController extends Controller
             ->when($warehouseIds, fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
             ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
                 $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
-                    $q->where('transaction_type', 'Stock_Begin')
+                    $q->where('transaction_type', 'Stock_Count')
                     ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
                 })
                 ->orWhereBetween('transaction_date', [$startDate, $endDate]);
@@ -862,7 +862,7 @@ class StockController extends Controller
             ->where(function($q) use ($prevMonthStart, $prevMonthEnd, $startDate, $endDate) {
                 $q->where(function($q) use ($prevMonthStart, $prevMonthEnd) {
                     // ONLY Stock_Begin in previous month
-                    $q->where('transaction_type', 'Stock_Begin')
+                    $q->where('transaction_type', 'Stock_Count')
                     ->whereBetween('transaction_date', [$prevMonthStart, $prevMonthEnd]);
                 })
                 ->orWhere(function($q) use ($startDate, $endDate) {
@@ -874,8 +874,8 @@ class StockController extends Controller
 
         $ledgerAggregates = $ledgerQuery->selectRaw("
             product_id,
-            SUM(CASE WHEN transaction_type='Stock_Begin' THEN quantity ELSE 0 END) AS begin_qty,
-            SUM(CASE WHEN transaction_type='Stock_Begin' THEN total_price ELSE 0 END) AS begin_total,
+            SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS begin_qty,
+            SUM(CASE WHEN transaction_type='Stock_Count' THEN total_price ELSE 0 END) AS begin_total,
             SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
             SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) AS in_qty,
             SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) AS in_total,
@@ -893,7 +893,7 @@ class StockController extends Controller
         $beginAvgs = (clone $priceBase)
             ->where('transaction_date', '>=', $prevMonthStart)
             ->where('transaction_date', '<', $startDate)
-            ->where('transaction_type', 'Stock_Begin')
+            ->where('transaction_type', 'Stock_Count')
             ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS begin_avg')
             ->groupBy('product_id')
             ->pluck('begin_avg', 'product_id')
@@ -901,7 +901,7 @@ class StockController extends Controller
 
         $avgPrices = (clone $priceBase)
             ->where('transaction_date', '<=', $endDate)
-            ->whereIn('transaction_type', ['Stock_Begin','Stock_In','Stock_Out'])
+            ->whereIn('transaction_type', ['Stock_Count','Stock_In','Stock_Out'])
             ->selectRaw('product_id, CASE WHEN SUM(quantity)=0 THEN 0 ELSE SUM(total_price)/SUM(quantity) END AS avg_price')
             ->groupBy('product_id')
             ->pluck('avg_price', 'product_id')
@@ -1158,8 +1158,8 @@ class StockController extends Controller
         $query = StockLedger::where('product_id', $productId);
         if ($endDate) $query->whereDate('transaction_date', '<=', $endDate);
 
-        $totalQty   = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('quantity');
-        $totalPrice = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Begin'])->sum('total_price');
+        $totalQty   = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Count'])->sum('quantity');
+        $totalPrice = $query->whereIn('transaction_type', ['Stock_In', 'Stock_Out', 'Stock_Count'])->sum('total_price');
 
         return $totalQty != 0 ? round($totalPrice / $totalQty, 15) : 0;
     }
@@ -1169,8 +1169,8 @@ class StockController extends Controller
         $query = StockLedger::where('product_id', $productId);
         if ($startDate) $query->whereDate('transaction_date', '<', $startDate);
 
-        $totalQty   = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('quantity');
-        $totalPrice = $query->whereIn('transaction_type', ['Stock_Begin','Stock_Out','Stock_In'])->sum('total_price');
+        $totalQty   = $query->whereIn('transaction_type', ['Stock_Count','Stock_Out','Stock_In'])->sum('quantity');
+        $totalPrice = $query->whereIn('transaction_type', ['Stock_Count','Stock_Out','Stock_In'])->sum('total_price');
 
         return $totalQty != 0 ? round($totalPrice / $totalQty, 15) : 0;
     }

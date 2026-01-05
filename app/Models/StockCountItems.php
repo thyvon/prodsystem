@@ -18,6 +18,7 @@ class StockCountItems extends Model
         'stock_count_id',
         'product_id',
         'ending_quantity',
+        'unit_price',
         'counted_quantity',
         'remarks',
         'created_by',
@@ -28,6 +29,7 @@ class StockCountItems extends Model
     protected $casts = [
     'ending_quantity' => 'float',
     'counted_quantity' => 'float',
+    'unit_price' => 'float',
     ];
 
     public function stockCount()
@@ -66,8 +68,8 @@ class StockCountItems extends Model
                 'transaction_date'  => $item->stockCount->transaction_date,
                 'product_id'        => $item->product_id,
                 'quantity'          => $item->counted_quantity,
-                'unit_price'        => 0,
-                'total_price'       => 0,
+                'unit_price'        => $item->unit_price,
+                'total_price'       => round($item->counted_quantity * $item->unit_price, 15),
                 'transaction_type'  => 'Stock_Count',
                 'parent_reference'  => $item->stockCount->reference_no,
                 'parent_warehouse'  => $item->stockCount->warehouse_id,
@@ -96,8 +98,8 @@ class StockCountItems extends Model
                 'transaction_date'  => $item->stockCount->transaction_date,
                 'product_id'        => $item->product_id,
                 'quantity'          => $item->counted_quantity,
-                'unit_price'        => 0,
-                'total_price'       => 0,
+                'unit_price'        => $item->unit_price,
+                'total_price'       => round($item->counted_quantity * $item->unit_price, 15),
                 'transaction_type'  => 'Stock_Count',
                 'parent_reference'  => $item->stockCount->reference_no,
                 'parent_warehouse'  => $item->stockCount->warehouse_id,
@@ -129,8 +131,8 @@ class StockCountItems extends Model
                 'transaction_date'  => $item->stockCount->transaction_date,
                 'product_id'        => $item->product_id,
                 'quantity'          => $item->counted_quantity,
-                'unit_price'        => 0,
-                'total_price'       => 0,
+                'unit_price'        => $item->unit_price,
+                'total_price'       => round($item->counted_quantity * $item->unit_price, 15),
                 'transaction_type'  => 'Stock_Count',
                 'parent_reference'  => $item->stockCount->reference_no,
                 'parent_warehouse'  => $item->stockCount->warehouse_id,

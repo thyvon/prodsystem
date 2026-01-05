@@ -85,6 +85,7 @@ class StockCountController extends Controller
                 'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
                 'unit_name' => $product?->unit->name ?? '',
                 'ending_quantity' => $item->ending_quantity,
+                'unit_price' => $item->unit_price,
                 'counted_quantity' => $item->counted_quantity,
                 'remarks' => $item->remarks,
             ];
@@ -262,12 +263,25 @@ class StockCountController extends Controller
 
                 // Create each stock count item using Eloquent create()
                 foreach ($validated['items'] as $item) {
+                    // Get price from service
+                    $unitPrice = $this->stockLedgerService->getAvgPrice(
+                        $item['product_id'],
+                        $validated['warehouse_id'],
+                        $validated['transaction_date']
+                    );
+
+                    // Fallback to form unit_price if service returns 0
+                    if ($unitPrice == 0) {
+                        $unitPrice = $item['unit_price'] ?? 0;
+                    }
+
                     $stockCount->items()->create([
-                        'product_id'        => $item['product_id'],
-                        'ending_quantity'   => $item['ending_quantity'],
-                        'counted_quantity'  => $item['counted_quantity'],
-                        'remarks'           => $item['remarks'] ?? null,
-                        'created_by'        => auth()->id(),
+                        'product_id'       => $item['product_id'],
+                        'ending_quantity'  => $item['ending_quantity'],
+                        'unit_price'       => $unitPrice,
+                        'counted_quantity' => $item['counted_quantity'],
+                        'remarks'          => $item['remarks'] ?? null,
+                        'created_by'       => auth()->id(),
                     ]);
                 }
 
@@ -331,7 +345,6 @@ class StockCountController extends Controller
         }
     }
 
-
     public function edit(StockCount $stockCount): View
     {
         $this->authorize('update', $stockCount);
@@ -352,6 +365,7 @@ class StockCountController extends Controller
                 'description' => trim(($product->name ?? '') . ' ' . ($item->product?->description ?? '')),
                 'unit_name' => $product?->unit->name ?? '',
                 'ending_quantity' => $item->ending_quantity,
+                'unit_price' => $item->unit_price,
                 'counted_quantity' => $item->counted_quantity,
                 'remarks' => $item->remarks,
             ];
@@ -679,12 +693,25 @@ class StockCountController extends Controller
 
                 // 5️⃣ Create new items
                 foreach ($validated['items'] as $item) {
+                    // Get unit price from service
+                    $unitPrice = $this->stockLedgerService->getAvgPrice(
+                        $item['product_id'],
+                        $validated['warehouse_id'],
+                        $validated['transaction_date']
+                    );
+
+                    // Fallback to form unit_price if service returns 0
+                    if ($unitPrice == 0) {
+                        $unitPrice = $item['unit_price'] ?? 0;
+                    }
+
                     $stockCount->items()->create([
                         'product_id'       => $item['product_id'],
                         'ending_quantity'  => $item['ending_quantity'],
+                        'unit_price'       => $unitPrice,               // use service price or form fallback
                         'counted_quantity' => $item['counted_quantity'],
                         'remarks'          => $item['remarks'] ?? null,
-                        'created_by'       => $user->id,
+                        'created_by'       => auth()->id(),            // use currently authenticated user
                     ]);
                 }
 
@@ -860,6 +887,7 @@ class StockCountController extends Controller
             'items.*.product_id' => 'required|exists:product_variants,id',
             'items.*.ending_quantity' => 'required|numeric|min:0',
             'items.*.counted_quantity' => 'required|numeric|min:0',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.remarks' => 'nullable|string|max:255',
         ];
     }

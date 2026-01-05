@@ -41,14 +41,16 @@ class StockCountImport implements ToCollection, WithHeadingRow
                 $row->toArray()
             );
 
-            // Convert to number
+            // Convert to numbers
             $rowData['counted_quantity'] = (float)($rowData['counted_quantity'] ?? 0);
+            $rowData['unit_price'] = isset($rowData['unit_price']) ? (float)$rowData['unit_price'] : 0;
 
             // Validate
             $validator = Validator::make($rowData, [
-                'product_code' => 'required|string',
-                'counted_quantity'    => 'required|numeric|min:0',
-                'remark'       => 'nullable|string|max:1000',
+                'product_code'     => 'required|string',
+                'counted_quantity' => 'required|numeric|min:0',
+                'unit_price'       => 'required|numeric|min:0',
+                'remark'           => 'nullable|string|max:1000',
             ]);
 
             if ($validator->fails()) {
@@ -68,16 +70,20 @@ class StockCountImport implements ToCollection, WithHeadingRow
 
             // Merge duplicate product_code
             if (isset($processed[$productCode])) {
-                $this->data['items'][$processed[$productCode]]['counted_quantity'] += $rowData['counted_quantity'];
+                $existing = &$this->data['items'][$processed[$productCode]];
+                $existing['counted_quantity'] += $rowData['counted_quantity'];
+                // Optional: if unit_price differs, you can choose to update or ignore
+                $existing['unit_price'] = $rowData['unit_price']; 
             } else {
                 $this->data['items'][] = [
-                    'product_id'   => $product->id,
-                    'product_code' => $product->item_code,
+                    'product_id'       => $product->id,
+                    'product_code'     => $product->item_code,
                     'product_name'     => $product->product_name,
                     'description'      => $product->product->name . ' ' . $product->description,
                     'unit_name'        => $product->product->unit->name,
-                    'counted_quantity'    => $rowData['counted_quantity'],
-                    'remark'       => $rowData['remark'] ?? null,
+                    'unit_price'       => $rowData['unit_price'],
+                    'counted_quantity' => $rowData['counted_quantity'],
+                    'remark'           => $rowData['remark'] ?? null,
                 ];
 
                 $processed[$productCode] = count($this->data['items']) - 1;
