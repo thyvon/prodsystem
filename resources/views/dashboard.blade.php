@@ -3,7 +3,9 @@
 
 @section('content')
     <div id="app">
-        <dashboard message="You're logged in!"></dashboard>
+        <dashboard 
+            message="សូមស្វាគមន៍ {{ auth()->user()->name }} !">
+        </dashboard>
     </div>
 @endsection
 

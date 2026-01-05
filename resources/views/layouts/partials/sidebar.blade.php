@@ -55,7 +55,7 @@
                     <i class="fal fa-chart-pie"></i>
                     <span class="nav-link-text">Dashboard</span>
                 </a>
-            </li>
+            <!-- </li>
             @php
                 $digitalDocumentActive = request()->is('digital-docs-approvals*');
             @endphp
@@ -73,7 +73,7 @@
                     <i class="fal fa-file-alt"></i>
                     <span class="nav-link-text">Document Transfers</span>
                 </a>
-            </li>
+            </li> -->
 
             @php
                 $productActive = request()->is('products*') || 
