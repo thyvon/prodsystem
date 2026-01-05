@@ -63,13 +63,14 @@ class DebitNoteItemsExport implements
 
     public function map($item): array
     {
-        $this->index++;
+        $currentIndex = $this->index + 1; // number starting from 1
+        $this->index++; // increment for next row
         $transactionDate = $item->transaction_date instanceof Carbon
             ? $item->transaction_date
             : Carbon::parse($item->transaction_date);
 
         return [
-            $this->index-1,
+            $currentIndex,
             $transactionDate->format('M d, Y'),
             $item->item_code,
             $item->description,
