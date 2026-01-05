@@ -28,7 +28,7 @@ class StockCountImport implements ToCollection, WithHeadingRow
         }
 
         // Collect product codes and preload products
-        $productCodes = $rows->pluck('product_code')->unique()->filter()->values();
+        $productCodes = $rows->pluck('item_code')->unique()->filter()->values();
         $products = ProductVariant::whereIn('item_code', $productCodes)->get()->keyBy('item_code');
 
         $processed = [];
@@ -42,13 +42,13 @@ class StockCountImport implements ToCollection, WithHeadingRow
             );
 
             // Convert to numbers
-            $rowData['counted_quantity'] = (float)($rowData['counted_quantity'] ?? 0);
+            $rowData['quantity'] = (float)($rowData['quantity'] ?? 0);
             $rowData['unit_price'] = isset($rowData['unit_price']) ? (float)$rowData['unit_price'] : 0;
 
             // Validate
             $validator = Validator::make($rowData, [
-                'product_code'     => 'required|string',
-                'counted_quantity' => 'required|numeric|min:0',
+                'item_code'     => 'required|string',
+                'quantity' => 'required|numeric|min:0',
                 'unit_price'       => 'required|numeric|min:0',
                 'remark'           => 'nullable|string|max:1000',
             ]);
@@ -59,7 +59,7 @@ class StockCountImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            $productCode = $rowData['product_code'];
+            $productCode = $rowData['item_code'];
             $product = $products[$productCode] ?? null;
 
             if (!$product) {
@@ -71,7 +71,7 @@ class StockCountImport implements ToCollection, WithHeadingRow
             // Merge duplicate product_code
             if (isset($processed[$productCode])) {
                 $existing = &$this->data['items'][$processed[$productCode]];
-                $existing['counted_quantity'] += $rowData['counted_quantity'];
+                $existing['quantity'] += $rowData['quantity'];
                 // Optional: if unit_price differs, you can choose to update or ignore
                 $existing['unit_price'] = $rowData['unit_price']; 
             } else {
@@ -82,7 +82,7 @@ class StockCountImport implements ToCollection, WithHeadingRow
                     'description'      => $product->product->name . ' ' . $product->description,
                     'unit_name'        => $product->product->unit->name,
                     'unit_price'       => $rowData['unit_price'],
-                    'counted_quantity' => $rowData['counted_quantity'],
+                    'counted_quantity' => $rowData['quantity'],
                     'remark'           => $rowData['remark'] ?? null,
                 ];
 
