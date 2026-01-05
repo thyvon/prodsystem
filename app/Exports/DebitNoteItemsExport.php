@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
@@ -23,7 +24,8 @@ class DebitNoteItemsExport implements
     WithMapping,
     WithColumnFormatting,
     WithStyles,
-    WithEvents
+    WithEvents,
+    WithCustomStartCell
 {
     protected DebitNote $debitNote;
     protected ?string $logoPath;
@@ -44,6 +46,7 @@ class DebitNoteItemsExport implements
         'Remarks',
         'IO Number',
     ];
+
     private $index = 0;
     protected Collection $rows;
 
@@ -52,7 +55,7 @@ class DebitNoteItemsExport implements
         $this->debitNote = $debitNote;
         $this->logoPath  = $logoPath;
 
-        // Load items directly from debit_note_items table
+        // Load items from debit_note_items
         $this->rows = $this->debitNote->items()->orderBy('id')->get();
     }
 
@@ -61,29 +64,39 @@ class DebitNoteItemsExport implements
         return $this->rows;
     }
 
+    public function startCell(): string
+    {
+        // Data will start at row 5, header at row 4
+        return 'A5';
+    }
+
     public function map($item): array
     {
-        $currentIndex = $this->index + 1; // number starting from 1
-        $this->index++; // increment for next row
-        $transactionDate = $item->transaction_date instanceof Carbon
-            ? $item->transaction_date
-            : Carbon::parse($item->transaction_date);
+        $currentIndex = $this->index + 1; // safe numbering
+        $this->index++; // increment after mapping
+
+        // Safe date parsing
+        try {
+            $transactionDate = $item->transaction_date ? Carbon::parse($item->transaction_date) : null;
+        } catch (\Exception $e) {
+            $transactionDate = null;
+        }
 
         return [
             $currentIndex,
-            $transactionDate->format('M d, Y'),
-            $item->item_code,
-            $item->description,
-            $item->quantity,
-            $item->uom,
-            $item->unit_price,
-            $item->total_price,
-            $item->requester_name,
-            $item->campus_name,
-            $item->division_name,
-            $item->department_name,
-            $item->remarks,
-            $item->reference_no,
+            $transactionDate?->format('M d, Y') ?? '',
+            $item->item_code ?? '',
+            $item->description ?? '',
+            $item->quantity ?? 0,
+            $item->uom ?? '',
+            $item->unit_price ?? 0,
+            $item->total_price ?? 0,
+            $item->requester_name ?? '',
+            $item->campus_name ?? '',
+            $item->division_name ?? '',
+            $item->department_name ?? '',
+            $item->remarks ?? '',
+            $item->reference_no ?? '',
         ];
     }
 
@@ -111,10 +124,7 @@ class DebitNoteItemsExport implements
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $headerRow = 4;
-
-                // Insert space for logo + title
-                $sheet->insertNewRowBefore(1, 3);
+                $headerRow = 4; // headers row
 
                 // Logo
                 if ($this->logoPath && file_exists($this->logoPath)) {
@@ -131,16 +141,15 @@ class DebitNoteItemsExport implements
                 $sheet->setCellValue('A2', 'Debit Note');
                 $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(14);
                 $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                
-                
-                $startDate = $this->debitNote->start_date instanceof \Carbon\Carbon 
-                    ? $this->debitNote->start_date 
-                    : \Carbon\Carbon::parse($this->debitNote->start_date);
 
-                $endDate = $this->debitNote->end_date instanceof \Carbon\Carbon 
-                    ? $this->debitNote->end_date 
-                    : \Carbon\Carbon::parse($this->debitNote->end_date);
-                // Department / Warehouse
+                // Department / Warehouse + date
+                $startDate = $this->debitNote->start_date instanceof Carbon
+                    ? $this->debitNote->start_date
+                    : Carbon::parse($this->debitNote->start_date);
+                $endDate = $this->debitNote->end_date instanceof Carbon
+                    ? $this->debitNote->end_date
+                    : Carbon::parse($this->debitNote->end_date);
+
                 $sheet->mergeCells('A3:N3');
                 $sheet->setCellValue(
                     'A3',
@@ -163,11 +172,11 @@ class DebitNoteItemsExport implements
                     ->getStartColor()->setRGB('CCFFCC');
 
                 // Table borders
-                $dataCount = $this->rows->count();
+                $dataCount = max($this->rows->count(), 1); // ensure at least 1 row
                 $firstDataRow = $headerRow + 1;
                 $lastDataRow = $headerRow + $dataCount;
 
-                if ($dataCount > 0) {
+                if ($this->rows->count() > 0) {
                     $sheet->getStyle("A{$headerRow}:N{$lastDataRow}")
                         ->getBorders()->getAllBorders()
                         ->setBorderStyle(Border::BORDER_THIN);
@@ -178,14 +187,12 @@ class DebitNoteItemsExport implements
                 $sheet->setCellValue("G{$totalRow}", 'TOTAL');
                 $sheet->setCellValue(
                     "H{$totalRow}",
-                    $dataCount > 0 ? "=SUM(H{$firstDataRow}:H{$lastDataRow})" : 0
+                    $this->rows->count() > 0 ? "=SUM(H{$firstDataRow}:H{$lastDataRow})" : 0
                 );
                 $sheet->getStyle("G{$totalRow}:H{$totalRow}")->getFont()->setBold(true);
 
-                // ----------------------------
-                // Prepared By section (4 rows)
-                // ----------------------------
-                $footerRow = $totalRow + 2; // leave one row blank
+                // Prepared By section
+                $footerRow = $totalRow + 2;
 
                 $creatorName     = $this->debitNote->creator->name ?? '';
                 $creatorPosition = $this->debitNote->creator->defaultPosition->title ?? '';
