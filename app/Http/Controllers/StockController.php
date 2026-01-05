@@ -874,17 +874,50 @@ class StockController extends Controller
 
         $ledgerAggregates = $ledgerQuery->selectRaw("
             product_id,
-            SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS begin_qty,
-            SUM(CASE WHEN transaction_type='Stock_Count' THEN total_price ELSE 0 END) AS begin_total,
-            SUM(CASE WHEN transaction_type='Stock_Count' THEN quantity ELSE 0 END) AS counted_quantity,
-            SUM(CASE WHEN transaction_type='Stock_In' THEN quantity ELSE 0 END) AS in_qty,
-            SUM(CASE WHEN transaction_type='Stock_In' THEN total_price ELSE 0 END) AS in_total,
-            SUM(CASE WHEN transaction_type='Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
-            SUM(CASE WHEN transaction_type='Stock_Out' THEN total_price ELSE 0 END) AS out_total
-        ")
+
+            -- Beginning stock (PREVIOUS month only)
+            SUM(CASE
+                WHEN transaction_type = 'Stock_Count'
+                AND transaction_date BETWEEN ? AND ?
+                THEN quantity ELSE 0
+            END) AS begin_qty,
+
+            SUM(CASE
+                WHEN transaction_type = 'Stock_Count'
+                AND transaction_date BETWEEN ? AND ?
+                THEN total_price ELSE 0
+            END) AS begin_total,
+
+            -- Counted stock (CURRENT period only)
+            SUM(CASE
+                WHEN transaction_type = 'Stock_Count'
+                AND transaction_date BETWEEN ? AND ?
+                THEN quantity ELSE 0
+            END) AS counted_quantity,
+
+            SUM(CASE
+                WHEN transaction_type = 'Stock_Count'
+                AND transaction_date BETWEEN ? AND ?
+                THEN total_price ELSE 0
+            END) AS counted_total,
+
+            -- Stock In
+            SUM(CASE WHEN transaction_type = 'Stock_In' THEN quantity ELSE 0 END) AS in_qty,
+            SUM(CASE WHEN transaction_type = 'Stock_In' THEN total_price ELSE 0 END) AS in_total,
+
+            -- Stock Out
+            SUM(CASE WHEN transaction_type = 'Stock_Out' THEN quantity ELSE 0 END) AS out_qty,
+            SUM(CASE WHEN transaction_type = 'Stock_Out' THEN total_price ELSE 0 END) AS out_total
+        ", [
+            $prevMonthStart, $prevMonthEnd,   // begin_qty
+            $prevMonthStart, $prevMonthEnd,   // begin_total
+            $startDate, $endDate,             // counted_quantity
+            $startDate, $endDate              // counted_total
+        ])
         ->groupBy('product_id')
         ->get()
         ->keyBy('product_id');
+
 
         // 5) Calculate averages
         $priceBase = StockLedger::query()->whereIn('product_id', $productIds);
