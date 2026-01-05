@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignId('debit_note_email_id')->constrained('debit_note_emails')->onDelete('cascade');
             $table->foreignId('warehouse_id')->constrained('warehouses')->onDelete('cascade');
             $table->foreignId('department_id')->constrained('departments')->onDelete('cascade');
+            $table->foreignId('campus_id')->constrained('campus')->onDelete('cascade');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->string('status')->default('pending');
