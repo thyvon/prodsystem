@@ -14,6 +14,7 @@ class DebitNote extends Model
         'send_date',
         'debit_note_email_id',
         'warehouse_id',
+        'campus_id',
         'department_id',
         'start_date',
         'end_date',
@@ -42,5 +43,10 @@ class DebitNote extends Model
     public function items()
     {
         return $this->hasMany(DebitNoteItems::class, 'debit_note_id');
+    }
+
+    public function campus()
+    {
+        return $this->belongsTo(Campus::class, 'campus_id');
     }
 }

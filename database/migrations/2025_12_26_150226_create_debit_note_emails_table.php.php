@@ -13,8 +13,9 @@ return new class extends Migration
     {
         Schema::create('debit_note_emails', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('department_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('warehouse_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
+            $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
+            $table->foreignId('campus_id')->nullable()->constrained('campus')->nullOnDelete();
             $table->json('send_to_email')->nullable();
             $table->json('cc_to_email')->nullable();
             $table->timestamps();

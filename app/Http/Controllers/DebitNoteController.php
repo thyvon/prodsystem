@@ -89,6 +89,7 @@ class DebitNoteController extends Controller
         $validated = $request->validate([
             'department_id'    => 'required|exists:departments,id',
             'warehouse_id'     => 'required|exists:warehouses,id',
+            'campus_id'        => 'required|exists:campus,id',
             'receiver_name'    => 'required|string',
             'send_to_email'    => 'required|array|min:1',
             'send_to_email.*'  => 'email',
@@ -99,6 +100,7 @@ class DebitNoteController extends Controller
         $email = DebitNoteEmail::create([
             'department_id' => $validated['department_id'],
             'warehouse_id'  => $validated['warehouse_id'],
+            'campus_id'     => $validated['campus_id'],
             'receiver_name' => $validated['receiver_name'],
             'send_to_email' => array_values($validated['send_to_email']),
             'cc_to_email'   => array_values($validated['cc_to_email'] ?? []),
@@ -121,6 +123,8 @@ class DebitNoteController extends Controller
             'id' => $email->id,
             'department_id' => $email->department_id,
             'department_name' => $email->department?->name,
+            'campus_id' => $email->campus_id,
+            'campus_name' => $email->campus?->name,
             'warehouse_id' => $email->warehouse_id,
             'warehouse_name' => $email->warehouse?->name,
             'receiver_name' => $email->receiver_name,
@@ -142,6 +146,7 @@ class DebitNoteController extends Controller
         $validated = $request->validate([
             'department_id'    => 'required|exists:departments,id',
             'warehouse_id'     => 'required|exists:warehouses,id',
+            'campus_id'        => 'required|exists:campus,id',
             'receiver_name'    => 'required|string',
             'send_to_email'    => 'required|array|min:1',
             'send_to_email.*'  => 'email',
@@ -154,6 +159,7 @@ class DebitNoteController extends Controller
         $email->update([
             'department_id' => $validated['department_id'],
             'warehouse_id'  => $validated['warehouse_id'],
+            'campus_id'     => $validated['campus_id'],
             'receiver_name' => $validated['receiver_name'],
             'send_to_email' => array_values($validated['send_to_email']),
             'cc_to_email'   => array_values($validated['cc_to_email'] ?? []),
@@ -403,6 +409,8 @@ class DebitNoteController extends Controller
             'warehouse_ids.*'  => 'exists:warehouses,id',
             'department_ids'   => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
+            'campus_ids'       => 'nullable|array',
+            'campus_ids.*'     => 'exists:campus,id',
             'start_date'       => 'required|date',
             'end_date'         => 'required|date|after_or_equal:start_date',
         ]);
@@ -420,6 +428,7 @@ class DebitNoteController extends Controller
             ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
             ->where('status', 'pending')
             ->when(!empty($validated['department_ids']), fn($q) => $q->whereIn('department_id', $validated['department_ids']))
+            ->when(!empty($validated['campus_ids']), fn($q) => $q->whereIn('campus_id', $validated['campus_ids']))
             ->get();
 
         if ($debitNotes->isEmpty()) {

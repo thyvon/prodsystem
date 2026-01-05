@@ -421,11 +421,176 @@ class StockIssueController extends Controller
     //     }
     // }
 
+    // public function upsertDebitNote(Request $request): JsonResponse
+    // {
+    //     $validated = $request->validate([
+    //         'warehouse_id'        => 'required|exists:warehouses,id',
+    //         'department_id'       => 'nullable|exists:departments,id',
+    //         'start_date'          => 'required|date',
+    //         'end_date'            => 'required|date|after_or_equal:start_date',
+    //         'transaction_type'    => 'required|array|min:1',
+    //         'transaction_type.*'  => 'in:Issue,Transfer',
+    //     ]);
+
+    //     try {
+    //         DB::transaction(function () use ($validated) {
+
+    //             $startDate = Carbon::parse($validated['start_date']);
+    //             $endDate   = Carbon::parse($validated['end_date']);
+    //             $year      = $startDate->year;
+    //             $month     = $startDate->month;
+
+    //             /*
+    //             |--------------------------------------------------------------------------
+    //             | 1. Determine Departments (filter ONLY StockIssue)
+    //             |--------------------------------------------------------------------------
+    //             */
+    //             $departments = $validated['department_id']
+    //                 ? [$validated['department_id']]
+    //                 : StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
+    //                     $q->where('warehouse_id', $validated['warehouse_id'])
+    //                     ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
+    //                     ->whereBetween('transaction_date', [
+    //                         $validated['start_date'],
+    //                         $validated['end_date']
+    //                     ]);
+    //                 })
+    //                 ->distinct()
+    //                 ->pluck('department_id')
+    //                 ->toArray();
+
+    //             if (empty($departments)) {
+    //                 abort(422, 'No departments found for the selected warehouse, date range, and transaction type.');
+    //             }
+
+    //             /*
+    //             |--------------------------------------------------------------------------
+    //             | 2. Validate DebitNote Email Configuration
+    //             |--------------------------------------------------------------------------
+    //             */
+    //             $missingEmailDepartments = collect($departments)
+    //                 ->filter(fn ($deptId) => !DebitNoteEmail::where([
+    //                     'warehouse_id'  => $validated['warehouse_id'],
+    //                     'department_id' => $deptId
+    //                 ])->exists())
+    //                 ->toArray();
+
+    //             if (!empty($missingEmailDepartments)) {
+    //                 $deptNames = Department::whereIn('id', $missingEmailDepartments)
+    //                     ->pluck('short_name')
+    //                     ->implode(', ');
+    //                 abort(422, "Missing Debit Note Email configuration for departments: {$deptNames}");
+    //             }
+
+    //             /*
+    //             |--------------------------------------------------------------------------
+    //             | 3. Process Each Department (NO transaction_type on DebitNote)
+    //             |--------------------------------------------------------------------------
+    //             */
+    //             foreach ($departments as $deptId) {
+
+    //                 $debitNoteEmail = DebitNoteEmail::where([
+    //                     'warehouse_id'  => $validated['warehouse_id'],
+    //                     'department_id' => $deptId
+    //                 ])->first();
+
+    //                 $debitNote = DebitNote::updateOrCreate(
+    //                     [
+    //                         'warehouse_id'  => $validated['warehouse_id'],
+    //                         'department_id' => $deptId,
+    //                         'start_date'    => $startDate,
+    //                         'end_date'      => $endDate,
+    //                     ],
+    //                     [
+    //                         'reference_number'    => $this->generateDebitNoteNo(
+    //                             $validated['warehouse_id'],
+    //                             $deptId,
+    //                             $year,
+    //                             $month
+    //                         ),
+    //                         'debit_note_email_id' => $debitNoteEmail->id,
+    //                         'status'              => 'pending',
+    //                         'created_by'          => auth()->id(),
+    //                     ]
+    //                 );
+
+    //                 // Remove old items
+    //                 $debitNote->items()->delete();
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | 4. Fetch Stock Items (filter ONLY StockIssue)
+    //                 |--------------------------------------------------------------------------
+    //                 */
+    //                 $stockItems = StockIssueItem::where('department_id', $deptId)
+    //                     ->whereHas('stockIssue', function ($q) use ($validated) {
+    //                         $q->where('warehouse_id', $validated['warehouse_id'])
+    //                         ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
+    //                         ->whereBetween('transaction_date', [
+    //                             $validated['start_date'],
+    //                             $validated['end_date']
+    //                         ]);
+    //                     })
+    //                     ->with([
+    //                         'productVariant.product.unit',
+    //                         'campus',
+    //                         'department.division',
+    //                         'stockIssue.requestedBy',
+    //                     ])
+    //                     ->get();
+
+    //                 /*
+    //                 |--------------------------------------------------------------------------
+    //                 | 5. Insert Items
+    //                 |--------------------------------------------------------------------------
+    //                 */
+    //                 $itemsData = $stockItems->map(fn ($item) => [
+    //                     'debit_note_id'       => $debitNote->id,
+    //                     'stock_issue_id'      => $item->stock_issue_id,
+    //                     'stock_issue_item_id' => $item->id,
+    //                     'transaction_date'    => $item->stockIssue->transaction_date,
+    //                     'item_code'           => $item->productVariant->item_code,
+    //                     'description'         => trim(
+    //                         ($item->productVariant->product->name ?? '') . ' ' .
+    //                         ($item->productVariant->description ?? '')
+    //                     ),
+    //                     'quantity'            => $item->quantity ?? 0,
+    //                     'uom'                 => $item->productVariant->product->unit->name ?? '',
+    //                     'unit_price'          => $item->unit_price ?? 0,
+    //                     'total_price'         => $item->total_price ?? 0,
+    //                     'requester_name'      => $item->stockIssue->requestedBy->name ?? '',
+    //                     'campus_name'         => $item->campus->short_name ?? '',
+    //                     'division_name'       => $item->department->division->short_name ?? '',
+    //                     'department_name'     => $item->department->short_name ?? '',
+    //                     'reference_no'        => $item->stockIssue->reference_no ?? '',
+    //                     'remarks'             => $item->remarks,
+    //                     'created_at'          => now(),
+    //                     'updated_at'          => now(),
+    //                 ])->toArray();
+
+    //                 if ($itemsData) {
+    //                     $debitNote->items()->insert($itemsData);
+    //                 }
+    //             }
+    //         });
+
+    //         return response()->json([
+    //             'message' => 'Debit Notes created or updated successfully.'
+    //         ]);
+
+    //     } catch (\Throwable $e) {
+    //         return response()->json([
+    //             'message' => 'Failed to create or update Debit Notes.',
+    //             'error'   => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
     public function upsertDebitNote(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'warehouse_id'        => 'required|exists:warehouses,id',
             'department_id'       => 'nullable|exists:departments,id',
+            'campus_id'           => 'nullable|exists:campus,id', // optional campus filter
             'start_date'          => 'required|date',
             'end_date'            => 'required|date|after_or_equal:start_date',
             'transaction_type'    => 'required|array|min:1',
@@ -442,73 +607,46 @@ class StockIssueController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | 1. Determine Departments (filter ONLY StockIssue)
+                | 1. Get all DebitNoteEmails for the warehouse (with optional dept/campus filter)
                 |--------------------------------------------------------------------------
                 */
-                $departments = $validated['department_id']
-                    ? [$validated['department_id']]
-                    : StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
-                        $q->where('warehouse_id', $validated['warehouse_id'])
-                        ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
-                        ->whereBetween('transaction_date', [
-                            $validated['start_date'],
-                            $validated['end_date']
-                        ]);
-                    })
-                    ->distinct()
-                    ->pluck('department_id')
-                    ->toArray();
+                $debitNoteEmails = DebitNoteEmail::where('warehouse_id', $validated['warehouse_id'])
+                    ->when($validated['department_id'] ?? false, fn($q) => $q->where('department_id', $validated['department_id']))
+                    ->when($validated['campus_id'] ?? false, fn($q) => $q->where('campus_id', $validated['campus_id']))
+                    ->get();
 
-                if (empty($departments)) {
-                    abort(422, 'No departments found for the selected warehouse, date range, and transaction type.');
+                if ($debitNoteEmails->isEmpty()) {
+                    abort(422, 'No Debit Note Email configuration found for the selected warehouse/department/campus.');
                 }
 
                 /*
                 |--------------------------------------------------------------------------
-                | 2. Validate DebitNote Email Configuration
+                | 2. Process each DebitNoteEmail (department + campus)
                 |--------------------------------------------------------------------------
                 */
-                $missingEmailDepartments = collect($departments)
-                    ->filter(fn ($deptId) => !DebitNoteEmail::where([
-                        'warehouse_id'  => $validated['warehouse_id'],
-                        'department_id' => $deptId
-                    ])->exists())
-                    ->toArray();
+                foreach ($debitNoteEmails as $email) {
 
-                if (!empty($missingEmailDepartments)) {
-                    $deptNames = Department::whereIn('id', $missingEmailDepartments)
-                        ->pluck('short_name')
-                        ->implode(', ');
-                    abort(422, "Missing Debit Note Email configuration for departments: {$deptNames}");
-                }
+                    $deptId   = $email->department_id;
+                    $campusId = $email->campus_id;
 
-                /*
-                |--------------------------------------------------------------------------
-                | 3. Process Each Department (NO transaction_type on DebitNote)
-                |--------------------------------------------------------------------------
-                */
-                foreach ($departments as $deptId) {
-
-                    $debitNoteEmail = DebitNoteEmail::where([
-                        'warehouse_id'  => $validated['warehouse_id'],
-                        'department_id' => $deptId
-                    ])->first();
-
+                    // Create or update DebitNote per warehouse + department + campus
                     $debitNote = DebitNote::updateOrCreate(
                         [
-                            'warehouse_id'  => $validated['warehouse_id'],
-                            'department_id' => $deptId,
-                            'start_date'    => $startDate,
-                            'end_date'      => $endDate,
+                            'warehouse_id' => $validated['warehouse_id'],
+                            'department_id'=> $deptId,
+                            'campus_id'    => $campusId,
+                            'start_date'   => $startDate,
+                            'end_date'     => $endDate,
                         ],
                         [
                             'reference_number'    => $this->generateDebitNoteNo(
                                 $validated['warehouse_id'],
                                 $deptId,
                                 $year,
-                                $month
+                                $month,
+                                $campusId // optional: include campus in ref number if needed
                             ),
-                            'debit_note_email_id' => $debitNoteEmail->id,
+                            'debit_note_email_id' => $email->id,
                             'status'              => 'pending',
                             'created_by'          => auth()->id(),
                         ]
@@ -519,13 +657,15 @@ class StockIssueController extends Controller
 
                     /*
                     |--------------------------------------------------------------------------
-                    | 4. Fetch Stock Items (filter ONLY StockIssue)
+                    | 3. Fetch Stock Items for this department + campus
                     |--------------------------------------------------------------------------
                     */
                     $stockItems = StockIssueItem::where('department_id', $deptId)
-                        ->whereHas('stockIssue', function ($q) use ($validated) {
+                        ->where('campus_id', $campusId)
+                        ->whereHas('stockIssue', function ($q) use ($validated, $campusId) {
                             $q->where('warehouse_id', $validated['warehouse_id'])
-                            ->whereIn('transaction_type', $validated['transaction_type']) // ✅ FIX
+                            ->whereIn('transaction_type', $validated['transaction_type'])
+                            ->where('campus_id', $campusId)
                             ->whereBetween('transaction_date', [
                                 $validated['start_date'],
                                 $validated['end_date']
@@ -541,7 +681,7 @@ class StockIssueController extends Controller
 
                     /*
                     |--------------------------------------------------------------------------
-                    | 5. Insert Items
+                    | 4. Insert Items
                     |--------------------------------------------------------------------------
                     */
                     $itemsData = $stockItems->map(fn ($item) => [
@@ -1131,14 +1271,21 @@ class StockIssueController extends Controller
         int $warehouseId,
         int $departmentId,
         int $year,
-        int $month
-        ): string {
-            return sprintf(
-                'DN-%s-%02d-WH%s-DP%s',
-                $year,
-                $month,
-                $warehouseId,
-                $departmentId
-            );
-        }
+        int $month,
+        int $campusId // ✅ new parameter
+    ): string {
+        // Get campus short name
+        $campus = Campus::find($campusId);
+        $campusCode = $campus->short_name ?? 'UNK'; // default UNK if not found
+
+        return sprintf(
+            'DN-%s-%02d-WH%s-DP%s-CAMP%s',
+            $year,
+            $month,
+            $warehouseId,
+            $departmentId,
+            $campusCode
+        );
+    }
+
 }

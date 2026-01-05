@@ -19,15 +19,17 @@ class DebitNoteEmailImport implements ToCollection, WithHeadingRow
 
             $departmentName = trim($row['department'] ?? '');
             $warehouseName  = trim($row['warehouse'] ?? '');
+            $campusName     = trim($row['campus'] ?? '');
 
-            if (!$departmentName || !$warehouseName) {
+            if (!$departmentName || !$warehouseName || !$campusName) {
                 continue; // skip invalid row
             }
 
             $departmentId = Department::where('short_name', $departmentName)->value('id');
             $warehouseId  = Warehouse::where('name', $warehouseName)->value('id');
+            $campusId     = Campus::where('short_name', $campusName)->value('id');
 
-            if (!$departmentId || !$warehouseId) {
+            if (!$departmentId || !$warehouseId || !$campusId) {
                 continue; // skip if name not found
             }
 
@@ -35,6 +37,7 @@ class DebitNoteEmailImport implements ToCollection, WithHeadingRow
                 [
                     'department_id' => $departmentId,
                     'warehouse_id'  => $warehouseId,
+                    'campus_id'     => $campusId
                 ],
                 [
                     'receiver_name' => $this->receiverName($row['receiver_name'] ?? null),

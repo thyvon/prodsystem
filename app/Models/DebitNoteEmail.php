@@ -12,6 +12,7 @@ class DebitNoteEmail extends Model
     protected $fillable = [
         'department_id',
         'warehouse_id',
+        'campus_id',
         'send_to_email',
         'receiver_name',
         'cc_to_email',
@@ -30,5 +31,10 @@ class DebitNoteEmail extends Model
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function campus()
+    {
+        return $this->belongsTo(Campus::class);
     }
 }
