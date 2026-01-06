@@ -354,9 +354,28 @@ const openFileViewer = (url, name) => {
 }
 
 const openPdfViewer = (purchaseRequestId) => {
-  const url = `/purchase-requests/${purchaseRequestId}/pdf`;
-  fileViewerModal.value.openModal(url, 'Purchase Request.pdf');
+  const url = `/purchase-requests/${purchaseRequestId}/pdf?print=1`; // optional print param
+
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      document.body.removeChild(iframe)
+    }, 300)
+  }
+
+  iframe.src = url
+  document.body.appendChild(iframe)
 }
+
 
 
 const openReassignModal = async () => {

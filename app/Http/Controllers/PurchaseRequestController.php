@@ -196,17 +196,12 @@ class PurchaseRequestController extends Controller
     {
         $data = $this->mapPurchaseRequestData($purchaseRequest);
 
-        $html = view('purchase-requests.printpage', [
+        // Return the view directly instead of PDF
+        return view('purchase-requests.printpage', [
             'purchaseRequest' => $data
-        ])->render();
-
-        return Browsershot::html($html)
-            ->noSandbox()
-            ->format('A4')
-            ->margins(5, 3, 5, 3) // top, right, bottom, left
-            ->showBackground()
-            ->pdf(); // return PDF content
+        ]);
     }
+
     public function getEditData(PurchaseRequest $purchaseRequest): JsonResponse
     {
         try {

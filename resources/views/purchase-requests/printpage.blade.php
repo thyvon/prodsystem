@@ -8,16 +8,16 @@
             font-family: 'TW Cen MT', 'Khmer OS Battambang', sans-serif;
             font-size: 10px;
             margin: 0;
-            padding: 15px 25px;
+            padding: 5px 5px;
         }
 
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ storage_path('fonts/KhmerOSbattambang.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/KhmerOSbattambang.ttf') }}") format('truetype');
         }
         @font-face {
             font-family: 'TW Cen MT';
-            src: url("{{ storage_path('fonts/TwCenMT.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
         .header {
@@ -118,7 +118,7 @@
 
 <div class="header">
     <div class="logo-section">
-        <img src="{{ public_path('img/logo/logo-dark.png') }}" class="logo" alt="MJQ Logo">
+        <img src="{{ asset('img/logo/logo-dark.png') }}" class="logo" alt="MJQ Logo">
     </div>
 
     <div class="title-section">
@@ -234,7 +234,7 @@
     <div class="signature-box">
         <div class="signature-image-box">
             @if (!empty($pr['creator_signature_url']))
-                <img src="{{ public_path('storage/' . $pr['creator_signature_url']) }}" class="signature-image">
+                <img src="{{ asset('storage/' . $pr['creator_signature_url']) }}" class="signature-image">
             @endif
         </div>
         <div class="signature-line"></div>
@@ -250,7 +250,7 @@
         <div class="signature-box">
             <div class="signature-image-box">
                 @if(($approval['approval_status'] ?? '') === 'Approved' && !empty($approval['user_signature_url']))
-                    <img src="{{ public_path('storage/' . $approval['user_signature_url']) }}" class="signature-image">
+                    <img src="{{ asset('storage/' . $approval['user_signature_url']) }}" class="signature-image">
                 @endif
             </div>
             <div class="signature-line"></div>
