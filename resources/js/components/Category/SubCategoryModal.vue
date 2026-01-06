@@ -52,7 +52,7 @@
                 >
                   <option value="">Select Main Category</option>
                   <option v-for="mainCategory in mainCategories" :key="mainCategory.id" :value="mainCategory.id">
-                    {{ mainCategory.name }} ({{ mainCategory.short_name }})
+                    {{ mainCategory.text }}
                   </option>
                 </select>
               </div>
@@ -126,7 +126,7 @@ const form = ref({
 
 const fetchMainCategories = async () => {
   try {
-    const response = await axios.get('/api/main-categories')
+    const response = await axios.get('/api/main-value-lists/get-main-categories')
     mainCategories.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load main categories:', err)

@@ -77,7 +77,7 @@
                 >
                   <option value="">Select Parent Unit</option>
                   <option v-for="parentUnit in parentUnits" :key="parentUnit.id" :value="parentUnit.id">
-                    {{ parentUnit.short_name }}
+                    {{ parentUnit.text }}
                   </option>
                 </select>
               </div>
@@ -156,7 +156,7 @@ const form = ref({
 
 const fetchParentUnits = async () => {
   try {
-    const response = await axios.get('/api/unit-of-measures')
+    const response = await axios.get('/api/main-value-lists/get-unit-of-measures')
     parentUnits.value = Array.isArray(response.data) ? response.data : response.data.data
   } catch (err) {
     console.error('Failed to load parent units:', err)
