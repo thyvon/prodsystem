@@ -64,7 +64,7 @@
                     <i class="fal fa-stamp"></i>
                     <span class="nav-link-text">Digital Approvals</span>
                 </a>
-            </li>
+            </li> -->
             @php
                 $documentActive = request()->is('document-transfers');
             @endphp
@@ -73,7 +73,7 @@
                     <i class="fal fa-file-alt"></i>
                     <span class="nav-link-text">Document Transfers</span>
                 </a>
-            </li> -->
+            </li>
 
             @php
                 $productActive = request()->is('products*') || 
@@ -233,13 +233,13 @@
                                 </a>
                             </li>
                         @endcan -->
-                        @can('product.view')
+                        <!-- @can('product.view')
                             <li class="{{ request()->is('inventory/stock-movements') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-movements') }}" title="Stock Movements" data-filter-tags="stock movements">
                                     <span class="nav-link-text">Stock Movements</span>
                                 </a>
                             </li>
-                        @endcan
+                        @endcan -->
                         @can('mainStockBeginning.view')
                             <li class="{{ request()->is('inventory/stock-beginnings*') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">

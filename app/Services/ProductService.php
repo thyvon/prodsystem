@@ -160,7 +160,7 @@ class ProductService
                 $transactionDate
             );
 
-            $averagePrice = $this->stockLedgerService->getAvgPrice($variant->id, $transactionDate);
+            $averagePrice = $this->stockLedgerService->getAvgPrice($variant->id, $warehouseId, $transactionDate);
 
             return [
                 'id' => $variant->id,
