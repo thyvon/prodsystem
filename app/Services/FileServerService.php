@@ -52,13 +52,36 @@ class FileServerService
      * @param string $filePath
      * @return bool
      */
+    // public function deleteFile(string $filePath): bool
+    // {
+    //     try {
+    //         return Storage::disk($this->disk)->delete($filePath);
+    //     } catch (\Throwable $e) {
+    //         Log::warning("Wasabi delete failed: {$e->getMessage()}");
+    //         return false;
+    //     }
+    // }
+
     public function deleteFile(string $filePath): bool
     {
         try {
-            return Storage::disk($this->disk)->delete($filePath);
+            if (!Storage::disk($this->disk)->exists($filePath)) {
+                Log::warning('Wasabi file does not exist', [
+                    'path' => $filePath,
+                ]);
+                return true;
+            }
+
+            $deleted = Storage::disk($this->disk)->delete($filePath);
+
+            return true;
         } catch (\Throwable $e) {
-            Log::warning("Wasabi delete failed: {$e->getMessage()}");
-            return false;
+            Log::error('Wasabi delete exception', [
+                'path' => $filePath,
+                'error' => $e->getMessage(),
+            ]);
+
+            return true;
         }
     }
 
