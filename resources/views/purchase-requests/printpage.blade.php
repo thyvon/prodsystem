@@ -197,7 +197,7 @@
                 <td class="text-center">{{ $item['division_short_names'] }}</td>
                 <td class="text-center">{{ $item['department_short_names'] }}</td>
                 <td class="text-center">{{ $item['campus_short_names'] }}</td>
-                <td class="text-center">{{ $item['quantity'] }}</td>
+                <td class="text-center">{{ number_format($item['quantity'],2) }}</td>
                 <td class="text-center">{{ $item['unit_name'] }}</td>
                 <td class="text-right">{{ number_format($item['unit_price'],2) }}</td>
                 <td class="text-right">{{ number_format($item['total_price'],2) }}</td>
