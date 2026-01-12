@@ -321,6 +321,8 @@ class StockIssueController extends Controller
                 $year      = $startDate->year;
                 $month     = $startDate->month;
 
+                $warehouseName = Warehouse::find($validated['warehouse_id'])?->name ?? $validated['warehouse_id'];
+
                 // 1. Fetch stock items grouped by department + campus
                 $stockItemsGrouped = StockIssueItem::whereHas('stockIssue', function ($q) use ($validated) {
                         $q->where('warehouse_id', $validated['warehouse_id'])
@@ -338,26 +340,40 @@ class StockIssueController extends Controller
                     abort(422, 'No stock issue items found for the selected period.');
                 }
 
-                // 2. Loop each group (department + campus)
-                foreach ($stockItemsGrouped as $groupKey => $items) {
+                // 2. Check missing email configs first
+                $missingConfigs = [];
 
+                foreach ($stockItemsGrouped as $groupKey => $items) {
                     [$deptId, $campusId] = explode('-', $groupKey);
 
-                    // 3. Find email config for this department + campus
                     $email = DebitNoteEmail::where('warehouse_id', $validated['warehouse_id'])
                         ->where('department_id', $deptId)
                         ->where('campus_id', $campusId)
                         ->first();
 
-                    // ❌ If email not found, throw error immediately
                     if (!$email) {
-                        $warehouseName  = Warehouse::find($validated['warehouse_id'])?->name ?? $validated['warehouse_id'];
                         $departmentName = Department::find($deptId)?->short_name ?? $deptId;
                         $campusName     = Campus::find($campusId)?->short_name ?? $campusId;
-
-                        abort(422, "No Debit Note Email configuration found for Warehouse '{$warehouseName}', Department '{$departmentName}', Campus '{$campusName}'.");
+                        $missingConfigs[] = "Department '{$departmentName}', Campus '{$campusName}'";
                     }
-                    // 4. Create or update Debit Note
+                }
+
+                // 3. If any missing, stop and show all at once
+                if (!empty($missingConfigs)) {
+                    $list = implode('; ', $missingConfigs);
+                    abort(422, "No Debit Note Email configuration found for Warehouse '{$warehouseName}' for the following: {$list}.");
+                }
+
+                // 4. Proceed to create/update Debit Notes
+                foreach ($stockItemsGrouped as $groupKey => $items) {
+
+                    [$deptId, $campusId] = explode('-', $groupKey);
+
+                    $email = DebitNoteEmail::where('warehouse_id', $validated['warehouse_id'])
+                        ->where('department_id', $deptId)
+                        ->where('campus_id', $campusId)
+                        ->first();
+
                     $debitNote = DebitNote::updateOrCreate(
                         [
                             'warehouse_id'  => $validated['warehouse_id'],
@@ -380,7 +396,7 @@ class StockIssueController extends Controller
                         ]
                     );
 
-                    // 5. Refresh items
+                    // Refresh items
                     $debitNote->items()->delete();
 
                     $itemsData = $items->map(fn ($item) => [
