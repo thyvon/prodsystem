@@ -11,7 +11,7 @@
     </div>
 
     <!-- Body -->
-    <div class="card-body bg-white p-3" style="font-family: 'TW Cen MT', 'Khmer OS Content';">
+    <div class="card-body bg-white p-3">
       <!-- General Info -->
       <div class="row mb-3">
         <div class="col-3">
@@ -230,8 +230,8 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
-                 : currentAction === 'reject' ? 'Reject' 
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType)
+                 : currentAction === 'reject' ? 'Reject'
                  : 'Return' }} Confirmation
             </h5>
             <button type="button" class="close" @click="resetConfirmModal">&times;</button>
@@ -242,13 +242,13 @@
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="resetConfirmModal" :disabled="loading">Cancel</button>
             <button class="btn"
-                    :class="currentAction === 'approve' ? 'btn-success' 
-                              : currentAction === 'reject' ? 'btn-danger' 
+                    :class="currentAction === 'approve' ? 'btn-success'
+                              : currentAction === 'reject' ? 'btn-danger'
                               : 'btn-warning'"
                     @click="submitApproval(currentAction)"
                     :disabled="loading">
-              {{ currentAction === 'approve' ? capitalize(approvalRequestType) 
-                 : currentAction === 'reject' ? 'Reject' 
+              {{ currentAction === 'approve' ? capitalize(approvalRequestType)
+                 : currentAction === 'reject' ? 'Reject'
                  : 'Return' }}
             </button>
           </div>
