@@ -25,13 +25,14 @@ class DebitNoteController extends Controller
     // Get list of Debit Note Emails
     public function getDebitNoteEmails(Request $request): JsonResponse
     {
-        $query = DebitNoteEmail::with(['department', 'warehouse']);
+        $query = DebitNoteEmail::with(['department', 'warehouse', 'campus']);
 
         // Search
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->whereHas('department', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
                   ->orWhereHas('warehouse', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
+                  ->orWhereHas('campus', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
                   ->orWhere('send_to_email', 'like', "%{$search}%")
                   ->orWhere('cc_to_email', 'like', "%{$search}%");
             });
@@ -49,8 +50,10 @@ class DebitNoteController extends Controller
         // Map data for frontend
         $data = $emails->getCollection()->map(fn($item) => [
             'id' => $item->id,
+            'campus_id' => $item->campus_id,
+            'campus_name' => $item->campus->short_name,
             'department_id' => $item->department_id,
-            'department_name' => $item->department?->name,
+            'department_name' => $item->department?->short_name,
             'warehouse_id' => $item->warehouse_id,
             'warehouse_name' => $item->warehouse?->name,
             'receiver_name' => $item->receiver_name,
@@ -122,9 +125,9 @@ class DebitNoteController extends Controller
         $data = [
             'id' => $email->id,
             'department_id' => $email->department_id,
-            'department_name' => $email->department?->name,
+            'department_name' => $email->department?->short_name,
             'campus_id' => $email->campus_id,
-            'campus_name' => $email->campus?->name,
+            'campus_name' => $email->campus?->short_name,
             'warehouse_id' => $email->warehouse_id,
             'warehouse_name' => $email->warehouse?->name,
             'receiver_name' => $email->receiver_name,
@@ -172,6 +175,16 @@ class DebitNoteController extends Controller
         ]);
     }
 
+    public function deleteDebitNoteEmail(Request $request, $id): JsonResponse
+    {
+        $email = DebitNoteEmail::findOrFail($id);
+        $email->delete();
+        return response()->json([
+            'success' => true,
+            'message' => 'Debit Note Email deleted successfully',
+        ]);
+    }
+
 
     // Debit Note
     public function debitNoteIndex()
@@ -210,10 +223,11 @@ class DebitNoteController extends Controller
         // QUERY
         // ----------------------------
         $query = DebitNote::with([
-            'warehouse',
-            'department',
-            'debitNoteEmail',
-            'creator',
+            'warehouse:id,name',
+            'campus:id,short_name',
+            'department:id,short_name',
+            'debitNoteEmail:id,send_to_email,cc_to_email',
+            'creator:id,name',
             'items.stockIssueItem'
         ])
         // Search filter
@@ -268,13 +282,14 @@ class DebitNoteController extends Controller
         $debitNotesMapped = $debitNotes->map(fn($note) => [
             'id' => $note->id,
             'reference_number' => $note->reference_number,
+            'campus_name' => $note->campus->short_name ?? null,
             'warehouse_name' => $note->warehouse->name ?? null,
             'department_name' => $note->department->short_name ?? null,
-            'debit_note_email' => isset($note->debitNoteEmail->send_to_email) 
-                ? str_replace(',', ' ', $note->debitNoteEmail->send_to_email) 
+            'debit_note_email' => isset($note->debitNoteEmail->send_to_email)
+                ? str_replace(',', ' ', $note->debitNoteEmail->send_to_email)
                 : null,
-            'cc_email' => isset($note->debitNoteEmail->cc_to_email) 
-                ? str_replace(',', ' ', $note->debitNoteEmail->cc_to_email) 
+            'cc_email' => isset($note->debitNoteEmail->cc_to_email)
+                ? str_replace(',', ' ', $note->debitNoteEmail->cc_to_email)
                 : null,
             'start_date' => $note->start_date,
             'end_date' => $note->end_date,
@@ -339,10 +354,10 @@ class DebitNoteController extends Controller
 
     //     foreach ($debitNotes as $note) {
 
-    //         $toEmails = optional($note->debitNoteEmail)->send_to_email ? 
+    //         $toEmails = optional($note->debitNoteEmail)->send_to_email ?
     //             array_map('trim', explode(',', $note->debitNoteEmail->send_to_email)) : null;
 
-    //         $ccEmails = optional($note->debitNoteEmail)->cc_to_email ? 
+    //         $ccEmails = optional($note->debitNoteEmail)->cc_to_email ?
     //             array_map('trim', explode(',', $note->debitNoteEmail->cc_to_email)) : [];
 
     //         if (!$toEmails) {

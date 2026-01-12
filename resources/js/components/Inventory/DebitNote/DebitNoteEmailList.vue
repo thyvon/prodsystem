@@ -76,6 +76,7 @@ const datatableParams = reactive({
 
 // Headers
 const datatableHeaders = [
+  { text: 'Campus', value: 'campus_name', width: '20%', sortable: true },
   { text: 'Department', value: 'department_name', width: '20%', sortable: true },
   { text: 'Warehouse', value: 'warehouse_name', width: '20%', sortable: true },
   { text: 'Receiver Name', value: 'receiver_name', width: '20%', sortable: true },
@@ -123,7 +124,7 @@ const handleDelete = async (row) => {
   )
   if (!confirmed) return
 
-  await axios.delete(`/api/inventory/debit-note/emails/${row.id}`)
+  await axios.delete(`/api/inventory/debit-note/emails/${row.id}/delete`)
   showAlert('Deleted', 'Deleted successfully.', 'success')
   reloadDatatable()
 }

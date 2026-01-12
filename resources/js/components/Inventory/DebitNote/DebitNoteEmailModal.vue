@@ -3,7 +3,7 @@
     v-model="showModal"
     id="debitNoteEmailModal"
     :title="isEditing ? 'Edit Debit Note Email' : 'Create Debit Note Email'"
-    size="lg"
+    size="xl"
     :loading="isLoading"
   >
     <template #body>
@@ -14,6 +14,24 @@
           </div>
           <div class="card-body">
             <div class="form-row">
+              <div class="form-group col-md-4">
+                    <label>Campus <span class="text-danger">*</span></label>
+                    <select
+                    ref="campusSelect"
+                    v-model="form.campus_id"
+                    class="form-control"
+                    required
+                    >
+                    <option value="">Select Campus</option>
+                    <option
+                        v-for="campus in campuses"
+                        :key="campus.id"
+                        :value="campus.id"
+                    >
+                        {{ campus.text }}
+                    </option>
+                    </select>
+              </div>
               <div class="form-group col-md-4">
                 <label>Department <span class="text-danger">*</span></label>
                 <select
@@ -32,7 +50,6 @@
                   </option>
                 </select>
               </div>
-
               <div class="form-group col-md-4">
                 <label>Warehouse <span class="text-danger">*</span></label>
                 <select
@@ -51,6 +68,9 @@
                   </option>
                 </select>
               </div>
+            </div>
+
+            <div class="form-row mb-4">
               <div class="form-group col-md-4">
                 <label>Receipient <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" v-model="form.receiver_name" required />
@@ -117,6 +137,7 @@ const isLoading = ref(false)
 // Form
 const form = ref({
   id: null,
+  campus_id: null,
   department_id: null,
   warehouse_id: null,
   receiver_name: '',
@@ -125,12 +146,25 @@ const form = ref({
 })
 
 // Select lists
+const campuses = ref([])
 const departments = ref([])
 const warehouses = ref([])
+const campusSelect = ref(null)
 const departmentSelect = ref(null)
 const warehouseSelect = ref(null)
 
 // Fetch lists
+
+const fetchCampuses = async () => {
+    try {
+        const res = await axios.get('/api/main-value-lists/get-campuses')
+        campuses.value = Array.isArray(res.data) ? res.data : res.data.data
+    } catch (err){
+        console.error(err)
+        showAlert('Error', 'Failed to load campuses', 'danger')
+    }
+}
+
 const fetchDepartments = async () => {
   try {
     const res = await axios.get('/api/main-value-lists/get-departments')
@@ -155,6 +189,7 @@ const fetchWarehouses = async () => {
 const resetForm = () => {
   form.value = {
     id: null,
+    campus_id: null,
     department_id: null,
     warehouse_id: null,
     receiver_name: '',
@@ -173,6 +208,7 @@ const show = async (row = null) => {
   if (row) {
     form.value = {
       id: row.id,
+      campus_id: row.campus_id,
       department_id: row.department_id,
       warehouse_id: row.warehouse_id,
       receiver_name: row.receiver_name,
@@ -188,6 +224,7 @@ const show = async (row = null) => {
 
 // Hide modal
 const hideModal = () => {
+  destroySelect2(campusSelect.value)
   destroySelect2(departmentSelect.value)
   destroySelect2(warehouseSelect.value)
   showModal.value = false
@@ -200,6 +237,7 @@ const submitForm = async () => {
 
   try {
     const payload = {
+      campus_id: form.value.campus_id,
       department_id: form.value.department_id,
       warehouse_id: form.value.warehouse_id,
       receiver_name: form.value.receiver_name,
@@ -235,14 +273,16 @@ watch(showModal, async (val) => {
   if (val) {
     await nextTick()
     const $modal = window.$('#debitNoteEmailModal')
-
+    initSelect2(campusSelect.value, { placeholder: 'Select Campus', width: '100%', dropdownParent: $modal }, v => form.value.campus_id = v)
     initSelect2(departmentSelect.value, { placeholder: 'Select Department', width: '100%', dropdownParent: $modal }, v => form.value.department_id = v)
     initSelect2(warehouseSelect.value, { placeholder: 'Select Warehouse', width: '100%', dropdownParent: $modal }, v => form.value.warehouse_id = v)
 
     await nextTick()
+    window.$(campusSelect.value).val(form.value.campus_id).trigger('change')
     window.$(departmentSelect.value).val(form.value.department_id).trigger('change')
     window.$(warehouseSelect.value).val(form.value.warehouse_id).trigger('change')
   } else {
+    destroySelect2(campusSelect.value)
     destroySelect2(departmentSelect.value)
     destroySelect2(warehouseSelect.value)
   }
@@ -251,11 +291,13 @@ watch(showModal, async (val) => {
 defineExpose({ show })
 
 onMounted(async () => {
+  await fetchCampuses()
   await fetchDepartments()
   await fetchWarehouses()
 })
 
 onUnmounted(() => {
+  destroySelect2(campusSelect.value)
   destroySelect2(departmentSelect.value)
   destroySelect2(warehouseSelect.value)
 })

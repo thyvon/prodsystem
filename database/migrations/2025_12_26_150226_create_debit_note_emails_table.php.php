@@ -20,7 +20,7 @@ return new class extends Migration
             $table->json('cc_to_email')->nullable();
             $table->timestamps();
 
-            $table->unique(['department_id', 'warehouse_id']);
+            $table->unique(['department_id', 'warehouse_id', 'campus_id']);
         });
     }
 

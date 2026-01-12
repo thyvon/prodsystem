@@ -23,7 +23,7 @@
               <i class="fal fa-list mr-1"></i> Stock Issue List
             </button>
 
-            <button 
+            <button
               class="btn btn-info"
               type="button"
               data-toggle="collapse"
@@ -38,7 +38,7 @@
           <!-- COLLAPSIBLE FILTER SECTION -->
           <div class="collapse" id="filterCollapse">
             <div class="card card-body shadow-sm">
-              
+
               <!-- Row 1: Date Range + Warehouse -->
               <div class="row g-2 mb-3">
                 <div class="col-md-3">
@@ -321,6 +321,7 @@ const createOrUpdateDebitNote = async () => {
   // PREPARE PAYLOAD
   // -----------------------------
   const payload = {
+    campus_id: selectedCampuses.value[0] || null,
     warehouse_id: selectedWarehouses.value[0],
     department_id: selectedDepartments.value[0] || null, // optional
     start_date: startDate,

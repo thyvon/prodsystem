@@ -19,7 +19,7 @@
 
           <!-- Top Row: Filter Button -->
           <div class="d-flex mb-2 align-items-center gap-2">
-            <button 
+            <button
               class="btn btn-info"
               type="button"
               data-toggle="collapse"
@@ -104,6 +104,7 @@ const datatableParams = reactive({
 const datatableHeaders = [
   { text: 'Reference No', value: 'reference_number', minWidth: '150px' },
   { text: 'Warehouse', value: 'warehouse_name', minWidth: '150px' },
+  { text: 'Campus', value: 'campus_name', minWidth: '150px' },
   { text: 'Department', value: 'department_name', minWidth: '150px' },
   { text: 'To Email', value: 'debit_note_email', minWidth: '200px' },
   { text: 'CC Email', value: 'cc_email', minWidth: '200px' },
@@ -184,7 +185,7 @@ const applyFilters = () => {
 // Send filtered emails with progress
 const sendDebitNoteEmail = async () => {
   const confirmed = await confirmAction(
-    'Send emails for all filtered Debit Notes?', 
+    'Send emails for all filtered Debit Notes?',
     'This will send emails to all recipients of the current filtered list.'
   )
   if (!confirmed) return
