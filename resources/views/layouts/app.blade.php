@@ -24,9 +24,9 @@
                                 <span class="page-logo-text mr-1 fw-700">Procurement System</span>
                             </a>
                         </div>
-                        <a href="{{url ('/register')}}" class="btn-link text-white ml-auto">
+                        <!-- <a href="{{url ('/register')}}" class="btn-link text-white ml-auto">
                             Register Account
-                        </a>
+                        </a> -->
                     </div>
                 </div>
                 <div class="flex-1" style="background: url('{{ asset('template/img/svg/pattern-1.svg') }}') no-repeat center bottom fixed; background-size: cover;">
@@ -35,20 +35,24 @@
                             <!-- Left Side Info Panel -->
                             <div class="col col-md-6 col-lg-7 d-none d-md-block">
                                 <h2 class="fs-xxl fw-500 mt-4 text-white">
-                                    E Purchasing System Version 2.0
-                                    <small class="h3 fw-300 mt-3 mb-5 text-white opacity-60">
-                                        Register now if you are new user.
-                                    </small>
+                                PROCUREMENT SYSTEM
+                                <small class="h3 fw-300 mt-3 mb-5 text-white opacity-60">
+                                    Streamline purchasing, inventory tracking, and supplier management in one platform.
+                                </small>
+
+                                <!-- <small>User for demo: <br>
+                                email: admin@testing.com <br>
+                                password: 88888888</small> -->
                                 </h2>
                                 <div class="d-sm-flex flex-column align-items-center justify-content-center d-md-block">
                                     <div class="px-0 py-1 mt-5 text-white fs-nano opacity-50">
-                                        Connect with us
+                                        Connect me
                                     </div>
                                     <div class="d-flex flex-row opacity-70">
-                                        <a href="#" class="mr-2 fs-xxl text-white"><i class="fab fa-facebook-square"></i></a>
-                                        <a href="#" class="mr-2 fs-xxl text-white"><i class="fab fa-twitter-square"></i></a>
-                                        <a href="#" class="mr-2 fs-xxl text-white"><i class="fab fa-google-plus-square"></i></a>
-                                        <a href="#" class="mr-2 fs-xxl text-white"><i class="fab fa-linkedin"></i></a>
+                                        <a href="https://www.facebook.com/share/1CtpYTxYyt/?mibextid=wwXIfr" class="mr-2 fs-xxl text-white"><i class="fab fa-facebook-square"></i></a>
+                                        <a href="https://x.com/thy_vun?s=21" class="mr-2 fs-xxl text-white"><i class="fab fa-twitter-square"></i></a>
+                                        <a href="https://t.me/thyvun" class="mr-2 fs-xxl text-white"><i class="fab fa-telegram"></i></a>
+                                        <a href="https://www.linkedin.com/in/vun-thy-354761231?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app" class="mr-2 fs-xxl text-white"><i class="fab fa-linkedin"></i></a>
                                     </div>
                                 </div>
                             </div>
@@ -59,7 +63,7 @@
 
                         <!-- Footer -->
                         <div class="position-absolute pos-bottom pos-left pos-right p-3 text-center text-white">
-                            2025 © SmartAdmin by <a href="https://www.gotbootstrap.com" class="text-white opacity-40 fw-500" target="_blank">gotbootstrap.com</a>
+                            &copy; <span class="js-year-copy"></span> {{ config('app.name', 'Laravel') }} - By Vun Thy
                         </div>
                     </div>
                 </div>

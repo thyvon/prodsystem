@@ -2,7 +2,6 @@
 @extends('layouts.app')
 
 @section('content')
-@section('content')
     <!-- Right Side (Login Form) -->
     <div class="col-sm-12 col-md-6 col-lg-5 col-xl-4 ml-auto">
         <h1 class="text-white fw-300 mb-3 d-sm-block d-md-none">Secure login</h1>
@@ -46,9 +45,5 @@
                 </div>
             </form>
         </div>
-    </div>
-@endsection
-    <div class="position-absolute pos-bottom pos-left pos-right p-3 text-center text-white">
-        2020 © SmartAdmin by&nbsp;<a href='https://www.gotbootstrap.com' class='text-white opacity-40 fw-500' target='_blank'>gotbootstrap.com</a>
     </div>
 @endsection
