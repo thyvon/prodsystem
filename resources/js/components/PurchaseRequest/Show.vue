@@ -387,16 +387,18 @@ const openPdfViewer = (purchaseRequestId) => {
 
 // Reassign Modal using initialData.users (if passed)
 const openReassignModal = async () => {
-  if (!purchaseRequest.value.users || purchaseRequest.value.users.length === 0) {
-    showAlert('Error', 'No users available for reassignment.', 'danger')
-    return
+  loading.value = true
+  try {
+    const res = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: approvalRequestType.value } })
+    const data = res.data || {}
+    usersList.value = Object.values(data)[0] || []
+    await nextTick()
+    initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
+    $('#reassignModal').modal('show')
+  } catch (err) {
+    showAlert('Error', 'Failed to load users.', 'danger')
   }
-
-  usersList.value = purchaseRequest.value.users // use preloaded users from props
-
-  await nextTick()
-  initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
-  $('#reassignModal').modal('show')
+  finally { loading.value = false }
 }
 
 const confirmReassign = async () => {
