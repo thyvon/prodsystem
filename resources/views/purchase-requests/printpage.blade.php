@@ -13,7 +13,7 @@
 
         @font-face {
             font-family: 'Khmer OS Battambang';
-            src: url("{{ asset('fonts/KhmerOSbattambang.ttf') }}") format('truetype');
+            src: url("{{ asset('fonts/KhmerOSBattambang-Regular.ttf') }}") format('truetype');
         }
         @font-face {
             font-family: 'TW Cen MT';
