@@ -171,41 +171,6 @@ class PurchaseRequestController extends Controller
         ]);
     }
 
-
-
-    // public function showData(PurchaseRequest $purchaseRequest): JsonResponse
-    // {
-    //     try {
-    //         $this->authorize('update', $purchaseRequest);
-    //         $data = $this->mapPurchaseRequestData($purchaseRequest);
-
-    //         // ✅ If approval button is visible, mark as seen
-    //         if ($data['approval_button_data']) {
-    //             $purchaseRequest->approvals()
-    //                 ->where('responder_id', auth()->id())
-    //                 ->where('approval_status', 'Pending')
-    //                 ->where('is_seen', false)
-    //                 ->update(['is_seen' => true]);
-    //         }
-
-    //         return response()->json([
-    //             'message' => 'Purchase request retrieved successfully.',
-    //             'data' => $data,
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::error('Failed to retrieve purchase request', [
-    //             'id' => $purchaseRequest->id,
-    //             'error' => $e->getMessage()
-    //         ]);
-
-    //         return response()->json([
-    //             'message' => 'Failed to retrieve purchase request.',
-    //             'error' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
-
     public function viewPdf(PurchaseRequest $purchaseRequest)
     {
         $data = $this->mapPurchaseRequestData($purchaseRequest);
@@ -453,6 +418,14 @@ class PurchaseRequestController extends Controller
     public function update(Request $request, PurchaseRequest $purchaseRequest): JsonResponse
     {
         $this->authorize('update', $purchaseRequest);
+
+        if ($purchaseRequest->approval_status !== 'Pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Purchase request is not in pending status.',
+            ], 400);
+        }
+
         $user = Auth::user();
 
         $validated = $request->validate($this->validationRules($purchaseRequest));
@@ -469,6 +442,7 @@ class PurchaseRequestController extends Controller
                     'is_urgent' => $validated['is_urgent'],
                     'updated_by' => $user->id,
                     'updated_at' => now(),
+                    'approval_status' => 'Pending'
                 ]);
 
                 // --------------------
