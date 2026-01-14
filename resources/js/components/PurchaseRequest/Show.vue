@@ -129,7 +129,7 @@
       <div class="mt-4">
         <div class="row justify-content-center">
           <!-- Requested By -->
-          <div class="col-md-4 mb-4">
+          <div class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <label class="font-weight-bold d-block text-center">Requested By</label>
@@ -156,7 +156,7 @@
           </div>
 
           <!-- Approvals -->
-          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-4 mb-4">
+          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-3 mb-4">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <label class="font-weight-bold d-block text-center">{{ approval.request_type_label || approval.request_type }}</label>
@@ -271,7 +271,7 @@
               <label for="userSelect">Select New Responder</label>
               <select id="userSelect" class="form-control w-100">
                 <option value="">-- Select a user --</option>
-                <option v-for="user in usersList" :value="user.id" :key="user.id">{{ user.name }}</option>
+                <option v-for="user in usersList" :value="user.id" :key="user.id">{{ user.name }} - {{ user.card_number }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -293,69 +293,82 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, computed } from 'vue'
-import axios from 'axios'
+import { ref, nextTick } from 'vue'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
+import axios from 'axios'
 import FileViewerModal from '../Reusable/FileViewerModal.vue'
 
+// Props
 const props = defineProps({
   purchaseRequestId: { type: Number, required: true },
+  initialData: {
+    type: Object,
+    default: () => ({
+      items: [],
+      approvals: [],
+      files: [],
+      approval_button_data: {},
+      total_value_usd: 0,
+      total_value_khr: 0
+    })
+  }
 })
 
-const purchaseRequest = ref({ items: [], approvals: [] })
+// Reactive refs
+const purchaseRequest = ref(props.initialData)
 const loading = ref(false)
 const usersList = ref([])
-const showApprovalButton = ref(false)
-const approvalRequestType = ref('approve')
+const showApprovalButton = ref(purchaseRequest.value.approval_button_data?.showButton ?? false)
+const approvalRequestType = ref(purchaseRequest.value.approval_button_data?.requestType ?? 'approve')
 const currentAction = ref('approve')
 const commentInput = ref('')
 const fileViewerModal = ref(null)
 
+// Helpers
 const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
 const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
 
-const fetchPurchaseRequest = async () => {
-  try {
-    const res = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/show`)
-    purchaseRequest.value = res.data.data
-
-    // Extract approval button info into separate refs
-    showApprovalButton.value = res.data.data.approval_button_data?.showButton ?? false
-    approvalRequestType.value = res.data.data.approval_button_data?.requestType ?? 'approve'
-  } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Failed to load purchase request.', 'danger')
-  }
+// Approval Modals
+const openConfirmModal = (action) => {
+  currentAction.value = action
+  commentInput.value = ''
+  $('#confirmModal').modal('show')
 }
 
-onMounted(fetchPurchaseRequest)
+const resetConfirmModal = () => {
+  commentInput.value = ''
+  $('#confirmModal').modal('hide')
+}
 
-// Approval Handling
-const openConfirmModal = (action) => { currentAction.value = action; commentInput.value = ''; $('#confirmModal').modal('show') }
-const resetConfirmModal = () => { commentInput.value = ''; $('#confirmModal').modal('hide') }
-
+// Submit approval action
 const submitApproval = async (action) => {
   loading.value = true
   try {
-    const res = await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/submit-approval`, { request_type: approvalRequestType.value, action, comment: commentInput.value.trim() })
+    const res = await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/submit-approval`, {
+      request_type: approvalRequestType.value,
+      action,
+      comment: commentInput.value.trim()
+    })
     showAlert('success', res.data.message || 'Action submitted successfully.')
     $('#confirmModal').modal('hide')
     setTimeout(() => window.location.reload(), 1500)
   } catch (err) {
-    showAlert('Error', err.response?.data?.message || 'Action failed.','danger')
+    showAlert('Error', err.response?.data?.message || 'Action failed.', 'danger')
   } finally { loading.value = false }
 }
 
+// File Viewer
 const openFileViewer = (url, name) => {
   if (fileViewerModal.value) fileViewerModal.value.openModal(url, name)
 }
 
+// PDF Viewer
 const openPdfViewer = (purchaseRequestId) => {
-  const url = `/purchase-requests/${purchaseRequestId}/pdf?print=1`; // optional print param
-
+  const url = `/purchase-requests/${purchaseRequestId}/pdf?print=1`
   const iframe = document.createElement('iframe')
   iframe.style.position = 'fixed'
   iframe.style.right = '0'
@@ -363,46 +376,48 @@ const openPdfViewer = (purchaseRequestId) => {
   iframe.style.width = '0'
   iframe.style.height = '0'
   iframe.style.border = '0'
-
-  iframe.onload = () => {
-    setTimeout(() => {
-      iframe.contentWindow.focus()
-      iframe.contentWindow.print()
-      document.body.removeChild(iframe)
-    }, 300)
-  }
-
+  iframe.onload = () => setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    document.body.removeChild(iframe)
+  }, 300)
   iframe.src = url
   document.body.appendChild(iframe)
 }
 
-
-
+// Reassign Modal using initialData.users (if passed)
 const openReassignModal = async () => {
-  loading.value = true
-  try {
-    const res = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: approvalRequestType.value } })
-    usersList.value = res.data.data || []
-    await nextTick()
-    initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
-    $('#reassignModal').modal('show')
-  } catch (err) { showAlert('Error', 'Failed to load users.', 'danger') }
-  finally { loading.value = false }
+  if (!purchaseRequest.value.users || purchaseRequest.value.users.length === 0) {
+    showAlert('Error', 'No users available for reassignment.', 'danger')
+    return
+  }
+
+  usersList.value = purchaseRequest.value.users // use preloaded users from props
+
+  await nextTick()
+  initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
+  $('#reassignModal').modal('show')
 }
 
 const confirmReassign = async () => {
   const newUserId = document.getElementById('userSelect')?.value
   const comment = document.getElementById('reassignComment')?.value.trim()
   if (!newUserId) { showAlert('Error', 'Please select a user.', 'danger'); return }
+
   loading.value = true
   try {
-    await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/reassign-approval`, { request_type: approvalRequestType.value, new_user_id: newUserId, comment })
+    await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/reassign-approval`, {
+      request_type: approvalRequestType.value,
+      new_user_id: newUserId,
+      comment
+    })
     showAlert('success', 'Responder reassigned successfully.')
     $('#reassignModal').modal('hide')
     destroySelect2(document.getElementById('userSelect'))
     setTimeout(() => window.location.reload(), 1500)
-  } catch (err) { showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger') }
-  finally { loading.value = false }
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Reassignment failed.', 'danger')
+  } finally { loading.value = false }
 }
 
 const cleanupReassignModal = () => {

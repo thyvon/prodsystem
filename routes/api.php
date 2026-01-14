@@ -443,9 +443,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.update');
     Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->middleware('can:delete,purchaseRequest')->name('api.purchase-requests.destroy');
     Route::get('/purchase-requests/get-approval-users', [PurchaseRequestController::class, 'getApprovalUsers'])
-    ->name('api.purchase-requests.get-approval-users');
-    // Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
-    // ->name('api.purchase-requests.submit-approval');
+            ->name('api.purchase-requests.get-approval-users');
+    Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
+            ->name('api.purchase-requests.submit-approval');
     Route::get('/purchase-requests/get-campuses', [PurchaseRequestController::class, 'getCampuses'])->name('api.purchase-requests.get-campuses');
     Route::get('/purchase-requests/get-departments', [PurchaseRequestController::class, 'getDepartments'])->name('api.purchase-requests.get-departments');
     Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');

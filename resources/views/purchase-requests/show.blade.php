@@ -4,6 +4,7 @@
 @section('content')
   <purchase-request-show
       :purchase-request-id="{{ $purchaseRequestId }}"
+      :initial-data='@json($purchaseRequest)'
   ></purchase-request-show>
 @endsection
 

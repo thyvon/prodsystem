@@ -21,12 +21,12 @@
 
       <!-- Header: Logo + Title -->
       <div class="row align-items-center mb-3">
-        
+
         <!-- Left Column: Logo -->
         <div class="col-3 d-flex align-items-center">
           <img src="@public/img/logo/logo-dark.png" alt="Logo" style="height:50px;">
         </div>
-        
+
         <!-- Center Column: Title -->
         <div class="col-6 text-center">
           <h4 class="font-weight-bold mb-0">Monthly Stock Report</h4>
@@ -35,12 +35,12 @@
             ({{ warehouseNames }})
           </h6>
         </div>
-        
+
         <!-- Right Column: Blank -->
         <div class="col-3">
           <!-- Blank or future content -->
         </div>
-        
+
       </div>
       <div class="dropdown-divider mb-1"></div>
 
@@ -122,21 +122,19 @@
       <div class="dropdown-divider mb-1"></div>
 
       <!-- Requested By & Approvals -->
-      <div class="mt-5">
-        <h5 class="mb-3 font-weight-bold">Report Approval</h5>
-
+      <div class="mt-4">
         <div class="row justify-content-center">
 
           <!-- Prepared By -->
-          <div class="col-md-2 mb-2 p-1">
+          <div class="col-md-3 mb-2">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">Prepared & Counted By</p>
 
                 <div class="mb-3">
-                  <img 
-                    :src="reportParams.created_by?.profile_url 
-                      ? `/storage/${reportParams.created_by.profile_url}` 
+                  <img
+                    :src="reportParams.created_by?.profile_url
+                      ? `/storage/${reportParams.created_by.profile_url}`
                       : '/images/default-avatar.png'"
                     class="rounded-circle"
                     width="50"
@@ -155,15 +153,15 @@
           </div>
 
           <!-- Approvers -->
-          <div v-for="(resp, idx) in responders" :key="idx" class="col-md-2 mb-2 p-1">
+          <div v-for="(resp, idx) in responders" :key="idx" class="col-md-3 mb-2">
             <div class="card border shadow-sm h-100">
               <div class="card-body">
                 <p class="font-weight-bold mb-1">{{ resp.request_type_label || resp.request_type }}</p>
 
                 <div class="mb-3">
-                  <img 
-                    :src="resp.user_profile_url 
-                      ? `/storage/${resp.user_profile_url}` 
+                  <img
+                    :src="resp.user_profile_url
+                      ? `/storage/${resp.user_profile_url}`
                       : '/images/default-avatar.png'"
                     class="rounded-circle"
                     width="50"

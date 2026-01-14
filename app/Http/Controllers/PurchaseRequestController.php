@@ -152,44 +152,58 @@ class PurchaseRequestController extends Controller
     {
         $this->authorize('view', $purchaseRequest);
 
+        // Map all the data once
+        $data = $this->mapPurchaseRequestData($purchaseRequest);
+
+        // Mark approval as seen if needed
+        if ($data['approval_button_data'] ?? false) {
+            $purchaseRequest->approvals()
+                ->where('responder_id', auth()->id())
+                ->where('approval_status', 'Pending')
+                ->where('is_seen', false)
+                ->update(['is_seen' => true]);
+        }
+
         return view('purchase-requests.show', [
             'purchaseRequestId' => $purchaseRequest->id,
-            'referenceNo' => $purchaseRequest->reference_no,
+            'referenceNo'       => $purchaseRequest->reference_no,
+            'purchaseRequest'   => $data, // Pass the mapped data directly
         ]);
     }
 
 
-    public function showData(PurchaseRequest $purchaseRequest): JsonResponse
-    {
-        try {
-            $this->authorize('update', $purchaseRequest);
-            $data = $this->mapPurchaseRequestData($purchaseRequest);
 
-            // ✅ If approval button is visible, mark as seen
-            if ($data['approval_button_data']) {
-                $purchaseRequest->approvals()
-                    ->where('responder_id', auth()->id())
-                    ->where('approval_status', 'Pending')
-                    ->where('is_seen', false)
-                    ->update(['is_seen' => true]);
-            }
+    // public function showData(PurchaseRequest $purchaseRequest): JsonResponse
+    // {
+    //     try {
+    //         $this->authorize('update', $purchaseRequest);
+    //         $data = $this->mapPurchaseRequestData($purchaseRequest);
 
-            return response()->json([
-                'message' => 'Purchase request retrieved successfully.',
-                'data' => $data,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to retrieve purchase request', [
-                'id' => $purchaseRequest->id,
-                'error' => $e->getMessage()
-            ]);
+    //         // ✅ If approval button is visible, mark as seen
+    //         if ($data['approval_button_data']) {
+    //             $purchaseRequest->approvals()
+    //                 ->where('responder_id', auth()->id())
+    //                 ->where('approval_status', 'Pending')
+    //                 ->where('is_seen', false)
+    //                 ->update(['is_seen' => true]);
+    //         }
 
-            return response()->json([
-                'message' => 'Failed to retrieve purchase request.',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+    //         return response()->json([
+    //             'message' => 'Purchase request retrieved successfully.',
+    //             'data' => $data,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('Failed to retrieve purchase request', [
+    //             'id' => $purchaseRequest->id,
+    //             'error' => $e->getMessage()
+    //         ]);
+
+    //         return response()->json([
+    //             'message' => 'Failed to retrieve purchase request.',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
 
     public function viewPdf(PurchaseRequest $purchaseRequest)
@@ -666,7 +680,7 @@ class PurchaseRequestController extends Controller
 
     private function getFolderPath(PurchaseRequest $purchaseRequest): string
     {
-        $date = \Carbon\Carbon::parse($purchaseRequest->request_date);
+        $date = Carbon::parse($purchaseRequest->request_date);
         $year = $date->format('Y');
         $monthNumber = $date->format('m');
         $monthName = $date->format('M');
@@ -738,17 +752,35 @@ class PurchaseRequestController extends Controller
     // ====================
     // Approval Users Endpoint
     // ====================
-    public function getApprovalUsers(): JsonResponse
+    public function getApprovalUsers(Request $request): JsonResponse
     {
-        $users = [
-            'initial' => $this->usersWithPermission('purchaseRequest.initial'),
-            'check'   => $this->usersWithPermission('purchaseRequest.check'),
-            'approve' => $this->usersWithPermission('purchaseRequest.approve'),
-            'verify'  => $this->usersWithPermission('purchaseRequest.verify'),
+        $validated = $request->validate([
+            'request_type' => 'nullable|in:initial,check,approve,verify'
+        ]);
+
+        $permissions = [
+            'initial' => 'purchaseRequest.initial',
+            'check'   => 'purchaseRequest.check',
+            'approve' => 'purchaseRequest.approve',
+            'verify'  => 'purchaseRequest.verify',
         ];
+
+        if (!empty($validated['request_type'])) {
+            $type = $validated['request_type'];
+
+            return response()->json([
+                $type => $this->usersWithPermission($permissions[$type]),
+            ]);
+        }
+
+        $users = [];
+        foreach ($permissions as $key => $permission) {
+            $users[$key] = $this->usersWithPermission($permission);
+        }
 
         return response()->json($users);
     }
+
 
     private function usersWithPermission(string $permission)
     {
@@ -758,6 +790,143 @@ class PurchaseRequestController extends Controller
             ->select('id', 'name', 'card_number')
             ->orderBy('name')
             ->get();
+    }
+
+    // Submit approval
+
+    public function submitApproval(Request $request, PurchaseRequest $purchaseRequest, ApprovalService $approvalService): JsonResponse
+    {
+        // Validate request
+        $validated = $request->validate([
+            'request_type' => 'required|string|in:initial,check,approve,verify,acknowledge',
+            'action'       => 'required|string|in:approve,reject,return',
+            'comment'      => 'nullable|string|max:1000',
+        ]);
+
+        // Check user permission
+        $permission = "purchaseRequest.{$validated['request_type']}";
+        if (!auth()->user()->can($permission)) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['request_type']} this stock report.",
+            ], 403);
+        }
+
+        // Process approval via ApprovalService
+        $result = $approvalService->handleApprovalAction(
+            $purchaseRequest,
+            $validated['request_type'],
+            $validated['action'],
+            $validated['comment'] ?? null
+        );
+
+        // Ensure $result has 'success' key
+        $success = $result['success'] ?? false;
+
+        // Update Stock Report approval_status if successful
+        if ($success) {
+
+            $statusByRequestType = [
+                'initial' => 'Initialed',
+                'check'   => 'Checked',
+                'verify'  => 'Verified',
+                'acknowledge'=> 'Acknowledge',
+                'approve' => 'Approved',
+            ];
+
+            $statusByAction = [
+                'reject' => 'Rejected',
+                'return' => 'Returned',
+            ];
+
+            if ($validated['action'] === 'approve') {
+                // ✅ Approve → use request_type
+                $purchaseRequest->approval_status =
+                    $statusByRequestType[$validated['request_type']] ?? 'Approved';
+            } else {
+                // ❌ Reject / Return → use action
+                $purchaseRequest->approval_status =
+                    $statusByAction[$validated['action']] ?? 'Pending';
+            }
+
+            $purchaseRequest->save();
+        }
+
+
+        return response()->json([
+            'message'      => $result['message'] ?? 'Action failed',
+            'redirect_url' => route('approvals-purchase-requests.show', $purchaseRequest->id),
+            'approval'     => $result['approval'] ?? null,
+        ], $success ? 200 : 400);
+    }
+
+    // Confirm Reassing
+    public function reassignResponder(Request $request, PurchaseRequest $purchaseRequest): JsonResponse
+    {
+        $this->authorize('reassign', $purchaseRequest);
+
+        $validated = $request->validate([
+            'request_type'   => 'required|string|in:initial,check,approve,verify,acknowledge',
+            'new_user_id'    => 'required|exists:users,id',
+            'new_position_id'=> 'nullable|exists:positions,id',
+            'comment'        => 'nullable|string|max:1000',
+        ]);
+
+        $user = User::findOrFail($validated['new_user_id']);
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition?->id;
+
+        if (!$positionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The new user does not have a default position assigned.',
+            ], 422);
+        }
+
+        if (!$user->hasPermissionTo("purchaseRequest.{$validated['request_type']}")) {
+            return response()->json([
+                'success' => false,
+                'message' => "User {$user->id} does not have permission for {$validated['request_type']}.",
+            ], 403);
+        }
+
+        $approval = Approval::where([
+            'approvable_type' => PurchaseRequest::class,
+            'approvable_id'   => $purchaseRequest->id,
+            'request_type'    => $validated['request_type'],
+            'approval_status' => 'Pending',
+        ])->first();
+
+        if (!$approval) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending approval found for the specified request type.',
+            ], 404);
+        }
+
+        try {
+            $approval->update([
+                'responder_id' => $user->id,
+                'position_id'  => $positionId,
+                'comment'      => $validated['comment'] ?? $approval->comment,
+                'is_seen'      => false,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Responder reassigned successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reassign responder', [
+                'document_id'  => $purchaseRequest->id,
+                'request_type' => $validated['request_type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reassign responder.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 
 
@@ -865,7 +1034,7 @@ class PurchaseRequestController extends Controller
 
             // Check all previous approvals (lower OR same ordinal but lower id)
             $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
-                return ($a->ordinal < $currentApproval->ordinal) || 
+                return ($a->ordinal < $currentApproval->ordinal) ||
                     ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
             });
 
@@ -923,8 +1092,8 @@ class PurchaseRequestController extends Controller
 
         return [
             'id' => $purchaseRequest->id,
-            'deadline_date' => $purchaseRequest->deadline_date 
-                ? Carbon::parse($purchaseRequest->deadline_date)->format('M d, Y') 
+            'deadline_date' => $purchaseRequest->deadline_date
+                ? Carbon::parse($purchaseRequest->deadline_date)->format('M d, Y')
                 : null,
             'purpose' => $purchaseRequest->purpose,
             'is_urgent' => $purchaseRequest->is_urgent,
@@ -935,8 +1104,8 @@ class PurchaseRequestController extends Controller
             'creator_signature_url' => $purchaseRequest->creator->signature_url,
             'creator_department' => $purchaseRequest->creator->defaultDepartment?->name,
             'creator_cellphone' => $purchaseRequest->creator->phone,
-            'request_date' => $purchaseRequest->request_date 
-                ? Carbon::parse($purchaseRequest->request_date)->format('M d, Y') 
+            'request_date' => $purchaseRequest->request_date
+                ? Carbon::parse($purchaseRequest->request_date)->format('M d, Y')
                 : null,
             'approval_status' => $purchaseRequest->approval_status,
             'reference_no' => $purchaseRequest->reference_no,
