@@ -167,7 +167,7 @@ class PurchaseRequestController extends Controller
         return view('purchase-requests.show', [
             'purchaseRequestId' => $purchaseRequest->id,
             'referenceNo'       => $purchaseRequest->reference_no,
-            'purchaseRequest'   => $data, // Pass the mapped data directly
+            'purchaseRequest'   => $data,
         ]);
     }
 
@@ -189,7 +189,9 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->load([
                 'items.campuses',
                 'items.departments',
-                'approvals.responder', // include responder user
+                'approvals' => fn ($q) => $q
+                    ->where('prod_action', 0)
+                    ->with('responder'),
                 'files'
             ]);
 
@@ -419,12 +421,12 @@ class PurchaseRequestController extends Controller
     {
         $this->authorize('update', $purchaseRequest);
 
-        if ($purchaseRequest->approval_status !== 'Pending') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Purchase request is not in pending status.',
-            ], 400);
-        }
+        // if ($purchaseRequest->approval_status !== 'Pending') {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Purchase request is not in pending status.',
+        //     ], 400);
+        // }
 
         $user = Auth::user();
 
@@ -685,7 +687,7 @@ class PurchaseRequestController extends Controller
             $approvalPayload = [
                 'approvable_type' => PurchaseRequest::class,
                 'approvable_id' => $purchaseRequest->id,
-                'document_name' => $purchaseRequest->document_type ?? 'Purchase Request',
+                'document_name' => 'Purchase Request',
                 'document_reference' => $purchaseRequest->reference_no,
                 'request_type' => $approval['request_type'],
                 'approval_status' => 'Pending',
@@ -693,6 +695,7 @@ class PurchaseRequestController extends Controller
                 'requester_id' => $purchaseRequest->created_by,
                 'responder_id' => $approval['user_id'],
                 'position_id' => User::find($approval['user_id'])?->defaultPosition?->id,
+                'is_seen' => 1,
             ];
              $this->approvalService->storeApproval($approvalPayload);
         }
@@ -779,7 +782,7 @@ class PurchaseRequestController extends Controller
 
         // Check user permission
         $permission = "purchaseRequest.{$validated['request_type']}";
-        if (!auth()->user()->can($permission)) {
+        if (!Auth::user()->can($permission)) {
             return response()->json([
                 'message' => "You do not have permission to {$validated['request_type']} this stock report.",
             ], 403);
@@ -831,6 +834,107 @@ class PurchaseRequestController extends Controller
             'redirect_url' => route('approvals-purchase-requests.show', $purchaseRequest->id),
             'approval'     => $result['approval'] ?? null,
         ], $success ? 200 : 400);
+    }
+
+    public function submitProdAction(Request $request, PurchaseRequest $purchaseRequest, ApprovalService $approvalService): JsonResponse
+    {
+        // -------------------------------
+        // 0️⃣ Validate request
+        // -------------------------------
+        $validated = $request->validate([
+            'action'  => 'required|string|in:receive,prod-verify,reject,return',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        // -------------------------------
+        // Permission check
+        // -------------------------------
+        if (! Auth::user()->hasAnyPermission([
+            'purchaseRequest.receive',
+            'purchaseRequest.prod-verify',
+        ])) {
+            return response()->json([
+                'message' => "You do not have permission to {$validated['action']} this purchase request.",
+            ], 403);
+        }
+
+        // -------------------------------
+        // Check pending approvals
+        // -------------------------------
+        $approvedCount = Approval::where('approvable_type', PurchaseRequest::class)
+            ->where('approvable_id', $purchaseRequest->id)
+            ->where('approval_status', 'Approved')
+            ->count();
+
+        $allApprovalCount = Approval::where('approvable_type', PurchaseRequest::class)
+            ->where('approvable_id', $purchaseRequest->id)
+            ->where('prod_action', 0) // exclude system approvals
+            ->count();
+
+        $pendingApproval = $allApprovalCount - $approvedCount;
+
+        if ($pendingApproval > 0) {
+            return response()->json([
+                'message' => "You cannot {$validated['action']} this purchase request until all approvals are approved.",
+            ], 403);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // -------------------------------
+            // Map action to human-readable status
+            // -------------------------------
+            $statusMap = [
+                'receive'      => 'Received',
+                'prod-verify'  => 'PROD-Verified',
+                'reject'       => 'Rejected',
+                'return'       => 'Returned',
+            ];
+
+            $mappedStatus = $statusMap[$validated['action']] ?? 'Pending';
+
+            // -------------------------------
+            // 1️⃣ Always create a new approval based on the action
+            // -------------------------------
+            $approval = Approval::create([
+                'approvable_type'    => PurchaseRequest::class,
+                'approvable_id'      => $purchaseRequest->id,
+                'document_name'      => 'Purchase Request',
+                'document_reference' => $purchaseRequest->reference_no,
+                'request_type'       => $validated['action'],
+                'approval_status'    => $mappedStatus,
+                'comment'            => $validated['comment'],
+                'ordinal'            => 0,
+                'requester_id'       => $purchaseRequest->created_by,
+                'responder_id'       => Auth::id(),
+                'position_id'        => Auth::user()->defaultPosition?->id,
+                'responded_date'     => now(),
+                'prod_action'        => 1,
+            ]);
+
+            // -------------------------------
+            // 2️⃣ Update PurchaseRequest status
+            // -------------------------------
+            $purchaseRequest->update([
+                'approval_status' => $mappedStatus,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message'      => "Purchase request {$mappedStatus} successfully.",
+                'redirect_url' => route('approvals-purchase-requests.show', $purchaseRequest->id),
+                'approval'     => $approval,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 400);
+        }
     }
 
     // Confirm Reassing
@@ -1062,7 +1166,23 @@ class PurchaseRequestController extends Controller
             'files',
         ]);
 
+        // Count approved approvals
+        $approvedCount = Approval::where('approvable_type', PurchaseRequest::class)
+            ->where('approvable_id', $purchaseRequest->id)
+            ->where('approval_status', 'Approved')
+            ->count();
+
+        // Count all approvals for this purchase request
+        $allApprovalCount = Approval::where('approvable_type', PurchaseRequest::class)
+            ->where('approvable_id', $purchaseRequest->id)
+            ->where('prod_action', 0)
+            ->count();
+
+        $pendingApproval = $allApprovalCount - $approvedCount;
+
         $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
+        $procurementReceiveButtonData = Auth::user()->can('purchaseRequest.receive') && $pendingApproval === 0 && $purchaseRequest->approval_status === 'Approved';
+        $procurementVerifyButtonData = Auth::user()->can('purchaseRequest.prod-verify') && $purchaseRequest->approval_status === 'Received';
 
         return [
             'id' => $purchaseRequest->id,
@@ -1112,6 +1232,8 @@ class PurchaseRequestController extends Controller
 
             'approvals' => $this->approvalService->mapApprovals($purchaseRequest->approvals),
             'approval_button_data' => $approvalButtonData,
+            'procurement_receive_button' => $procurementReceiveButtonData,
+            'procurement_verify_button'=> $procurementVerifyButtonData,
 
             'files' => $purchaseRequest->files->map(fn($f) => [
                 'id' => $f->id,

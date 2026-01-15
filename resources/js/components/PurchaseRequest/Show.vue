@@ -156,42 +156,106 @@
           </div>
 
           <!-- Approvals -->
-          <div v-for="(approval, i) in purchaseRequest.approvals" :key="i" class="col-md-3 mb-4">
-            <div class="card border shadow-sm h-100">
-              <div class="card-body">
-                <label class="font-weight-bold d-block text-center">{{ approval.request_type_label || approval.request_type }}</label>
-                <div class="d-flex align-items-center justify-content-center mb-2">
-                  <img
-                    :src="approval.user_profile_url ? `/storage/${approval.user_profile_url}` : '/images/default-avatar.png'"
-                    class="rounded-circle"
-                    width="50"
-                    height="50"
-                  />
-                </div>
-                <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
-                <!-- <div v-if="approval.approval_status === 'Approved'" class="mb-2 mt-2 text-center">
-                  <img :src="approval.user_signature_url ? `/storage/${approval.user_signature_url}` : ''" height="50" />
-                </div> -->
-                <p class="mb-1 text-start">
-                  Status:
-                  <span class="badge"
-                        :class="{
-                          'badge-success': approval.approval_status === 'Approved',
-                          'badge-danger': approval.approval_status === 'Rejected',
-                          'badge-warning': approval.approval_status === 'Pending',
-                          'badge-info': approval.approval_status === 'Returned'
-                        }">
-                    <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
-                  </span>
-                </p>
-                <p class="mb-1">Position: {{ approval.position_title ?? 'N/A' }}</p>
-                <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
-                <p v-if="approval.comment && approval.comment.trim()" class="mb-0">
-                  Comment: {{ approval.comment }}
-                </p>
-              </div>
+        <div
+        v-for="(approval, i) in purchaseRequest.approvals.filter(a => a.prod_action == 0)"
+        :key="i"
+        class="col-md-3 mb-4"
+        >
+        <div class="card border shadow-sm h-100">
+            <div class="card-body">
+            <label class="font-weight-bold d-block text-center">
+                {{ approval.request_type_label || approval.request_type }}
+            </label>
+            <div class="d-flex align-items-center justify-content-center mb-2">
+                <img
+                :src="approval.user_profile_url ? `/storage/${approval.user_profile_url}` : '/images/default-avatar.png'"
+                class="rounded-circle"
+                width="50"
+                height="50"
+                />
             </div>
-          </div>
+            <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
+            <p class="mb-1 text-start">
+                Status:
+                <span
+                class="badge"
+                :class="{
+                    'badge-success': approval.approval_status === 'Approved',
+                    'badge-danger': approval.approval_status === 'Rejected',
+                    'badge-warning': approval.approval_status === 'Pending',
+                    'badge-info': approval.approval_status === 'Returned'
+                }"
+                >
+                <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
+                </span>
+            </p>
+            <p class="mb-1">Position: {{ approval.position_title ?? 'N/A' }}</p>
+            <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
+            <p v-if="approval.comment && approval.comment.trim()" class="mb-0">
+                Comment: {{ approval.comment }}
+            </p>
+            </div>
+        </div>
+        </div>
+<div class="col-12 mt-4">
+  <h5 class="text-center mb-3">Timeline</h5>
+
+  <div
+    class="d-flex justify-content-start align-items-center"
+    style="overflow-x:auto; white-space: nowrap; gap: 20px; padding: 10px 0;"
+  >
+    <!-- 1️⃣ Static first step: Creator -->
+    <div class="d-flex flex-column align-items-center" style="min-width: 120px;">
+      <span class="badge bg-primary px-3 py-2 mb-1">Created</span>
+      <small class="text-muted text-center">
+        {{ purchaseRequest.creator_name ?? 'N/A' }}<br>
+        {{ formatDate(purchaseRequest.request_date) ?? 'N/A' }}
+      </small>
+    </div>
+
+    <!-- Arrow + duration to first approval -->
+    <template v-if="purchaseRequest.approvals.length > 0">
+      <div class="d-flex flex-column align-items-center">
+        <small class="text-secondary mb-1">
+          {{ daysBetween(purchaseRequest.request_date, purchaseRequest.approvals[0].responded_date) }}
+        </small>
+        <i class="fal fa-arrow-right text-secondary fa-2x"></i>
+      </div>
+    </template>
+
+    <!-- 2️⃣ Loop through approvals using your old loop -->
+    <template v-for="(approval, i) in purchaseRequest.approvals" :key="'approval-'+i">
+
+      <!-- Each approval step -->
+      <div class="d-flex flex-column align-items-center" style="min-width: 120px;">
+        <span class="badge bg-secondary px-3 py-2 mb-1">
+          {{ approval.request_type_label || approval.request_type }}
+        </span>
+        <small class="text-muted text-center">
+          {{ approval.name ?? 'N/A' }}<br>
+          {{ formatDate(approval.responded_date) ?? 'N/A' }}
+        </small>
+      </div>
+
+      <!-- Arrow + duration to next approval (skip last) -->
+      <template v-if="i < purchaseRequest.approvals.length - 1">
+        <div class="d-flex flex-column align-items-center">
+          <small class="text-secondary mb-1">
+            {{ daysBetween(approval.responded_date, purchaseRequest.approvals[i+1].responded_date) }}
+          </small>
+          <i class="fal fa-arrow-right text-secondary fa-2x"></i>
+        </div>
+      </template>
+
+    </template>
+
+    <!-- Empty state -->
+    <div v-if="purchaseRequest.approvals.length === 0" class="text-center text-muted mt-2">
+      No approvals yet.
+    </div>
+  </div>
+</div>
+
 
           <div v-if="purchaseRequest.approvals.length === 0" class="col-12 text-center text-muted">
             No approvals available.
@@ -200,28 +264,94 @@
       </div>
     </div>
 
-    <!-- Approval Action Footer -->
-    <div class="card-footer">
-      <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
-      <div v-if="showApprovalButton">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
-            <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
-          </button>
-          <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
-            <i class="fal fa-times"></i> Reject
-          </button>
-          <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
-            <i class="fal fa-undo"></i> Return
-          </button>
-          <button @click="openReassignModal" class="btn btn-sm btn-primary" :disabled="loading">
-            <i class="fal fa-exchange"></i> Reassign
-          </button>
+    <div class="row">
+        <!-- Approval Action (Left – Centered) -->
+        <div class="col-md-6">
+            <div class="card-footer w-100">
+            <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
+
+            <div v-if="showApprovalButton">
+                <div class="d-flex gap-2 flex-wrap">
+                <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
+                    <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
+                </button>
+                <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
+                    <i class="fal fa-times"></i> Reject
+                </button>
+                <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
+                    <i class="fal fa-undo"></i> Return
+                </button>
+                <button @click="openReassignModal" class="btn btn-sm btn-primary" :disabled="loading">
+                    <i class="fal fa-exchange"></i> Reassign
+                </button>
+                </div>
+            </div>
+
+            <div v-else>
+                <p class="text-muted">No approval action available at this time.</p>
+            </div>
+            </div>
         </div>
-      </div>
-      <div v-else>
-        <p class="text-muted">No approval action available at this time.</p>
-      </div>
+
+
+        <!-- -------------------------------
+            1️⃣ Procurement Action Buttons
+        ------------------------------- -->
+        <div class="col-md-6 d-flex justify-content-center" v-if="showProcurementActions">
+        <div class="card-footer text-center w-100">
+            <h5 class="font-weight-bold text-dark mb-3">Procurement Action</h5>
+
+            <div class="d-flex justify-content-center gap-2 flex-wrap">
+            <!-- Receive & Return buttons -->
+            <button
+                v-if="showProcurementReceiveButton"
+                @click="openProdModal('receive')"
+                class="btn btn-sm btn-success"
+                :disabled="loading"
+            >
+                <i class="fal fa-check"></i> Receive
+            </button>
+
+            <button
+                v-if="showProcurementReceiveButton"
+                @click="openProdModal('return')"
+                class="btn btn-sm btn-warning"
+                :disabled="loading"
+            >
+                <i class="fal fa-undo"></i> Return
+            </button>
+
+            <!-- Verify, Return & Reject buttons -->
+            <button
+                v-if="showProcurementVerifyButton"
+                @click="openProdModal('prod-verify')"
+                class="btn btn-sm btn-success"
+                :disabled="loading"
+            >
+                <i class="fal fa-check"></i> Verify
+            </button>
+
+            <button
+                v-if="showProcurementVerifyButton"
+                @click="openProdModal('return')"
+                class="btn btn-sm btn-warning"
+                :disabled="loading"
+            >
+                <i class="fal fa-undo"></i> Return
+            </button>
+
+            <button
+                v-if="showProcurementVerifyButton"
+                @click="openProdModal('reject')"
+                class="btn btn-sm btn-danger"
+                :disabled="loading"
+            >
+                <i class="fal fa-times"></i> Reject
+            </button>
+            </div>
+        </div>
+        </div>
+
     </div>
 
     <!-- Confirm Modal -->
@@ -250,6 +380,37 @@
               {{ currentAction === 'approve' ? capitalize(approvalRequestType)
                  : currentAction === 'reject' ? 'Reject'
                  : 'Return' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Procurement Action -->
+    <div class="modal fade" id="prodModal" tabindex="-1" role="dialog" ref="prodModal">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              Action Confirmation
+            </h5>
+            <button type="button" class="close" @click="resetProdModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <textarea v-model="commentInput" class="form-control" rows="4" placeholder="Enter your comment (optional)" :disabled="loading"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary"
+                    @click="resetProdModal"
+                    :disabled="loading">
+            Cancel
+            </button>
+
+            <button class="btn"
+                    :class="actionButtonClass"
+                    @click="submitProdAction(currentAction)"
+                    :disabled="loading">
+            {{ actionButtonLabel }}
             </button>
           </div>
         </div>
@@ -293,7 +454,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { showAlert } from '@/Utils/bootbox'
 import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
@@ -304,15 +465,7 @@ import FileViewerModal from '../Reusable/FileViewerModal.vue'
 const props = defineProps({
   purchaseRequestId: { type: Number, required: true },
   initialData: {
-    type: Object,
-    default: () => ({
-      items: [],
-      approvals: [],
-      files: [],
-      approval_button_data: {},
-      total_value_usd: 0,
-      total_value_khr: 0
-    })
+    type: Object
   }
 })
 
@@ -321,6 +474,8 @@ const purchaseRequest = ref(props.initialData)
 const loading = ref(false)
 const usersList = ref([])
 const showApprovalButton = ref(purchaseRequest.value.approval_button_data?.showButton ?? false)
+const showProcurementReceiveButton = ref(purchaseRequest.value.procurement_receive_button ?? false)
+const showProcurementVerifyButton = ref(purchaseRequest.value.procurement_verify_button ?? false)
 const approvalRequestType = ref(purchaseRequest.value.approval_button_data?.requestType ?? 'approve')
 const currentAction = ref('approve')
 const commentInput = ref('')
@@ -339,10 +494,58 @@ const openConfirmModal = (action) => {
   $('#confirmModal').modal('show')
 }
 
+const openProdModal = (action) => {
+  currentAction.value = action
+  commentInput.value = ''
+  $('#prodModal').modal('show')
+}
+
 const resetConfirmModal = () => {
   commentInput.value = ''
   $('#confirmModal').modal('hide')
 }
+
+const resetProdModal = () => {
+  commentInput.value = ''
+  $('#prodModal').modal('hide')
+}
+
+const actionConfig = {
+  receive: {
+    label: 'Receive',
+    class: 'btn-success',
+  },
+  'prod-verify': {
+    label: 'Verify',
+    class: 'btn-success',
+  },
+  return: {
+    label: 'Return',
+    class: 'btn-warning',
+  },
+  reject: {
+    label: 'Reject',
+    class: 'btn-danger',
+  },
+}
+
+const daysBetween = (startDate, endDate) => {
+  if (!startDate || !endDate) return ''
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const diffMs = end - start
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+  return `${diffDays} day${diffDays !== 1 ? 's' : ''}`
+}
+
+
+const actionButtonLabel = computed(() => {
+  return actionConfig[currentAction.value]?.label ?? 'Submit'
+})
+
+const actionButtonClass = computed(() => {
+  return actionConfig[currentAction.value]?.class ?? 'btn-primary'
+})
 
 // Submit approval action
 const submitApproval = async (action) => {
@@ -360,6 +563,32 @@ const submitApproval = async (action) => {
     showAlert('Error', err.response?.data?.message || 'Action failed.', 'danger')
   } finally { loading.value = false }
 }
+
+const submitProdAction = async (action) => {
+  loading.value = true
+  try {
+    const res = await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/submit-prod-action`, {
+      action,
+      comment: commentInput.value.trim()
+    })
+    showAlert('success', res.data.message || 'Action submitted successfully.')
+    $('#confirmModal').modal('hide')
+    setTimeout(() => window.location.reload(), 1500)
+  } catch (err) {
+    showAlert('Error', err.response?.data?.message || 'Action failed.', 'danger')
+  } finally {
+    loading.value = false
+  }
+}
+
+// Button procurement
+
+const showProcurementActions = computed(() => {
+  return (
+    showProcurementReceiveButton.value ||
+    showProcurementVerifyButton.value
+  )
+})
 
 // File Viewer
 const openFileViewer = (url, name) => {

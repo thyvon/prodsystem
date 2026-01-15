@@ -23,7 +23,8 @@ class Approval extends Model
         'responder_id',
         'position_id',
         'responded_date',
-        'is_seen'
+        'is_seen',
+        'prod_action',
     ];
 
     public function approvable()

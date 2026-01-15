@@ -446,6 +446,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             ->name('api.purchase-requests.get-approval-users');
     Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
             ->name('api.purchase-requests.submit-approval');
+    Route::post('/purchase-requests/{purchaseRequest}/submit-prod-action', [PurchaseRequestController::class, 'submitProdAction'])
+            ->name('api.purchase-requests.submit-prod-action');
     Route::get('/purchase-requests/get-campuses', [PurchaseRequestController::class, 'getCampuses'])->name('api.purchase-requests.get-campuses');
     Route::get('/purchase-requests/get-departments', [PurchaseRequestController::class, 'getDepartments'])->name('api.purchase-requests.get-departments');
     Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
