@@ -101,7 +101,7 @@ class ApprovalService
             'approvable_id'   => $approvable->id,
             'request_type'    => $requestType,
             'responder_id'    => Auth::id(),
-            // 'approval_status' => 'Pending',
+            'approval_status' => 'Pending',
         ])->first();
 
         if (!$approval) {

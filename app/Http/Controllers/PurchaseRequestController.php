@@ -438,14 +438,22 @@ class PurchaseRequestController extends Controller
                 // --------------------
                 // Update main fields
                 // --------------------
+                $wasReturned = $purchaseRequest->approval_status === 'Returned';
+
                 $purchaseRequest->update([
-                    'deadline_date' => $validated['deadline_date'] ?? null,
-                    'purpose' => $validated['purpose'],
-                    'is_urgent' => $validated['is_urgent'],
-                    'updated_by' => $user->id,
-                    'updated_at' => now(),
-                    'approval_status' => 'Pending'
+                    'deadline_date'   => $validated['deadline_date'] ?? null,
+                    'purpose'         => $validated['purpose'],
+                    'is_urgent'       => $validated['is_urgent'],
+                    'updated_by'      => $user->id,
+                    'updated_at'      => now(),
+                    'approval_status' => 'Pending',
                 ]);
+
+                if ($wasReturned) {
+                    $purchaseRequest->update([
+                        'request_date' => now(),
+                    ]);
+                }
 
                 // --------------------
                 // Handle file deletions
@@ -913,6 +921,17 @@ class PurchaseRequestController extends Controller
                 'prod_action'        => 1,
             ]);
 
+            if ($validated['action'] === 'return') {
+                Approval::where('approvable_type', PurchaseRequest::class)
+                ->where('approvable_id', $purchaseRequest->id)
+                ->where('prod_action', 0)
+                ->update([
+                    'approval_status' => 'Pending',
+                    'comment' => null,
+                    'is_seen' => 0,
+                ]);
+            }
+
             // -------------------------------
             // 2️⃣ Update PurchaseRequest status
             // -------------------------------
@@ -935,6 +954,48 @@ class PurchaseRequestController extends Controller
                 'message' => $e->getMessage(),
             ], 400);
         }
+    }
+
+    // Get Purchaser
+
+    public function getPurchasers(): JsonResponse
+    {
+        $users = User::whereHas('roles', function ($q) {
+                $q->where('name', 'purchaser');
+            })
+            ->select('id', 'name', 'card_number')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($users);
+    }
+
+    public function assignPurchasers(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $this->authorize('update', $purchaseRequest);
+        $request->validate([
+            'assignments' => 'required|array',
+            'assignments.*.item_id' => 'required|exists:purchase_request_items,id',
+            'assignments.*.purchaser_id' => 'required|exists:users,id',
+        ]);
+
+        // 🔹 Start transaction
+        DB::transaction(function () use ($request, $purchaseRequest) {
+            foreach ($request->input('assignments') as $data) {
+                $item = $purchaseRequest->items()
+                    ->where('id', $data['item_id'])
+                    ->firstOrFail();
+
+                $item->update([
+                    'purchaser_id' => $data['purchaser_id'],
+                ]);
+            }
+        });
+
+        // 🔹 Return JSON response
+        return response()->json([
+            'message' => 'Purchasers assigned successfully',
+        ]);
     }
 
     // Confirm Reassing
@@ -1161,8 +1222,8 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest->load([
             'items.campuses',
-            'items.departments',
-            'approvals.responder',
+            'items.departments:id,name,short_name',
+            'approvals.responder:id,name,card_number',
             'files',
         ]);
 
@@ -1207,6 +1268,7 @@ class PurchaseRequestController extends Controller
             'total_value_khr' => $purchaseRequest->items->where('currency', 'KHR')->sum('total_price'),
 
             'items' => $purchaseRequest->items->map(fn($i) => [
+                'id' => $i->id,
                 'product_id' => $i->product_id,
                 'product_code' => $i->product->item_code,
                 'product_description' => collect([optional($i->product->product)->name, $i->product->description, $i->description])->filter()->join(' '),
@@ -1228,6 +1290,8 @@ class PurchaseRequestController extends Controller
                 'total_price' => $i->total_price,
                 'total_price_usd' => $i->total_price_usd,
                 'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
+                'purchaser_id' => $i->purchaser_id,
+                'purchaser_name' => $i->purchaser?->name,
             ]),
 
             'approvals' => $this->approvalService->mapApprovals($purchaseRequest->approvals),

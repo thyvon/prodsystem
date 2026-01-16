@@ -1,268 +1,21 @@
 <template>
   <div class="card mb-0 shadow">
     <!-- Header -->
-    <div class="card-header bg-light py-2 d-flex justify-between items-center">
-        <button class="btn btn-sm btn-outline-success" @click="goBack">
-          <i class="fal fa-backward"></i> Back
-        </button>
-        <button @click="openPdfViewer(purchaseRequest.id)" class="btn btn-outline-secondary btn-sm">
-          <i class="fal fa-print"></i> Print
-        </button>
-    </div>
+    <PurchaseRequestHeader
+    @goBack="goBack"
+    @printPdf="() => openPdfViewer(purchaseRequest.id)"
+    />
 
     <!-- Body -->
-    <div class="card-body bg-white p-3">
-      <!-- General Info -->
-      <div class="row mb-3">
-        <div class="col-3">
-        <div class="row mb-1">
-            <div class="col-6 text-muted">Requester / អ្នកស្នើសុំ:</div>
-            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
-        </div>
-        <div class="row mb-1">
-            <div class="col-6 text-muted">ID Card / អត្តលេខ:</div>
-            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_id_card ?? 'N/A' }}</div>
-        </div>
-        <div class="row mb-1">
-            <div class="col-6 text-muted">Position / មុខតំណែង:</div>
-            <div class="col-6 font-weight-bold">{{ purchaseRequest.creator_position ?? 'N/A' }}</div>
-        </div>
-        </div>
+    <PurchaseRequestBody
+    :purchase-request="purchaseRequest"
+    :format="format"
+    :format-date="formatDate"
+    :capitalize="capitalize"
+    :days-between="daysBetween"
+    :open-file-viewer="openFileViewer"
+    />
 
-        <div class="col-6 text-center">
-          <h4 class="font-weight-bold text-dark">Purchase Request</h4>
-          <h4 class="font-weight-bold text-dark">សំណើទិញសម្ភារ</h4>
-          <h4 v-if="purchaseRequest.is_urgent" class="font-weight-bold text-danger">Urgent</h4>
-        </div>
-
-        <div class="col-3 text-end">
-          <p class="text-muted mb-1">
-            REF. / លេខយោង: <span class="font-weight-bold">{{ purchaseRequest.reference_no ?? 'N/A' }}</span>
-          </p>
-          <p class="text-muted mb-1">
-            DATE REQUESTED / កាលបរិច្ឆេទ: <span class="font-weight-bold">{{ formatDate(purchaseRequest.request_date) ?? 'N/A' }}</span>
-          </p>
-          <p class="text-muted mb-1">
-            DEADLINE / ថ្ងៃផុតកំណត់: <span class="font-weight-bold">{{ formatDate(purchaseRequest.deadline_date) ?? 'N/A' }}</span>
-          </p>
-        </div>
-      </div>
-
-      <div class="row mb-3">
-        <div class="col-12">
-          <p class="mb-2">PURPOSE/គោលបំណង: <span class="font-weight-bold">{{ purchaseRequest.purpose ?? 'N/A' }}</span></p>
-        </div>
-      </div>
-
-      <!-- Line Items -->
-      <div class="table-responsive">
-        <table class="table table-bordered table-sm">
-          <thead class="table-secondary">
-            <tr>
-              <th class="text-center">#</th>
-              <th>Product Code</th>
-              <th>Product Description</th>
-              <th>Unit</th>
-              <th class="text-center">Qty</th>
-              <th class="text-end">Unit Price</th>
-              <th class="text-end">Total Price</th>
-              <th>Division</th>
-              <th>Department</th>
-              <th>Campus</th>
-              <th>Budget Code</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(item, i) in purchaseRequest.items" :key="i">
-              <td class="text-center">{{ i + 1 }}</td>
-              <td>{{ item.product_code ?? 'N/A' }}</td>
-              <td>{{ item.product_description ?? 'N/A' }}</td>
-              <td>{{ item.unit_name ?? 'N/A' }}</td>
-              <td class="text-center">{{ format(item.quantity) }}</td>
-              <td class="text-end">{{ format(item.unit_price) }}</td>
-              <td class="text-end">{{ format(item.total_price) }} {{ item.currency }}</td>
-              <td><p>{{ item.division_short_names }}</p></td>
-              <td><p>{{ item.department_short_names }}</p></td>
-              <td><p>{{ item.campus_short_names }}</p></td>
-              <td><p>{{ item.budget_code_ref ?? 'N/A' }}</p></td>
-            </tr>
-            <tr class="table-secondary">
-            <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
-            <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_usd) }}</td>
-            <td colspan="4"></td>
-            </tr>
-            <tr class="table-secondary">
-            <td colspan="6" class="text-end font-weight-bold">Total (KHR)</td>
-            <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_khr) }}</td>
-            <td colspan="4"></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Attachement -->
-  <div class="mt-4" v-if="purchaseRequest.files && purchaseRequest.files.length > 0">
-    <div class="row">
-      <div class="col-12">
-        <h5 class="text-primary font-weight-bold mb-3">Attachments</h5>
-        <div class="card border shadow-sm">
-          <div class="card-body">
-            <div class="row">
-              <div class="col-12">
-                <button
-                  v-for="attachment in purchaseRequest.files"
-                  :key="attachment.id"
-                  type="button"
-                  class="btn btn-sm btn-outline-info m-1"
-                  @click="openFileViewer(attachment.url, attachment.name)"
-                >
-                  📄 {{ attachment.name }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-      <!-- Requested & Approval Cards -->
-      <div class="mt-4">
-        <div class="row justify-content-center">
-          <!-- Requested By -->
-          <div class="col-md-3 mb-4">
-            <div class="card border shadow-sm h-100">
-              <div class="card-body">
-                <label class="font-weight-bold d-block text-center">Requested By</label>
-                <div class="d-flex align-items-center justify-content-center mb-2">
-                  <img
-                      :src="purchaseRequest.creator_profile_url ? '/storage/' + purchaseRequest.creator_profile_url : '/images/default-avatar.png'"
-                      class="rounded-circle"
-                      width="50"
-                      height="50"
-                  />
-                </div>
-                <div class="font-weight-bold mb-1 text-center">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
-                <!-- <div v-if="purchaseRequest.creator_signature_url" class="mb-2 mt-2 text-center">
-                  <img
-                    :src="'/storage/' + purchaseRequest.creator_signature_url"
-                    height="50"
-                  />
-                </div> -->
-                <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
-                <p class="mb-1">Position: {{ purchaseRequest.creator_position ?? 'N/A' }}</p>
-                <p class="mb-0">Date: {{ formatDate(purchaseRequest.request_date) }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Approvals -->
-        <div
-        v-for="(approval, i) in purchaseRequest.approvals.filter(a => a.prod_action == 0)"
-        :key="i"
-        class="col-md-3 mb-4"
-        >
-        <div class="card border shadow-sm h-100">
-            <div class="card-body">
-            <label class="font-weight-bold d-block text-center">
-                {{ approval.request_type_label || approval.request_type }}
-            </label>
-            <div class="d-flex align-items-center justify-content-center mb-2">
-                <img
-                :src="approval.user_profile_url ? `/storage/${approval.user_profile_url}` : '/images/default-avatar.png'"
-                class="rounded-circle"
-                width="50"
-                height="50"
-                />
-            </div>
-            <div class="font-weight-bold mb-1 text-center">{{ approval.name ?? 'N/A' }}</div>
-            <p class="mb-1 text-start">
-                Status:
-                <span
-                class="badge"
-                :class="{
-                    'badge-success': approval.approval_status === 'Approved',
-                    'badge-danger': approval.approval_status === 'Rejected',
-                    'badge-warning': approval.approval_status === 'Pending',
-                    'badge-info': approval.approval_status === 'Returned'
-                }"
-                >
-                <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>
-                </span>
-            </p>
-            <p class="mb-1">Position: {{ approval.position_title ?? 'N/A' }}</p>
-            <p class="mb-0">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</p>
-            <p v-if="approval.comment && approval.comment.trim()" class="mb-0">
-                Comment: {{ approval.comment }}
-            </p>
-            </div>
-        </div>
-        </div>
-<div class="col-12 mt-4">
-  <h5 class="text-center mb-3">Timeline</h5>
-
-  <div
-    class="d-flex justify-content-start align-items-center"
-    style="overflow-x:auto; white-space: nowrap; gap: 20px; padding: 10px 0;"
-  >
-    <!-- 1️⃣ Static first step: Creator -->
-    <div class="d-flex flex-column align-items-center" style="min-width: 120px;">
-      <span class="badge bg-primary px-3 py-2 mb-1">Created</span>
-      <small class="text-muted text-center">
-        {{ purchaseRequest.creator_name ?? 'N/A' }}<br>
-        {{ formatDate(purchaseRequest.request_date) ?? 'N/A' }}
-      </small>
-    </div>
-
-    <!-- Arrow + duration to first approval -->
-    <template v-if="purchaseRequest.approvals.length > 0">
-      <div class="d-flex flex-column align-items-center">
-        <small class="text-secondary mb-1">
-          {{ daysBetween(purchaseRequest.request_date, purchaseRequest.approvals[0].responded_date) }}
-        </small>
-        <i class="fal fa-arrow-right text-secondary fa-2x"></i>
-      </div>
-    </template>
-
-    <!-- 2️⃣ Loop through approvals using your old loop -->
-    <template v-for="(approval, i) in purchaseRequest.approvals" :key="'approval-'+i">
-
-      <!-- Each approval step -->
-      <div class="d-flex flex-column align-items-center" style="min-width: 120px;">
-        <span class="badge bg-secondary px-3 py-2 mb-1">
-          {{ approval.request_type_label || approval.request_type }}
-        </span>
-        <small class="text-muted text-center">
-          {{ approval.name ?? 'N/A' }}<br>
-          {{ formatDate(approval.responded_date) ?? 'N/A' }}
-        </small>
-      </div>
-
-      <!-- Arrow + duration to next approval (skip last) -->
-      <template v-if="i < purchaseRequest.approvals.length - 1">
-        <div class="d-flex flex-column align-items-center">
-          <small class="text-secondary mb-1">
-            {{ daysBetween(approval.responded_date, purchaseRequest.approvals[i+1].responded_date) }}
-          </small>
-          <i class="fal fa-arrow-right text-secondary fa-2x"></i>
-        </div>
-      </template>
-
-    </template>
-
-    <!-- Empty state -->
-    <div v-if="purchaseRequest.approvals.length === 0" class="text-center text-muted mt-2">
-      No approvals yet.
-    </div>
-  </div>
-</div>
-
-
-          <div v-if="purchaseRequest.approvals.length === 0" class="col-12 text-center text-muted">
-            No approvals available.
-          </div>
-        </div>
-      </div>
-    </div>
 
     <div class="row">
         <!-- Approval Action (Left – Centered) -->
@@ -321,6 +74,13 @@
                 <i class="fal fa-undo"></i> Return
             </button>
 
+            <button
+            class="btn btn-sm btn-primary"
+            @click="openAssignPurchaserModal"
+            >
+            <i class="fal fa-user-plus"></i> Assign Purchaser
+            </button>
+
             <!-- Verify, Return & Reject buttons -->
             <button
                 v-if="showProcurementVerifyButton"
@@ -351,7 +111,80 @@
             </div>
         </div>
         </div>
+        <div class="col-md-6 d-flex justify-content-center" v-else>
+        <div class="card-footer w-100">
+            <h5 class="font-weight-bold text-dark mb-3 text-center">
+            Procurement Action Note
+            </h5>
 
+            <!-- approvals row -->
+            <div class="row justify-content-center">
+            <div
+                v-for="(approval, i) in purchaseRequest.approvals.filter(a => a.prod_action == 1)"
+                :key="'prod-action-' + i"
+                class="col-md-4 col-sm-6 col-12 mb-3"
+            >
+                <div
+                class="rounded p-3 h-100 text-start shadow-lg"
+                :class="{
+                    'text-success': !['Returned','Rejected'].includes(approval.approval_status),
+                    'text-warning': approval.approval_status === 'Returned',
+                    'text-danger': approval.approval_status === 'Rejected'
+                }"
+                :style="{
+                    border: '1px solid ' + (
+                    approval.approval_status === 'Returned' ? '#ffc107' :
+                    approval.approval_status === 'Rejected' ? '#dc3545' :
+                    '#28a745'
+                    )
+                }"
+                >
+                <!-- status icon -->
+                <i
+                    v-if="approval.approval_status === 'Returned'"
+                    class="fal fa-undo fa-2x mb-2"
+                ></i>
+                <i
+                    v-else-if="approval.approval_status === 'Rejected'"
+                    class="fal fa-times-circle fa-2x mb-2"
+                ></i>
+                <i
+                    v-else
+                    class="fal fa-check-circle fa-2x mb-2"
+                ></i>
+
+                <!-- type -->
+                <div class="mb-1">
+                    {{ approval.request_type_label || approval.request_type }}
+                </div>
+
+                <!-- approval name -->
+                <div class="font-weight-bold mb-1">
+                    {{ approval.name ?? 'N/A' }}
+                </div>
+
+                <!-- date -->
+                <div class="text-muted small">
+                    Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}
+                </div>
+
+                <!-- comment -->
+                <div v-if="approval.comment" class="text-muted small">
+                    Comment: {{ approval.comment }}
+                </div>
+                </div>
+            </div>
+
+            <!-- empty state -->
+            <div
+                v-if="purchaseRequest.approvals.filter(a => a.prod_action == 1).length === 0"
+                class="col-12 text-center text-muted"
+            >
+                No procurement action available at this time.
+            </div>
+            </div>
+        </div>
+        </div>
     </div>
 
     <!-- Confirm Modal -->
@@ -417,6 +250,176 @@
       </div>
     </div>
 
+    <!-- Assign Purchaser Modal -->
+    <div
+    class="modal fade"
+    id="assignPurchaserModal"
+    tabindex="-1"
+    role="dialog"
+    ref="assignPurchaserModal"
+    >
+    <div class="modal-dialog modal-xl modal-dialog" role="document">
+        <div class="modal-content shadow-lg">
+
+        <!-- HEADER -->
+        <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title d-flex align-items-center gap-2">
+            <i class="fal fa-users"></i>
+            Assign Purchasers to PR Items
+            </h5>
+            <button
+            type="button"
+            class="close text-white"
+            @click="cleanupAssignPurchaserModal"
+            >
+            <span>&times;</span>
+            </button>
+        </div>
+
+        <!-- BODY -->
+        <div class="modal-body">
+
+            <!-- 🔹 BULK ASSIGN -->
+            <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body bg-light">
+                <div class="row align-items-end">
+                <div class="col-md-6">
+                    <label class="fw-bold mb-1">
+                    Bulk Assign Purchaser
+                    </label>
+                    <select
+                    id="bulkPurchaserSelect"
+                    class="form-control"
+                    >
+                    <option value="">-- Select Purchaser --</option>
+                    <option
+                        v-for="user in purchaserList"
+                        :key="user.id"
+                        :value="user.id"
+                    >
+                        {{ user.name }} - {{ user.card_number }}
+                    </option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 mt-3 mt-md-0">
+                    <button
+                    type="button"
+                    class="btn btn-success w-100"
+                    @click="applyBulkPurchaser"
+                    >
+                    <i class="fal fa-check-circle me-1"></i>
+                    Apply to All Items
+                    </button>
+                </div>
+
+                <div class="col-md-3 mt-3 mt-md-0 text-muted small">
+                    This will assign the selected purchaser to all items.
+                </div>
+                </div>
+            </div>
+            </div>
+
+            <!-- 🔹 ITEMS TABLE -->
+            <div class="table-responsive border rounded">
+            <table class="table table-hover mb-0">
+                <thead class="thead-light">
+                <tr class="bg-secondary text-white">
+                    <th width="5%" class="text-center">#</th>
+                    <th width="45%">Item Details</th>
+                    <th width="15%" class="text-center">Quantity</th>
+                    <th width="15%" class="text-center">Unit</th>
+                    <th width="35%">Purchaser</th>
+                </tr>
+                </thead>
+
+                <tbody>
+                <tr
+                    v-for="(item, index) in assignItems"
+                    :key="item.id"
+                >
+                    <td class="text-center">
+                    {{ index + 1 }}
+                    </td>
+
+                    <td>
+                    <div class="fw-semibold">
+                        {{ item.product_description ?? item.name }}
+                    </div>
+                    <div class="small text-muted">
+                        Code: {{ item.product_code ?? '-' }}
+                    </div>
+                    </td>
+
+                    <td class="text-center">
+                    <div class="fw-semibold">
+                        {{ item.quantity }}
+                    </div>
+                    </td>
+
+                    <td class="text-center">
+                    <div class="fw-semibold">
+                        {{ item.unit_name }}
+                    </div>
+                    </td>
+
+                    <td>
+                    <select
+                        :id="'purchaserSelect-' + item.id"
+                        class="form-control"
+                        v-model="item.purchaser_id"
+                    >
+                        <option value="">-- Select Purchaser --</option>
+                        <option
+                            v-for="user in purchaserList"
+                            :key="user.id"
+                            :value="user.id"
+                        >
+                            {{ user.name }} - {{ user.card_number }}
+                        </option>
+                    </select>
+
+                    </td>
+
+                </tr>
+
+                <tr v-if="!assignItems.length">
+                    <td colspan="4" class="text-center text-muted py-4">
+                    <i class="fal fa-box-open me-1"></i>
+                    No items available
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div class="modal-footer bg-light">
+            <button
+            type="button"
+            class="btn btn-outline-secondary"
+            @click="cleanupAssignPurchaserModal"
+            >
+            Cancel
+            </button>
+
+            <button
+            type="button"
+            class="btn btn-primary px-4"
+            :disabled="loading"
+            @click="submitAssignPurchasers"
+            >
+            <i class="fal fa-save me-1"></i>
+            Assign Selected
+            </button>
+        </div>
+
+        </div>
+    </div>
+    </div>
+
     <!-- Reassign Modal -->
     <div class="modal fade" id="reassignModal" tabindex="-1" role="dialog">
       <div class="modal-dialog modal-dialog-centered">
@@ -460,6 +463,8 @@ import { formatDateShort } from '@/Utils/dateFormat'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import axios from 'axios'
 import FileViewerModal from '../Reusable/FileViewerModal.vue'
+import PurchaseRequestHeader from '@/components/PurchaseRequest/Partials/Show/Header.vue'
+import PurchaseRequestBody from '@/components/PurchaseRequest/Partials/Show/Body.vue'
 
 // Props
 const props = defineProps({
@@ -480,6 +485,8 @@ const approvalRequestType = ref(purchaseRequest.value.approval_button_data?.requ
 const currentAction = ref('approve')
 const commentInput = ref('')
 const fileViewerModal = ref(null)
+const assignItems = ref([])
+const purchaserList = ref([])
 
 // Helpers
 const format = val => Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
@@ -499,6 +506,127 @@ const openProdModal = (action) => {
   commentInput.value = ''
   $('#prodModal').modal('show')
 }
+
+const openAssignPurchaserModal = async () => {
+  loading.value = true
+  try {
+    // Load PR items safely
+    assignItems.value = purchaseRequest.value?.items ?? []
+
+    // Fetch all purchasers
+    const res = await axios.get('/api/purchase-requests/get-purchasers')
+    purchaserList.value = res.data || []
+
+    await nextTick()
+
+    // Initialize bulk select2
+    const bulkEl = document.getElementById('bulkPurchaserSelect')
+    if (bulkEl) {
+      initSelect2(bulkEl, {
+        width: '100%',
+        dropdownParent: $('#assignPurchaserModal')
+      })
+    }
+
+    // Initialize select2 for each item and pre-select purchaser if exists
+    assignItems.value.forEach(item => {
+      const el = document.getElementById('purchaserSelect-' + item.id)
+      if (el) {
+        initSelect2(el, {
+          width: '100%',
+          dropdownParent: $('#assignPurchaserModal')
+        })
+
+        // 🔹 Pre-select existing purchaser
+        if (item.purchaser_id) {
+          $(el).val(item.purchaser_id).trigger('change')
+        }
+
+      } else {
+        console.warn('Select element not found for item:', item.id)
+      }
+    })
+
+    $('#assignPurchaserModal').modal('show')
+  } catch (err) {
+    console.error('Error in openAssignPurchaserModal:', err)
+    showAlert('Error', 'Failed to load items or purchasers.', 'danger')
+  } finally {
+    loading.value = false
+  }
+}
+
+const applyBulkPurchaser = () => {
+  const bulkId = document.getElementById('bulkPurchaserSelect')?.value
+
+  if (!bulkId) {
+    showAlert('Error', 'Please select a purchaser first.', 'danger')
+    return
+  }
+
+  assignItems.value.forEach(item => {
+    const el = document.getElementById('purchaserSelect-' + item.id)
+    if (el) {
+      el.value = bulkId
+      $(el).trigger('change') // important for Select2
+    }
+  })
+}
+
+
+const submitAssignPurchasers = async () => {
+  // Wrap the payload in `assignments`
+  const assignments = assignItems.value
+    .map(item => {
+      const selectEl = document.getElementById('purchaserSelect-' + item.id)
+      const purchaserId = selectEl ? selectEl.value : null
+      return purchaserId ? { item_id: item.id, purchaser_id: purchaserId } : null
+    })
+    .filter(Boolean)
+
+  if (!assignments.length) {
+    showAlert('Error', 'Please select at least one purchaser.', 'danger')
+    return
+  }
+
+  loading.value = true
+  try {
+    // Send wrapped array
+    await axios.post(`/api/purchase-requests/${props.purchaseRequestId}/assign-purchasers`, { assignments })
+
+    showAlert('success', 'Purchasers assigned successfully.')
+    $('#assignPurchaserModal').modal('hide')
+
+    assignItems.value.forEach(item => {
+      destroySelect2(document.getElementById('purchaserSelect-' + item.id))
+    })
+
+    setTimeout(() => window.location.reload(), 1500)
+  } catch (err) {
+    console.error('Assign purchasers error:', err)
+    showAlert('Error', err.response?.data?.message || 'Assignment failed.', 'danger')
+  } finally {
+    loading.value = false
+  }
+}
+
+
+
+
+const cleanupAssignPurchaserModal = () => {
+  assignItems.value.forEach(item => {
+    const el = document.getElementById('purchaserSelect-' + item.id)
+    if (el) destroySelect2(el)
+  })
+
+  const bulkEl = document.getElementById('bulkPurchaserSelect')
+  if (bulkEl) destroySelect2(bulkEl)
+
+  assignItems.value = []
+  $('#assignPurchaserModal').modal('hide')
+}
+
+
 
 const resetConfirmModal = () => {
   commentInput.value = ''
@@ -533,7 +661,9 @@ const daysBetween = (startDate, endDate) => {
   if (!startDate || !endDate) return ''
   const start = new Date(startDate)
   const end = new Date(endDate)
-  const diffMs = end - start
+  const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  const diffMs = endOnly - startOnly
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
   return `${diffDays} day${diffDays !== 1 ? 's' : ''}`
 }
@@ -615,20 +745,44 @@ const openPdfViewer = (purchaseRequestId) => {
 }
 
 // Reassign Modal using initialData.users (if passed)
-const openReassignModal = async () => {
+const openReassignModal = async (item) => { // pass the item to modal
   loading.value = true
   try {
-    const res = await axios.get('/api/purchase-requests/get-approval-users', { params: { request_type: approvalRequestType.value } })
+    const res = await axios.get('/api/purchase-requests/get-approval-users', {
+      params: { request_type: approvalRequestType.value }
+    })
+
     const data = res.data || {}
     usersList.value = Object.values(data)[0] || []
+
     await nextTick()
-    initSelect2(document.getElementById('userSelect'), { width: '100%', dropdownParent: $('#reassignModal') })
+
+    const selectEl = document.getElementById('userSelect')
+    if (selectEl) {
+      const $select = $(selectEl)
+      initSelect2(selectEl, { width: '100%', dropdownParent: $('#reassignModal') })
+
+      // 🔹 Pre-select the existing purchaser
+      if (item.purchaser_id) {
+        $select.val(item.purchaser_id).trigger('change')
+      }
+
+      // 🔹 Update Vue reactive variable on change
+      $select.off('change').on('change', function () {
+        selectedUser.value = $select.val()
+      })
+    }
+
     $('#reassignModal').modal('show')
+
   } catch (err) {
+    console.error('Failed to load users:', err)
     showAlert('Error', 'Failed to load users.', 'danger')
+  } finally {
+    loading.value = false
   }
-  finally { loading.value = false }
 }
+
 
 const confirmReassign = async () => {
   const newUserId = document.getElementById('userSelect')?.value

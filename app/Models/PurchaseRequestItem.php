@@ -27,6 +27,7 @@ class PurchaseRequestItem extends Model
         'total_price',
         'total_price_usd',
         'purchasing_status',
+        'purchaser_id',
     ];
 
     public function purchaseRequest()
@@ -76,5 +77,10 @@ class PurchaseRequestItem extends Model
     public function deleter()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function purchaser()
+    {
+        return $this->belongsTo(User::class, 'purchaser_id');
     }
 }

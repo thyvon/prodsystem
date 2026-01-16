@@ -453,7 +453,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
     Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
     Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->name('api.purchase-requests.import-items');
-
+    Route::get('/purchase-requests/get-purchasers', [PurchaseRequestController::class, 'getPurchasers'])->middleware('can:assignPurchaser,'. PurchaseRequest::class)->name('api.purchase-requests.get-purchasers');
+    Route::post('/purchase-requests/{purchaseRequest}/assign-purchasers', [PurchaseRequestController::class,'assignPurchasers'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.assign-purchaser');
     // Main Value List
     Route::get('/main-value-lists/get-main-categories', [MainValueListController::class, 'getMainCategories'])->name('api.main-value-lists.get-main-categories');
     Route::get('/main-value-lists/get-sub-categories', [MainValueListController::class, 'getSubCategories'])->name('api.main-value-lists.get-sub-categories');
