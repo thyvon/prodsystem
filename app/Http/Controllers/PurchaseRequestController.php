@@ -1223,7 +1223,7 @@ class PurchaseRequestController extends Controller
         $purchaseRequest->load([
             'items.campuses',
             'items.departments:id,name,short_name',
-            'approvals.responder:id,name,card_number',
+            'approvals.responder:id,name,card_number,current_position_id,signature_url,profile_url',
             'files',
         ]);
 

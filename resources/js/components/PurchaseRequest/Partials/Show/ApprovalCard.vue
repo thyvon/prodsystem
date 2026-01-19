@@ -47,4 +47,6 @@ const props = defineProps({
   formatDate: Function,
   capitalize: Function
 })
+
+console.log(props.approval)
 </script>
