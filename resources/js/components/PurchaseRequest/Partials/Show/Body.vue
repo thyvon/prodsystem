@@ -34,6 +34,18 @@
         <p class="text-muted mb-1">
           DEADLINE / ថ្ងៃផុតកំណត់: <span class="font-weight-bold">{{ formatDate(purchaseRequest.deadline_date) ?? 'N/A' }}</span>
         </p>
+        <h4>
+            <span
+                class="badge"
+                :class="{
+                    'badge-danger': purchaseRequest.approval_status === 'Rejected',
+                    'badge-warning': purchaseRequest.approval_status === 'Returned',
+                    'badge-success': !['Rejected', 'Returned'].includes(purchaseRequest.approval_status)
+                }"
+            >
+                {{ purchaseRequest.approval_status }}
+            </span>
+        </h4>
       </div>
     </div>
 
@@ -148,10 +160,9 @@
     </div>
 
     <!-- 6️⃣ Timeline Section -->
-    <div class="col-12 mt-4">
+    <!-- <div class="col-12 mt-4">
       <h5 class="text-center mb-3">Timeline</h5>
       <div class="d-flex justify-content-center align-items-center mx-auto" style="overflow-x:auto; white-space: nowrap; gap: 20px; padding: 10px 0;">
-        <!-- Initial Request -->
         <div class="d-flex flex-column align-items-center" style="min-width: 120px;">
           <div class="mb-1 font-weight-bold text-dark">1</div>
           <span class="badge bg-success text-white px-3 py-2 mb-1">Requested</span>
@@ -161,7 +172,6 @@
           </small>
         </div>
 
-        <!-- Timeline Approvals -->
         <TimelineItem
           v-for="(approval, i) in purchaseRequest.approvals"
           :key="'timeline-'+i"
@@ -173,14 +183,14 @@
           :days-between="daysBetween"
         />
       </div>
-    </div>
+    </div> -->
 
   </div>
 </template>
 
 <script setup>
 import ApprovalCard from '@/components/PurchaseRequest/Partials/Show/ApprovalCard.vue'
-import TimelineItem from '@/components/PurchaseRequest/Partials/Show/TimelineItem.vue'
+// import TimelineItem from '@/components/PurchaseRequest/Partials/Show/TimelineItem.vue'
 
 const props = defineProps({
   purchaseRequest: Object,

@@ -35,6 +35,7 @@ class ApprovalService
             }
 
             return [
+                'id'                 => $a->id,
                 'user_id'            => $a->responder->id,
                 'user_profile_url'   => $a->responder->profile_url,
                 'user_signature_url' => $a->responder->signature_url,
@@ -60,6 +61,7 @@ class ApprovalService
             $approval = Approval::create([
                 'approvable_type'    => $data['approvable_type'],
                 'approvable_id'      => $data['approvable_id'],
+                'document_reference' => $data['document_reference'] ?? null,
                 'document_name'      => $data['document_name'] ?? null,
                 'request_type'       => $data['request_type'],
                 'approval_status'    => $data['approval_status'] ?? 'Pending',

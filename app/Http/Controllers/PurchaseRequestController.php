@@ -778,17 +778,21 @@ class PurchaseRequestController extends Controller
     }
 
     // Submit approval
-
     public function submitApproval(Request $request, PurchaseRequest $purchaseRequest, ApprovalService $approvalService): JsonResponse
     {
-        // Validate request
+        // -------------------------------
+        // 0️⃣ Validate request
+        // -------------------------------
         $validated = $request->validate([
             'request_type' => 'required|string|in:initial,check,approve,verify,acknowledge',
             'action'       => 'required|string|in:approve,reject,return',
             'comment'      => 'nullable|string|max:1000',
+            'approval_id'  => 'nullable|integer|exists:approvals,id',
         ]);
 
-        // Check user permission
+        // -------------------------------
+        // 1️⃣ Check user permission
+        // -------------------------------
         $permission = "purchaseRequest.{$validated['request_type']}";
         if (!Auth::user()->can($permission)) {
             return response()->json([
@@ -796,7 +800,9 @@ class PurchaseRequestController extends Controller
             ], 403);
         }
 
-        // Process approval via ApprovalService
+        // -------------------------------
+        // 2️⃣ Process approval via ApprovalService
+        // -------------------------------
         $result = $approvalService->handleApprovalAction(
             $purchaseRequest,
             $validated['request_type'],
@@ -804,31 +810,68 @@ class PurchaseRequestController extends Controller
             $validated['comment'] ?? null
         );
 
-        // Ensure $result has 'success' key
         $success = $result['success'] ?? false;
 
-        // Update Stock Report approval_status if successful
+        // -------------------------------
+        // 3️⃣ Update approval_status if successful
+        // -------------------------------
         if ($success) {
 
+            // Mapping for approve actions
             $statusByRequestType = [
-                'initial' => 'Initialed',
-                'check'   => 'Checked',
-                'verify'  => 'Verified',
-                'acknowledge'=> 'Acknowledge',
-                'approve' => 'Approved',
+                'initial'     => 'Initialed',
+                'check'       => 'Checked',
+                'verify'      => 'Verified',
+                'acknowledge' => 'Acknowledge',
+                'approve'     => 'Approved',
             ];
 
+            // Mapping for reject / return actions
             $statusByAction = [
                 'reject' => 'Rejected',
                 'return' => 'Returned',
             ];
 
             if ($validated['action'] === 'approve') {
-                // ✅ Approve → use request_type
+                // Approve → map request_type to status
                 $purchaseRequest->approval_status =
                     $statusByRequestType[$validated['request_type']] ?? 'Approved';
+
+            } elseif ($validated['action'] === 'return') {
+                // -------------------------------
+                // Return action
+                // -------------------------------
+
+                // Get the current approval ordinal if approval_id is provided
+                $currentOrdinal = 0;
+                if (!empty($validated['approval_id'])) {
+                    $currentApproval = Approval::find($validated['approval_id']);
+                    $currentOrdinal = $currentApproval?->ordinal ?? 0;
+                }
+
+                // 1️⃣ Reset all previous approvals (with ordinal less than current) to Pending
+                Approval::where('approvable_type', PurchaseRequest::class)
+                    ->where('approvable_id', $purchaseRequest->id)
+                    ->where('ordinal', '>', $currentOrdinal)
+                    ->update([
+                        'approval_status' => 'Pending',
+                        'comment'         => null,
+                        'responded_date' => null,
+                        'is_seen'         => 0,
+                    ]);
+
+                // 2️⃣ Update the selected approval (return target) if provided
+                if (!empty($validated['approval_id']) && isset($currentApproval)) {
+                    $currentApproval->approval_status = 'Pending';
+                    $currentApproval->comment = $validated['comment'] ?? null;
+                    $currentApproval->save();
+                }
+
+                // 3️⃣ Update main purchase request status
+                $purchaseRequest->approval_status = 'Returned';
+
             } else {
-                // ❌ Reject / Return → use action
+                // Reject → use action mapping
                 $purchaseRequest->approval_status =
                     $statusByAction[$validated['action']] ?? 'Pending';
             }
@@ -836,7 +879,9 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->save();
         }
 
-
+        // -------------------------------
+        // 4️⃣ Return JSON response
+        // -------------------------------
         return response()->json([
             'message'      => $result['message'] ?? 'Action failed',
             'redirect_url' => route('approvals-purchase-requests.show', $purchaseRequest->id),
@@ -850,14 +895,15 @@ class PurchaseRequestController extends Controller
         // 0️⃣ Validate request
         // -------------------------------
         $validated = $request->validate([
-            'action'  => 'required|string|in:receive,prod-verify,reject,return',
-            'comment' => 'nullable|string|max:1000',
+            'action'      => 'required|string|in:receive,prod-verify,reject,return',
+            'comment'     => 'nullable|string|max:1000',
+            'approval_id' => 'nullable|integer|exists:approvals,id', // return target
         ]);
 
         // -------------------------------
-        // Permission check
+        // 1️⃣ Permission check
         // -------------------------------
-        if (! Auth::user()->hasAnyPermission([
+        if (!Auth::user()->hasAnyPermission([
             'purchaseRequest.receive',
             'purchaseRequest.prod-verify',
         ])) {
@@ -867,7 +913,7 @@ class PurchaseRequestController extends Controller
         }
 
         // -------------------------------
-        // Check pending approvals
+        // 2️⃣ Check pending approvals
         // -------------------------------
         $approvedCount = Approval::where('approvable_type', PurchaseRequest::class)
             ->where('approvable_id', $purchaseRequest->id)
@@ -876,7 +922,7 @@ class PurchaseRequestController extends Controller
 
         $allApprovalCount = Approval::where('approvable_type', PurchaseRequest::class)
             ->where('approvable_id', $purchaseRequest->id)
-            ->where('prod_action', 0) // exclude system approvals
+            ->where('prod_action', 0)
             ->count();
 
         $pendingApproval = $allApprovalCount - $approvedCount;
@@ -891,7 +937,7 @@ class PurchaseRequestController extends Controller
             DB::beginTransaction();
 
             // -------------------------------
-            // Map action to human-readable status
+            // 3️⃣ Map action to human-readable status
             // -------------------------------
             $statusMap = [
                 'receive'      => 'Received',
@@ -903,7 +949,7 @@ class PurchaseRequestController extends Controller
             $mappedStatus = $statusMap[$validated['action']] ?? 'Pending';
 
             // -------------------------------
-            // 1️⃣ Always create a new approval based on the action
+            // 4️⃣ Create the new approval record
             // -------------------------------
             $approval = Approval::create([
                 'approvable_type'    => PurchaseRequest::class,
@@ -921,35 +967,60 @@ class PurchaseRequestController extends Controller
                 'prod_action'        => 1,
             ]);
 
+            // -------------------------------
+            // 5️⃣ Return-specific logic
+            // -------------------------------
             if ($validated['action'] === 'return') {
+
+                // Get current approval ordinal if provided
+                $currentOrdinal = 0;
+                $currentApproval = null;
+                if (!empty($validated['approval_id'])) {
+                    $currentApproval = Approval::find($validated['approval_id']);
+                    $currentOrdinal = $currentApproval?->ordinal ?? 0;
+                }
+
+                // 1️⃣ Reset previous non-prod-action approvals (ordinal < current) to Pending
                 Approval::where('approvable_type', PurchaseRequest::class)
-                ->where('approvable_id', $purchaseRequest->id)
-                ->where('prod_action', 0)
-                ->update([
-                    'approval_status' => 'Pending',
-                    'comment' => null,
-                    'is_seen' => 0,
-                ]);
+                    ->where('approvable_id', $purchaseRequest->id)
+                    ->where('prod_action', 0)
+                    ->where('ordinal', '>', $currentOrdinal)
+                    ->update([
+                        'approval_status' => 'Pending',
+                        'comment'         => null,
+                        'responded_date' => null,
+                        'is_seen'         => 0,
+                    ]);
+
+                // 2️⃣ Update selected approval (return target) if provided
+                if ($currentApproval) {
+                    $currentApproval->approval_status = 'Pending';
+                    $currentApproval->comment = $validated['comment'] ?? null;
+                    $currentApproval->save();
+                }
+
+                // 3️⃣ Update main purchase request status
+                $purchaseRequest->approval_status = 'Returned';
             }
 
             // -------------------------------
-            // 2️⃣ Update PurchaseRequest status
+            // 6️⃣ Update PurchaseRequest status for other actions
             // -------------------------------
-            $purchaseRequest->update([
-                'approval_status' => $mappedStatus,
-            ]);
+            else {
+                $purchaseRequest->approval_status = $mappedStatus;
+            }
 
+            $purchaseRequest->save();
             DB::commit();
 
             return response()->json([
-                'message'      => "Purchase request {$mappedStatus} successfully.",
+                'message'      => "Purchase request {$purchaseRequest->approval_status} successfully.",
                 'redirect_url' => route('approvals-purchase-requests.show', $purchaseRequest->id),
                 'approval'     => $approval,
             ], 200);
 
         } catch (\Throwable $e) {
             DB::rollBack();
-
             return response()->json([
                 'message' => $e->getMessage(),
             ], 400);
@@ -1222,7 +1293,8 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest->load([
             'items.campuses',
-            'items.departments:id,name,short_name',
+            'items.departments:id,name,short_name,division_id',
+            'items.departments.division:id,name,short_name',
             'approvals.responder:id,name,card_number,current_position_id,signature_url,profile_url',
             'files',
         ]);
@@ -1240,10 +1312,10 @@ class PurchaseRequestController extends Controller
             ->count();
 
         $pendingApproval = $allApprovalCount - $approvedCount;
-
         $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
         $procurementReceiveButtonData = Auth::user()->can('purchaseRequest.receive') && $pendingApproval === 0 && $purchaseRequest->approval_status === 'Approved';
         $procurementVerifyButtonData = Auth::user()->can('purchaseRequest.prod-verify') && $purchaseRequest->approval_status === 'Received';
+        $assignPurchaserButtonData = Auth::user()->can('purchaseRequest.assignPurchaser') && $pendingApproval === 0;
 
         return [
             'id' => $purchaseRequest->id,
@@ -1298,6 +1370,7 @@ class PurchaseRequestController extends Controller
             'approval_button_data' => $approvalButtonData,
             'procurement_receive_button' => $procurementReceiveButtonData,
             'procurement_verify_button'=> $procurementVerifyButtonData,
+            'assign_purchaser_button' => $assignPurchaserButtonData,
 
             'files' => $purchaseRequest->files->map(fn($f) => [
                 'id' => $f->id,
