@@ -850,15 +850,12 @@ class PurchaseRequestController extends Controller
                 }
 
                 // 1️⃣ Reset all previous approvals (with ordinal less than current) to Pending
-                Approval::where('approvable_type', PurchaseRequest::class)
-                    ->where('approvable_id', $purchaseRequest->id)
-                    ->where('ordinal', '>', $currentOrdinal)
-                    ->update([
-                        'approval_status' => 'Pending',
-                        'comment'         => null,
-                        'responded_date' => null,
-                        'is_seen'         => 0,
-                    ]);
+                // Approval::where('approvable_type', PurchaseRequest::class)
+                //     ->where('approvable_id', $purchaseRequest->id)
+                //     ->where('ordinal', '>', $currentOrdinal)
+                //     ->update([
+                //         'approval_status' => 'Returned',
+                //     ]);
 
                 // 2️⃣ Update the selected approval (return target) if provided
                 if (!empty($validated['approval_id']) && isset($currentApproval)) {
@@ -981,20 +978,20 @@ class PurchaseRequestController extends Controller
                 }
 
                 // 1️⃣ Reset previous non-prod-action approvals (ordinal < current) to Pending
-                Approval::where('approvable_type', PurchaseRequest::class)
-                    ->where('approvable_id', $purchaseRequest->id)
-                    ->where('prod_action', 0)
-                    ->where('ordinal', '>', $currentOrdinal)
-                    ->update([
-                        'approval_status' => 'Pending',
-                        'comment'         => null,
-                        'responded_date' => null,
-                        'is_seen'         => 0,
-                    ]);
+                // Approval::where('approvable_type', PurchaseRequest::class)
+                //     ->where('approvable_id', $purchaseRequest->id)
+                //     ->where('prod_action', 0)
+                //     ->where('ordinal', '>', $currentOrdinal)
+                //     ->update([
+                //         'approval_status' => 'Pending',
+                //         'comment'         => null,
+                //         'responded_date' => null,
+                //         'is_seen'         => 0,
+                //     ]);
 
                 // 2️⃣ Update selected approval (return target) if provided
                 if ($currentApproval) {
-                    $currentApproval->approval_status = 'Pending';
+                    $currentApproval->approval_status = 'Returned';
                     $currentApproval->comment = $validated['comment'] ?? null;
                     $currentApproval->save();
                 }

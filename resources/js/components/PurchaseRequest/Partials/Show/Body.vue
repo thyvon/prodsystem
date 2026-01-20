@@ -2,7 +2,7 @@
   <div class="card-body bg-white p-3">
 
     <!-- 1️⃣ General Info Section -->
-    <div class="row mb-3">
+    <div class="row mb-2">
       <div class="col-3">
         <div class="row mb-1">
           <div class="col-6 text-muted">Requester / អ្នកស្នើសុំ:</div>
@@ -74,6 +74,7 @@
             <th>Department</th>
             <th>Campus</th>
             <th>Budget Code</th>
+            <th>Assigned Purchaser</th>
           </tr>
         </thead>
         <tbody>
@@ -89,16 +90,17 @@
             <td>{{ item.department_short_names }}</td>
             <td>{{ item.campus_short_names }}</td>
             <td>{{ item.budget_code_ref ?? 'N/A' }}</td>
+            <td>{{ item.purchaser_name ?? 'N/A' }}</td>
           </tr>
           <tr class="table-secondary">
             <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_usd) }}</td>
-            <td colspan="4"></td>
+            <td colspan="5"></td>
           </tr>
           <tr class="table-secondary">
             <td colspan="6" class="text-end font-weight-bold">Total (KHR)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_khr) }}</td>
-            <td colspan="4"></td>
+            <td colspan="5"></td>
           </tr>
         </tbody>
       </table>
@@ -125,11 +127,11 @@
     <!-- 5️⃣ Requested & Approval Cards Section -->
     <div class="mt-4 row justify-content-center">
       <!-- Requested By Card -->
-      <div class="col-md-3 mb-4">
+      <div class="col-md-3 mb-3">
         <div class="card border shadow-sm h-100">
           <div class="card-body">
             <label class="font-weight-bold d-block text-center">Requested By</label>
-            <div class="d-flex align-items-center justify-content-center mb-2">
+            <div class="d-flex mb-2">
               <img
                 :src="purchaseRequest.creator_profile_url ? '/storage/' + purchaseRequest.creator_profile_url : '/images/default-avatar.png'"
                 class="rounded-circle"
@@ -137,7 +139,8 @@
                 height="50"
               />
             </div>
-            <div class="font-weight-bold mb-1 text-center">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
+            <hr>
+            <div class="font-weight-bold mb-1">{{ purchaseRequest.creator_name ?? 'N/A' }}</div>
             <p class="mb-1">Status: <span class="badge badge-primary">Requested</span></p>
             <p class="mb-1">Position: {{ purchaseRequest.creator_position ?? 'N/A' }}</p>
             <p class="mb-0">Date: {{ formatDate(purchaseRequest.request_date) }}</p>
@@ -147,9 +150,9 @@
 
       <!-- Approval Cards -->
       <div
-        v-for="(approval, i) in purchaseRequest.approvals.filter(a => a.prod_action == 0)"
+        v-for="(approval, i) in purchaseRequest.approvals"
         :key="i"
-        class="col-md-3 mb-4"
+        class="col-md-3 mb-3"
       >
         <ApprovalCard
           :approval="approval"

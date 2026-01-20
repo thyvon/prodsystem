@@ -3,8 +3,10 @@
 
     <!-- Header -->
     <PurchaseRequestHeader
-      @goBack="goBack"
-      @printPdf="() => openPdfViewer(purchaseRequest.id)"
+    @goBack="goBack"
+    @printPdf="() => openPdfViewer(purchaseRequest.id)"
+    @assignPurchaser="openAssignPurchaserModal"
+    :show-assign-purchaser-button="showAssignPurchaserButton"
     />
 
     <!-- Body -->
@@ -18,97 +20,66 @@
     />
 
     <!-- Actions Row -->
-    <div class="row mt-4">
+    <div class="row mt-2">
 
-      <!-- Approval Actions -->
-      <div class="col-md-6">
-        <div class="card-footer w-100">
-          <h5 class="font-weight-bold text-dark mb-3">Approval Action</h5>
-          <div v-if="showApprovalButton">
-            <div class="d-flex gap-2 flex-wrap">
-              <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
+    <!-- Approval Actions -->
+    <div class="col-md-6 mb-3">
+        <div class="card h-100 shadow-sm ml-3">
+        <div class="card-header bg-light">
+            <h5 class="mb-0 font-weight-bold text-dark">Approval Actions</h5>
+        </div>
+        <div class="card-body">
+            <div v-if="showApprovalButton" class="d-flex flex-wrap gap-2">
+            <button @click="openConfirmModal('approve')" class="btn btn-sm btn-success" :disabled="loading">
                 <i class="fal fa-check"></i> {{ capitalize(approvalRequestType) }}
-              </button>
-              <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
+            </button>
+            <button @click="openConfirmModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
                 <i class="fal fa-times"></i> Reject
-              </button>
-              <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
+            </button>
+            <button @click="openConfirmModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
                 <i class="fal fa-undo"></i> Return
-              </button>
-              <button @click="openReassignModal(purchaseRequest)" class="btn btn-sm btn-primary" :disabled="loading">
+            </button>
+            <button @click="openReassignModal(purchaseRequest)" class="btn btn-sm btn-primary" :disabled="loading">
                 <i class="fal fa-exchange"></i> Reassign
-              </button>
+            </button>
             </div>
-          </div>
-          <div v-else>
-            <p class="text-muted">No approval action available at this time.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Procurement Actions -->
-      <div class="col-md-6 d-flex justify-content-center" v-if="showProcurementActions">
-        <div class="card-footer text-center w-100">
-          <h5 class="font-weight-bold text-dark mb-3">Procurement Action</h5>
-          <div class="d-flex justify-content-center gap-2 flex-wrap">
-            <button v-if="showAssignPurchaserButton" class="btn btn-sm btn-primary" @click="openAssignPurchaserModal">
-              <i class="fal fa-user-plus"></i> Assign Purchaser
-            </button>
-            <button v-if="showProcurementReceiveButton" @click="openProdModal('receive')" class="btn btn-sm btn-success" :disabled="loading">
-              <i class="fal fa-check"></i> Receive
-            </button>
-            <button v-if="showProcurementReceiveButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
-              <i class="fal fa-undo"></i> Return
-            </button>
-            <button v-if="showProcurementVerifyButton" @click="openProdModal('prod-verify')" class="btn btn-sm btn-success" :disabled="loading">
-              <i class="fal fa-check"></i> Verify
-            </button>
-            <button v-if="showProcurementVerifyButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
-              <i class="fal fa-undo"></i> Return
-            </button>
-            <button v-if="showProcurementVerifyButton" @click="openProdModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
-              <i class="fal fa-times"></i> Reject
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Procurement Notes -->
-      <div class="col-md-6 d-flex justify-content-center" v-else>
-        <div class="card-footer w-100">
-          <h5 class="font-weight-bold text-dark mb-3 text-center">Procurement Action Note</h5>
-          <div class="row justify-content-center">
-            <div
-              v-for="(approval, i) in purchaseRequest.approvals.filter(a => a.prod_action == 1)"
-              :key="'prod-action-' + i"
-              class="col-md-4 col-sm-6 col-12 mb-3"
-            >
-              <div class="rounded p-3 h-100 text-start shadow-lg"
-                   :class="{
-                     'text-success': !['Returned','Rejected'].includes(approval.approval_status),
-                     'text-warning': approval.approval_status === 'Returned',
-                     'text-danger': approval.approval_status === 'Rejected'
-                   }"
-                   :style="{ border: '1px solid ' + (approval.approval_status === 'Returned' ? '#ffc107' : approval.approval_status === 'Rejected' ? '#dc3545' : '#28a745') }">
-                <i v-if="approval.approval_status === 'Returned'" class="fal fa-undo fa-2x mb-2"></i>
-                <i v-else-if="approval.approval_status === 'Rejected'" class="fal fa-times-circle fa-2x mb-2"></i>
-                <i v-else class="fal fa-check-circle fa-2x mb-2"></i>
-
-                <div class="mb-1">{{ approval.request_type_label || approval.request_type }}</div>
-                <div class="font-weight-bold mb-1">{{ approval.name ?? 'N/A' }}</div>
-                <div class="text-muted small">Date: {{ formatDate(approval.responded_date) ?? 'N/A' }}</div>
-                <div v-if="approval.comment" class="text-muted small">Comment: {{ approval.comment }}</div>
-              </div>
+            <div v-else>
+            <p class="text-muted mb-0">No approval action available at this time.</p>
             </div>
-
-            <div v-if="purchaseRequest.approvals.filter(a => a.prod_action == 1).length === 0" class="col-12 text-center text-muted">
-              No procurement action available at this time.
-            </div>
-          </div>
         </div>
-      </div>
+        </div>
     </div>
 
+    <!-- Procurement Actions -->
+    <div class="col-md-6 mb-3" v-if="showProcurementActions">
+        <div class="card h-100 shadow-sm mr-3">
+        <div class="card-header bg-light">
+            <h5 class="mb-0 font-weight-bold text-dark text-center">Procurement Actions</h5>
+        </div>
+        <div class="card-body d-flex flex-wrap justify-content-center gap-2">
+            <button v-if="showAssignPurchaserButton" class="btn btn-sm btn-primary" @click="openAssignPurchaserModal">
+            <i class="fal fa-user-plus"></i> Assign Purchaser
+            </button>
+            <button v-if="showProcurementReceiveButton" @click="openProdModal('receive')" class="btn btn-sm btn-success" :disabled="loading">
+            <i class="fal fa-check"></i> Receive
+            </button>
+            <button v-if="showProcurementReceiveButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
+            <i class="fal fa-undo"></i> Return
+            </button>
+            <button v-if="showProcurementVerifyButton" @click="openProdModal('prod-verify')" class="btn btn-sm btn-success" :disabled="loading">
+            <i class="fal fa-check"></i> Verify
+            </button>
+            <button v-if="showProcurementVerifyButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
+            <i class="fal fa-undo"></i> Return
+            </button>
+            <button v-if="showProcurementVerifyButton" @click="openProdModal('reject')" class="btn btn-sm btn-danger" :disabled="loading">
+            <i class="fal fa-times"></i> Reject
+            </button>
+        </div>
+        </div>
+    </div>
+
+    </div>
     <!-- Procurement Modal -->
     <div class="modal fade" id="prodModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered">
@@ -120,8 +91,16 @@
 
         <div class="modal-body">
             <!-- Return user select (only for return action) -->
-            <div v-if="currentAction === 'return'" class="mb-3">
-            <label class="form-label">Return to user</label>
+            <textarea
+            v-model="commentInput"
+            class="form-control mb-3"
+            rows="4"
+            placeholder="Enter your comment (optional)"
+            :disabled="loading"
+            ></textarea>
+
+            <div v-if="currentAction === 'return'">
+            <label class="form-label">Return to user (Optional)</label>
             <select id="prodReturnUserSelect" class="form-control" :disabled="loading">
                 <option value="">-- Select user --</option>
                 <option v-for="approval in usersList" :key="approval.id" :value="approval.id">
@@ -129,14 +108,6 @@
                 </option>
             </select>
             </div>
-
-            <textarea
-            v-model="commentInput"
-            class="form-control"
-            rows="4"
-            placeholder="Enter your comment (optional)"
-            :disabled="loading"
-            ></textarea>
         </div>
 
         <div class="modal-footer">
@@ -365,8 +336,7 @@ const actionButtonLabel = computed(() => actionConfig[currentAction.value]?.labe
 const actionButtonClass = computed(() => actionConfig[currentAction.value]?.class ?? 'btn-primary')
 const showProcurementActions = computed(() => (
   showProcurementReceiveButton.value ||
-  showProcurementVerifyButton.value ||
-  showAssignPurchaserButton.value
+  showProcurementVerifyButton.value
 ))
 
 // -------------------- Confirm Modal --------------------

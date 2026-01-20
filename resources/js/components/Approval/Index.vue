@@ -20,7 +20,7 @@
       <template #additional-header>
         <div class="row g-3">
           <!-- All my approvals -->
-          <div class="col-sm-6 col-xl-3" @click="filterApprovals('all')" style="cursor: pointer">
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('all')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-primary-300 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'all' }"
@@ -34,7 +34,7 @@
           </div>
 
           <!-- Pending approvals -->
-          <div class="col-sm-6 col-xl-3" @click="filterApprovals('pending')" style="cursor: pointer">
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('pending')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-warning-400 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'pending' }"
@@ -48,7 +48,7 @@
           </div>
 
           <!-- Completed approvals -->
-          <div class="col-sm-6 col-xl-3" @click="filterApprovals('completed')" style="cursor: pointer">
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('completed')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-success-200 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'completed' }"
@@ -62,7 +62,7 @@
           </div>
 
           <!-- Upcoming approvals -->
-          <div class="col-sm-6 col-xl-3" @click="filterApprovals('upcoming')" style="cursor: pointer">
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('upcoming')" style="cursor: pointer">
             <div
               class="filter-card p-3 bg-info-200 rounded position-relative mb-g text-white"
               :class="{ active: datatableParams.filterType === 'upcoming' }"
@@ -72,6 +72,30 @@
                 <small class="m-0 l-h-n d-block">My upcoming approvals</small>
               </h3>
               <i class="fal fa-clock position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('returned')" style="cursor: pointer">
+            <div
+              class="filter-card p-3 bg-warning-200 rounded position-relative mb-g text-white border border-dark"
+              :class="{ active: datatableParams.filterType === 'returned' }"
+            >
+              <h3 class="display-4 d-block l-h-n m-0 fw-500">
+                {{ statusCounts.returned }}
+                <small class="m-0 l-h-n d-block">My returned Docs</small>
+              </h3>
+              <i class="fal fa-undo position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-2" @click="filterApprovals('rejected')" style="cursor: pointer">
+            <div
+              class="filter-card p-3 bg-danger-200 rounded position-relative mb-g text-white border border-dark"
+              :class="{ active: datatableParams.filterType === 'rejected' }"
+            >
+              <h3 class="display-4 d-block l-h-n m-0 fw-500">
+                {{ statusCounts.rejected }}
+                <small class="m-0 l-h-n d-block">My rejected Docs</small>
+              </h3>
+              <i class="fal fa-ban position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
             </div>
           </div>
         </div>
@@ -112,8 +136,10 @@ const datatableHeaders = [
   { text: 'Position', value: 'requester_position', width: '10%', sortable: false, minWidth: '120px' },
   { text: 'Department', value: 'requester_department', width: '10%', sortable: false, minWidth: '120px' },
   { text: 'Action Type', value: 'request_type', width: '5%', minWidth: '100px' },
+  { text: 'Responder Name', value: 'responder_name', width: '10%', minWidth: '120px' },
   { text: 'Status', value: 'approval_status', width: '10%', minWidth: '120px' },
   { text: 'Responded Date', value: 'responded_date', width: '15%', minWidth: '150px' },
+  { text: 'Comment', value: 'comment', sortable: false, minWidth: '200px' },
 ]
 
 const datatableFetchUrl = '/api/approvals'

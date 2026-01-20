@@ -252,7 +252,7 @@ class ApprovalController extends Controller
             'limit'         => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'draw'          => 'nullable|integer',
             'page'          => 'nullable|integer|min:1',
-            'filterType'    => 'nullable|string|in:all,pending,completed,upcoming',
+            'filterType'    => 'nullable|string|in:all,pending,completed,upcoming,returned,rejected',
         ]);
 
         $search        = $validated['search'] ?? null;
@@ -277,8 +277,14 @@ class ApprovalController extends Controller
                 });
             });
 
-        // Filter only approvals for the current user
-        $query->where('responder_id', $user->id);
+        // Filter only approvals for the current user or requested by the user
+        $query->where(function ($q) use ($user) {
+            $q->where('responder_id', $user->id)
+            ->orWhere(function ($qq) use ($user) {
+                $qq->where('requester_id', $user->id)
+                    ->whereIn('approval_status', ['returned', 'rejected']);
+            });
+        });
 
         $query->orderBy($sortColumn, $sortDirection);
 
@@ -291,16 +297,22 @@ class ApprovalController extends Controller
         $statusCounts = [
             'all'       => $mappedApprovals->count(),
             'upcoming'  => $mappedApprovals->filter(fn($a) => str_contains(strtolower($a['approval_status']), 'waiting'))->count(),
-            'completed' => $mappedApprovals->filter(fn($a) => 
+            'completed' => $mappedApprovals->filter(fn($a) =>
                 strtolower($a['approval_status']) === 'done' ||
                 str_contains(strtolower($a['approval_status']), 'rejected') ||
                 str_contains(strtolower($a['approval_status']), 'returned')
             )->count(),
-            'pending'   => $mappedApprovals->filter(fn($a) => 
+            'pending'   => $mappedApprovals->filter(fn($a) =>
                 !str_contains(strtolower($a['approval_status']), 'waiting') &&
                 strtolower($a['approval_status']) !== 'done' &&
                 !str_contains(strtolower($a['approval_status']), 'rejected') &&
                 !str_contains(strtolower($a['approval_status']), 'returned')
+            )->count(),
+            'returned'  => $mappedApprovals->filter(fn($a) =>
+                str_contains(strtolower($a['approval_status']), 'returned')
+            )->count(),
+            'rejected'  => $mappedApprovals->filter(fn($a) =>
+                str_contains(strtolower($a['approval_status']), 'rejected')
             )->count(),
         ];
 
@@ -309,18 +321,32 @@ class ApprovalController extends Controller
         // -----------------------
         if ($filterType && $filterType !== 'all') {
             $mappedApprovals = match ($filterType) {
-                'upcoming'  => $mappedApprovals->filter(fn($a) => str_contains(strtolower($a['approval_status']), 'waiting')),
-                'completed' => $mappedApprovals->filter(fn($a) => 
+                'upcoming'  => $mappedApprovals->filter(
+                    fn($a) => str_contains(strtolower($a['approval_status']), 'waiting')
+                ),
+
+                'completed' => $mappedApprovals->filter(fn($a) =>
                     strtolower($a['approval_status']) === 'done' ||
                     str_contains(strtolower($a['approval_status']), 'rejected') ||
                     str_contains(strtolower($a['approval_status']), 'returned')
                 ),
-                'pending'   => $mappedApprovals->filter(fn($a) => 
+
+                'pending'   => $mappedApprovals->filter(fn($a) =>
                     !str_contains(strtolower($a['approval_status']), 'waiting') &&
                     strtolower($a['approval_status']) !== 'done' &&
                     !str_contains(strtolower($a['approval_status']), 'rejected') &&
                     !str_contains(strtolower($a['approval_status']), 'returned')
                 ),
+
+                // ✅ NEW: Returned (Requester only)
+                'returned'  => $mappedApprovals->filter(fn($a) =>
+                    str_contains(strtolower($a['approval_status']), 'returned')
+                ),
+
+                'rejected'  => $mappedApprovals->filter(fn($a) =>
+                    str_contains(strtolower($a['approval_status']), 'rejected')
+                ),
+
                 default => $mappedApprovals,
             };
         }
@@ -384,7 +410,7 @@ class ApprovalController extends Controller
             $displayStatus = 'Returned by ' . ($blockingReturned->responder?->name ?? 'Unknown');
             $displayResponseDate = $blockingReturned->responded_date;
         }
-        
+
         // Map "Approved" to "Done"
         if (strtolower($displayStatus) === 'approved') {
             $displayStatus = 'Done';
