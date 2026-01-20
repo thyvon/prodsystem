@@ -1313,6 +1313,7 @@ class PurchaseRequestController extends Controller
         $procurementReceiveButtonData = Auth::user()->can('purchaseRequest.receive') && $pendingApproval === 0 && $purchaseRequest->approval_status === 'Approved';
         $procurementVerifyButtonData = Auth::user()->can('purchaseRequest.prod-verify') && $purchaseRequest->approval_status === 'Received';
         $assignPurchaserButtonData = Auth::user()->can('purchaseRequest.assignPurchaser') && $pendingApproval === 0;
+        $editPurchaseRequestData = Auth::user()->can('update', $purchaseRequest) && ($purchaseRequest->approval_status === 'Pending' || $purchaseRequest->approval_status === 'Returned');
 
         return [
             'id' => $purchaseRequest->id,
@@ -1368,6 +1369,7 @@ class PurchaseRequestController extends Controller
             'procurement_receive_button' => $procurementReceiveButtonData,
             'procurement_verify_button'=> $procurementVerifyButtonData,
             'assign_purchaser_button' => $assignPurchaserButtonData,
+            'edit_purchase_request_button' => $editPurchaseRequestData,
 
             'files' => $purchaseRequest->files->map(fn($f) => [
                 'id' => $f->id,

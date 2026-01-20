@@ -51,10 +51,10 @@
                   <div class="form-group col-md-6">
                     <label class="font-weight-bold">🚨 Urgent</label>
                     <div class="custom-control custom-switch">
-                      <input 
-                        type="checkbox" 
-                        class="custom-control-input" 
-                        id="isUrgent" 
+                      <input
+                        type="checkbox"
+                        class="custom-control-input"
+                        id="isUrgent"
                         name="is_urgent"
                         v-model="form.is_urgent"
                       />
@@ -69,12 +69,12 @@
                   <!-- Purpose -->
                   <div class="form-group col-12 mt-2">
                     <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
-                    <textarea 
+                    <textarea
                       id="purpose"
                       name="purpose"
-                      v-model="form.purpose" 
-                      class="form-control" 
-                      rows="2" 
+                      v-model="form.purpose"
+                      class="form-control"
+                      rows="2"
                       required
                     ></textarea>
                   </div>
@@ -113,7 +113,7 @@
 
             <!-- Items Table -->
             <h5 class="font-weight-bold mb-3 text-primary">
-              📦 Items ({{ form.items.length }}) 
+              📦 Items ({{ form.items.length }})
               <span v-if="totalAmount" class="badge badge-primary ml-2">{{ totalAmount }}</span>
             </h5>
             <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
@@ -151,7 +151,7 @@
                     <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" class="form-control form-control-sm" /></td>
-                    <td><input type="text" class="form-control form-control-sm" 
+                    <td><input type="text" class="form-control form-control-sm"
                       :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
                       readonly
                     /></td>
@@ -181,11 +181,11 @@
                   <div class="form-group col-12">
                     <label class="font-weight-bold">📎 Attachment</label>
                     <div class="input-group mb-2">
-                      <input 
-                        type="file" 
-                        class="d-none" 
-                        ref="attachmentInput" 
-                        multiple 
+                      <input
+                        type="file"
+                        class="d-none"
+                        ref="attachmentInput"
+                        multiple
                         accept=".pdf,.doc,.docx,.jpg,.png"
                         @change="onFileChange"
                       />
@@ -621,7 +621,7 @@ const initApprovalSelect = async (i) => {
   destroySelect2(typeEl);
   typeEl.innerHTML = approvalTypes.map(t => `<option value="${t.id}">${t.text}</option>`).join('');
 
-  initSelect2(typeEl, { width: '100%', allowClear: true, placeholder: 'Select Type', value: approval.request_type }, 
+  initSelect2(typeEl, { width: '100%', allowClear: true, placeholder: 'Select Type', value: approval.request_type },
     async val => {
       approval.request_type = val || '';
       await populateUserSelect(approval, userEl);
@@ -791,7 +791,7 @@ const submitForm = async () => {
 
     await showAlert('Success', isEditMode.value ? 'Updated successfully.' : 'Created successfully.', 'success');
     emit('submitted', res.data.data);
-    navigateToList();
+    window.location.href = `/purchase-requests/${res.data.data.id}/show`;
 
   } catch (err) {
     const errors = err.response?.data?.errors;

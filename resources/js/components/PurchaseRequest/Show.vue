@@ -6,7 +6,9 @@
     @goBack="goBack"
     @printPdf="() => openPdfViewer(purchaseRequest.id)"
     @assignPurchaser="openAssignPurchaserModal"
+    @editPurchaseRequest="editPurchaseRequest(purchaseRequest.id)"
     :show-assign-purchaser-button="showAssignPurchaserButton"
+    :show-edit-purchase-request-button="showEditPurchaseRequestButton"
     />
 
     <!-- Body -->
@@ -302,6 +304,7 @@ const showApprovalButton = ref(purchaseRequest.value.approval_button_data?.showB
 const showProcurementReceiveButton = ref(purchaseRequest.value.procurement_receive_button ?? false)
 const showProcurementVerifyButton = ref(purchaseRequest.value.procurement_verify_button ?? false)
 const showAssignPurchaserButton = ref(purchaseRequest.value.assign_purchaser_button ?? false)
+const showEditPurchaseRequestButton = ref(purchaseRequest.value.edit_purchase_request_button ?? false)
 
 const approvalRequestType = ref(purchaseRequest.value.approval_button_data?.requestType ?? 'approve')
 const currentAction = ref('approve')
@@ -634,5 +637,9 @@ const cleanupReassignModal = () => {
   destroySelect2(document.getElementById('userSelect'))
   selectedUser.value = ''
   $('#reassignModal').modal('hide')
+}
+
+const editPurchaseRequest = () => {
+  window.location.href = `/purchase-requests/${props.purchaseRequestId}/edit`
 }
 </script>
