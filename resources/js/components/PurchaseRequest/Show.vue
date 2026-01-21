@@ -68,7 +68,7 @@
             <button v-if="showProcurementReceiveButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
             <i class="fal fa-undo"></i> Return
             </button>
-            <button v-if="showProcurementVerifyButton" @click="openProdModal('prod-verify')" class="btn btn-sm btn-success" :disabled="loading">
+            <button v-if="showProcurementVerifyButton" @click="openProdModal('verify')" class="btn btn-sm btn-success" :disabled="loading">
             <i class="fal fa-check"></i> Verify
             </button>
             <button v-if="showProcurementVerifyButton" @click="openProdModal('return')" class="btn btn-sm btn-warning" :disabled="loading">
@@ -330,7 +330,7 @@ const daysBetween = (startDate, endDate) => {
 // -------------------- Action Config -------------------- //
 const actionConfig = {
   receive: { label: 'Receive', class: 'btn-success' },
-  'prod-verify': { label: 'Verify', class: 'btn-success' },
+  verify: { label: 'Verify', class: 'btn-success' },
   return: { label: 'Return', class: 'btn-warning' },
   reject: { label: 'Reject', class: 'btn-danger' }
 }

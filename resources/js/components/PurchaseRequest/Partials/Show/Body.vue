@@ -61,7 +61,7 @@
     <!-- 3️⃣ Line Items Table Section -->
     <div class="table-responsive">
       <table class="table table-bordered table-sm">
-        <thead class="table-secondary">
+        <thead class="table-dark">
           <tr>
             <th class="text-center">#</th>
             <th>Product Code</th>
@@ -92,12 +92,12 @@
             <td>{{ item.budget_code_ref ?? 'N/A' }}</td>
             <td>{{ item.purchaser_name ?? 'N/A' }}</td>
           </tr>
-          <tr class="table-secondary">
+          <tr>
             <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_usd) }}</td>
             <td colspan="5"></td>
           </tr>
-          <tr class="table-secondary">
+          <tr>
             <td colspan="6" class="text-end font-weight-bold">Total (KHR)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_khr) }}</td>
             <td colspan="5"></td>
@@ -125,12 +125,12 @@
     </div>
 
     <!-- 5️⃣ Requested & Approval Cards Section -->
-    <div class="mt-4 row justify-content-center">
+    <div class="mt-4 row">
       <!-- Requested By Card -->
       <div class="col-md-3 mb-3">
         <div class="card border shadow-sm h-100">
           <div class="card-body">
-            <label class="font-weight-bold d-block text-center">Requested By</label>
+            <label class="font-weight-bold d-block text-center">ស្នើសុំដោយ<br>Requested By</label>
             <div class="d-flex mb-2">
               <img
                 :src="purchaseRequest.creator_profile_url ? '/storage/' + purchaseRequest.creator_profile_url : '/images/default-avatar.png'"

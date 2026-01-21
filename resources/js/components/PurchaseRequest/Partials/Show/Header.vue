@@ -9,7 +9,7 @@
     <button v-if="showEditPurchaseRequestButton" class="btn btn-outline-secondary btn-sm" @click="$emit('editPurchaseRequest')">
       <i class="fal fa-edit"></i> Edit
     </button>
-    <button v-if="showAssignPurchaserButton" class="btn btn-sm btn-primary" @click="$emit('assignPurchaser')">
+    <button v-if="showAssignPurchaserButton" class="btn btn-sm btn-outline-primary" @click="$emit('assignPurchaser')">
       <i class="fal fa-user-plus"></i> Assign Purchaser
     </button>
   </div>

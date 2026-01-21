@@ -11,27 +11,31 @@ use Exception;
 class ApprovalService
 {
     protected array $typeLabels = [
-        'initial'      => 'Initialed By',
-        'check'        => 'Checked By',
-        'approve'      => 'Approved By',
-        'review'       => 'Reviewed By',
-        'receive'      => 'Received By',
-        'prod-verify'  => 'PROD-Verified By',
-        'return'       => 'Returned By',
-        'reject'       => 'Rejected By',
+        'initial'      => "ផ្ទៀងផ្ទាត់ដោយ<br>Initialed By",
+        'check'        => "ត្រួតពិនិត្យដោយ<br>Checked By",
+        'approve'      => "អនុម័តដោយ<br>Approved By",
+        'review'       => "បានពិនិត្យឡើងវិញដោយ<br>Reviewed By",
+        'receive'      => "ទទួលដោយ<br>Received By",
+        'verify'       => "បានផ្ទៀងផ្ទាត់ដោយ<br>Verified By",
+        'return'       => "ត្រូវបានត្រឡប់ដោយ<br>Returned By",
+        'reject'       => "ត្រូវបានបដិសេធដោយ<br>Rejected By",
     ];
+
     /* ---------------------- Map Approvals for UI ---------------------- */
     public function mapApprovals(Collection $approvals): Collection
     {
         return $approvals->map(function ($a, $key) use ($approvals) {
             if (!$a->responder) return null;
-
             $sameTypeCount = $approvals->where('request_type', $a->request_type)->count();
             $occurrences   = $approvals->take($key + 1)->where('request_type', $a->request_type)->count();
-
             $label = $this->typeLabels[$a->request_type] ?? ucfirst(str_replace('_', ' ', $a->request_type));
             if ($sameTypeCount > 1 && $occurrences > 1) {
-                $label = 'Co-' . $label;
+                $lines = explode('<br>', $label);
+                $khmer = $lines[0] ?? '';
+                $english = $lines[1] ?? '';
+                $khmer = 'រួម-' . $khmer;
+                $english = 'Co-' . $english;
+                $label = $khmer . '<br>' . $english;
             }
 
             return [
@@ -53,6 +57,7 @@ class ApprovalService
             ];
         });
     }
+
 
     /* ---------------------- Store Approval ---------------------- */
     public function storeApproval(array $data): array

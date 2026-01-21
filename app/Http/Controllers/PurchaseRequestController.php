@@ -796,7 +796,7 @@ class PurchaseRequestController extends Controller
         $permission = "purchaseRequest.{$validated['request_type']}";
         if (!Auth::user()->can($permission)) {
             return response()->json([
-                'message' => "You do not have permission to {$validated['request_type']} this stock report.",
+                'message' => "You do not have permission to {$validated['request_type']} this Purchase Request.",
             ], 403);
         }
 
@@ -892,7 +892,7 @@ class PurchaseRequestController extends Controller
         // 0️⃣ Validate request
         // -------------------------------
         $validated = $request->validate([
-            'action'      => 'required|string|in:receive,prod-verify,reject,return',
+            'action'      => 'required|string|in:receive,verify,reject,return',
             'comment'     => 'nullable|string|max:1000',
             'approval_id' => 'nullable|integer|exists:approvals,id', // return target
         ]);
@@ -902,7 +902,7 @@ class PurchaseRequestController extends Controller
         // -------------------------------
         if (!Auth::user()->hasAnyPermission([
             'purchaseRequest.receive',
-            'purchaseRequest.prod-verify',
+            'purchaseRequest.verify',
         ])) {
             return response()->json([
                 'message' => "You do not have permission to {$validated['action']} this purchase request.",
@@ -938,7 +938,7 @@ class PurchaseRequestController extends Controller
             // -------------------------------
             $statusMap = [
                 'receive'      => 'Received',
-                'prod-verify'  => 'PROD-Verified',
+                'verify'       => 'Verified',
                 'reject'       => 'Rejected',
                 'return'       => 'Returned',
             ];
@@ -1311,7 +1311,7 @@ class PurchaseRequestController extends Controller
         $pendingApproval = $allApprovalCount - $approvedCount;
         $approvalButtonData = $this->canShowApprovalButton($purchaseRequest->id);
         $procurementReceiveButtonData = Auth::user()->can('purchaseRequest.receive') && $pendingApproval === 0 && $purchaseRequest->approval_status === 'Approved';
-        $procurementVerifyButtonData = Auth::user()->can('purchaseRequest.prod-verify') && $purchaseRequest->approval_status === 'Received';
+        $procurementVerifyButtonData = Auth::user()->can('purchaseRequest.verify') && $purchaseRequest->approval_status === 'Received';
         $assignPurchaserButtonData = Auth::user()->can('purchaseRequest.assignPurchaser') && $pendingApproval === 0;
         $editPurchaseRequestData = Auth::user()->can('update', $purchaseRequest) && ($purchaseRequest->approval_status === 'Pending' || $purchaseRequest->approval_status === 'Returned');
 

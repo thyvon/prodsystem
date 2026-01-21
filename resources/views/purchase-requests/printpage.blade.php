@@ -20,14 +20,25 @@
             src: url("{{ asset('fonts/TwCenMT.ttf') }}") format('truetype');
         }
 
+        @page {
+            size: A4 portrait;
+            margin: 5mm;
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                font-family: 'TW Cen MT', 'Khmer OS Battambang', sans-serif;
+            }
+        }
+
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: relative;
-            padding-bottom: 5px;
-            min-height: 60px;
+            padding-bottom: 2px;
+            min-height: 50px;
         }
+
         .logo-section {
             position: absolute;
             left: 0; top: 0;
@@ -43,16 +54,16 @@
             transform: translateX(-50%);
             text-align: center;
             line-height: 1;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         .title-section h3 { margin: 0; font-size: 14px; }
         .sub-title { color: red; font-weight: bold; }
 
         .form-info, .pr-info { font-size: 10px; }
-        .form-info p, .pr-info p { margin: 0; line-height: 1.4; }
+        .form-info p, .pr-info p { margin: 0; line-height: 1.2; }
 
-        .info-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        .info-table td { padding: 3px 5px; vertical-align: top; }
+        .info-table { width: 100%; border-collapse: collapse; margin-top: 3px; }
+        .info-table td { padding: 2px 4px; vertical-align: top; }
         .label { width: 18%; white-space: nowrap; }
         .value {
             display: inline-block;
@@ -61,55 +72,57 @@
             font-weight: bold;
         }
 
-        table.items { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        table.items { width: 100%; border-collapse: collapse; margin-top: 5px; }
         table.items, .items th, .items td { border: 1px solid #333232ff; }
         .items th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
-        .items th, .items td { padding: 4px; }
+        .items th, .items td { padding: 2px 3px; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
 
         .note {
-            margin-top: 5px;
-            font-size: 12px;
-            line-height: 1.4;
+            margin-top: 3px;
+            font-size: 11px;
+            line-height: 1.2;
             border: 1px solid #333232ff;
             padding: 5px;
         }
 
         .signature-section {
-            margin-top: 30px;
+            margin-top: 15px;
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 10px;
         }
+
         .signature-box {
-            flex: 1 1 calc((100% / 3) - 20px);
-            max-width: calc((100% / 3) - 20px);
+            flex: 1 1 calc((100% / 3) - 10px);
+            max-width: calc((100% / 3) - 10px);
             min-width: 150px;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
             height: 150px;
-            margin-bottom: 10px;
             box-sizing: border-box;
-            position: relative;
         }
 
         .signature-image-box {
-            height: 50px;
+            height: 60px;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         .signature-image { max-width: 100px; max-height: 70px; }
+
         .signature-line {
             height: 1px;
-            background-color: #333232ff;  /* dark line */
+            background-color: #333232ff;
             width: 100%;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
-        .signature-info { font-size: 10px; }
+
+        .signature-info { font-size: 10px; line-height: 1.2; }
+
     </style>
 </head>
 <body>
@@ -206,7 +219,7 @@
         @endforeach
 
         @php
-            $emptyCount = 5 - count($pr['items']);
+            $emptyCount = 10 - count($pr['items']);
         @endphp
         @if($emptyCount > 0)
             <tr style="height: {{ $emptyCount*40 }}px;">
@@ -232,6 +245,7 @@
 
 <div class="signature-section">
     <div class="signature-box">
+        <strong class="text-center">ស្នើសុំដោយ<br>Requested by</strong>
         <div class="signature-image-box">
             @if (!empty($pr['creator_signature_url']))
                 <img src="{{ asset('storage/' . $pr['creator_signature_url']) }}" class="signature-image">
@@ -239,29 +253,41 @@
         </div>
         <div class="signature-line"></div>
         <div class="signature-info">
-            <strong>Requested by</strong><br>
             ឈ្មោះ/Name: {{ $pr['creator_name'] }}<br>
             តួនាទី/Position: {{ $pr['creator_position'] }}<br>
             កាលបរិច្ឆេទ/Date: {{ $pr['request_date'] }}
         </div>
     </div>
 
-    @foreach($pr['approvals'] as $approval)
+    @foreach(collect($pr['approvals'])->where('prod_action', '=', 0) as $approval)
         <div class="signature-box">
+            <strong class="text-center">
+                {!! $approval['request_type_label'] ?? 'Approved By<br>អនុម័តដោយ' !!}
+            </strong>
             <div class="signature-image-box">
                 @if(($approval['approval_status'] ?? '') === 'Approved' && !empty($approval['user_signature_url']))
                     <img src="{{ asset('storage/' . $approval['user_signature_url']) }}" class="signature-image">
                 @endif
             </div>
+
             <div class="signature-line"></div>
+
             <div class="signature-info">
-                <strong>{{ $approval['request_type_label'] ?? 'Approved by' }}</strong><br>
                 ឈ្មោះ/Name: {{ $approval['name'] ?? '' }}<br>
                 តួនាទី/Position: {{ $approval['position_title'] ?? '' }}<br>
-                កាលបរិច្ឆេទ/Date: {{ $approval['responded_date'] ?? '' }}
+                កាលបរិច្ឆេទ/Date: {{ $approval['responded_date']? \Carbon\Carbon::parse($approval['responded_date'])->format('M d, Y') : '' }}
             </div>
         </div>
     @endforeach
 </div>
+@foreach(collect($pr['approvals'])->where('prod_action', '!=', 0) as $approval)
+<strong>
+{!! $approval['request_type_label'] ?? "Approved By<br>អនុម័តដោយ" !!}
+</strong>:
+{{ $approval['name'] ?? '' }}, {{ $approval['position_title'] ?? '' }},
+{{ $approval['responded_date'] ? \Carbon\Carbon::parse($approval['responded_date'])->format('M d, Y h:i A') : '' }}
+<br><br>
+@endforeach
+
 </body>
 </html>

@@ -2,7 +2,7 @@
   <div class="card border shadow-sm h-100">
     <div class="card-body">
       <label class="font-weight-bold d-block text-center">
-        {{ approval.request_type_label || approval.request_type }}
+        <span v-html="approval.request_type_label || approval.request_type"></span>
       </label>
 
       <div class="d-flex mb-2">
@@ -26,7 +26,8 @@
             'badge-danger': approval.approval_status === 'Rejected',
             'badge-warning': approval.approval_status === 'Pending',
             'badge-info': approval.approval_status === 'Returned',
-            'badge-primary': approval.approval_status === 'Received'
+            'badge-secondary': approval.approval_status === 'Received',
+            'badge-primary': approval.approval_status === 'Verified'
           }"
         >
           <strong>{{ approval.approval_status === 'Approved' ? 'Signed' : capitalize(approval.approval_status) }}</strong>

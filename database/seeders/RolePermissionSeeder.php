@@ -15,7 +15,7 @@ class RolePermissionSeeder extends Seeder
         $features = [
             'purchaseRequest' => [
                 'name' => 'Purchase Request',
-                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'initial', 'approve', 'reassign','verify','acknowledge', 'check','receive','prod-verify','assignPurchaser'],
+                'actions' => ['create', 'view', 'update', 'delete', 'restore', 'forceDelete', 'initial', 'check', 'approve', 'reassign','verify','receive','assignPurchaser'],
             ],
             'evaluation' => [
                 'name' => 'Evaluation',
