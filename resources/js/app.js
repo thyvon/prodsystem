@@ -86,6 +86,7 @@ import StockCountShow from './components/Inventory/StockCount/Show.vue'
 
 //Approval Management
 import ApprovalList from './components/Approval/Index.vue'
+import MyRequests from './components/Approval/MyRequests.vue'
 
 
 //Dashboard
@@ -195,6 +196,7 @@ import DebitNoteEmailList from './components/Inventory/DebitNote/DebitNoteEmailL
 
  //Approval Management
  app.component('approval-list', ApprovalList)
+ app.component('my-requests', MyRequests)
 
  app.component('dashboard', Dashboard)
  app.component('datatable', Datatable)

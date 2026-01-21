@@ -36,7 +36,16 @@
         -->
         <ul id="js-nav-menu" class="nav-menu">
             @php
-                $approvalActive = request()->is('approvals*');
+                $dashboardActive = request()->is('/');
+            @endphp
+            <li class="{{ $dashboardActive ? 'active' : '' }}">
+                <a href="{{ url('/') }}" title="Dashboard" data-filter-tags="blank page">
+                    <i class="fal fa-chart-pie"></i>
+                    <span class="nav-link-text">Dashboard</span>
+                </a>
+            </li>
+            @php
+                $approvalActive = request()->is('approvals');
             @endphp
             <li class="{{ $approvalActive ? 'active' : '' }}">
                 <a href="{{ url('approvals') }}" title="Notifications" data-filter-tags="notifications">
@@ -48,13 +57,14 @@
                 </a>
             </li>
             @php
-                $dashboardActive = request()->is('/');
+            $approvalActive = request()->is('approvals/my-requests*');
             @endphp
-            <li class="{{ $dashboardActive ? 'active' : '' }}">
-                <a href="{{ url('/') }}" title="Dashboard" data-filter-tags="blank page">
-                    <i class="fal fa-chart-pie"></i>
-                    <span class="nav-link-text">Dashboard</span>
+            <li class="{{ $approvalActive ? 'active' : '' }}">
+                <a href="{{ url('approvals/my-requests') }}" title="My Requests" data-filter-tags="my requests">
+                    <i class="fal fa-file"></i>
+                    <span class="nav-link-text">My Requests</span>
                 </a>
+            </li>
             <!-- </li>
             @php
                 $digitalDocumentActive = request()->is('digital-docs-approvals*');
@@ -76,9 +86,9 @@
             </li>
 
             @php
-                $productActive = request()->is('products*') || 
-                request()->is('sub-categories*') || 
-                request()->is('main-categories*') || 
+                $productActive = request()->is('products*') ||
+                request()->is('sub-categories*') ||
+                request()->is('main-categories*') ||
                 request()->is('unit-of-measures*') ||
                 request()->is('product-variant-attributes*');
             @endphp
@@ -111,7 +121,7 @@
                     <li class="{{ request()->is('product-variant-attributes*') ? 'active' : '' }}">
                         <a href="{{ url('product-variant-attributes') }}" title="Product Variant Attributes" data-filter-tags="product variant attributes">
                             <span class="nav-link-text">Product Attributes</span>
-                        </a>    
+                        </a>
                     </li>
                 </ul>
             </li>
@@ -186,7 +196,7 @@
 
             @php
                 $inventoryActive = request()->is('inventory/warehouses*')
-                || request()->is('inventory/items*') 
+                || request()->is('inventory/items*')
                 || request()->is('inventory/stock-movements*')
                 || request()->is('inventory/stock-beginnings*')
                 || request()->is('inventory/stock-requests*')
@@ -346,7 +356,7 @@
             </li>
 
             @php
-                $settingActive = request()->is('settings*') 
+                $settingActive = request()->is('settings*')
                     || request()->is('currency*')
                     || request()->is('campus*')
                     || request()->is('buildings*')

@@ -411,6 +411,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'getApprovals'])->name('api.approvals.index');
+    Route::get('/approvals/my-requests', [ApprovalController::class, 'getMyRequests'])->name('api.approvals.my-requests');
 
     // Document Transfers
     Route::post('/document-transfers', [DocumentTransferController::class, 'store'])->name('api.document-transfers.store');

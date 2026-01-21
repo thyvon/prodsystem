@@ -173,7 +173,7 @@ Route::middleware(['auth'])->group(function () {
     // Unit of Measure
     Route::get('/unit-of-measures', [UnitController::class, 'index'])
         ->name('unitsOfMeasure.index')->middleware('can:viewAny,' . UnitOfMeasure::class);
-    
+
     // Product Management
     Route::get('/products', [ProductController::class, 'index'])
         ->name('products.index')->middleware('can:viewAny,' . Product::class);
@@ -295,7 +295,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-reports/stock-onhand-by-warehouse/export', [WarehouseProductController::class, 'exportWarehouseStockPivot'])
             ->name('stock-reports.export');
 
-        // Debit  
+        // Debit
         Route::get('/debit-note/emails', [DebitNoteController::class, 'debitNoteEmailIndex'])
             ->name('debit-note-emails.index');
         Route::post('/debit-note/emails/import', [DebitNoteController::class, 'importDebitNoteEmails'])
@@ -334,6 +334,8 @@ Route::middleware(['auth'])->group(function () {
     // Approval Management
     Route::get('/approvals', [ApprovalController::class, 'index'])
         ->name('approvals.index');
+    Route::get('/approvals/my-requests', [ApprovalController::class, 'myRequests'])
+        ->name('approvals.my-requests');
 
 
     // Document Transfers
