@@ -251,127 +251,138 @@ class ApprovalController extends Controller
 
     public function getMyRequests(Request $request): JsonResponse
     {
-        // -----------------------
-        // Validate input (keep DataTable params)
-        // -----------------------
         $validated = $request->validate([
             'search'        => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string|in:created_at,document_name,document_reference,approval_status,latest_responded',
+            'sortColumn'    => 'nullable|string|in:created_at,document_name,document_reference,approval_status,responded_date',
             'sortDirection' => 'nullable|string|in:asc,desc',
             'limit'         => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'page'          => 'nullable|integer|min:1',
             'draw'          => 'nullable|integer',
-            'filterType'    => 'nullable|string|in:all,pending,completed,upcoming,returned,rejected',
+            'status'        => 'nullable|string|in:pending,approved,rejected,returned',
         ]);
 
         $search        = $validated['search'] ?? null;
-        $sortColumn    = $validated['sortColumn'] ?? self::DEFAULT_SORT_COLUMN;
-        $sortDirection = strtolower($validated['sortDirection'] ?? self::DEFAULT_SORT_DIRECTION);
-        $limit         = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
+        $sortColumn    = $validated['sortColumn'] ?? 'created_at';
+        $sortDirection = strtolower($validated['sortDirection'] ?? 'desc');
+        $limit         = (int) ($validated['limit'] ?? 10);
         $page          = (int) ($validated['page'] ?? 1);
         $draw          = (int) ($validated['draw'] ?? 1);
-        $filterType    = $validated['filterType'] ?? 'all';
+        $statusFilter  = $validated['status'] ?? null;
 
         $user = Auth::user();
 
         // -----------------------
-        // Base query: approvals requested by this user
+        // Request type → mapped status
         // -----------------------
-        $query = Approval::with([
-            'requester:id,name',
-            'responder:id,name',
-            'requester.defaultPosition',
-            'requester.defaultDepartment',
-            'requester.defaultCampus',
-        ])
-        ->where('requester_id', $user->id)
-        ->orderBy($sortColumn, $sortDirection)
-        ->orderBy('approvable_id')
-        ->orderBy('ordinal')
-        ->orderBy('id');
+        $requestTypeMap = [
+            'initial'   => 'Initialed',
+            'check'     => 'Checked',
+            'verify'    => 'Verified',
+            'acknowledge'=> 'Acknowledged',
+            'approve'   => 'Approved',
+            'receive'   => 'Received',
+        ];
 
         // -----------------------
-        // Search filter
+        // Base query
         // -----------------------
+        $query = Approval::with(['requester:id,name', 'responder:id,name'])
+            ->where('requester_id', $user->id);
+
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('document_name', 'like', "%{$search}%")
                 ->orWhere('document_reference', 'like', "%{$search}%")
-                ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
+                ->orWhereHas('responder', fn ($q) => $q->where('name', 'like', "%{$search}%"));
             });
         }
 
-        // -----------------------
-        // Fetch & map approvals
-        // -----------------------
-        $approvals = $query->get()
-            ->map(fn($approval) => $this->formatApprovalForList($approval, $user));
+        $approvals = $query->get();
 
         // -----------------------
         // Group by document
         // -----------------------
         $documents = $approvals
             ->groupBy('approvable_id')
-            ->map(function ($group) {
-                $sorted = $group->sortByDesc(fn($a) => $a['responded_date'] ?? $a['created_at']);
-                $totalApprovals = $sorted->count();
-                $respondedCount = $sorted->whereNotNull('responded_date')->count();
+            ->map(function ($group) use ($requestTypeMap) {
 
-                $documentStatus = $respondedCount < $totalApprovals
-                    ? 'Pending'
-                    : $sorted->first()['approval_status'];
+                // Latest responded approval
+                $latest = $group->filter(fn($a) => !is_null($a->responded_date))
+                                ->sortByDesc('responded_date')
+                                ->first();
 
-                $first = $sorted->first();
+                $status = 'Pending';
+                $respondedDate = null;
+                $responderName = null;
+
+                if ($latest) {
+                    $respondedDate = $latest->responded_date;
+                    $responderName = $latest->responder->name;
+
+                    if (strtolower($latest->approval_status) === 'approved') {
+                        // Map from request_type
+                        $status = $requestTypeMap[strtolower($latest->request_type)] ?? 'Approved';
+                    } else {
+                        $status = ucfirst(strtolower($latest->approval_status));
+                    }
+                }
+
+                $first = $group->first();
+
+                $formattedApprovals = $group
+                    ->map(fn($a) => [
+                        'id'             => $a->id,
+                        'request_type'   => $a->request_type,
+                        'approval_status'=> strtolower($a->approval_status) === 'approved' ? 'Done' : $a->approval_status,
+                        'responded_date' => $a->responded_date,
+                        'responder_name' => $a->responder->name ?? null,
+                        'requester_name' => $a->requester->name ?? null,
+                    ])
+                    ->sortBy('ordinal') // change to the column you want to sort by
+                    ->values(); // reset keys after sorting
+
 
                 return [
-                    'created_at'       => $first['created_at'],
-                    'document_id'        => $first['approvable_id'],
-                    'document_name'      => $first['document_name'],
-                    'document_reference' => $first['document_reference'],
-                    'approval_status'    => $documentStatus,
-                    'responded_date'   => $first['responded_date'],
-                    'approvals'          => $sorted->values(),
+                    'approvable_id'      => $first->approvable_id,
+                    'approvable_type'   => $first->approvable_type,
+                    'created_at'         => $first->created_at,
+                    'document_id'        => $first->approvable_id,
+                    'document_name'      => $first->document_name,
+                    'document_reference' => $first->document_reference,
+                    'approval_status'    => $status,
+                    'responded_date'     => $respondedDate,
+                    'responder_name'     => $responderName,
+                    'request_type'       => $first->request_type,
+                    'approvals'          => $formattedApprovals,
                 ];
-            })
-            ->values();
+            });
 
         // -----------------------
-        // Status counts for filter cards
+        // Filter by status
         // -----------------------
-        $statusCounts = [
-            'all'       => $documents->count(),
-            'pending'   => $documents->filter(fn($d) => strtolower($d['approval_status']) === 'pending')->count(),
-            'completed' => $documents->filter(fn($d) => in_array(strtolower($d['approval_status']), ['done','approved']))->count(),
-            'returned'  => $documents->filter(fn($d) => str_contains(strtolower($d['approval_status']), 'returned'))->count(),
-            'rejected'  => $documents->filter(fn($d) => str_contains(strtolower($d['approval_status']), 'rejected'))->count(),
-            'upcoming'  => 0,
-        ];
-
-        // Step 2: then apply filter
-        if ($filterType !== 'all') {
-            $documents = match ($filterType) {
-                'pending'   => $documents->filter(fn($d) => strtolower($d['approval_status']) === 'pending'),
-                'completed' => $documents->filter(fn($d) => in_array(strtolower($d['approval_status']), ['done','approved'])),
-                'returned'  => $documents->filter(fn($d) => str_contains(strtolower($d['approval_status']), 'returned')),
-                'rejected'  => $documents->filter(fn($d) => str_contains(strtolower($d['approval_status']), 'rejected')),
-                'upcoming'  => $documents->filter(fn($d) => false),
-                default     => $documents,
-            };
+        if ($statusFilter) {
+            $documents = $documents->filter(fn($d) => strtolower($d['approval_status']) === strtolower($statusFilter));
         }
 
         // -----------------------
-        // Pagination for DataTable
+        // Sort
         // -----------------------
-        $paginated = $documents->forPage($page, $limit);
+        $documents = $documents->sortBy(
+            $sortColumn,
+            SORT_REGULAR,
+            $sortDirection === 'desc'
+        );
 
         // -----------------------
-        // Return DataTable-compatible response
+        // Pagination
         // -----------------------
+        $total = $documents->count();
+        $paginated = $documents->forPage($page, $limit)->values();
+
         return response()->json([
-            'data'            => $paginated->values(),
-            'recordsTotal'    => $documents->count(),
-            'recordsFiltered' => $documents->count(),
-            'statusCounts'    => $statusCounts,
+            'data'            => $paginated,
+            'recordsTotal'    => $total,
+            'recordsFiltered' => $total,
             'draw'            => $draw,
         ]);
     }
@@ -413,6 +424,7 @@ class ApprovalController extends Controller
         // Filter only approvals for the current user or requested by the user
         $query->where(function ($q) use ($user) {
             $q->where('responder_id', $user->id)
+            ->whereNotIn('approval_status', ['received', 'verified'])
             ->orWhere(function ($qq) use ($user) {
                 $qq->where('requester_id', $user->id)
                     ->whereIn('approval_status', ['returned', 'rejected']);
@@ -439,7 +451,9 @@ class ApprovalController extends Controller
                 !str_contains(strtolower($a['approval_status']), 'waiting') &&
                 strtolower($a['approval_status']) !== 'done' &&
                 !str_contains(strtolower($a['approval_status']), 'rejected') &&
-                !str_contains(strtolower($a['approval_status']), 'returned')
+                !str_contains(strtolower($a['approval_status']), 'returned') &&
+                !str_contains(strtolower($a['approval_status']), 'received') &&
+                !str_contains(strtolower($a['approval_status']), 'verified')
             )->count(),
             'returned'  => $mappedApprovals->filter(fn($a) =>
                 str_contains(strtolower($a['approval_status']), 'returned')

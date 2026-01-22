@@ -105,8 +105,8 @@ const props = defineProps({
   rows: Array, // not used for server-side, but kept for compatibility
   actions: { type: Array, default: () => [] },
   handlers: { type: Object, default: () => ({}) },
-  options: { type: Object, default: () => ({ 
-    // responsive: true, 
+  options: { type: Object, default: () => ({
+    // responsive: true,
   pageLength: 20, }) },
   fetchUrl: String,
   totalRecords: Number,
@@ -179,13 +179,13 @@ const renderColumnData = (key, val) => {
 
     // Request type badge
     case 'request_type': {
-      const map = { 
-      review: 'badge-info', 
-      check: 'badge-primary', 
+      const map = {
+      review: 'badge-info',
+      check: 'badge-primary',
       approve: 'badge-success',
       reject: 'badge-danger',
       verify: 'badge-warning',
-      acknowledge: 'badge-secondary', 
+      acknowledge: 'badge-secondary',
       };
       return badge(map[val?.toLowerCase()] || 'badge-secondary', capitalize(val));
     }
@@ -203,16 +203,26 @@ const renderColumnData = (key, val) => {
 
     // Approvals array
     case 'approvals':
-      if (Array.isArray(val)) {
+    if (Array.isArray(val)) {
         return `<ul class="mb-0 ps-2">
-          ${val.map(a => {
-            const cls = a.approval_status === 'Pending' ? 'badge-warning' : (a.approval_status === 'Rejected' ? 'badge-danger' : 'badge-success');
-            const date = a.approved_date ? ` - <small class="text-muted">${formatDateTime(a.approved_date)}</small>` : '';
-            return `<li>${a.approver_name || 'Unknown'} (${capitalize(a.request_type || '')}) ${badge(cls, a.approval_status || 'Pending')}${date}</li>`;
-          }).join('')}
+        ${val.map(a => {
+            const status = a.approval_status || 'Pending';
+            const cls = status.toLowerCase() === 'pending'
+                        ? 'badge-warning'
+                        : (status.toLowerCase() === 'rejected'
+                            ? 'badge-danger'
+                            : 'badge-success');
+            const date = a.responded_date
+                        ? ` - <small class="text-muted">${formatDateTime(a.responded_date)}</small>`
+                        : '';
+            const name = a.responder_name || a.requester_name || 'Unknown';
+            const requestType = a.request_type ? capitalize(a.request_type) : '';
+            return `<li>${name} (${requestType}) ${badge(cls, status)}${date}</li>`;
+        }).join('')}
         </ul>`;
-      }
-      break;
+    }
+    break;
+
 
     // Sharepoint file
     case 'sharepoint_file_ui_url':
