@@ -106,7 +106,7 @@
         }
 
         .signature-image-box {
-            height: 60px;
+            max-height: 80px;
             display: flex;
             justify-content: center;
             align-items: center;
