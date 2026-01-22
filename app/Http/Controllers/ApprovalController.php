@@ -271,21 +271,15 @@ class ApprovalController extends Controller
 
         $user = Auth::user();
 
-        // -----------------------
-        // Request type → mapped status
-        // -----------------------
         $requestTypeMap = [
-            'initial'   => 'Initialed',
-            'check'     => 'Checked',
-            'verify'    => 'Verified',
-            'acknowledge'=> 'Acknowledged',
-            'approve'   => 'Approved',
-            'receive'   => 'Received',
+            'initial'     => 'Initialed',
+            'check'       => 'Checked',
+            'verify'      => 'Verified',
+            'acknowledge' => 'Acknowledged',
+            'approve'     => 'Approved',
+            'receive'     => 'Received',
         ];
 
-        // -----------------------
-        // Base query
-        // -----------------------
         $query = Approval::with(['requester:id,name', 'responder:id,name'])
             ->where('requester_id', $user->id);
 
@@ -293,17 +287,17 @@ class ApprovalController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('document_name', 'like', "%{$search}%")
                 ->orWhere('document_reference', 'like', "%{$search}%")
-                ->orWhereHas('responder', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                ->orWhereHas('responder', fn($q) => $q->where('name', 'like', "%{$search}%"));
             });
         }
 
         $approvals = $query->get();
 
         // -----------------------
-        // Group by document
+        // Group by approvable_type + approvable_id
         // -----------------------
         $documents = $approvals
-            ->groupBy('approvable_id')
+            ->groupBy(fn($item) => $item->approvable_type . '|' . $item->approvable_id)
             ->map(function ($group) use ($requestTypeMap) {
 
                 // Latest responded approval
@@ -317,10 +311,9 @@ class ApprovalController extends Controller
 
                 if ($latest) {
                     $respondedDate = $latest->responded_date;
-                    $responderName = $latest->responder->name;
+                    $responderName = $latest->responder->name ?? null;
 
                     if (strtolower($latest->approval_status) === 'approved') {
-                        // Map from request_type
                         $status = $requestTypeMap[strtolower($latest->request_type)] ?? 'Approved';
                     } else {
                         $status = ucfirst(strtolower($latest->approval_status));
@@ -338,13 +331,12 @@ class ApprovalController extends Controller
                         'responder_name' => $a->responder->name ?? null,
                         'requester_name' => $a->requester->name ?? null,
                     ])
-                    ->sortBy('ordinal') // change to the column you want to sort by
-                    ->values(); // reset keys after sorting
-
+                    ->sortBy('ordinal') // adjust as needed
+                    ->values();
 
                 return [
                     'approvable_id'      => $first->approvable_id,
-                    'approvable_type'   => $first->approvable_type,
+                    'approvable_type'    => $first->approvable_type,
                     'created_at'         => $first->created_at,
                     'document_id'        => $first->approvable_id,
                     'document_name'      => $first->document_name,
@@ -365,13 +357,18 @@ class ApprovalController extends Controller
         }
 
         // -----------------------
-        // Sort
+        // Sort by column
         // -----------------------
-        $documents = $documents->sortBy(
-            $sortColumn,
-            SORT_REGULAR,
-            $sortDirection === 'desc'
-        );
+        $documents = $documents->sortBy(function($d) use ($sortColumn) {
+            // Use latest values for sorting if sorting by approval_status or responded_date
+            if ($sortColumn === 'approval_status') {
+                return strtolower($d['approval_status']);
+            }
+            if ($sortColumn === 'responded_date') {
+                return $d['responded_date'] ?? null;
+            }
+            return $d[$sortColumn] ?? null;
+        }, SORT_REGULAR, $sortDirection === 'desc');
 
         // -----------------------
         // Pagination
