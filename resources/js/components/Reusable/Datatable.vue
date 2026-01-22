@@ -156,6 +156,21 @@ const renderColumnData = (key, val) => {
     is_urgent: { true: ['badge-danger', 'Yes'], false: ['badge-secondary', 'No'] },
     has_variants: { true: ['badge-primary', 'Yes'], false: ['badge-danger', 'No'] },
   };
+const getBadgeClass = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'pending': return 'badge-pending';
+        case 'rejected': return 'badge-rejected';
+        case 'done': return 'badge-done';
+        case 'reviewed': return 'badge-reviewed';
+        case 'checked': return 'badge-checked';
+        case 'approved': return 'badge-approved';
+        case 'verified': return 'badge-verified';
+        case 'acknowledged': return 'badge-acknowledged';
+        case 'received': return 'badge-received';
+        case 'returned': return 'badge-returned';
+        default: return 'badge-default';
+    }
+};
 
   switch (key) {
     // Dates
@@ -190,39 +205,30 @@ const renderColumnData = (key, val) => {
       return badge(map[val?.toLowerCase()] || 'badge-secondary', capitalize(val));
     }
 
-    // Approval status badge
-    case 'approval_status': {
-      const status = val?.toLowerCase();
-      const cls = status?.includes('rejected') ? 'badge-danger' :
-                  status === 'pending' ? 'badge-warning' :
-                  status === 'done' ? 'badge-success' :
-                  status === 'reviewed' ? 'badge-info' :
-                  status === 'checked' ? 'badge-primary' : 'badge-secondary';
-      return badge(cls, capitalize(val));
-    }
+// Single approval status
+case 'approval_status': {
+    const status = val;
+    const cls = getBadgeClass(status);
+    return badge(cls, capitalize(status));
+}
 
-    // Approvals array
-    case 'approvals':
-    if (Array.isArray(val)) {
-        return `<ul class="mb-0 ps-2">
+// Approvals array
+case 'approvals': {
+    if (!Array.isArray(val)) break;
+
+    return `<ul class="mb-0 ps-2">
         ${val.map(a => {
             const status = a.approval_status || 'Pending';
-            const cls = status.toLowerCase() === 'pending'
-                        ? 'badge-warning'
-                        : (status.toLowerCase() === 'rejected'
-                            ? 'badge-danger'
-                            : 'badge-success');
+            const cls = getBadgeClass(status);
             const date = a.responded_date
-                        ? ` - <small class="text-muted">${formatDateTime(a.responded_date)}</small>`
-                        : '';
+                ? ` - <small class="text-muted">${formatDateTime(a.responded_date)}</small>`
+                : '';
             const name = a.responder_name || a.requester_name || 'Unknown';
             const requestType = a.request_type ? capitalize(a.request_type) : '';
             return `<li>${name} (${requestType}) ${badge(cls, status)}${date}</li>`;
         }).join('')}
-        </ul>`;
-    }
-    break;
-
+    </ul>`;
+}
 
     // Sharepoint file
     case 'sharepoint_file_ui_url':
@@ -456,3 +462,29 @@ onUnmounted(() => {
   window.__datatableVueHandlers = null;
 });
 </script>
+
+<style>
+/* Custom badge colors inside scoped styles */
+.badge-pending { background-color: orange; color: white; }
+.badge-rejected { background-color: red; color: white; }
+.badge-done { background-color: green; color: white; }
+.badge-reviewed { background-color: deepskyblue; color: white; }
+.badge-checked { background-color: purple; color: white; }
+.badge-approved { background-color: green; color: white; }
+.badge-verified { background-color: teal; color: white; }
+.badge-acknowledged { background-color: gray; color: white; }
+.badge-received { background-color: lightblue; color: black; }
+.badge-returned { background-color: darkred; color: white; }
+.badge-default { background-color: darkgray; color: white; }
+
+/* Optional: add some padding and rounded corners like Bootstrap badges */
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem;
+    line-height: 1;
+}
+</style>
+
