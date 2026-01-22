@@ -326,8 +326,10 @@ class ApprovalController extends Controller
                     ->map(fn($a) => [
                         'id'             => $a->id,
                         'request_type'   => $a->request_type,
-                        'approval_status'=> strtolower($a->approval_status) === 'approved' ? 'Done' : $a->approval_status,
-                        'responded_date' => $a->responded_date,
+                        'approval_status' => strtolower($a->approval_status) === 'approved'
+                        ? ($requestTypeMap[strtolower($a->request_type)] ?? 'Approved')
+                        : ucfirst(strtolower($a->approval_status)),
+                                            'responded_date' => $a->responded_date,
                         'responder_name' => $a->responder->name ?? null,
                         'requester_name' => $a->requester->name ?? null,
                     ])

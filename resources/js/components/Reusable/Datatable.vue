@@ -224,8 +224,8 @@ case 'approvals': {
                 ? ` - <small class="text-muted">${formatDateTime(a.responded_date)}</small>`
                 : '';
             const name = a.responder_name || a.requester_name || 'Unknown';
-            const requestType = a.request_type ? capitalize(a.request_type) : '';
-            return `<li>${name} (${requestType}) ${badge(cls, status)}${date}</li>`;
+            // const requestType = a.request_type ? capitalize(a.request_type) : '';
+            return `<li>${name} ${badge(cls, status)}${date}</li>`;
         }).join('')}
     </ul>`;
 }
