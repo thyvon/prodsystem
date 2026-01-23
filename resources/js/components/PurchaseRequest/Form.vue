@@ -120,27 +120,27 @@
               <table class="table table-bordered table-striped table-sm table-hover">
                 <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10; text-align: center;">
                 <tr>
-                  <th style="min-width: 150px;">Item Code</th>
-                  <th style="min-width: 300px;">Description</th>
-                  <th style="min-width: 80px;">UoM</th>
-                  <th style="min-width: 200px;">Remarks</th>
-                  <th style="min-width: 80px;">Currency</th>
-                  <th style="min-width: 100px;">Ex. Rate</th>
-                  <th style="min-width: 100px;">Qty</th>
-                  <th style="min-width: 100px;">Price</th>
-                  <th style="min-width: 100px;">Value USD</th>
-                  <th style="min-width: 160px;">Budget</th>
-                  <th style="min-width: 120px;">Campus</th>
-                  <th style="min-width: 120px;">Dept</th>
-                  <th style="min-width: 80px;">Action</th>
+                  <th style="min-width: 120px;">Item Code</th>
+                  <th class="d-none d-md-table-cell" style="min-width: 200px;">Description</th>
+                  <th style="min-width: 60px;">UoM</th>
+                  <th class="d-none d-md-table-cell" style="min-width: 140px;">Remarks</th>
+                  <th style="min-width: 70px;">Currency</th>
+                  <th class="d-none d-md-table-cell" style="min-width: 80px;">Ex. Rate</th>
+                  <th style="min-width: 60px;">Qty</th>
+                  <th style="min-width: 70px;">Price</th>
+                  <th class="d-none d-lg-table-cell" style="min-width: 80px;">Value USD</th>
+                  <th class="d-none d-lg-table-cell" style="min-width: 120px;">Budget</th>
+                  <th class="d-none d-lg-table-cell" style="min-width: 100px;">Campus</th>
+                  <th class="d-none d-lg-table-cell" style="min-width: 100px;">Dept</th>
+                  <th style="min-width: 60px;">Action</th>
                 </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="index">
                     <td>{{ item.product_code }}</td>
-                    <td>{{ item.product_description }}</td>
+                    <td class="d-none d-md-table-cell">{{ item.product_description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <td><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm"></textarea></td>
+                    <td class="d-none d-md-table-cell"><textarea :name="`items[${index}][description]`" v-model="item.description" class="form-control form-control-sm"></textarea></td>
                     <td>
                       <select :name="`items[${index}][currency]`" v-model="item.currency" class="form-control form-control-sm">
                         <option value="">Select</option>
@@ -148,18 +148,18 @@
                         <option value="KHR">KHR</option>
                       </select>
                     </td>
-                    <td><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" class="form-control form-control-sm" /></td>
+                    <td class="d-none d-md-table-cell"><input type="number" :name="`items[${index}][exchange_rate]`" v-model.number="item.exchange_rate" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][quantity]`" v-model.number="item.quantity" class="form-control form-control-sm" /></td>
                     <td><input type="number" :name="`items[${index}][unit_price]`" v-model.number="item.unit_price" class="form-control form-control-sm" /></td>
-                    <td><input type="text" class="form-control form-control-sm"
+                    <td class="d-none d-lg-table-cell"><input type="text" class="form-control form-control-sm"
                       :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
                       readonly
                     /></td>
-                    <td><select class="form-control budget-select" :data-index="index"></select></td>
-                    <td>
+                    <td class="d-none d-lg-table-cell"><select class="form-control budget-select" :data-index="index"></select></td>
+                    <td class="d-none d-lg-table-cell">
                       <select multiple class="form-control campus-select" :data-index="index"></select>
                     </td>
-                    <td>
+                    <td class="d-none d-lg-table-cell">
                       <select multiple class="form-control department-select" :data-index="index"></select>
                     </td>
                     <td class="text-center">
