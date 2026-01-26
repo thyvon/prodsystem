@@ -211,25 +211,12 @@ class StockRequestController extends Controller
         try {
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['request_date']);
-                $userCampus = auth()->user()->defaultCampus(); // returns model or null
-                $userPositionId = Auth::user()->defaultPosition?->id; // returns model or null
-
-                if (!$userCampus) {
-                    return response()->json([
-                        'message' => 'No default campus assigned to this user.',
-                    ], 404);
-                }
-                if (!$userPositionId) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
-
+                $user = Auth::user();
                 $stockRequest = StockRequest::create([
                     'request_number' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
-                    'campus_id' => $userCampus->id,
-                    'position_id' => $userPositionId,
+                    'campus_id' => $user->defaultCampus?->id,
+                    'position_id' => $user->defaultPosition?->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -252,9 +239,7 @@ class StockRequestController extends Controller
                         'updated_at' => now(),
                     ];
                 }, $validated['items']);
-
-                StockRequestItem::insert($items);
-
+                StockRequestItem::create($items);
                 $this->storeApprovals($stockRequest, $validated['approvals']);
 
                 return response()->json([
@@ -415,24 +400,12 @@ class StockRequestController extends Controller
         try {
             return DB::transaction(function () use ($validated, $stockRequest) {
                 // Update main stock request header
-                $userCampus = auth()->user()->defaultCampus(); // returns model or null
-                $userPositionId = Auth::user()->defaultPosition?->id; // returns model or null
-
-                if (!$userCampus) {
-                    return response()->json([
-                        'message' => 'No default campus assigned to this user.',
-                    ], 404);
-                }
-                if (!$userPositionId) {
-                    return response()->json([
-                        'message' => 'No default position assigned to this user.',
-                    ], 404);
-                }
+                $user = Auth::user();
 
                 $stockRequest->update([
                     'warehouse_id' => $validated['warehouse_id'],
-                    'campus_id' => $userCampus->id,
-                    'position_id' => $userPositionId,
+                    'campus_id' => $user->defaultCampus?->id,
+                    'position_id' => $user->defaultPosition?->id,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
