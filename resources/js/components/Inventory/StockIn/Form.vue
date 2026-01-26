@@ -122,7 +122,7 @@
 
     <!-- Products modal -->
     <div ref="itemsModal" class="modal fade" tabindex="-1" role="dialog">
-      <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
           <div class="modal-header"><h5 class="modal-title">{{ modalTitle }}</h5><button type="button" class="close" @click="closeItemsModal">&times;</button></div>
           <div class="modal-body"><table ref="modalItemsTable" class="table table-bordered table-sm"><thead><tr><th>Select</th><th>Code</th><th>Description</th><th>UoM</th><th>Qty On Hand</th><th>Unit Price</th></tr></thead><tbody></tbody></table></div>
@@ -223,6 +223,8 @@ const initModalDataTable = () => {
     tableEl.DataTable({
       serverSide: true,
       processing: true,
+      responsive: true,
+      autoWidth: false,
       ajax: {
         url: '/api/inventory/stock-ins/get-products',
         type: 'GET',
@@ -299,8 +301,3 @@ onMounted(async () => {
   if (props.initialId) await loadEditData(props.initialId)
 })
 </script>
-
-<style scoped>
-/* minimal helpers */
-.table td, .table th { vertical-align: middle; }
-</style>
