@@ -18,7 +18,7 @@
 
             <div class="form-row">
               <div class="form-group col-md-3">
-                <label class="font-weight-bold">Count Date <span class="text-danger">*</span></label>
+                <label class="font-weight-bold">Transaction Date <span class="text-danger">*</span></label>
                 <input
                   id="transaction_date"
                   v-model="form.transaction_date"
@@ -332,16 +332,16 @@ const openItemsSelection = async () => {
 
 const openStockRequestItemsModal = async () => {
   try {
-    if (!form.value.stock_request_id) 
+    if (!form.value.stock_request_id)
       return showAlert('Error', 'Please select a Stock Request.', 'danger')
 
     const { data } = await axios.get(
       `/api/inventory/stock-issues/get-stock-request-items/${form.value.stock_request_id}`,
-      { 
-        params: { 
-          cutoff_date: form.value.transaction_date, 
+      {
+        params: {
+          cutoff_date: form.value.transaction_date,
           warehouse_id: form.value.warehouse_id // pass warehouse_id
-        } 
+        }
       }
     )
 
@@ -357,7 +357,7 @@ const openStockRequestItemsModal = async () => {
 const openProductsModal = async () => {
   modalTitle.value = 'Select Products';
   await nextTick();
-  
+
   // Re-initialize DataTable to send warehouse_id and transaction_date
   initModalDataTable()
 

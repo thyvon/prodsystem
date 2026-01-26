@@ -304,7 +304,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-requests/{stockRequest}/reassign-approval', [StockRequestController::class, 'reassignResponder'])->middleware('can:reassign,stockRequest')->name('api.stock-requests.reassign-approval');
         Route::get('/stock-requests/get-warehouses', [StockRequestController::class, 'fetchWarehousesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-warehouses');
         Route::get('/stock-requests/get-campuses', [StockRequestController::class, 'fetchCampusesForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-campuses');
-        Route::get('/stock-requests/get-products', [StockRequestController::class, 'fetchProductsForStockRequest'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-products');
+        Route::get('/stock-requests/get-products', [StockRequestController::class, 'getProducts'])->middleware('can:viewAny,' . StockRequest::class)->name('api.stock-requests.get-products');
 
         // Stock Issue
         Route::get('/stock-issues', [StockIssueController::class, 'getStockIssues'])->middleware('can:viewAny,' . StockIssue::class)->name('api.stock-issues.index');

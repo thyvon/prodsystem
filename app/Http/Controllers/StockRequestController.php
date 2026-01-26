@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Approval;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Maatwebsite\Excel\Facades\Excel;
@@ -22,6 +23,7 @@ use App\Services\ProductService;
 use App\Services\CampusService;
 use App\Services\ApprovalService;
 use App\Services\DepartmentService;
+use App\Services\StockLedgerService;
 use App\Http\Resources\StockRequestCollection;
 use App\Policies\StockRequestPolicy;
 
@@ -40,19 +42,22 @@ class StockRequestController extends Controller
     protected $campusService;
     protected $departmentService;
     protected $approvalService;
+    protected $stockLedgerService;
 
     public function __construct(
         WarehouseService $warehouseService,
         ProductService $productService,
         CampusService $campusService,
         DepartmentService $departmentService,
-        ApprovalService $approvalService
+        ApprovalService $approvalService,
+        StockLedgerService $stockLedgerService
     ) {
         $this->warehouseService = $warehouseService;
         $this->productService = $productService;
         $this->campusService = $campusService;
         $this->departmentService = $departmentService;
         $this->approvalService = $approvalService;
+        $this->stockLedgerService = $stockLedgerService;
     }
 
     /**
@@ -207,14 +212,14 @@ class StockRequestController extends Controller
             return DB::transaction(function () use ($validated) {
                 $referenceNo = $this->generateReferenceNo($validated['warehouse_id'], $validated['request_date']);
                 $userCampus = auth()->user()->defaultCampus(); // returns model or null
-                $userPosition = auth()->user()->defaultPosition(); // returns model or null
+                $userPositionId = Auth::user()->defaultPosition?->id; // returns model or null
 
                 if (!$userCampus) {
                     return response()->json([
                         'message' => 'No default campus assigned to this user.',
                     ], 404);
                 }
-                if (!$userPosition) {
+                if (!$userPositionId) {
                     return response()->json([
                         'message' => 'No default position assigned to this user.',
                     ], 404);
@@ -224,7 +229,7 @@ class StockRequestController extends Controller
                     'request_number' => $referenceNo,
                     'warehouse_id' => $validated['warehouse_id'],
                     'campus_id' => $userCampus->id,
-                    'position_id' => $userPosition->id,
+                    'position_id' => $userPositionId,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -309,7 +314,13 @@ class StockRequestController extends Controller
                 'approval_status' => $stockRequest->approval_status,
                 'request_date' => $stockRequest->request_date,
                 // Inline items with default department/campus fallback
-                'items' => $stockRequest->stockRequestItems->map(function ($item) use ($defaultDepartment, $defaultCampus) {
+                'items' => $stockRequest->stockRequestItems->map(function ($item) use ($defaultDepartment, $defaultCampus, $stockRequest) {
+                    $stockOnHand = $this->stockLedgerService->getStockOnHand(
+                        $item->product_id,
+                        $stockRequest->warehouse_id,
+                        $stockRequest->request_date
+                    );
+
                     return [
                         'id' => $item->id,
                         'product_id' => $item->product_id,
@@ -323,6 +334,8 @@ class StockRequestController extends Controller
                         'product_name' => $item->productVariant->product->name ?? null,
                         'product_khmer_name' => $item->productVariant->product->khmer_name ?? null,
                         'unit_name' => $item->productVariant->product->unit->name ?? null,
+                        'description' => ($item->productVariant->product->name ?? '') . ' ' . ($item->productVariant->description ?? ''),
+                        'stock_on_hand' => $stockOnHand,
                     ];
                 })->toArray(),
 
@@ -403,14 +416,14 @@ class StockRequestController extends Controller
             return DB::transaction(function () use ($validated, $stockRequest) {
                 // Update main stock request header
                 $userCampus = auth()->user()->defaultCampus(); // returns model or null
-                $userPosition = auth()->user()->defaultPosition(); // returns model or null
+                $userPositionId = Auth::user()->defaultPosition?->id; // returns model or null
 
                 if (!$userCampus) {
                     return response()->json([
                         'message' => 'No default campus assigned to this user.',
                     ], 404);
                 }
-                if (!$userPosition) {
+                if (!$userPositionId) {
                     return response()->json([
                         'message' => 'No default position assigned to this user.',
                     ], 404);
@@ -419,7 +432,7 @@ class StockRequestController extends Controller
                 $stockRequest->update([
                     'warehouse_id' => $validated['warehouse_id'],
                     'campus_id' => $userCampus->id,
-                    'position_id' => $userPosition?->id,
+                    'position_id' => $userPositionId,
                     'type' => $validated['type'],
                     'purpose' => $validated['purpose'] ?? null,
                     'request_date' => $validated['request_date'],
@@ -452,7 +465,7 @@ class StockRequestController extends Controller
 
                 $newApprovalKeys = collect($validated['approvals'])->map(function ($a) {
                     $user = User::find($a['user_id']);
-                    $positionId = $user?->defaultPosition()?->id;
+                    $positionId = $user?->defaultPosition?->id;
                     return "{$a['user_id']}|{$positionId}|{$a['request_type']}";
                 })->toArray();
 
@@ -937,7 +950,7 @@ class StockRequestController extends Controller
         ]);
 
         $user = User::findOrFail($validated['new_user_id']);
-        $positionId = $validated['new_position_id'] ?? $user->defaultPosition()?->id;
+        $positionId = $validated['new_position_id'] ?? $user->defaultPosition?->id;
 
         if (!$positionId) {
             return response()->json([
@@ -1028,7 +1041,7 @@ class StockRequestController extends Controller
 
             // Check all previous approvals (lower OR same ordinal but lower id)
             $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
-                return ($a->ordinal < $currentApproval->ordinal) || 
+                return ($a->ordinal < $currentApproval->ordinal) ||
                     ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
             });
 
@@ -1121,21 +1134,9 @@ class StockRequestController extends Controller
         return response()->json($campus);
     }
 
-    public function fetchProductsForStockRequest(Request $request)
+    public function getProducts(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', StockRequest::class);
-        $response = $this->productService->getStockManagedVariants($request);
-        
-        // Filter response to include only items where is_active = 1
-        $filteredResponse = [
-            'data' => collect($response['data'])->filter(function ($item) {
-                return $item['is_active'] == 1;
-            })->values()->all(),
-            'recordsTotal' => $response['recordsTotal'],
-            'recordsFiltered' => count($response['data']), // Update recordsFiltered to reflect filtered count
-            'draw' => $response['draw'],
-        ];
-        
-        return response()->json($filteredResponse);
+        $result = $this->productService->getStockProducts($request->all());
+        return response()->json($result);
     }
 }

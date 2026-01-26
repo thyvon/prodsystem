@@ -18,7 +18,7 @@
                 <input
                   v-model="form.request_date_display"
                   type="text"
-                  class="form-control datepicker"
+                  class="form-control"
                   id="request_date"
                   required
                   placeholder="Enter request date"
@@ -66,25 +66,9 @@
           </div>
 
           <div class="border rounded p-3 mb-4">
-            <div class="form-row mb-3">
-              <div class="form-group col-md-12">
-                <h5 class="font-weight-bold mb-3 text-primary">📦 Request Items <span class="text-danger">*</span></h5>
-                <label for="product_select" class="font-weight-bold">Add Product</label>
-                <select
-                  ref="productSelect"
-                  class="form-control"
-                  id="product_select"
-                >
-                  <option value="">Select Product</option>
-                  <option
-                    v-for="product in products"
-                    :key="product.id"
-                    :value="product.id"
-                  >
-                    {{ `${product.item_code} - ${product.product_name} ${product.description} (Stock: ${product.stock_on_hand})` }}
-                  </option>
-                </select>
-              </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="font-weight-bold text-primary">📦 Request Items <span class="text-danger">*</span></h5>
+              <button type="button" class="btn btn-sm btn-success" @click="openItemsSelection">Add Items</button>
             </div>
             <div class="table-responsive">
               <table class="table table-bordered table-sm table-hover">
@@ -105,25 +89,24 @@
                 </thead>
                 <tbody>
                   <tr v-for="(item, index) in form.items" :key="item.product_id">
-                    <td>{{ ProductCode(item.product_id) }}</td>
-                    <td>{{ ProductDescription(item.product_id) }}</td>
-                    <td>{{ itemUnitName(item.product_id) }}</td>
+                    <td>{{ item.item_code }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.unit_name }}</td>
                     <td>
-                      <input class="form-control" :value="StockOnhand(item.product_id)" readonly />
+                      <input class="form-control" :value="item.stock_on_hand" readonly />
                     </td>
                     <td>
                       <input
                         type="number"
                         class="form-control quantity-input"
                         v-model.number="item.quantity"
-                        :max="StockOnhand(item.product_id)"
                         min="0.0001"
                         step="0.0001"
                         :data-row="index"
                       />
                     </td>
                     <td>
-                      <input class="form-control" :value="ProductPrice(item.product_id)" readonly />
+                      <input class="form-control" :value="item.average_price" readonly />
                     </td>
                     <td>
                       <input class="form-control" :value="(item.quantity * item.average_price).toFixed(4)" readonly />
@@ -268,6 +251,41 @@
         </div>
       </div>
     </form>
+
+    <!-- Items Modal -->
+    <div ref="itemsModal" class="modal fade" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Select Products</h5>
+            <button type="button" class="close" @click="closeItemsModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="table-responsive">
+              <table ref="modalItemsTable" class="table table-bordered table-sm">
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Code</th>
+                    <th>Description</th>
+                    <th>UoM</th>
+                    <th>Qty On Hand</th>
+                    <th>Avg Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- DataTable will populate this -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary btn-sm" @click="closeItemsModal">Cancel</button>
+            <button class="btn btn-success btn-sm" @click="addSelectedItems">Add Selected</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -290,16 +308,17 @@ const props = defineProps({
 
 const emit = defineEmits(['submitted'])
 const isSubmitting = ref(false)
-const products = ref([])
 const warehouses = ref([])
 const users = ref({ approve: [] })
 const warehouseSelect = ref(null)
 const typeSelect = ref(null)
-const productSelect = ref(null)
 const isEditMode = computed(() => !!props.initialData?.id)
 const stockRequestId = ref(props.initialData?.id || null)
 let isAddingItem = false
 let isAddingApproval = false
+
+const itemsModal = ref(null)
+const modalItemsTable = ref(null)
 
 const form = ref({
   warehouse_id: null,
@@ -329,84 +348,93 @@ const fetchUsersForApproval = async (requestType) => {
   }
 }
 
-const fetchProducts = async () => {
-  try {
-    const response = await axios.get(`/api/inventory/stock-requests/get-products`, {
-      params: {
-        warehouse_id: form.value.warehouse_id,
-        date: form.value.request_date,
-      }
-    })
-    products.value = Array.isArray(response.data) ? response.data : response.data.data
-    await rebuildProductSelect()
-  } catch (err) {
-    console.error('Failed to load products:', err)
-    showAlert('Error', 'Failed to load products.', 'danger')
+const openItemsSelection = async () => {
+  if (!form.value.warehouse_id) {
+    showAlert('Warning', 'Please select a warehouse first.', 'warning')
+    return
   }
-}
 
-const rebuildProductSelect = async () => {
+  $(itemsModal.value).modal('show')
   await nextTick()
-  if (productSelect.value) {
-    destroySelect2(productSelect.value)
-    const selectEl = productSelect.value
-    selectEl.innerHTML = '<option value="">Select Product</option>'
-    products.value.forEach((p) => {
-      const option = document.createElement('option')
-      option.value = p.id
-      option.textContent = `${p.item_code} - ${p.product_name} ${p.description} (Stock: ${p.stock_on_hand})`
-      if (p.stock_on_hand === 0 || p.stock_on_hand === null) {
-        option.disabled = true
-      }
-      selectEl.appendChild(option)
-    })
-    initSelect2(selectEl, { placeholder: 'Select Product', width: '100%', allowClear: true })
-    $(selectEl).on('select2:select', (e) => {
-      const productId = e.params.data.id
-      addItem(productId)
-    })
-  }
+  initModalDataTable()
 }
 
-const itemUnitName = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product?.unit_name || '-'
-  }
-})
+const closeItemsModal = () => $(itemsModal.value).modal('hide')
 
-const ProductDescription = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.product_name} ${product.description}` : '-'
+const initModalDataTable = () => {
+  const table = $(itemsModal.value).find('table');
+  if ($.fn.DataTable.isDataTable(table)) {
+    table.DataTable().destroy();
   }
-})
 
-const ProductPrice = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.average_price}` : '-'
-  }
-})
+  table.DataTable({
+    serverSide: true,
+    processing: true,
+    responsive: true,
+    autoWidth: false,
+    ajax: {
+      url: '/api/inventory/stock-requests/get-products',
+      type: 'GET',
+      data: function (d) {
+        d.warehouse_id = form.value.warehouse_id
+        d.cutoff_date = form.value.request_date
+      }
+    },
+    columns: [
+      {
+        data: 'id',
+        render: function (data) {
+            return `<div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input select-product" id="select-item-${data}" value="${data}">
+                    <label class="custom-control-label" for="select-item-${data}"></label>
+                  </div>`;
+        },
+        orderable: false
+      },
+      { data: 'item_code' },
+      {
+        data: null,
+        render: function (data, type, row) {
+          return `${row.description}`;
+        }
+      },
+      { data: 'unit_name' },
+      { data: 'stock_on_hand' },
+      { data: 'average_price' }
+    ],
+    paging: true,
+    lengthChange: true,
+    pageLength: 10,
+    searching: true,
+    info: true,
+    ordering: true,
+    order: [[1, 'asc']],
+    language: {
+      info: "Showing _START_ to _END_ of _TOTAL_ entries",
+      infoEmpty: "No entries to show",
+      infoFiltered: "(filtered from _MAX_ total entries)",
+      lengthMenu: "Show _MENU_ entries"
+    }
+  });
+}
 
-const StockOnhand = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.stock_on_hand}` : '-'
-  }
-})
 
-const ProductCode = computed(() => {
-  return (productId) => {
-    if (!productId) return '-'
-    const product = products.value.find(p => p.id === productId)
-    return product ? `${product.item_code}` : '-'
-  }
-})
+const addSelectedItems = () => {
+  const table = $(itemsModal.value).find('table').DataTable();
+
+  table.rows().every(function () {
+    const rowNode = this.node();
+    if (rowNode) {
+      const $checkbox = $(rowNode).find('.select-product');
+      if ($checkbox.is(':checked')) {
+        const data = this.data();
+        addItem(data);
+      }
+    }
+  });
+
+  closeItemsModal();
+}
 
 const addApproval = async () => {
   if (isAddingApproval) return
@@ -546,39 +574,34 @@ const validateApprovals = () => {
   return true
 }
 
-const addItem = (productId) => {
+const addItem = (product) => {
   try {
     if (isAddingItem) return
     isAddingItem = true
-    if (!productId) {
-      console.warn('No product ID provided')
+    if (!product || !product.id) {
+      console.warn('No product provided')
       showAlert('Warning', 'Please select a product.', 'warning')
       return
     }
-    const product = products.value.find(p => p.id === Number(productId))
-    if (!product) {
-      console.error('Product not found for ID:', productId)
-      showAlert('Error', 'Selected product not found.', 'danger')
-      return
-    }
-    const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(productId))
+
+    const existingItemIndex = form.value.items.findIndex(item => item.product_id === Number(product.id))
     if (existingItemIndex !== -1) {
       form.value.items[existingItemIndex].quantity += 1
       showAlert('Info', `Quantity increased for ${product.item_code}`, 'info')
     } else {
       const newItem = {
-        product_id: Number(productId),
+        product_id: Number(product.id),
+        item_code: product.item_code,
+        description: product.description,
+        unit_name: product.unit_name,
         department_id: props.defaultDepartment?.id || null,
         campus_id: props.defaultCampus?.id || null,
         quantity: 1,
-        average_price: product.average_price,
-        stock_on_hand: product.stock_on_hand,
+        average_price: parseFloat(product.average_price) || 0,
+        stock_on_hand: parseFloat(product.stock_on_hand) || 0,
         remarks: '',
       }
       form.value.items.push(newItem)
-    }
-    if (productSelect.value) {
-      $(productSelect.value).val(null).trigger('select2:unselect')
     }
   } catch (err) {
     console.error('Error adding item:', err)
@@ -713,15 +736,6 @@ watch(() => form.value.request_date_display, (newDisplayDate) => {
   }
 })
 
-watch(
-  [() => form.value.warehouse_id, () => form.value.request_date],
-  () => {
-    if (form.value.warehouse_id && form.value.request_date) {
-      fetchProducts()
-    }
-  }
-)
-
 onMounted(async () => {
   try {
     const defaultApprovalTypes = ['approve']
@@ -745,8 +759,12 @@ onMounted(async () => {
       form.value.items = props.initialData.items?.map(item => ({
         id: item.id || null,
         product_id: Number(item.product_id),
+        item_code: item.item_code || '',
+        description: item.description || '',
+        unit_name: item.unit_name || '',
         quantity: parseFloat(item.quantity) || 1,
         average_price: parseFloat(item.average_price) || 0,
+        stock_on_hand: parseFloat(item.stock_on_hand) || 0,
         remarks: item.remarks || '',
         department_id: item.department_id || props.defaultDepartment?.id || null,
         campus_id: item.campus_id || props.defaultCampus?.id || null,
@@ -773,7 +791,7 @@ onMounted(async () => {
     }
 
     // Fetch supporting data
-    await Promise.all([fetchProducts(), fetchWarehouses()])
+    await fetchWarehouses()
 
     // Initialize approval dropdowns
     await nextTick()
@@ -856,7 +874,6 @@ onUnmounted(() => {
   try {
     if (warehouseSelect.value) destroySelect2(warehouseSelect.value)
     if (typeSelect.value) destroySelect2(typeSelect.value)
-    if (productSelect.value) destroySelect2(productSelect.value)
     document.querySelectorAll('.approval-type-select').forEach(el => destroySelect2(el))
     document.querySelectorAll('.user-select').forEach(el => destroySelect2(el))
     document.querySelectorAll('.department-select').forEach(el => destroySelect2(el))
