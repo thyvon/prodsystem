@@ -66,10 +66,10 @@
             <th class="d-none d-md-table-cell" style="min-width: 200px;">Description</th>
             <th style="min-width: 60px;">UoM</th>
             <th class="d-none d-md-table-cell" style="min-width: 140px;">Remarks</th>
-            <th style="min-width: 70px;">Currency</th>
+            <th style="min-width: 90px;">Currency</th>
             <th class="d-none d-md-table-cell" style="min-width: 80px;">Ex. Rate</th>
             <th style="min-width: 60px;">Qty</th>
-            <th style="min-width: 70px;">Price</th>
+            <th style="min-width: 90px;">Price</th>
             <th class="d-none d-lg-table-cell" style="min-width: 80px;">Value USD</th>
             <th class="d-none d-lg-table-cell" style="min-width: 120px;">Budget</th>
             <th class="d-none d-lg-table-cell" style="min-width: 100px;">Campus</th>
