@@ -218,12 +218,17 @@ class PurchaseRequestController extends Controller
                         'department_ids' => $i->departments->pluck('id')->toArray(),
                         'budget_code_id' => $i->budget_code_id,
                     ]),
-                    'approvals' => $purchaseRequest->approvals->map(fn($a) => $a->responder ? [
-                        'user_id' => $a->responder->id,
-                        'name' => $a->responder->name,
-                        'email' => $a->responder->email,
-                        'request_type' => $a->request_type,
-                    ] : null),
+                    'approvals' => $purchaseRequest->approvals
+                        ->filter(fn($a) => $a->responder) // Remove null responders
+                        ->groupBy('request_type') // Group by request type
+                        ->map(fn($group, $type) => [
+                            'request_type' => $type,
+                            'users' => $group->map(fn($a) => [
+                                'user_id' => $a->responder->id,
+                                'name' => $a->responder->name,
+                                'email' => $a->responder->email,
+                            ])->values()->toArray()
+                        ])->values()->toArray(),
                     'files' => $purchaseRequest->files->map(fn($f) => [
                         'id' => $f->id,
                         'name' => $f->file_name,
