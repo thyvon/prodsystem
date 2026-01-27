@@ -6,14 +6,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- HEADER -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-          <h4 class="mb-0 font-weight-bold">
-            {{ isEditMode ? '✏️ Edit' : '➕ Create' }} Purchase Request
-          </h4>
-          <button type="button" class="btn btn-outline-primary btn-sm" @click="navigateToList">
-            <i class="fal fa-backward"></i> Back
-          </button>
-        </div>
+        <FormHeader :is-edit-mode="isEditMode" @back="navigateToList" />
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- BODY -->
@@ -24,394 +17,45 @@
           <div class="row d-flex mb-3">
 
             <!-- Requester Info -->
-            <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 flex-fill">
-                <h5 class="text-primary font-weight-bold mb-3">👤 Requester Info</h5>
-                <div v-for="(value, label) in requester" :key="label" class="row mb-2">
-                  <div class="col-4 font-weight-bold text-muted">{{ label }}:</div>
-                  <div class="col-8 border-bottom py-1">{{ value || 'N/A' }}</div>
-                </div>
-              </div>
-            </div>
+            <RequesterInfoCard :requester="requester" />
 
             <!-- PR Info -->
-            <div class="col-md-6 d-flex">
-              <div class="border rounded p-3 flex-fill">
-                <h5 class="text-primary font-weight-bold mb-3">📋 PR Information</h5>
-
-                <div class="form-row">
-                  <!-- Deadline -->
-                  <div class="form-group col-md-6">
-                    <label class="font-weight-bold">
-                      Deadline <span class="text-danger">*</span>
-                    </label>
-                    <input
-                      id="deadline_date"
-                      v-model="form.deadline_date"
-                      type="text"
-                      class="form-control"
-                      placeholder="yyyy-mm-dd"
-                    />
-                  </div>
-
-                  <!-- Urgent -->
-                  <div class="form-group col-md-6">
-                    <label class="font-weight-bold">🚨 Urgent</label>
-                    <div class="custom-control custom-switch">
-                      <input
-                        type="checkbox"
-                        class="custom-control-input"
-                        id="isUrgent"
-                        name="is_urgent"
-                        v-model="form.is_urgent"
-                      />
-                      <label class="custom-control-label" for="isUrgent">
-                        <span :class="form.is_urgent ? 'text-danger' : 'text-muted'">
-                          {{ form.is_urgent ? 'YES' : 'NO' }}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- Purpose -->
-                  <div class="form-group col-12 mt-2">
-                    <label for="purpose" class="font-weight-bold">🎯 Purpose</label>
-                    <textarea
-                      id="purpose"
-                      name="purpose"
-                      v-model="form.purpose"
-                      class="form-control"
-                      rows="2"
-                      required
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <PrInfoCard :form="form" />
           </div>
 
           <!-- ROW 2: Import + Items Table -->
-          <div class="border rounded p-3 mb-4">
-
-            <!-- Import & Add Product -->
-            <div class="form-row mb-3">
-
-              <!-- Import -->
-              <div class="form-group col-md-4">
-                <label class="font-weight-bold">📥 Import Items</label>
-                <div class="input-group">
-                  <input
-                    type="file"
-                    class="d-none"
-                    ref="fileInput"
-                    accept=".xlsx,.xls,.csv"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary flex-fill"
-                    @click="$refs.fileInput.click()"
-                  >
-                    Choose file
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-primary ml-2"
-                    @click="importItems"
-                    :disabled="isImporting || !fileInput?.files?.length"
-                  >
-                    <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
-                    Import
-                  </button>
-                  <a
-                    class="btn btn-success ml-2"
-                    href="/sampleExcel/purchase_request_item_sample.xlsx"
-                    download
-                  >
-                    <i class="fal fa-file-excel"></i>
-                  </a>
-                </div>
-              </div>
-
-              <!-- Add Product -->
-              <div class="form-group col-md-8">
-                <label class="font-weight-bold">➕ Add Product</label>
-                <button
-                  type="button"
-                  class="btn btn-primary btn-block"
-                  @click="openProductsModal"
-                  :disabled="isLoadingProducts"
-                >
-                  <span v-if="isLoadingProducts" class="spinner-border spinner-border-sm mr-2"></span>
-                  <i class="fal fa-plus"></i> Select Product
-                </button>
-              </div>
-            </div>
-
-            <!-- Items Table -->
-            <h5 class="font-weight-bold mb-3 text-primary">
-              📦 Items ({{ form.items.length }})
-              <span v-if="totalAmount" class="badge badge-primary ml-2">{{ totalAmount }}</span>
-            </h5>
-
-            <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
-              <table class="table table-bordered table-striped table-sm table-hover">
-                <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10; text-align: center;">
-                  <tr>
-                    <th style="min-width: 120px;">Item Code</th>
-                    <th class="d-none d-md-table-cell" style="min-width: 200px;">Description</th>
-                    <th style="min-width: 60px;">UoM</th>
-                    <th class="d-none d-md-table-cell" style="min-width: 140px;">Remarks</th>
-                    <th style="min-width: 70px;">Currency</th>
-                    <th class="d-none d-md-table-cell" style="min-width: 80px;">Ex. Rate</th>
-                    <th style="min-width: 60px;">Qty</th>
-                    <th style="min-width: 70px;">Price</th>
-                    <th class="d-none d-lg-table-cell" style="min-width: 80px;">Value USD</th>
-                    <th class="d-none d-lg-table-cell" style="min-width: 120px;">Budget</th>
-                    <th class="d-none d-lg-table-cell" style="min-width: 100px;">Campus</th>
-                    <th class="d-none d-lg-table-cell" style="min-width: 100px;">Dept</th>
-                    <th style="min-width: 60px;">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(item, index) in form.items" :key="index">
-                    <td>{{ item.product_code }}</td>
-                    <td class="d-none d-md-table-cell">{{ item.product_description }}</td>
-                    <td>{{ item.unit_name }}</td>
-                    <td class="d-none d-md-table-cell">
-                      <textarea
-                        :name="`items[${index}][description]`"
-                        v-model="item.description"
-                        class="form-control form-control-sm"
-                      ></textarea>
-                    </td>
-                    <td>
-                      <select
-                        :name="`items[${index}][currency]`"
-                        v-model="item.currency"
-                        class="form-control form-control-sm"
-                      >
-                        <option value="">Select</option>
-                        <option value="USD">USD</option>
-                        <option value="KHR">KHR</option>
-                      </select>
-                    </td>
-                    <td class="d-none d-md-table-cell">
-                      <input
-                        type="number"
-                        :name="`items[${index}][exchange_rate]`"
-                        v-model.number="item.exchange_rate"
-                        class="form-control form-control-sm"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        :name="`items[${index}][quantity]`"
-                        v-model.number="item.quantity"
-                        class="form-control form-control-sm"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        :name="`items[${index}][unit_price]`"
-                        v-model.number="item.unit_price"
-                        class="form-control form-control-sm"
-                      />
-                    </td>
-                    <td class="d-none d-lg-table-cell">
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        :value="(item.quantity * item.unit_price / (item.currency === 'KHR' ? (item.exchange_rate || 1) : 1)).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })"
-                        readonly
-                      />
-                    </td>
-                    <td class="d-none d-lg-table-cell">
-                      <select
-                        class="form-control budget-select"
-                        :data-index="index"
-                      ></select>
-                    </td>
-                    <td class="d-none d-lg-table-cell">
-                      <select
-                        multiple
-                        class="form-control campus-select"
-                        :data-index="index"
-                      ></select>
-                    </td>
-                    <td class="d-none d-lg-table-cell">
-                      <select
-                        multiple
-                        class="form-control department-select"
-                        :data-index="index"
-                      ></select>
-                    </td>
-                    <td class="text-center">
-                      <button
-                        @click.prevent="removeItem(index)"
-                        class="btn btn-danger btn-sm"
-                      >
-                        <i class="fal fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr v-if="!form.items.length">
-                    <td colspan="13" class="text-center text-muted py-4">No items added</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ItemsSection
+            ref="itemsSectionRef"
+            :form="form"
+            :total-amount="totalAmount"
+            :is-importing="isImporting"
+            :is-loading-products="isLoadingProducts"
+            :format-item-value-usd="formatItemValueUsd"
+            @import="importItems"
+            @open-products="openProductsModal"
+            @remove-item="removeItem"
+          />
 
           <!-- ROW 3: Attachments -->
-          <div class="border rounded p-3 mb-4">
-            <div class="form-group col-12">
-              <label class="font-weight-bold">📎 Attachment</label>
-              <div class="input-group mb-2">
-                <input
-                  type="file"
-                  class="d-none"
-                  ref="attachmentInput"
-                  multiple
-                  accept=".pdf,.doc,.docx,.jpg,.png"
-                  @change="onFileChange"
-                />
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary flex-fill"
-                  @click="$refs.attachmentInput.click()"
-                >
-                  <i class="fal fa-file-upload"></i> {{ fileLabel }}
-                </button>
-              </div>
-
-              <!-- Existing Files -->
-              <div v-if="existingFileUrls.length">
-                <small class="text-muted">Existing Files:</small>
-                <div
-                  v-for="(file, i) in existingFileUrls"
-                  :key="file.id"
-                  class="d-flex align-items-center mb-1"
-                >
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-info mr-1"
-                    @click="openFileViewer(file.url, file.name)"
-                  >
-                    📄 {{ file.name }}
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-danger"
-                    @click="removeFile(i, true)"
-                  >
-                    <i class="fal fa-trash"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- New Files -->
-              <div v-if="newFiles.length">
-                <small class="text-muted">New Files:</small>
-                <div
-                  v-for="(f, i) in newFiles"
-                  :key="i"
-                  class="d-flex align-items-center mb-1"
-                >
-                  <span class="mr-2">📄 {{ f.name }}</span>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-danger"
-                    @click="removeNewFile(i)"
-                  >
-                    <i class="fal fa-trash"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AttachmentsSection
+            ref="attachmentsSectionRef"
+            :file-label="fileLabel"
+            :existing-file-urls="existingFileUrls"
+            :new-files="newFiles"
+            @file-change="onFileChange"
+            @open-viewer="openFileViewer"
+            @remove-file="removeFile"
+            @remove-new-file="removeNewFile"
+          />
 
           <!-- ROW 4: Approvals -->
-          <div class="border rounded p-3 mb-4">
-            <h5 class="font-weight-bold mb-3 text-primary">
-              ✅ Approvals ({{ form.approvals.length }})
-            </h5>
-
-            <div class="row">
-              <!-- Approval Cards -->
-              <div
-                v-for="(approval, aIndex) in form.approvals"
-                :key="aIndex"
-                class="col-12 col-md-6 col-lg-4 mb-3"
-              >
-                <div class="card h-100">
-
-                  <!-- Card Header -->
-                  <div class="card-header d-flex justify-content-between align-items-center">
-                    <div class="form-group mb-0" style="flex: 1;">
-                      <label class="small mb-1">Request Type</label>
-                      <select
-                        class="form-control approval-type-select"
-                        :data-index="aIndex"
-                        :name="`approvals[${aIndex}][request_type]`"
-                      ></select>
-                    </div>
-
-                    <button
-                      @click.prevent="removeApproval(aIndex)"
-                      class="btn btn-danger btn-sm ml-2"
-                      style="align-self: flex-end; margin-top: auto;"
-                    >
-                      <i class="fal fa-trash"></i>
-                    </button>
-                  </div>
-
-                  <!-- Card Body -->
-                  <div class="card-body">
-                    <!-- Users -->
-                    <div
-                      v-for="(user, uIndex) in approval.users"
-                      :key="user._uid"
-                      class="form-group mb-2 d-flex align-items-center"
-                    >
-                      <select
-                        class="form-control user-select mr-2"
-                        :data-aindex="aIndex"
-                        :data-uindex="uIndex"
-                        :name="`approvals[${aIndex}][users][${uIndex}]`"
-                        :disabled="!approval.request_type"
-                      ></select>
-
-                      <button
-                        @click.prevent="removeUser(aIndex, uIndex)"
-                        class="btn btn-danger btn-sm"
-                      >
-                        <i class="fal fa-trash"></i>
-                      </button>
-                    </div>
-
-                    <button
-                      @click.prevent="addUser(aIndex)"
-                      class="btn btn-outline-primary btn-sm mt-2"
-                    >
-                      <i class="fal fa-plus"></i> Add User
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Add Approval Button -->
-            <div class="text-right mt-2">
-              <button
-                @click.prevent="addApproval"
-                class="btn btn-outline-primary btn-sm"
-              >
-                <i class="fal fa-plus"></i> Add Approval
-              </button>
-            </div>
-          </div>
+          <ApprovalsSection
+            :form="form"
+            @add-approval="addApproval"
+            @remove-approval="removeApproval"
+            @add-user="addUser"
+            @remove-user="removeUser"
+          />
 
           <!-- SUBMIT -->
           <div class="text-right">
@@ -493,6 +137,12 @@ import { initSelect2, destroySelect2 } from '@/Utils/select2';
 import { showAlert } from '@/Utils/bootbox';
 import FileViewerModal from '../Reusable/FileViewerModal.vue';
 import BaseModal from '@/components/Reusable/BaseModal.vue';
+import FormHeader from './Partials/Form/FormHeader.vue';
+import RequesterInfoCard from './Partials/Form/RequesterInfoCard.vue';
+import PrInfoCard from './Partials/Form/PrInfoCard.vue';
+import ItemsSection from './Partials/Form/ItemsSection.vue';
+import AttachmentsSection from './Partials/Form/AttachmentsSection.vue';
+import ApprovalsSection from './Partials/Form/ApprovalsSection.vue';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROPS & EMITS
@@ -546,8 +196,9 @@ const fileLabel = ref('Choose file(s)...');
 const existingFileUrls = ref([]);
 const existingFileIds = ref([]);
 const newFiles = ref([]);
-const fileInput = ref(null);
 const viewerRef = ref(null);
+const itemsSectionRef = ref(null);
+const attachmentsSectionRef = ref(null);
 
 // Form Data
 const form = ref({
@@ -569,6 +220,18 @@ let productsTable = null;
 // COMPUTED PROPERTIES
 // ═══════════════════════════════════════════════════════════════════════════
 
+const usd2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd4 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+const formatItemValueUsd = (item) => {
+  const qty = Number(item?.quantity || 0);
+  const price = Number(item?.unit_price || 0);
+  const rate = Number(item?.exchange_rate || 1);
+  const divisor = item?.currency === 'KHR' ? rate : 1;
+  const value = divisor ? (qty * price) / divisor : 0;
+  return usd4.format(value);
+};
+
 const totalAmount = computed(() => {
   let totalKHR = 0;
   let totalUSD = 0;
@@ -587,13 +250,13 @@ const totalAmount = computed(() => {
 
   const parts = [];
   if (totalKHR) {
-    parts.push(`KHR = ${totalKHR.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+    parts.push(`KHR = ${usd2.format(totalKHR)}`);
   }
   if (totalUSD) {
-    parts.push(`USD = ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+    parts.push(`USD = ${usd2.format(totalUSD)}`);
   }
   if (totalKHRinUSD || totalUSD) {
-    parts.push(`Total as USD = ${(totalUSD + totalKHRinUSD).toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+    parts.push(`Total as USD = ${usd2.format(totalUSD + totalKHRinUSD)}`);
   }
 
   return parts.length ? parts.join(' | ') : null;
@@ -742,13 +405,14 @@ const loadPurchaseRequest = async () => {
 const importItems = async () => {
   if (isImporting.value) return;
 
-  if (!fileInput.value?.files?.length) {
+  const importFileInput = itemsSectionRef.value?.importFileInput;
+  if (!importFileInput?.files?.length) {
     return showAlert('Error', 'Please select a file.', 'danger');
   }
 
   isImporting.value = true;
   const formData = new FormData();
-  formData.append('file', fileInput.value.files[0]);
+  formData.append('file', importFileInput.files[0]);
 
   try {
     const { data } = await axios.post('/api/purchase-requests/import-items', formData, {
@@ -765,7 +429,7 @@ const importItems = async () => {
       await nextTick(initItemSelects);
       showAlert('Success', 'Items imported successfully.', 'success');
 
-      fileInput.value.value = '';
+      importFileInput.value = '';
       fileLabel.value = 'Choose file(s)...';
     } else {
       const errors = data.errors || [data.message || 'Unknown error'];
@@ -790,7 +454,8 @@ const removeItem = (index) => {
   });
 
   form.value.items.splice(index, 1);
-  nextTick(initItemSelects);
+  // Only rows after `index` shift their data-index, so re-init from there.
+  nextTick(() => initItemSelects(index));
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -852,11 +517,11 @@ const initBudgetSelect = (index) => {
   );
 };
 
-const initItemSelects = () => {
-  form.value.items.forEach((_, index) => {
+const initItemSelects = (startIndex = 0) => {
+  for (let index = startIndex; index < form.value.items.length; index++) {
     ['campus', 'department'].forEach(type => initSelect(index, type));
     initBudgetSelect(index);
-  });
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -876,12 +541,12 @@ const addApproval = async () => {
     request_type: '',
     users: [{ id: null, _uid: crypto.randomUUID() }]
   });
-  await nextTick(initApprovalSelects);
+  await nextTick(() => initApprovalSelects(form.value.approvals.length - 1));
 };
 
 const removeApproval = async (index) => {
   form.value.approvals.splice(index, 1);
-  await nextTick(initApprovalSelects);
+  await nextTick(() => initApprovalSelects(index));
 };
 
 const addUser = async (aIndex) => {
@@ -1000,8 +665,10 @@ const initApprovalSelect = async (aIndex) => {
   });
 };
 
-const initApprovalSelects = () => {
-  form.value.approvals.forEach((_, index) => initApprovalSelect(index));
+const initApprovalSelects = (startIndex = 0) => {
+  for (let index = startIndex; index < form.value.approvals.length; index++) {
+    initApprovalSelect(index);
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
