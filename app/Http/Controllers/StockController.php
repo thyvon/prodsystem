@@ -285,7 +285,7 @@ class StockController extends Controller
 
         if (!in_array($monthlyStockReport->approval_status, ['Pending','Returned'])) {
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Cannot edit approved or rejected reports.'
             ], 403);
         }
@@ -672,11 +672,16 @@ class StockController extends Controller
             page: $request->page ?? 1
         );
 
+        // Support both paginator and plain collection results
+        $isPaginator = $result instanceof \Illuminate\Pagination\LengthAwarePaginator;
+        $total       = $isPaginator ? $result->total() : $result->count();
+        $data        = $isPaginator ? $result->items() : $result->values()->all();
+
         return response()->json([
             'draw'            => (int) ($request->draw ?? 1),
-            'recordsTotal'    => $result->total(),
-            'recordsFiltered' => $result->total(),
-            'data'            => $result->items(),
+            'recordsTotal'    => $total,
+            'recordsFiltered' => $total,
+            'data'            => $data,
         ]);
     }
 
@@ -738,10 +743,10 @@ class StockController extends Controller
 
     public function prepareReportData(MonthlyStockReport $report): array
     {
-        $startDate = $report->start_date?->format('Y-m-d') 
+        $startDate = $report->start_date?->format('Y-m-d')
             ?? now()->startOfMonth()->toDateString();
 
-        $endDate = $report->end_date?->format('Y-m-d') 
+        $endDate = $report->end_date?->format('Y-m-d')
             ?? now()->toDateString();
 
         $warehouseIds = $this->parseIntArray($report->warehouse_ids);
@@ -1003,7 +1008,7 @@ class StockController extends Controller
     //     array $warehouseIds = [], array $productIds = [],
     //     ?string $search = '', string $sortColumn = 'item_code', string $sortDirection = 'asc',
     //     bool $paginate = false, int $perPage = 50, int $page = 1
-    // ) 
+    // )
     // {
 
     //     /* ============================================================
@@ -1098,8 +1103,8 @@ class StockController extends Controller
     //     $beginAvgs = (clone $priceBase)
     //         ->where('transaction_date', '<', $startDate)
     //         ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
-    //         ->selectRaw('product_id, 
-    //             CASE WHEN SUM(quantity) = 0 THEN 0 
+    //         ->selectRaw('product_id,
+    //             CASE WHEN SUM(quantity) = 0 THEN 0
     //                 ELSE SUM(total_price) / SUM(quantity) END AS begin_avg')
     //         ->groupBy('product_id')
     //         ->pluck('begin_avg', 'product_id')
@@ -1109,8 +1114,8 @@ class StockController extends Controller
     //     $avgPrices = (clone $priceBase)
     //         ->where('transaction_date', '<=', $endDate)
     //         ->whereIn('transaction_type', ['Stock_Begin', 'Stock_In', 'Stock_Out'])
-    //         ->selectRaw('product_id, 
-    //             CASE WHEN SUM(quantity) = 0 THEN 0 
+    //         ->selectRaw('product_id,
+    //             CASE WHEN SUM(quantity) = 0 THEN 0
     //                 ELSE SUM(total_price) / SUM(quantity) END AS avg_price')
     //         ->groupBy('product_id')
     //         ->pluck('avg_price', 'product_id')
@@ -1261,7 +1266,7 @@ class StockController extends Controller
 
             // Check all previous approvals (lower OR same ordinal but lower id)
             $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
-                return ($a->ordinal < $currentApproval->ordinal) || 
+                return ($a->ordinal < $currentApproval->ordinal) ||
                     ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
             });
 
@@ -1306,7 +1311,7 @@ class StockController extends Controller
         ];
     }
 
-    public function submitApproval(Request $request, MonthlyStockReport $monthlyStockReport, ApprovalService $approvalService): JsonResponse 
+    public function submitApproval(Request $request, MonthlyStockReport $monthlyStockReport, ApprovalService $approvalService): JsonResponse
     {
         // Validate request
         $validated = $request->validate([

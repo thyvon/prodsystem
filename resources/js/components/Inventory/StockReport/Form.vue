@@ -29,8 +29,22 @@
             </div>
           </div>
 
+          <datatable
+            ref="datatableRef"
+            :headers="datatableHeaders"
+            :fetch-url="datatableFetchUrl"
+            :fetch-params="datatableParams"
+            :options="datatableOptions"
+            :scrollable="true"
+            @sort-change="handleSortChange"
+            @page-change="handlePageChange"
+            @length-change="handleLengthChange"
+            @search-change="handleSearchChange"
+            >
+            </datatable>
+
           <!-- Warehouses & Remarks -->
-          <div class="row mb-4">
+          <div class="row mt-4 mb-4">
             <div class="col-md-12">
               <label class="form-label fw-bold">Remarks</label>
               <textarea v-model="form.remarks" class="form-control" rows="5" placeholder="Optional remarks..."></textarea>
@@ -103,7 +117,7 @@
             <button type="button" class="btn btn-secondary me-2" @click="goToList">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="isSubmitting || !canSubmit">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
-              {{ isEditMode ? 'Update Report' : 'Submit for Approval' }}
+              {{ isEditMode ? 'Update Report' : 'Submit' }}
             </button>
           </div>
         </div>
@@ -116,6 +130,7 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 import { showAlert } from '@/Utils/bootbox'
+import {initSelect2, destroySelect2} from '@/Utils/select2'
 
 const props = defineProps({
   stockReportId: { type: [String, Number], default: null }
@@ -137,6 +152,55 @@ const form = reactive({
 
 const typeSelectRefs = ref([])
 const userSelectRefs = ref([])
+
+// Datatable configuration
+const datatableRef = ref(null)
+const isInitializingFilters = ref(true)
+const datatableParams = reactive({
+    sortColumn: 'item_code',
+    sortDirection: 'asc',
+    search: '',
+    warehouse_ids: [],
+    start_date: null,
+    end_date: null,
+    limit: 10,
+    page: 1,
+})
+
+const datatableHeaders = [
+  { text: 'Item Code', value: 'item_code', minWidth: '120px' },
+  { text: 'Description', value: 'description', minWidth: '300px', sortable: false },
+  { text: 'Unit', value: 'unit_name', minWidth: '60px', sortable: false },
+  { text: 'Begin Qty', value: 'beginning_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Begin Price', value: 'beginning_price', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Begin Amount', value: 'beginning_total', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Stock In Qty', value: 'stock_in_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Stock In Amount', value: 'stock_in_total', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Available Qty', value: 'available_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Available Price', value: 'available_price', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Available Amount', value: 'available_total', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Stock Out Qty', value: 'stock_out_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Stock Out Amount', value: 'stock_out_total', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Ending Qty', value: 'ending_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Count Qty', value: 'counted_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Variance', value: 'variance_quantity', minWidth: '80px', sortable: false, format: 'number' },
+  { text: 'Carried Qty', value: 'counted_quantity', minWidth: '100px', sortable: false, format: 'number' },
+  { text: 'Avg Price', value: 'average_price', minWidth: '120px', sortable: false, format: 'number' },
+  { text: 'Ending Amount', value: 'ending_total', minWidth: '120px', sortable: false, format: 'number' },
+]
+
+const datatableFetchUrl = '/api/inventory/stock-reports'
+const datatableOptions = {
+  autoWidth: false,
+  responsive: false,
+  pageLength: 10
+}
+
+const handleSortChange = ({ column, direction }) => { datatableParams.sortColumn = column; datatableParams.sortDirection = direction }
+const handlePageChange = (page) => { datatableParams.page = page }
+const handleLengthChange = (length) => { datatableParams.limit = length }
+const handleSearchChange = (search) => { datatableParams.search = search }
+
 
 const defaultApprovalTypes = ['initial', 'verify', 'check', 'acknowledge']
 const sortApprovals = () => {
@@ -295,7 +359,17 @@ const initWidgets = async () => {
     todayHighlight: true
   }).on('changeDate', e => {
     const field = e.target.id
-    form[field === 'start_date' ? 'start_date' : 'end_date'] = e.format()
+    const key = field === 'start_date' ? 'start_date' : 'end_date'
+    const value = e.format()
+
+    // Update form model
+    form[key] = value
+
+    // Keep datatable filters in sync and auto-refresh
+    datatableParams[key] = value
+    if (!isInitializingFilters.value && datatableRef.value && typeof datatableRef.value.reload === 'function') {
+      datatableRef.value.reload()
+    }
   })
 
   $('#warehouseSelect').select2({
@@ -304,7 +378,18 @@ const initWidgets = async () => {
     width: '100%',
     data: warehouses.value.map(w => ({ id: w.id, text: w.name || w.text }))
   }).on('change', () => {
-    form.warehouse_ids = $('#warehouseSelect').val() ? $('#warehouseSelect').val().map(Number) : []
+    const selected = $('#warehouseSelect').val()
+      ? $('#warehouseSelect').val().map(Number)
+      : []
+
+    // Update form model
+    form.warehouse_ids = selected
+
+    // Sync datatable filters and auto-refresh
+    datatableParams.warehouse_ids = selected
+    if (!isInitializingFilters.value && datatableRef.value && typeof datatableRef.value.reload === 'function') {
+      datatableRef.value.reload()
+    }
   })
 
   if (form.start_date) $('#start_date').datepicker('setDate', form.start_date)
@@ -387,9 +472,19 @@ onMounted(async () => {
     })
   }
 
+  // Initialize datatable filter params from form values before widgets
+  datatableParams.start_date = form.start_date || null
+  datatableParams.end_date = form.end_date || null
+  datatableParams.warehouse_ids = form.warehouse_ids || []
+
   sortApprovals()
   await nextTick()
   await initWidgets()
+
+  // Initial datatable load with current filter values
+  if (datatableRef.value && typeof datatableRef.value.reload === 'function') {
+    datatableRef.value.reload()
+  }
 })
 </script>
 
