@@ -19,7 +19,7 @@
 
         <div class="form-group col-md-6">
           <label class="font-weight-bold">🚨 Urgent</label>
-          <div class="custom-control custom-switch">
+          <div class="custom-control custom-switch big-switch">
             <input
               type="checkbox"
               class="custom-control-input"
@@ -56,3 +56,11 @@ defineProps({
   form: { type: Object, required: true },
 })
 </script>
+
+<style scoped>
+.big-switch {
+  transform: scale(2);
+  transform-origin: left center;
+  margin-top: 2mm;
+}
+</style>
