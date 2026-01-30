@@ -52,12 +52,12 @@
             </div>
 
             <!-- Approval Table -->
-            <div class="border rounded p-4 bg-light">
+            <div class="border rounded p-4">
               <h5 class="h5 fw-bold text-primary mb-3">Approval Assignments</h5>
 
               <div class="table-responsive">
                 <table class="table table-bordered table-sm align-middle">
-                  <thead class="table-light">
+                  <thead class="thead-light">
                     <tr>
                       <th width="35%">Approval Type</th>
                       <th width="55%">Assigned User</th>

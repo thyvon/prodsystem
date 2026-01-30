@@ -8,7 +8,7 @@
     <!-- Outer container with horizontal padding -->
     <div>
       <div
-        class="bg-white dark:bg-gray-800 p-6 rounded shadow text-gray-900 dark:text-gray-100"
+        class="shadow p-2"
       >
 
         <!-- Scroll wrapper only if scrollable = true -->
@@ -19,7 +19,7 @@
             class="table table-bordered table-sm table-hover table-striped w-100"
             style="cursor: pointer;"
           >
-            <thead class="thead-light">
+            <thead>
               <tr>
                 <th style="width: 30px; text-align:center;">#</th>
 
