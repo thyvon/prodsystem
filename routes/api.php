@@ -100,6 +100,9 @@ use App\Http\Controllers\MainValueListController;
 
 use App\Http\Controllers\DebitNoteController;
 
+// Power Query
+use App\Http\Controllers\PowerQueryDataController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -465,6 +468,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/main-value-lists/get-departments', [MainValueListController::class, 'getDepartments'])->name('api.main-value-lists.get-departments');
     Route::get('/main-value-lists/get-divisions', [MainValueListController::class, 'getDivisions'])->name('api.main-value-lists.get-divisions');
     Route::get('/main-value-lists/get-warehouses', [MainValueListController::class, 'getWarehouses'])->name('api.main-value-lists.get-warehouses');
+});
+
+Route::prefix('power-query')->middleware('power_query')->group(function () {
+    Route::get('/product-list', [PowerQueryDataController::class, 'productVariants'])
+        ->name('api.power-query.product-variants');
 });
 
 // Telegram Bot Document Transfer Webhook

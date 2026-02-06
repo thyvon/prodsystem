@@ -73,8 +73,8 @@ class Kernel extends HttpKernel
         'role' => RoleMiddleware::class,
         'permission' => PermissionMiddleware::class,
         'role_or_permission' => RoleOrPermissionMiddleware::class,
-
         'refresh.microsoft' => \App\Http\Middleware\RefreshMicrosoftToken::class,
+        'power_query' => \App\Http\Middleware\PowerQueryAuth::class,
     ];
 
     // Clean PDF

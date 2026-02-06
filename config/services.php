@@ -50,4 +50,9 @@ return [
         'password' => env('FILE_SERVER_PASSWORD'),
     ],
 
+    'power_query' => [
+        'token' => env('REPORT_API_TOKEN'),
+    ],
+
+
 ];
