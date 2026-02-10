@@ -35,7 +35,7 @@ class PowerQueryDataController extends Controller
             ->join('products as p', 'p.id', '=', 'pv.product_id')
             ->select([
                 'sii.id',
-                'si.reference_number',
+                'si.reference_no',
                 'si.transaction_date',
                 'pv.item_code',
                 'p.name as product_name',

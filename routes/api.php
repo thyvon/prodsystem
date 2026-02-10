@@ -473,9 +473,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 Route::prefix('power-query')->middleware('power_query')->group(function () {
     Route::get('/product-list', [PowerQueryDataController::class, 'productVariants'])
         ->name('api.power-query.product-variants');
-    Route::get('/get-stock-issue-items', [PowerQueryDataController::class, 'getStockIssueItems'])
-        ->name('api.power-query.stock-issue-items');
+    // Route::get('/get-stock-issue-items', [PowerQueryDataController::class, 'getStockIssueItems'])
+    //     ->name('api.power-query.stock-issue-items');
 });
+
+Route::get('/power-query/get-stock-issue-items', [PowerQueryDataController::class, 'getStockIssueItems'])
+    ->name('api.power-query.stock-issue-items');
 
 // Telegram Bot Document Transfer Webhook
 Route::post('/telegram/webhook', [DocumentTransferController::class, 'webhook'])->withoutMiddleware(['auth']);
