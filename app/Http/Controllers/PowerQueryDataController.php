@@ -26,4 +26,28 @@ class PowerQueryDataController extends Controller
             'data' => $data
         ]);
     }
+
+    public function getStockIssueItems(): JsonResponse
+    {
+        $data = DB::table('stock_issue_items as sii')
+            ->join('stock_issues as si', 'si.id', '=', 'sii.stock_issue_id')
+            ->join('product_variants as pv', 'pv.id', '=', 'sii.product_id')
+            ->join('products as p', 'p.id', '=', 'pv.product_id')
+            ->select([
+                'sii.id',
+                'si.reference_number',
+                'si.transaction_date',
+                'pv.item_code',
+                'p.name as product_name',
+                'pv.description as variant_description',
+                'sii.quantity',
+                'sii.created_at',
+            ])
+            ->orderBy('sii.id')
+            ->get();
+
+        return response()->json([
+            'data' => $data
+        ]);
+    }
 }
