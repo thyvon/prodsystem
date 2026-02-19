@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid">
+  <div class="container-fluid overflow-hidden">
     <form @submit.prevent="submitForm" enctype="multipart/form-data">
       <div class="card mb-0">
 
@@ -14,7 +14,7 @@
         <div class="card-body">
 
           <!-- ROW 1: Requester + PR Info -->
-          <div class="row d-flex mb-3">
+          <div class="row mb-3">
 
             <!-- Requester Info -->
             <RequesterInfoCard :requester="requester" />
@@ -288,8 +288,12 @@ const createItem = (data = {}) => ({
 });
 
 const navigateToList = () => {
-  window.location.href = '/purchase-requests';
-};
+  if (window.history.length > 1) {
+    window.history.back()
+  } else {
+    window.location.href = '/purchase-requests'
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FILE HANDLING

@@ -58,19 +58,19 @@
       <span v-if="totalAmount" class="badge badge-primary ml-2">{{ totalAmount }}</span>
     </h5>
 
-    <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
+    <div class="table-responsive" style="max-height: 700px; overflow-x:auto;">
       <table class="table table-bordered table-striped table-sm table-hover">
         <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10; text-align: center;">
           <tr>
             <th style="min-width: 120px;">Item Code</th>
             <th class="d-none d-md-table-cell" style="min-width: 200px;">Description</th>
-            <th style="min-width: 60px;">UoM</th>
             <th class="d-none d-md-table-cell" style="min-width: 140px;">Remarks</th>
+            <th style="min-width: 60px;">UoM</th>
             <th style="min-width: 90px;">Currency</th>
-            <th class="d-none d-md-table-cell" style="min-width: 80px;">Ex. Rate</th>
-            <th style="min-width: 60px;">Qty</th>
-            <th style="min-width: 90px;">Price</th>
-            <th class="d-none d-lg-table-cell" style="min-width: 80px;">Value USD</th>
+            <th class="d-none d-md-table-cell" style="min-width: 100px;">Ex. Rate</th>
+            <th style="min-width: 80px;">Qty</th>
+            <th style="min-width: 100px;">Price</th>
+            <th class="d-none d-lg-table-cell" style="min-width: 100px;">Value USD</th>
             <th class="d-none d-lg-table-cell" style="min-width: 120px;">Budget</th>
             <th class="d-none d-lg-table-cell" style="min-width: 100px;">Campus</th>
             <th class="d-none d-lg-table-cell" style="min-width: 100px;">Dept</th>
@@ -81,7 +81,6 @@
           <tr v-for="(item, index) in form.items" :key="index">
             <td>{{ item.product_code }}</td>
             <td class="d-none d-md-table-cell">{{ item.product_description }}</td>
-            <td>{{ item.unit_name }}</td>
             <td class="d-none d-md-table-cell">
               <textarea
                 :name="`items[${index}][description]`"
@@ -89,6 +88,7 @@
                 class="form-control form-control-sm"
               ></textarea>
             </td>
+            <td>{{ item.unit_name }}</td>
             <td>
               <select
                 :name="`items[${index}][currency]`"
@@ -103,6 +103,8 @@
             <td class="d-none d-md-table-cell">
               <input
                 type="number"
+                step="0.01"
+                min="0"
                 :name="`items[${index}][exchange_rate]`"
                 v-model.number="item.exchange_rate"
                 class="form-control form-control-sm"

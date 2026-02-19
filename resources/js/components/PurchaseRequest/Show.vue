@@ -1,5 +1,5 @@
 <template>
-  <div class="card mb-0 shadow">
+  <div class="card mb-0 shadow" style="overflow-x:auto;">
 
     <!-- Header -->
     <PurchaseRequestHeader

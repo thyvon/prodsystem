@@ -30,6 +30,14 @@ class PurchaseRequestItem extends Model
         'purchaser_id',
     ];
 
+    protected $casts = [
+        'exchange_rate' => 'float',
+        'quantity' => 'float',
+        'unit_price' => 'float',
+        'total_price' => 'float',
+        'total_price_usd' => 'float',
+    ];
+
     public function purchaseRequest()
     {
         return $this->belongsTo(PurchaseRequest::class, 'purchase_request_id');

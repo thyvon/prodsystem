@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div style="overflow-x:auto;">
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
@@ -69,7 +69,7 @@
             >
               <h3 class="display-4 d-block l-h-n m-0 fw-500">
                 {{ statusCounts.upcoming }}
-                <small class="m-0 l-h-n d-block">My upcoming approvals</small>
+                <small class="m-0 l-h-n d-block">Upcoming approvals</small>
               </h3>
               <i class="fal fa-clock position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
             </div>
@@ -129,17 +129,17 @@ const statusCounts = reactive({
 })
 
 const datatableHeaders = [
-  { text: 'Requested Date', value: 'created_at', width: '10%', minWidth: '120px' },
-  { text: 'Docs Name', value: 'document_name', width: '20%', minWidth: '200px' },
-  { text: 'Docs Ref.', value: 'document_reference', width: '15%', minWidth: '150px' },
-  { text: 'Requester', value: 'requester_name', width: '15%', sortable: false, minWidth: '150px' },
-  { text: 'Position', value: 'requester_position', width: '10%', sortable: false, minWidth: '120px' },
-  { text: 'Department', value: 'requester_department', width: '10%', sortable: false, minWidth: '120px' },
-  { text: 'Action Type', value: 'request_type', width: '5%', minWidth: '100px' },
-  { text: 'Responder Name', value: 'responder_name', width: '10%', minWidth: '120px' },
-  { text: 'Status', value: 'approval_status', width: '10%', minWidth: '120px' },
-  { text: 'Responded Date', value: 'responded_date', width: '15%', minWidth: '150px' },
-  { text: 'Comment', value: 'comment', sortable: false, minWidth: '200px' },
+{ text: 'Requested Date', value: 'created_at', minWidth: '150px' },
+{ text: 'Docs Name', value: 'document_name', minWidth: '250px' },
+{ text: 'Docs Ref.', value: 'document_reference', minWidth: '180px' },
+{ text: 'Requester', value: 'requester_name', sortable: false, minWidth: '180px' },
+{ text: 'Position', value: 'requester_position', sortable: false, minWidth: '150px' },
+{ text: 'Department', value: 'requester_department', sortable: false, minWidth: '150px' },
+{ text: 'Action Type', value: 'request_type', minWidth: '140px' },
+{ text: 'Responder Name', value: 'responder_name', minWidth: '180px' },
+{ text: 'Status', value: 'approval_status', minWidth: '140px' },
+{ text: 'Responded Date', value: 'responded_date', minWidth: '180px' },
+{ text: 'Comment', value: 'comment', sortable: false, minWidth: '300px' },
 ]
 
 const datatableFetchUrl = '/api/approvals'
