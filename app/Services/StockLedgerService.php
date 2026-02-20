@@ -133,6 +133,56 @@ class StockLedgerService
         return (float) ($result->stock_on_hand ?? 0);
     }
 
+    public function getStockOnHandBulk(array $productIds, ?array $warehouseIds, string $transactionDate)
+    {
+        $productIds = array_values(array_filter($productIds));
+        if (empty($productIds)) {
+            return collect();
+        }
+
+        $transactionDate = Carbon::parse($transactionDate);
+        $prevMonthStart = $transactionDate->copy()->subMonthNoOverflow()->startOfMonth()->format('Y-m-d');
+        $prevMonthEnd = $transactionDate->copy()->subMonthNoOverflow()->endOfMonth()->format('Y-m-d');
+        $currentMonthStart = $transactionDate->copy()->startOfMonth()->format('Y-m-d');
+        $currentDate = $transactionDate->format('Y-m-d');
+
+        $warehouseIds = is_array($warehouseIds) ? array_values(array_filter($warehouseIds)) : null;
+
+        return DB::table('stock_ledgers')
+            ->select('product_id', 'parent_warehouse')
+            ->selectRaw(
+                "
+                (
+                    COALESCE(SUM(CASE
+                        WHEN transaction_type = 'Stock_Count'
+                            AND transaction_date BETWEEN ? AND ?
+                        THEN quantity ELSE 0 END), 0)
+                    +
+                    COALESCE(SUM(CASE
+                        WHEN transaction_type = 'Stock_In'
+                            AND transaction_date BETWEEN ? AND ?
+                        THEN quantity ELSE 0 END), 0)
+                    +
+                    COALESCE(SUM(CASE
+                        WHEN transaction_type = 'Stock_Out'
+                            AND transaction_date BETWEEN ? AND ?
+                        THEN quantity ELSE 0 END), 0)
+                ) AS stock
+                ",
+                [
+                    $prevMonthStart, $prevMonthEnd,
+                    $currentMonthStart, $currentDate,
+                    $currentMonthStart, $currentDate,
+                ]
+            )
+            ->whereIn('product_id', $productIds)
+            ->when(!empty($warehouseIds), fn($q) => $q->whereIn('parent_warehouse', $warehouseIds))
+            ->groupBy('product_id', 'parent_warehouse')
+            ->get()
+            ->groupBy('product_id')
+            ->map(fn($rows) => $rows->keyBy('parent_warehouse'));
+    }
+
     // public function getAvgPrice(int $productId, ?string $endDate = null): float
     // {
     //     $bindings = [$productId];

@@ -18,4 +18,7 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+
+    Header always set X-Frame-Options "ALLOW-FROM https://mjqeducationplc.sharepoint.com"
+    Header always set Content-Security-Policy "frame-ancestors 'self' https://mjqeducationplc.sharepoint.com"
 </IfModule>

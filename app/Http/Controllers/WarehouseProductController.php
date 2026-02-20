@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\WarehouseProduct;
+use App\Models\ProductVariant;
 use App\Models\WarehouseProductReport;
 use App\Models\WarehouseProductReportItems;
 use App\Models\Warehouse;
@@ -316,159 +317,280 @@ class WarehouseProductController extends Controller
         return view('Inventory.warehouse.warehouse-product.stock-onhand-wh');
     }
 
-    public function getWarehouseStockPivot(Request $request)
-    {
-        $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
-        $search = $request->input('search', '');
-        $warehouseIds = $request->input('warehouse_ids', []);
-        $limit = intval($request->input('limit', 50));
-        $page = intval($request->input('page', 1));
-        $offset = ($page - 1) * $limit;
+    // public function getWarehouseStockPivot(Request $request)
+    // {
+    //     $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
+    //     $search = $request->input('search', '');
+    //     $warehouseIds = $request->input('warehouse_ids', []);
+    //     $limit = intval($request->input('limit', 50));
+    //     $page = intval($request->input('page', 1));
+    //     $offset = ($page - 1) * $limit;
 
-        $transactionDate = Carbon::parse($cutoffDate);
-        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
+    //     $transactionDate = Carbon::parse($cutoffDate);
+    //     $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
 
-        // ------------------- 1️⃣ Fetch warehouses -------------------
-        $warehouses = Warehouse::select('id', 'name')
-            ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
-            ->orderBy('name')
-            ->get();
+    //     // ------------------- 1️⃣ Fetch warehouses -------------------
+    //     $warehouses = Warehouse::select('id', 'name')
+    //         ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
+    //         ->orderBy('name')
+    //         ->get();
 
-        // ------------------- 2️⃣ Prepare product query -------------------
-        $productQuery = WarehouseProduct::with([
-            'variant:id,item_code,product_id,description',
-            'variant.product:id,name,unit_id',
-            'variant.product.unit:id,name'
-        ])->where('is_active', 1);
+    //     // ------------------- 2️⃣ Prepare product query -------------------
+    //     $productQuery = WarehouseProduct::with([
+    //         'variant:id,item_code,product_id,description',
+    //         'variant.product:id,name,unit_id',
+    //         'variant.product.unit:id,name'
+    //     ])->where('is_active', 1);
 
-        if ($search) {
-            $productQuery->where(function ($q) use ($search) {
-                $q->whereHas('variant', fn($v) =>
-                    $v->where('item_code', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                )->orWhereHas('variant.product', fn($p) =>
-                    $p->where('name', 'like', "%{$search}%")
-                );
-            });
-        }
+    //     if ($search) {
+    //         $productQuery->where(function ($q) use ($search) {
+    //             $q->whereHas('variant', fn($v) =>
+    //                 $v->where('item_code', 'like', "%{$search}%")
+    //                 ->orWhere('description', 'like', "%{$search}%")
+    //             )->orWhereHas('variant.product', fn($p) =>
+    //                 $p->where('name', 'like', "%{$search}%")
+    //             );
+    //         });
+    //     }
 
-        // ------------------- 3️⃣ Count total products -------------------
-        $recordsTotal = $productQuery->count();
+    //     // ------------------- 3️⃣ Count total products -------------------
+    //     $recordsTotal = $productQuery->count();
 
-        // ------------------- 4️⃣ Apply pagination -------------------
-        $warehouseProducts = $productQuery->offset($offset)
-            ->limit($limit)
-            ->get()
-            ->groupBy('product_id');
+    //     // ------------------- 4️⃣ Apply pagination -------------------
+    //     $warehouseProducts = $productQuery->offset($offset)
+    //         ->limit($limit)
+    //         ->get()
+    //         ->groupBy('product_id');
 
-        $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+    //     $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
 
-        // ------------------- 5️⃣ Build pivot rows -------------------
-        $rows = $warehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
-            $variant = $items->first()->variant;
+    //     // ------------------- 5️⃣ Build pivot rows -------------------
+    //     $rows = $warehouseProducts->map(function ($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
+    //         $variant = $items->first()->variant;
 
-            $row = [
-                'item_code'   => $variant->item_code,
-                'description' => $variant->product->name . ' ' . $variant->description,
-                'unit'        => $variant->product->unit->name,
-            ];
+    //         $row = [
+    //             'item_code'   => $variant->item_code,
+    //             'description' => $variant->product->name . ' ' . $variant->description,
+    //             'unit'        => $variant->product->unit->name,
+    //         ];
 
-            $total = 0;
-            foreach ($warehouses as $wh) {
-                $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
-                $colKey = $slugify($wh->name);
-                $row[$colKey] = $qty;
-                $total += $qty;
-            }
+    //         $total = 0;
+    //         foreach ($warehouses as $wh) {
+    //             $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
+    //             $colKey = $slugify($wh->name);
+    //             $row[$colKey] = $qty;
+    //             $total += $qty;
+    //         }
 
-            $row['total'] = $total;
-            return $row;
-        })
-        ->filter(fn($row) => $row['total'] > 0) // keep only rows with total > 0
-        ->values();
+    //         $row['total'] = $total;
+    //         return $row;
+    //     })
+    //     ->filter(fn($row) => $row['total'] > 0) // keep only rows with total > 0
+    //     ->values();
 
-        // ------------------- 6️⃣ Response -------------------
+    //     // ------------------- 6️⃣ Response -------------------
+    //     return response()->json([
+    //         'warehouses' => $warehouses->map(fn($wh) => [
+    //             'id' => $wh->id,
+    //             'name' => $wh->name,
+    //             'slug' => $slugify($wh->name)
+    //         ]),
+    //         'data' => $rows,
+    //         'recordsTotal' => $recordsTotal,
+    //         'recordsFiltered' => $recordsTotal, // filtered count could be adjusted if needed
+    //     ]);
+    // }
+
+public function getWarehouseStockPivot(Request $request)
+{
+    $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
+    $search = trim((string) $request->input('search', ''));
+    $warehouseIds = array_values(array_filter((array) $request->input('warehouse_ids', [])));
+    $limit = max(1, (int) $request->input('limit', 50));
+    $page = max(1, (int) $request->input('page', 1));
+    $offset = ($page - 1) * $limit;
+
+    $transactionDate = Carbon::parse($cutoffDate)->format('Y-m-d');
+    $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
+
+    $warehouses = Warehouse::select('id', 'name')
+        ->when(!empty($warehouseIds), fn($q) => $q->whereIn('id', $warehouseIds))
+        ->orderBy('name')
+        ->get();
+
+    // If caller explicitly filtered warehouses and none are valid, return empty.
+    if (!empty($warehouseIds) && $warehouses->isEmpty()) {
         return response()->json([
-            'warehouses' => $warehouses->map(fn($wh) => [
-                'id' => $wh->id,
-                'name' => $wh->name,
-                'slug' => $slugify($wh->name)
-            ]),
-            'data' => $rows,
-            'recordsTotal' => $recordsTotal,
-            'recordsFiltered' => $recordsTotal, // filtered count could be adjusted if needed
+            'warehouses' => collect(),
+            'data' => collect(),
+            'recordsTotal' => 0,
+            'recordsFiltered' => 0,
+            'page' => $page,
+            'limit' => $limit,
         ]);
     }
+
+    $warehouseIdList = $warehouses->pluck('id');
+
+    $variantIds = WarehouseProduct::query()
+        ->select('warehouse_products.product_id')
+        ->join('product_variants', 'product_variants.id', '=', 'warehouse_products.product_id')
+        ->where('warehouse_products.is_active', 1)
+        ->when($search !== '', function ($q) use ($search) {
+            $q->where(function ($sub) use ($search) {
+                $sub->where('product_variants.item_code', 'like', "%{$search}%")
+                    ->orWhere('product_variants.description', 'like', "%{$search}%");
+            });
+        })
+        ->distinct()
+        ->pluck('product_id');
+
+    $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+    $stockSummary = $stockLedgerService->getStockOnHandBulk(
+        $variantIds->all(),
+        $warehouseIdList->isNotEmpty() ? $warehouseIdList->all() : null,
+        $transactionDate
+    );
+
+    $validVariantIds = $variantIds
+        ->filter(function ($variantId) use ($stockSummary) {
+            $rows = $stockSummary->get($variantId);
+            return $rows && $rows->sum('stock') > 0;
+        })
+        ->values();
+
+    $recordsTotal = $validVariantIds->count();
+    $pagedVariantIds = $validVariantIds->slice($offset, $limit)->values();
+
+    $variants = ProductVariant::with([
+            'product:id,name,unit_id',
+            'product.unit:id,name',
+        ])
+        ->whereIn('id', $pagedVariantIds)
+        ->get()
+        ->keyBy('id');
+
+    $rows = $pagedVariantIds->map(function ($variantId) use ($variants, $warehouses, $stockSummary, $slugify) {
+        $variant = $variants->get($variantId);
+        if (!$variant) {
+            return null;
+        }
+
+        $productName = $variant->product->name ?? '';
+        $description = trim($productName . ' ' . ($variant->description ?? ''));
+        $row = [
+            'item_code' => $variant->item_code,
+            'description' => $description,
+            'unit' => $variant->product->unit->name ?? '',
+        ];
+
+        $total = 0;
+        foreach ($warehouses as $wh) {
+            $stock = $stockSummary[$variantId][$wh->id]->stock ?? 0;
+            $row[$slugify($wh->name)] = $stock;
+            $total += $stock;
+        }
+
+        $row['total'] = $total;
+        return $row;
+    })->filter()->values();
+
+    return response()->json([
+        'warehouses' => $warehouses->map(fn($wh) => [
+            'id' => $wh->id,
+            'name' => $wh->name,
+            'slug' => $slugify($wh->name),
+        ]),
+        'data' => $rows,
+        'recordsTotal' => $recordsTotal,
+        'recordsFiltered' => $recordsTotal,
+        'page' => $page,
+        'limit' => $limit,
+    ]);
+}
+
 
     public function exportWarehouseStockPivot(Request $request)
     {
         $cutoffDate = $request->input('cutoff_date', now()->format('Y-m-d'));
-        $search = $request->input('search', '');
-        $warehouseIds = $request->input('warehouse_ids', []);
+        $search = trim((string) $request->input('search', ''));
+        $warehouseIds = array_values(array_filter((array) $request->input('warehouse_ids', [])));
+        $transactionDate = Carbon::parse($cutoffDate)->format('Y-m-d');
+        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
 
-        $transactionDate = Carbon::parse($cutoffDate);
-
-        // ------------------- 1️⃣ Fetch warehouses -------------------
-        $warehouses = Warehouse::select('id','name')
-            ->when($warehouseIds, fn($q) => $q->whereIn('id', $warehouseIds))
+        $warehouses = Warehouse::select('id', 'name')
+            ->when(!empty($warehouseIds), fn($q) => $q->whereIn('id', $warehouseIds))
             ->orderBy('name')
             ->get();
 
-        $slugify = fn($str) => strtolower(preg_replace('/[^\w]+/', '_', trim($str)));
+        $warehouseIdList = $warehouses->pluck('id');
+        $warehousesFormatted = $warehouses->map(fn($wh) => [
+            'name' => $wh->name,
+            'slug' => $slugify($wh->name),
+        ])->toArray();
 
-        // ------------------- 2️⃣ Prepare product query -------------------
-        $productQuery = WarehouseProduct::with([
-            'variant:id,item_code,product_id,description',
-            'variant.product:id,name,unit_id',
-            'variant.product.unit:id,name'
-        ])->where('is_active', 1);
-
-        if ($search) {
-            $productQuery->where(function($q) use ($search) {
-                $q->whereHas('variant', fn($v) =>
-                    $v->where('item_code', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                )->orWhereHas('variant.product', fn($p) =>
-                    $p->where('name', 'like', "%{$search}%")
-                );
-            });
+        if (!empty($warehouseIds) && $warehouses->isEmpty()) {
+            return Excel::download(new WarehouseStockPivotExport($warehousesFormatted, []), 'warehouse_stock_report.xlsx');
         }
 
-        $warehouseProducts = $productQuery->get()->groupBy('product_id');
-        $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+        $variantIds = WarehouseProduct::query()
+            ->select('warehouse_products.product_id')
+            ->join('product_variants', 'product_variants.id', '=', 'warehouse_products.product_id')
+            ->where('warehouse_products.is_active', 1)
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('product_variants.item_code', 'like', "%{$search}%")
+                        ->orWhere('product_variants.description', 'like', "%{$search}%");
+                });
+            })
+            ->distinct()
+            ->pluck('product_id');
 
-        // ------------------- 3️⃣ Build pivot rows -------------------
-        $rows = $warehouseProducts->map(function($items, $productId) use ($warehouses, $transactionDate, $stockLedgerService, $slugify) {
-            $variant = $items->first()->variant;
+        $stockLedgerService = app()->make(\App\Services\StockLedgerService::class);
+        $stockSummary = $stockLedgerService->getStockOnHandBulk(
+            $variantIds->all(),
+            $warehouseIdList->isNotEmpty() ? $warehouseIdList->all() : null,
+            $transactionDate
+        );
+
+        $validVariantIds = $variantIds
+            ->filter(function ($variantId) use ($stockSummary) {
+                $rows = $stockSummary->get($variantId);
+                return $rows && $rows->sum('stock') > 0;
+            })
+            ->values();
+
+        $variants = ProductVariant::with([
+                'product:id,name,unit_id',
+                'product.unit:id,name',
+            ])
+            ->whereIn('id', $validVariantIds)
+            ->get()
+            ->keyBy('id');
+
+        $rows = $validVariantIds->map(function ($variantId) use ($variants, $warehouses, $stockSummary, $slugify) {
+            $variant = $variants->get($variantId);
+            if (!$variant) {
+                return null;
+            }
+
             $row = [
                 'item_code' => $variant->item_code,
-                'description' => $variant->product->name . ' ' . $variant->description,
-                'unit' => $variant->product->unit->name,
+                'description' => trim(($variant->product->name ?? '') . ' ' . ($variant->description ?? '')),
+                'unit' => $variant->product->unit->name ?? '',
             ];
 
             $total = 0;
             foreach ($warehouses as $wh) {
-                $qty = $stockLedgerService->getStockOnHand($productId, $wh->id, $transactionDate->format('Y-m-d'));
-                $colKey = $slugify($wh->name);
-                $row[$colKey] = $qty;
-                $total += $qty;
+                $stock = $stockSummary[$variantId][$wh->id]->stock ?? 0;
+                $row[$slugify($wh->name)] = $stock;
+                $total += $stock;
             }
 
             $row['total'] = $total;
             return $row;
-        })
-        // Filter only rows with total > 0
-        ->filter(fn($row) => $row['total'] > 0)
-        ->values()
-        ->toArray();
+        })->filter()->values()->toArray();
 
-        // ------------------- 4️⃣ Format warehouses for headings -------------------
-        $warehousesFormatted = $warehouses->map(fn($wh) => [
-            'name' => $wh->name,
-            'slug' => $slugify($wh->name)
-        ])->toArray();
-
-        // ------------------- 5️⃣ Export to Excel -------------------
         return Excel::download(new WarehouseStockPivotExport($warehousesFormatted, $rows), 'warehouse_stock_report.xlsx');
     }
 
@@ -898,7 +1020,7 @@ class WarehouseProductController extends Controller
             ], 500);
         }
     }
-   
+
     public function updateReport(
         Request $request,
         WarehouseProductReport $warehouseProductReport
@@ -1201,7 +1323,7 @@ class WarehouseProductController extends Controller
 
             // Check all previous approvals (lower OR same ordinal but lower id)
             $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
-                return ($a->ordinal < $currentApproval->ordinal) || 
+                return ($a->ordinal < $currentApproval->ordinal) ||
                     ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
             });
 
@@ -1246,7 +1368,7 @@ class WarehouseProductController extends Controller
         ];
     }
 
-    public function submitApproval(Request $request, WarehouseProductReport $warehouseProductReport, ApprovalService $approvalService): JsonResponse 
+    public function submitApproval(Request $request, WarehouseProductReport $warehouseProductReport, ApprovalService $approvalService): JsonResponse
     {
         // Validate request
         $validated = $request->validate([
