@@ -456,7 +456,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/purchase-requests/get-departments', [PurchaseRequestController::class, 'getDepartments'])->name('api.purchase-requests.get-departments');
     Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
     Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
-    Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->name('api.purchase-requests.import-items');
+    Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->middleware('can:create,' . PurchaseRequest::class)->name('api.purchase-requests.import-items');
+    Route::post('/purchase-requests/import-purchase-requests', [PurchaseRequestController::class, 'importPurchaseRequests'])->middleware('can:create,' . PurchaseRequest::class)->name('api.purchase-requests.import-purchase-requests');
     Route::get('/purchase-requests/get-purchasers', [PurchaseRequestController::class, 'getPurchasers'])->middleware('can:assignPurchaser,'. PurchaseRequest::class)->name('api.purchase-requests.get-purchasers');
     Route::post('/purchase-requests/{purchaseRequest}/assign-purchasers', [PurchaseRequestController::class,'assignPurchasers'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.assign-purchaser');
     // Main Value List

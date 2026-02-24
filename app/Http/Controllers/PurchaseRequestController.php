@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Imports\PurchaseItemImport;
+use App\Imports\PurchaseRequestImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Browsershot\Browsershot;
 use Carbon\Carbon;
@@ -121,13 +122,43 @@ class PurchaseRequestController extends Controller
         ]);
     }
 
+    // public function form(?PurchaseRequest $purchaseRequest = null): View
+    // {
+    //     $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
+
+    //     $user = Auth::user();
+
+    //     // Map user data to labeled fields
+    //     $requester = [
+    //         'Requester'  => $user->name,
+    //         'Position'   => $user->defaultPosition?->title ?? '',
+    //         'Card ID'    => $user->card_number,
+    //         'Department' => $user->defaultDepartment?->name ?? '',
+    //         'Cellphone'  => $user->phone,
+    //         'Ext'        => $user->ext,
+    //     ];
+
+    //     // Get default department and campus
+    //     $userDefaultDepartment = $user->defaultDepartment
+    //         ? $user->defaultDepartment->only(['id', 'short_name'])
+    //         : null;
+
+    //     $userDefaultCampus = $user->defaultCampus
+    //         ? $user->defaultCampus->only(['id', 'short_name'])
+    //         : null;
+    //     return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
+    // }
+
     public function form(?PurchaseRequest $purchaseRequest = null): View
     {
-        $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
+        $this->authorize(
+            $purchaseRequest ? 'update' : 'create',
+            [PurchaseRequest::class, $purchaseRequest]
+        );
 
         $user = Auth::user();
 
-        // Map user data to labeled fields
+        // Default requester from logged-in user
         $requester = [
             'Requester'  => $user->name,
             'Position'   => $user->defaultPosition?->title ?? '',
@@ -137,7 +168,6 @@ class PurchaseRequestController extends Controller
             'Ext'        => $user->ext,
         ];
 
-        // Get default department and campus
         $userDefaultDepartment = $user->defaultDepartment
             ? $user->defaultDepartment->only(['id', 'short_name'])
             : null;
@@ -145,7 +175,58 @@ class PurchaseRequestController extends Controller
         $userDefaultCampus = $user->defaultCampus
             ? $user->defaultCampus->only(['id', 'short_name'])
             : null;
-        return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
+
+        // If edit mode, eager load relationships for performance
+        if ($purchaseRequest) {
+            $purchaseRequest->load([
+                'creator.defaultPosition',
+                'creator.defaultDepartment',
+                'creator.defaultCampus',
+
+                'items.product.product.unit',
+                'items.campuses:id,short_name',
+                'items.departments:id,short_name',
+
+                'approvals' => fn ($q) => $q
+                    ->where('prod_action', 0)
+                    ->with('responder'),
+
+                'files'
+            ]);
+
+            // Override requester if editing existing PR
+            if ($purchaseRequest->creator) {
+
+                $creator = $purchaseRequest->creator;
+
+                $requester = [
+                    'Requester'  => $creator->name,
+                    'Position'   => $creator->defaultPosition?->title ?? '',
+                    'Card ID'    => $creator->card_number,
+                    'Department' => $creator->defaultDepartment?->name ?? '',
+                    'Cellphone'  => $creator->phone,
+                    'Ext'        => $creator->ext,
+                ];
+
+                $userDefaultDepartment = $creator->defaultDepartment
+                    ? $creator->defaultDepartment->only(['id', 'short_name'])
+                    : null;
+
+                $userDefaultCampus = $creator->defaultCampus
+                    ? $creator->defaultCampus->only(['id', 'short_name'])
+                    : null;
+            }
+        }
+
+        return view(
+            'purchase-requests.form',
+            compact(
+                'purchaseRequest',
+                'requester',
+                'userDefaultDepartment',
+                'userDefaultCampus'
+            )
+        );
     }
 
     public function show(PurchaseRequest $purchaseRequest): View
@@ -186,14 +267,48 @@ class PurchaseRequestController extends Controller
         try {
             $this->authorize('update', $purchaseRequest);
 
+            // Optimized eager loading (NO field names changed)
             $purchaseRequest->load([
-                'items.campuses',
-                'items.departments',
+                'creator.defaultPosition',
+                'creator.defaultDepartment',
+                'creator.defaultCampus',
+
+                'items.product.product.unit',
+                'items.campuses:id,short_name',
+                'items.departments:id,short_name',
+
                 'approvals' => fn ($q) => $q
                     ->where('prod_action', 0)
                     ->with('responder'),
+
                 'files'
             ]);
+
+            // Use already loaded creator (no extra query)
+            $creator = $purchaseRequest->creator;
+
+            $requester = null;
+            $userDefaultDepartment = null;
+            $userDefaultCampus = null;
+
+            if ($creator) {
+                $requester = [
+                    'Requester'  => $creator->name,
+                    'Position'   => $creator->defaultPosition?->title ?? '',
+                    'Card ID'    => $creator->card_number,
+                    'Department' => $creator->defaultDepartment?->name ?? '',
+                    'Cellphone'  => $creator->phone,
+                    'Ext'        => $creator->ext,
+                ];
+
+                $userDefaultDepartment = $creator->defaultDepartment
+                    ? $creator->defaultDepartment->only(['id', 'short_name'])
+                    : null;
+
+                $userDefaultCampus = $creator->defaultCampus
+                    ? $creator->defaultCampus->only(['id', 'short_name'])
+                    : null;
+            }
 
             return response()->json([
                 'message' => 'Purchase request retrieved successfully.',
@@ -204,6 +319,11 @@ class PurchaseRequestController extends Controller
                     'is_urgent' => $purchaseRequest->is_urgent,
                     'created_by' => $purchaseRequest->created_by,
                     'position_id' => $purchaseRequest->position_id,
+
+                    'requester' => $requester,
+                    'userDefaultDepartment' => $userDefaultDepartment,
+                    'userDefaultCampus' => $userDefaultCampus,
+
                     'items' => $purchaseRequest->items->map(fn($i) => [
                         'product_id' => $i->product_id,
                         'product_code' => $i->product->item_code,
@@ -218,9 +338,10 @@ class PurchaseRequestController extends Controller
                         'department_ids' => $i->departments->pluck('id')->toArray(),
                         'budget_code_id' => $i->budget_code_id,
                     ]),
+
                     'approvals' => $purchaseRequest->approvals
-                        ->filter(fn($a) => $a->responder) // Remove null responders
-                        ->groupBy('request_type') // Group by request type
+                        ->filter(fn($a) => $a->responder)
+                        ->groupBy('request_type')
                         ->map(fn($group, $type) => [
                             'request_type' => $type,
                             'users' => $group->map(fn($a) => [
@@ -229,6 +350,7 @@ class PurchaseRequestController extends Controller
                                 'email' => $a->responder->email,
                             ])->values()->toArray()
                         ])->values()->toArray(),
+
                     'files' => $purchaseRequest->files->map(fn($f) => [
                         'id' => $f->id,
                         'name' => $f->file_name,
@@ -238,7 +360,9 @@ class PurchaseRequestController extends Controller
                     ]),
                 ],
             ]);
+
         } catch (\Exception $e) {
+
             Log::error('Failed to retrieve purchase request', [
                 'id' => $purchaseRequest->id,
                 'error' => $e->getMessage()
@@ -256,7 +380,7 @@ class PurchaseRequestController extends Controller
         $this->authorize('create', PurchaseRequest::class);
 
         $validated = $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:20480',
         ]);
 
         try {
@@ -299,6 +423,63 @@ class PurchaseRequestController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to parse purchase items',
+                'errors' => [$e->getMessage()],
+            ], 500);
+        }
+    }
+
+    // Import Purchase Request
+
+    public function importPurchaseRequests(Request $request): JsonResponse
+    {
+        $this->authorize('create', [PurchaseRequest::class]);
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:20480',
+        ]);
+
+        try {
+            $import = new PurchaseRequestImport();
+            Excel::import($import, $request->file('file'));
+
+            $data = $import->getData();
+            $createdCount = count($data['created'] ?? []);
+            $errorCount = count($data['errors'] ?? []);
+            $skippedCount = count($data['skipped'] ?? []);
+
+            if ($createdCount === 0 && $errorCount > 0) {
+                return response()->json([
+                    'message' => 'Errors found in Excel file.',
+                    'errors' => $data['errors'],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => $errorCount > 0
+                    ? 'Import completed with warnings.'
+                    : 'Purchase request imported successfully.',
+                'data' => [
+                    'created_count' => $createdCount,
+                    'created_references' => $data['created_refs'] ?? [],
+                    'skipped_count' => $skippedCount,
+                    'error_count' => $errorCount,
+                ],
+                'errors' => $data['errors'] ?? [],
+            ], 200);
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $errors = $e->failures()->map(function ($failure) {
+                $row = $failure->row();
+                $errorMessages = $failure->errors();
+                return "Row {$row}: " . implode('; ', $errorMessages);
+            })->toArray();
+
+            return response()->json([
+                'message' => 'Validation failed during import',
+                'errors' => $errors,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to import purchase request',
                 'errors' => [$e->getMessage()],
             ], 500);
         }

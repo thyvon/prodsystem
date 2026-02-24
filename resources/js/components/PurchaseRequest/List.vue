@@ -21,6 +21,11 @@
           <button class="btn btn-primary" @click="exportPurchaseRequest">
             <i class="fal fa-download"></i> Export
           </button>
+          <button class="btn btn-primary" @click="importPurchaseRequest" :disabled="importing">
+            <i v-if="!importing" class="fal fa-upload"></i>
+            <span v-if="!importing"> Import</span>
+            <span v-else><i class="fas fa-spinner fa-spin"></i> Importing...</span>
+          </button>
         </div>
       </template>
     </datatable>
@@ -35,6 +40,7 @@ import { confirmAction, showAlert } from '@/Utils/bootbox'
 // Refs and state
 const datatableRef = ref(null)
 const pageLength = ref(10)
+const importing = ref(false)
 
 // Datatable configuration
 const datatableParams = reactive({
@@ -100,6 +106,61 @@ const exportPurchaseRequest = () => {
   }
   const queryString = new URLSearchParams(params).toString()
   window.location.href = `/api/purchase-requests/export?${queryString}`
+}
+
+const importPurchaseRequest = async () => {
+  // Open file picker and upload selected file to import endpoint
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xlsx,.xls,.csv'
+
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const form = new FormData()
+    form.append('file', file)
+
+    importing.value = true
+    try {
+      const response = await axios.post('/api/purchase-requests/import-purchase-requests', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      const warnings = Array.isArray(response.data?.errors) ? response.data.errors : []
+      if (warnings.length) {
+        const shown = warnings.slice(0, 30)
+        const more = warnings.length - shown.length
+        const warningText = more > 0
+          ? `${shown.join('\n')}\n...and ${more} more warning(s).`
+          : shown.join('\n')
+        showAlert('Import completed with warnings', `${response.data.message || 'Import finished.'}\n\n${warningText}`, 'warning')
+      } else {
+        showAlert('Import completed', response.data.message || 'Import finished successfully.', 'success')
+      }
+      datatableRef.value?.reload()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Import failed.'
+      // If validation errors exist, show the first one
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors
+        if (Array.isArray(errors) && errors.length) {
+          showAlert('Import failed', errors.join('\n'), 'danger')
+          return
+        }
+        if (typeof errors === 'object') {
+          const flat = Object.values(errors).flat()
+          showAlert('Import failed', flat.join('\n'), 'danger')
+          return
+        }
+      }
+      showAlert('Import failed', msg, 'danger')
+    } finally {
+      importing.value = false
+    }
+  }
+
+  input.click()
 }
 
 // Datatable event handlers

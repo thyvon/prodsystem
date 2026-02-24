@@ -4,6 +4,7 @@
 @section('content')
   <purchase-request-form
       :purchase-request-id="{{ $purchaseRequest->id ?? 'null' }}"
+      :purchase-request='@json($purchaseRequest)'
       :requester='@json($requester)'
       :user-default-department='@json($userDefaultDepartment)'
       :user-default-campus='@json($userDefaultCampus)'

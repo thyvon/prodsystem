@@ -17,7 +17,7 @@
           <div class="row mb-3">
 
             <!-- Requester Info -->
-            <RequesterInfoCard :requester="requester" />
+            <RequesterInfoCard :requester="requesterData" />
 
             <!-- PR Info -->
             <PrInfoCard :form="form" />
@@ -151,6 +151,7 @@ import ApprovalsSection from './Partials/Form/ApprovalsSection.vue';
 const props = defineProps({
   purchaseRequestId: Number,
   requester: Object,
+  purchaseRequest: Object,
   userDefaultDepartment: Object,
   userDefaultCampus: Object
 });
@@ -199,6 +200,11 @@ const newFiles = ref([]);
 const viewerRef = ref(null);
 const itemsSectionRef = ref(null);
 const attachmentsSectionRef = ref(null);
+
+// Requester Data (from props in create mode, from API in edit mode)
+const requesterData = ref(props.requester || null);
+const userDefaultDepartmentData = ref(props.userDefaultDepartment || null);
+const userDefaultCampusData = ref(props.userDefaultCampus || null);
 
 // Form Data
 const form = ref({
@@ -363,6 +369,17 @@ const loadPurchaseRequest = async () => {
     const { data } = await axios.get(`/api/purchase-requests/${props.purchaseRequestId}/edit`);
     const pr = data.data;
 
+    // Load requester data from API (edit mode)
+    if (pr.requester) {
+      requesterData.value = pr.requester;
+    }
+    if (pr.userDefaultDepartment) {
+      userDefaultDepartmentData.value = pr.userDefaultDepartment;
+    }
+    if (pr.userDefaultCampus) {
+      userDefaultCampusData.value = pr.userDefaultCampus;
+    }
+
     // Basic fields
     form.value.deadline_date = pr.deadline_date || '';
     form.value.purpose = pr.purpose || '';
@@ -375,8 +392,8 @@ const loadPurchaseRequest = async () => {
     // Items
     form.value.items = (pr.items || []).map(item => createItem({
       ...item,
-      campus_ids: item.campus_ids || [props.userDefaultCampus?.id],
-      department_ids: item.department_ids || [props.userDefaultDepartment?.id],
+      campus_ids: item.campus_ids || [userDefaultCampusData.value?.id],
+      department_ids: item.department_ids || [userDefaultDepartmentData.value?.id],
     }));
 
     // Approvals - Map from backend structure to frontend structure
