@@ -40,7 +40,7 @@ return [
     'allowed_origins' => [
         'http://localhost:5173',      // Vue (Vite)
         'http://127.0.0.1:5173',
-        'https://prodsystem.mjqe-purchasing.site',     // Production
+        'https://prodsystem.mjqe-purchasing.site', // Production
     ],
 
     /*

@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DocumentRelation extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $table = 'document_relations';
     // Allow mass assignment for these fields

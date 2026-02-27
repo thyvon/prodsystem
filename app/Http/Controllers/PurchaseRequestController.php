@@ -62,10 +62,73 @@ class PurchaseRequestController extends Controller
         return view('purchase-requests.index');
     }
 
+    // public function getPurchaseRequests(Request $request): JsonResponse
+    // {
+    //     $this->authorize('viewAny', PurchaseRequest::class);
+
+    //     $validated = $request->validate([
+    //         'search' => 'nullable|string|max:255',
+    //         'sortColumn' => 'nullable|string',
+    //         'sortDirection' => 'nullable|string|in:asc,desc',
+    //         'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+    //         'page' => 'nullable|integer|min:1',
+    //         'draw' => 'nullable|integer',
+    //     ]);
+
+    //     $sortColumn = $validated['sortColumn'] ?? 'id';
+    //     $sortDirection = $validated['sortDirection'] ?? 'desc';
+
+    //     $query = PurchaseRequest::select('id', 'reference_no', 'request_date', 'deadline_date', 'purpose', 'is_urgent', 'approval_status', 'created_by', 'created_at', 'updated_at')
+    //         ->with(['creator:id,name'])
+    //         ->whereNull('deleted_at');
+
+    //     if (!empty($validated['search'])) {
+    //         $search = $validated['search'];
+    //         $query->where(function ($q) use ($search) {
+    //             $q->where('reference_no', 'like', "%{$search}%")
+    //             ->orWhere('purpose', 'like', "%{$search}%");
+    //         });
+    //     }
+
+    //     $query->orderBy($sortColumn, $sortDirection);
+
+    //     $purchaseRequests = $query->paginate(
+    //         $validated['limit'] ?? self::DEFAULT_LIMIT,
+    //         ['*'],
+    //         'page',
+    //         $validated['page'] ?? 1
+    //     );
+    //     $totalRecords = PurchaseRequest::whereNull('deleted_at')->count();
+
+    //     $purchaseRequestsMapped = $purchaseRequests->map(fn($purchaseRequest) => [
+    //         'id' => $purchaseRequest->id,
+    //         'reference_no' => $purchaseRequest->reference_no,
+    //         'request_date' => $purchaseRequest->request_date,
+    //         'deadline_date' => $purchaseRequest->deadline_date,
+    //         'purpose' => $purchaseRequest->purpose,
+    //         'is_urgent' => $purchaseRequest->is_urgent,
+    //         'approval_status' => $purchaseRequest->approval_status,
+    //         'creator' => $purchaseRequest->creator?->name,
+    //         'created_at' => $purchaseRequest->created_at,
+    //         'updated_at' => $purchaseRequest->updated_at,
+    //         'amount_usd' => number_format($purchaseRequest->items()->sum('total_price_usd'), 2, '.', ',') . ' USD',
+    //     ]);
+
+    //     return response()->json([
+    //         'draw' => (int) ($validated['draw'] ?? 1),
+    //         'recordsTotal' => $totalRecords,
+    //         'recordsFiltered' => $purchaseRequests->total(),
+    //         'data' => $purchaseRequestsMapped,
+    //     ]);
+    // }
+
     public function getPurchaseRequests(Request $request): JsonResponse
     {
         $this->authorize('viewAny', PurchaseRequest::class);
 
+        // --------------------
+        // Validate input
+        // --------------------
         $validated = $request->validate([
             'search' => 'nullable|string|max:255',
             'sortColumn' => 'nullable|string',
@@ -73,15 +136,46 @@ class PurchaseRequestController extends Controller
             'limit' => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
             'page' => 'nullable|integer|min:1',
             'draw' => 'nullable|integer',
+            'trashed' => 'nullable|in:0,1,true,false',      // Accept checkbox values
+            'status' => 'nullable|string|max:50',          // Approval status filter
         ]);
 
+        // --------------------
+        // Prepare filters
+        // --------------------
         $sortColumn = $validated['sortColumn'] ?? 'id';
         $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $trashed = filter_var($validated['trashed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $status = $validated['status'] ?? null;
 
-        $query = PurchaseRequest::select('id', 'reference_no', 'request_date', 'deadline_date', 'purpose', 'is_urgent', 'approval_status', 'created_by', 'created_at', 'updated_at')
-            ->with(['creator:id,name'])
-            ->whereNull('deleted_at');
+        // --------------------
+        // Base query
+        // --------------------
+        $query = PurchaseRequest::select(
+            'id', 'reference_no', 'request_date', 'deadline_date', 'purpose',
+            'is_urgent', 'approval_status', 'created_by', 'created_at', 'updated_at', 'deleted_at'
+        )
+        ->with(['creator:id,name']);
 
+        // --------------------
+        // Trashed filter
+        // --------------------
+        if ($trashed) {
+            $query->onlyTrashed();
+        } else {
+            $query->whereNull('deleted_at');
+        }
+
+        // --------------------
+        // Status filter
+        // --------------------
+        if (!empty($status)) {
+            $query->where('approval_status', $status);
+        }
+
+        // --------------------
+        // Search filter
+        // --------------------
         if (!empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($q) use ($search) {
@@ -90,28 +184,45 @@ class PurchaseRequestController extends Controller
             });
         }
 
+        // --------------------
+        // Sorting
+        // --------------------
         $query->orderBy($sortColumn, $sortDirection);
 
+        // --------------------
+        // Pagination
+        // --------------------
         $purchaseRequests = $query->paginate(
             $validated['limit'] ?? self::DEFAULT_LIMIT,
             ['*'],
             'page',
             $validated['page'] ?? 1
         );
-        $totalRecords = PurchaseRequest::whereNull('deleted_at')->count();
 
-        $purchaseRequestsMapped = $purchaseRequests->map(fn($purchaseRequest) => [
-            'id' => $purchaseRequest->id,
-            'reference_no' => $purchaseRequest->reference_no,
-            'request_date' => $purchaseRequest->request_date,
-            'deadline_date' => $purchaseRequest->deadline_date,
-            'purpose' => $purchaseRequest->purpose,
-            'is_urgent' => $purchaseRequest->is_urgent,
-            'approval_status' => $purchaseRequest->approval_status,
-            'creator' => $purchaseRequest->creator?->name,
-            'created_at' => $purchaseRequest->created_at,
-            'updated_at' => $purchaseRequest->updated_at,
-            'amount_usd' => number_format($purchaseRequest->items()->sum('total_price_usd'), 2, '.', ',') . ' USD',
+        // --------------------
+        // Total records (for DataTables)
+        // --------------------
+        $totalRecords = PurchaseRequest::query()
+            ->when($trashed, fn($q) => $q->onlyTrashed())
+            ->when($status, fn($q) => $q->where('approval_status', $status))
+            ->count();
+
+        // --------------------
+        // Map response
+        // --------------------
+        $purchaseRequestsMapped = $purchaseRequests->map(fn($pr) => [
+            'id' => $pr->id,
+            'reference_no' => $pr->reference_no,
+            'request_date' => $pr->request_date,
+            'deadline_date' => $pr->deadline_date,
+            'purpose' => $pr->purpose,
+            'is_urgent' => $pr->is_urgent,
+            'approval_status' => $pr->approval_status,
+            'creator' => $pr->creator?->name,
+            'created_at' => $pr->created_at,
+            'updated_at' => $pr->updated_at,
+            'deleted_at' => $pr->deleted_at,
+            'amount_usd' => number_format($pr->items()->sum('total_price_usd'), 2, '.', ',') . ' USD',
         ]);
 
         return response()->json([
@@ -122,43 +233,13 @@ class PurchaseRequestController extends Controller
         ]);
     }
 
-    // public function form(?PurchaseRequest $purchaseRequest = null): View
-    // {
-    //     $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
-
-    //     $user = Auth::user();
-
-    //     // Map user data to labeled fields
-    //     $requester = [
-    //         'Requester'  => $user->name,
-    //         'Position'   => $user->defaultPosition?->title ?? '',
-    //         'Card ID'    => $user->card_number,
-    //         'Department' => $user->defaultDepartment?->name ?? '',
-    //         'Cellphone'  => $user->phone,
-    //         'Ext'        => $user->ext,
-    //     ];
-
-    //     // Get default department and campus
-    //     $userDefaultDepartment = $user->defaultDepartment
-    //         ? $user->defaultDepartment->only(['id', 'short_name'])
-    //         : null;
-
-    //     $userDefaultCampus = $user->defaultCampus
-    //         ? $user->defaultCampus->only(['id', 'short_name'])
-    //         : null;
-    //     return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
-    // }
-
     public function form(?PurchaseRequest $purchaseRequest = null): View
     {
-        $this->authorize(
-            $purchaseRequest ? 'update' : 'create',
-            [PurchaseRequest::class, $purchaseRequest]
-        );
+        $this->authorize($purchaseRequest ? 'update' : 'create', [PurchaseRequest::class, $purchaseRequest]);
 
         $user = Auth::user();
 
-        // Default requester from logged-in user
+        // Map user data to labeled fields
         $requester = [
             'Requester'  => $user->name,
             'Position'   => $user->defaultPosition?->title ?? '',
@@ -168,6 +249,7 @@ class PurchaseRequestController extends Controller
             'Ext'        => $user->ext,
         ];
 
+        // Get default department and campus
         $userDefaultDepartment = $user->defaultDepartment
             ? $user->defaultDepartment->only(['id', 'short_name'])
             : null;
@@ -175,58 +257,7 @@ class PurchaseRequestController extends Controller
         $userDefaultCampus = $user->defaultCampus
             ? $user->defaultCampus->only(['id', 'short_name'])
             : null;
-
-        // If edit mode, eager load relationships for performance
-        if ($purchaseRequest) {
-            $purchaseRequest->load([
-                'creator.defaultPosition',
-                'creator.defaultDepartment',
-                'creator.defaultCampus',
-
-                'items.product.product.unit',
-                'items.campuses:id,short_name',
-                'items.departments:id,short_name',
-
-                'approvals' => fn ($q) => $q
-                    ->where('prod_action', 0)
-                    ->with('responder'),
-
-                'files'
-            ]);
-
-            // Override requester if editing existing PR
-            if ($purchaseRequest->creator) {
-
-                $creator = $purchaseRequest->creator;
-
-                $requester = [
-                    'Requester'  => $creator->name,
-                    'Position'   => $creator->defaultPosition?->title ?? '',
-                    'Card ID'    => $creator->card_number,
-                    'Department' => $creator->defaultDepartment?->name ?? '',
-                    'Cellphone'  => $creator->phone,
-                    'Ext'        => $creator->ext,
-                ];
-
-                $userDefaultDepartment = $creator->defaultDepartment
-                    ? $creator->defaultDepartment->only(['id', 'short_name'])
-                    : null;
-
-                $userDefaultCampus = $creator->defaultCampus
-                    ? $creator->defaultCampus->only(['id', 'short_name'])
-                    : null;
-            }
-        }
-
-        return view(
-            'purchase-requests.form',
-            compact(
-                'purchaseRequest',
-                'requester',
-                'userDefaultDepartment',
-                'userDefaultCampus'
-            )
-        );
+        return view('purchase-requests.form', compact('purchaseRequest', 'requester', 'userDefaultDepartment', 'userDefaultCampus'));
     }
 
     public function show(PurchaseRequest $purchaseRequest): View
@@ -766,26 +797,26 @@ class PurchaseRequestController extends Controller
             DB::transaction(function () use ($purchaseRequest) {
 
                 // --------------------
-                // Delete files from FileServer
+                // Soft delete files
                 // --------------------
                 foreach ($purchaseRequest->files as $file) {
-                    $deleted = $this->fileServerService->deleteFile($file->path);
-                    if ($deleted) {
-                        $file->delete();
+                    $deletedFromServer = $this->fileServerService->deleteFile($file->path);
+                    if ($deletedFromServer) {
+                        $file->delete(); // soft delete
                     }
                 }
 
                 // --------------------
-                // Delete items and detach relations
+                // Soft delete items and detach pivot relations
                 // --------------------
                 foreach ($purchaseRequest->items as $item) {
                     $item->campuses()->detach();
                     $item->departments()->detach();
-                    $item->delete();
+                    $item->delete(); // soft delete
                 }
 
                 // --------------------
-                // Delete approvals
+                // Soft delete approvals
                 // --------------------
                 $purchaseRequest->approvals()->delete();
 
@@ -796,7 +827,7 @@ class PurchaseRequestController extends Controller
             });
 
             return response()->json([
-                'message' => 'Purchase request deleted successfully.',
+                'message' => 'Purchase request deleted successfully (soft).',
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to delete purchase request', [
@@ -807,6 +838,53 @@ class PurchaseRequestController extends Controller
             return response()->json([
                 'message' => 'Failed to delete purchase request.',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function restore($id): JsonResponse
+    {
+        $purchaseRequest = PurchaseRequest::withTrashed()->findOrFail($id);
+
+        $this->authorize('restore', $purchaseRequest);
+        try {
+            $purchaseRequest->restoreWithRelations();
+            return response()->json([
+                'message' => 'Purchase request restored successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to restore purchase request', [
+                'purchase_request_id' => $purchaseRequest->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to restore purchase request.',
+            ], 500);
+        }
+    }
+
+    public function forceDelete($id): JsonResponse
+    {
+        $purchaseRequest = PurchaseRequest::withTrashed()->findOrFail($id);
+
+        $this->authorize('forceDelete', $purchaseRequest);
+
+        try {
+            $purchaseRequest->forceDeleteWithRelations($this->fileServerService);
+
+            return response()->json([
+                'message' => 'Purchase request permanently deleted successfully.',
+            ]);
+
+        } catch (\Throwable $e) {
+
+            Log::error('Failed to permanently delete purchase request', [
+                'purchase_request_id' => $purchaseRequest->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to permanently delete purchase request.',
             ], 500);
         }
     }

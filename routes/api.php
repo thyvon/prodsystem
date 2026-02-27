@@ -439,27 +439,69 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/digital-docs-approvals/{digitalDocsApproval}/reassign-approval', [DigitalDocsApprovalController::class, 'reassignResponder'])->middleware('can:reassign,digitalDocsApproval')->name('api.digital-docs-approvals.reassign-approval');
 
 
-    // Purchase Request Management
-    Route::get('/purchase-requests', [PurchaseRequestController::class, 'getPurchaseRequests'])->middleware('can:viewAny,' . PurchaseRequest::class)->name('api.purchase-requests.index');
-    Route::get('/purchase-requests/{purchaseRequest}/show', [PurchaseRequestController::class, 'showData'])->middleware('can:view,purchaseRequest')->name('api.purchase-requests.show');
-    Route::post('/purchase-requests', [PurchaseRequestController::class, 'store'])->name('api.purchase-requests.store')->middleware('can:create,' . PurchaseRequest::class);
-    Route::get('/purchase-requests/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.edit');
-    Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.update');
-    Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->middleware('can:delete,purchaseRequest')->name('api.purchase-requests.destroy');
-    Route::get('/purchase-requests/get-approval-users', [PurchaseRequestController::class, 'getApprovalUsers'])
-            ->name('api.purchase-requests.get-approval-users');
-    Route::post('/purchase-requests/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
-            ->name('api.purchase-requests.submit-approval');
-    Route::post('/purchase-requests/{purchaseRequest}/submit-prod-action', [PurchaseRequestController::class, 'submitProdAction'])
-            ->name('api.purchase-requests.submit-prod-action');
-    Route::get('/purchase-requests/get-campuses', [PurchaseRequestController::class, 'getCampuses'])->name('api.purchase-requests.get-campuses');
-    Route::get('/purchase-requests/get-departments', [PurchaseRequestController::class, 'getDepartments'])->name('api.purchase-requests.get-departments');
-    Route::get('/purchase-requests/get-products', [PurchaseRequestController::class, 'getProducts'])->name('api.purchase-requests.get-products');
-    Route::post('/purchase-requests/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])->middleware('can:reassign,purchaseRequest')->name('api.purchase-requests.reassign-approval');
-    Route::post('/purchase-requests/import-items', [PurchaseRequestController::class, 'importItems'])->middleware('can:create,' . PurchaseRequest::class)->name('api.purchase-requests.import-items');
-    Route::post('/purchase-requests/import-purchase-requests', [PurchaseRequestController::class, 'importPurchaseRequests'])->middleware('can:create,' . PurchaseRequest::class)->name('api.purchase-requests.import-purchase-requests');
-    Route::get('/purchase-requests/get-purchasers', [PurchaseRequestController::class, 'getPurchasers'])->middleware('can:assignPurchaser,'. PurchaseRequest::class)->name('api.purchase-requests.get-purchasers');
-    Route::post('/purchase-requests/{purchaseRequest}/assign-purchasers', [PurchaseRequestController::class,'assignPurchasers'])->middleware('can:update,purchaseRequest')->name('api.purchase-requests.assign-purchaser');
+    // Purchase Requests Routes
+    Route::prefix('purchase-requests')->name('api.purchase-requests.')->group(function () {
+
+        // ----- Read Routes -----
+        Route::get('/', [PurchaseRequestController::class, 'getPurchaseRequests'])
+            ->middleware('can:viewAny,' . PurchaseRequest::class)
+            ->name('index');
+        Route::get('/{purchaseRequest}/show', [PurchaseRequestController::class, 'showData'])
+            ->middleware('can:view,purchaseRequest')
+            ->name('show');
+        Route::get('/{purchaseRequest}/edit', [PurchaseRequestController::class, 'getEditData'])
+            ->middleware('can:update,purchaseRequest')
+            ->name('edit');
+
+        // ----- Create Routes -----
+        Route::post('/', [PurchaseRequestController::class, 'store'])
+            ->middleware('can:create,' . PurchaseRequest::class)
+            ->name('store');
+        Route::post('/import-items', [PurchaseRequestController::class, 'importItems'])
+            ->middleware('can:create,' . PurchaseRequest::class)
+            ->name('import-items');
+        Route::post('/import-purchase-requests', [PurchaseRequestController::class, 'importPurchaseRequests'])
+            ->middleware('can:create,' . PurchaseRequest::class)
+            ->name('import-purchase-requests');
+
+        // ----- Update Routes -----
+        Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])
+            ->middleware('can:update,purchaseRequest')
+            ->name('update');
+        Route::post('/{purchaseRequest}/submit-approval', [PurchaseRequestController::class, 'submitApproval'])
+            ->name('submit-approval');
+        Route::post('/{purchaseRequest}/submit-prod-action', [PurchaseRequestController::class, 'submitProdAction'])
+            ->name('submit-prod-action');
+        Route::post('/{purchaseRequest}/assign-purchasers', [PurchaseRequestController::class, 'assignPurchasers'])
+            ->middleware('can:update,purchaseRequest')
+            ->name('assign-purchaser');
+        Route::post('/{purchaseRequest}/reassign-approval', [PurchaseRequestController::class, 'reassignResponder'])
+            ->middleware('can:reassign,purchaseRequest')
+            ->name('reassign-approval');
+
+        // ----- Delete Routes -----
+        Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])
+            ->middleware('can:delete,purchaseRequest')
+            ->name('destroy');
+        Route::post('/{id}/restore', [PurchaseRequestController::class, 'restore'])
+            ->name('restore');
+        Route::delete('/{id}/force-delete', [PurchaseRequestController::class, 'forceDelete'])
+            ->name('force-delete');
+
+        // ----- Helper / Lookup Routes -----
+        Route::get('/get-approval-users', [PurchaseRequestController::class, 'getApprovalUsers'])
+            ->name('get-approval-users');
+        Route::get('/get-campuses', [PurchaseRequestController::class, 'getCampuses'])
+            ->name('get-campuses');
+        Route::get('/get-departments', [PurchaseRequestController::class, 'getDepartments'])
+            ->name('get-departments');
+        Route::get('/get-products', [PurchaseRequestController::class, 'getProducts'])
+            ->name('get-products');
+        Route::get('/get-purchasers', [PurchaseRequestController::class, 'getPurchasers'])
+            ->middleware('can:assignPurchaser,' . PurchaseRequest::class)
+            ->name('get-purchasers');
+    });
+
     // Main Value List
     Route::get('/main-value-lists/get-main-categories', [MainValueListController::class, 'getMainCategories'])->name('api.main-value-lists.get-main-categories');
     Route::get('/main-value-lists/get-sub-categories', [MainValueListController::class, 'getSubCategories'])->name('api.main-value-lists.get-sub-categories');

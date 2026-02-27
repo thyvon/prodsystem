@@ -469,80 +469,14 @@ const importItems = async () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const removeItem = (index) => {
-  ['campus', 'department', 'budget'].forEach(type => {
-    const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
-    destroySelect2(el);
-  });
-
   form.value.items.splice(index, 1);
-  // Only rows after `index` shift their data-index, so re-init from there.
-  nextTick(() => initItemSelects(index));
+  // DataTable watch and drawCallback handle table updates automatically
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SELECT2 INITIALIZATION - ITEMS
-// ═══════════════════════════════════════════════════════════════════════════
-
-const initSelect = (index, type) => {
-  const el = document.querySelector(`.${type}-select[data-index="${index}"]`);
-  if (!el) return;
-
-  destroySelect2(el);
-
-  const dataList = type === 'campus' ? campuses.value : departments.value;
-
-  // Populate options
-  el.innerHTML = (dataList || [])
-    .map(d => `<option value="${d.id}">${d.text}</option>`)
-    .join('');
-
-  // Pre-select values
-  const selectedIds = form.value.items[index][`${type}_ids`] || [];
-
-  initSelect2(
-    el,
-    {
-      multiple: true,
-      allowClear: true,
-      width: '100%',
-      placeholder: `Select ${type}`,
-      value: selectedIds.map(String)
-    },
-    val => {
-      form.value.items[index][`${type}_ids`] = val ? val.map(Number) : [];
-    }
-  );
-};
-
-const initBudgetSelect = (index) => {
-  const el = document.querySelector(`.budget-select[data-index="${index}"]`);
-  if (!el) return;
-
-  destroySelect2(el);
-
-  el.innerHTML = budgetCodes.value
-    .map(b => `<option value="${b.id}">${b.code}</option>`)
-    .join('');
-
-  initSelect2(
-    el,
-    {
-      width: '100%',
-      allowClear: false,
-      placeholder: 'Select Budget',
-      value: String(form.value.items[index].budget_code_id)
-    },
-    val => {
-      form.value.items[index].budget_code_id = val ? Number(val) : null;
-    }
-  );
-};
-
-const initItemSelects = (startIndex = 0) => {
-  for (let index = startIndex; index < form.value.items.length; index++) {
-    ['campus', 'department'].forEach(type => initSelect(index, type));
-    initBudgetSelect(index);
-  }
+const initItemSelects = () => {
+  nextTick(() => {
+    itemsSectionRef.value?.initializeSelect2ForItems(budgetCodes.value, campuses.value, departments.value);
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

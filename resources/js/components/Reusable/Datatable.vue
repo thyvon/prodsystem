@@ -268,13 +268,27 @@ const formatNumber = (value) => {
 
 const createActionButtons = (row) => {
   const encodedRow = encodeURIComponent(JSON.stringify(row));
+
+  // Determine which actions to show
+  const actionsToShow = props.actions.filter((action) => {
+    if (row.deleted_at) {
+      // If row is deleted, only show restore & forceDelete
+      return action === 'restore' || action === 'forceDelete';
+    } else {
+      // If row is not deleted, hide restore & forceDelete
+      return action !== 'restore' && action !== 'forceDelete';
+    }
+  });
+
+  if (!actionsToShow.length) return ''; // nothing to show
+
   return `
     <div class="dropdown d-inline-block dropleft">
       <button type="button" class="btn btn-sm btn-icon btn-outline-primary rounded-circle shadow-0" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
         <i class="fal fa-ellipsis-v"></i>
       </button>
       <div class="dropdown-menu">
-        ${props.actions
+        ${actionsToShow
           .map(
             (action) => `
               <a class="dropdown-item" href="#" onclick="window.__datatableActionHandler('${action}', '${encodedRow}')">

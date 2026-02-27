@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -59,6 +60,61 @@ class PurchaseRequest extends Model
     public function files()
     {
         return $this->morphMany(DocumentRelation::class, 'documentable');
+    }
+
+    public function restoreWithRelations(): void
+    {
+        if (!$this->trashed()) {
+            throw new \LogicException('Purchase request is not deleted.');
+        }
+
+        DB::transaction(function () {
+
+            $this->restore();
+
+            $this->files()
+                ->withTrashed()
+                ->restore();
+
+            $this->items()
+                ->withTrashed()
+                ->restore();
+
+            $this->approvals()
+                ->withTrashed()
+                ->restore();
+        });
+    }
+
+    public function forceDeleteWithRelations($fileServerService): void
+    {
+        if (!$this->trashed()) {
+            throw new \LogicException('Purchase request must be deleted first.');
+        }
+
+        DB::transaction(function () use ($fileServerService) {
+
+            // Permanently delete files
+            foreach ($this->files()->withTrashed()->get() as $file) {
+                if ($file->path) {
+                    $fileServerService->deleteFile($file->path);
+                }
+                $file->forceDelete();
+            }
+
+            // Permanently delete items and detach pivot relations
+            foreach ($this->items()->withTrashed()->get() as $item) {
+                $item->campuses()->detach();
+                $item->departments()->detach();
+                $item->forceDelete();
+            }
+
+            // Permanently delete approvals
+            $this->approvals()->withTrashed()->forceDelete();
+
+            // Finally, delete main purchase request
+            $this->forceDelete();
+        });
     }
 
 }

@@ -138,32 +138,18 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
             $result = DB::transaction(function () use ($ref, $first, $items, $alreadyCreated) {
                 $prId = $this->createdRefToId[$ref] ?? null;
                 $createdById = null;
-                $receivedById = null;
                 $isNew = false;
 
                 if (!$prId) {
-                    // --- Resolve created_by ---
-                    $creatorName = $this->cleanName($first['created_by_name'] ?? null);
-                    $creator = $creatorName ? $this->resolveUser($creatorName) : null;
+                    $creator = $this->resolveUser($this->cleanName($first['created_by_name'] ?? $first['created_by_email'] ?? null));
                     $createdById = $creator?->id ?? $this->fallbackCreatorId();
-                    if (!$createdById || !User::whereKey($createdById)->exists()) {
-                        throw new \RuntimeException("Unable to resolve valid created_by user for reference {$ref}.");
+                    if (!$createdById) {
+                        throw new \RuntimeException('Unable to resolve created_by user.');
                     }
 
-                    // --- Resolve received_by ---
-                    $receivedByName = $this->cleanName($first['received_by_name'] ?? null);
-                    $receivedBy = $receivedByName ? $this->resolveUser($receivedByName) : null;
-                    $receivedById = $receivedBy?->id ?? $this->fallbackReceivedById();
-                    if (!$receivedById || !User::whereKey($receivedById)->exists()) {
-                        throw new \RuntimeException("Unable to resolve valid received_by user for reference {$ref}.");
-                    }
-
-                    // --- Create new PurchaseRequest ---
                     $pr = PurchaseRequest::create([
                         'reference_no' => $ref,
-                        'request_date' => $this->parseDate($first['request_date'] ?? null),
-                        'received_date' => $this->parseDate($first['received_date'] ?? null),
-                        'received_by' => $receivedById,
+                        'request_date' => $this->parseDate($first['request_date'] ?? null) ?? now()->format('Y-m-d'),
                         'deadline_date' => $first['deadline_date'] ?? null,
                         'purpose' => $first['purpose'] ?? null,
                         'is_urgent' => $this->toBool($first['is_urgent'] ?? false) ? 1 : 0,
@@ -174,32 +160,13 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
                     $prId = (int) $pr->id;
                     $isNew = true;
                 } else {
-                    // --- Load existing PR safely ---
-                    $prRecord = PurchaseRequest::select('created_by', 'received_by')->find($prId);
-                    if (!$prRecord) {
-                        throw new \RuntimeException("Existing PR with ID {$prId} not found.");
-                    }
-
-                    $createdById = (int) $prRecord->created_by;
-                    $receivedById = (int) $prRecord->received_by;
-                    if (!$createdById || !$receivedById) {
-                        throw new \RuntimeException("Existing PR {$ref} has invalid created_by or received_by.");
-                    }
+                    $createdById = (int) PurchaseRequest::whereKey($prId)->value('created_by');
                 }
 
-                // --- Insert items ---
                 $this->insertItems($prId, $items);
 
-                // --- Insert approvals if new ---
                 if ($isNew) {
-                    $this->insertApprovals(
-                        $prId,
-                        $ref,
-                        $createdById,
-                        $first['approvals'] ?? null,
-                        $first['date_approved'] ?? null,
-                        $receivedById
-                    );
+                    $this->insertApprovals($prId, $ref, $createdById, $first['approvals'] ?? null, $first['date_approved'] ?? null);
                 }
 
                 return ['id' => $prId, 'new' => !$alreadyCreated && $isNew];
@@ -675,23 +642,6 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
             return null;
         }
 
-        // Handle Excel serial number format (e.g., 46055.4307291667)
-        if (is_numeric($value)) {
-            $num = (float) $value;
-            // Excel serial dates are typically between 1 and 60000
-            if ($num > 0 && $num < 100000) {
-                try {
-                    // Excel's epoch is January 1, 1900
-                    // Adjust for Excel's leap year bug (Feb 29, 1900 doesn't exist but Excel counts it)
-                    $excelEpoch = Carbon::createFromDate(1900, 1, 1)->timestamp;
-                    $timestamp = $excelEpoch + ($num * 86400) - 86400; // -1 day for 0-index
-                    return Carbon::createFromTimestamp($timestamp)->format('Y-m-d H:i:s');
-                } catch (\Throwable) {
-                    // Fall through to string parsing
-                }
-            }
-        }
-
         try {
             return Carbon::parse($value)->format('Y-m-d H:i:s');
         } catch (\Throwable) {
@@ -712,19 +662,10 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
             $local = 'user';
         }
 
-        return $local . self::DEFAULT_EMAIL_DOMAIN;
+        return $local . '.' . substr(md5(strtolower($name)), 0, 8) . self::DEFAULT_EMAIL_DOMAIN;
     }
 
     private function fallbackCreatorId(): ?int
-    {
-        if ($this->fallbackCreatorId !== null) {
-            return $this->fallbackCreatorId;
-        }
-        $this->fallbackCreatorId = User::query()->value('id');
-        return $this->fallbackCreatorId;
-    }
-
-    private function fallbackReceivedById(): ?int
     {
         if ($this->fallbackCreatorId !== null) {
             return $this->fallbackCreatorId;

@@ -1,5 +1,8 @@
 <template>
   <div>
+    <!-- ========================= -->
+    <!-- Datatable -->
+    <!-- ========================= -->
     <datatable
       ref="datatableRef"
       :headers="datatableHeaders"
@@ -9,184 +12,322 @@
       :handlers="datatableHandlers"
       :options="datatableOptions"
       @sort-change="handleSortChange"
-      @page-change="handlePageChange"
-      @length-change="handleLengthChange"
       @search-change="handleSearchChange"
     >
+
+      <!-- ========================= -->
+      <!-- Additional Header: Buttons + Filters -->
+      <!-- ========================= -->
       <template #additional-header>
-        <div class="btn-group" role="group">
-          <button class="btn btn-success" @click="createPurchaseRequest">
-            <i class="fal fa-plus"></i> Create Purchase Request
-          </button>
-          <button class="btn btn-primary" @click="exportPurchaseRequest">
-            <i class="fal fa-download"></i> Export
-          </button>
-          <button class="btn btn-primary" @click="importPurchaseRequest" :disabled="importing">
-            <i v-if="!importing" class="fal fa-upload"></i>
-            <span v-if="!importing"> Import</span>
-            <span v-else><i class="fas fa-spinner fa-spin"></i> Importing...</span>
-          </button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+
+          <!-- Buttons -->
+          <div class="btn-group">
+            <button class="btn btn-success" @click="createPurchaseRequest">
+              <i class="fal fa-plus"></i> Create Purchase Request
+            </button>
+
+            <button class="btn btn-primary" @click="exportPurchaseRequest">
+              <i class="fal fa-download"></i> Export
+            </button>
+
+            <button class="btn btn-primary" @click="openImportModal">
+              <i class="fal fa-upload"></i> Import
+            </button>
+          </div>
+
+          <!-- Status Dropdown -->
+          <select class="form-control w-auto ml-2" v-model="datatableParams.status">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+
+          <!-- Trash Checkbox -->
+          <div class="custom-control custom-checkbox ml-2">
+            <input
+              class="custom-control-input"
+              type="checkbox"
+              id="trashCheckbox"
+              v-model="datatableParams.trashed"
+            />
+            <label class="custom-control-label" for="trashCheckbox">
+              Show Trash
+            </label>
+          </div>
         </div>
       </template>
+
     </datatable>
+
+    <!-- ========================= -->
+    <!-- Import Purchase Request Modal -->
+    <!-- ========================= -->
+    <div
+      class="modal fade"
+      ref="importModal"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="importPRModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content border-0 shadow-lg">
+
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title font-weight-bold" id="importPRModalLabel">
+              Import Purchase Requests
+            </h5>
+            <button
+              type="button"
+              class="close text-white"
+              data-dismiss="modal"
+              :disabled="importing"
+            >
+              <span>&times;</span>
+            </button>
+          </div>
+
+          <div class="modal-body">
+
+            <!-- Download Sample -->
+            <div class="mb-3">
+              <a
+                href="/sampleExcel/purchase_request_import_sample.xlsx"
+                class="btn btn-sm btn-info"
+                download
+              >
+                <i class="fal fa-download"></i> Download Sample Excel
+              </a>
+            </div>
+
+            <!-- File Upload -->
+            <div class="form-group">
+              <label>Select Excel File (.xlsx, .xls, .csv)</label>
+
+              <div class="custom-file">
+                <input
+                  type="file"
+                  class="custom-file-input"
+                  ref="importFileInput"
+                  @change="handleFileChange"
+                  accept=".xlsx,.xls,.csv"
+                >
+                <label class="custom-file-label">
+                  {{ importFileName || 'Choose file...' }}
+                </label>
+              </div>
+            </div>
+
+            <p class="text-muted mt-2">
+              Ensure your Excel file matches the provided template.
+            </p>
+
+          </div>
+
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-dismiss="modal"
+              :disabled="importing"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="importFileAction"
+              :disabled="!selectedFile || importing"
+            >
+              <span v-if="importing" class="spinner-border spinner-border-sm mr-1"></span>
+              Import
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import axios from 'axios'
 import { confirmAction, showAlert } from '@/Utils/bootbox'
 
-// Refs and state
+/* =========================
+   State
+========================= */
 const datatableRef = ref(null)
-const pageLength = ref(10)
 const importing = ref(false)
+const selectedFile = ref(null)
+const importFileName = ref('')
+const importModal = ref(null)
 
-// Datatable configuration
+/* =========================
+   Datatable Config
+========================= */
 const datatableParams = reactive({
   sortColumn: 'id',
   sortDirection: 'desc',
-  // Optionally: page: 1, limit: 10, search: ''
+  search: '',
+  status: '',
+  trashed: false,
 })
 
 const datatableHeaders = [
-  { text: 'Reference No', value: 'reference_no', width: '12%' },
-  { text: 'Request Date', value: 'request_date', width: '10%' },
-  { text: 'Deadline', value: 'deadline_date', width: '10%' },
-  { text: 'Purpose', value: 'purpose', width: '25%' },
-  { text: 'Urgent', value: 'is_urgent', width: '5%' },
-  { text: 'Amount', value: 'amount_usd', width: '8%' },
-  { text: 'Approval Status', value: 'approval_status', width: '10%' },
-  { text: 'Requested By', value: 'creator', width: '15%' },
+  { text: 'Reference No', value: 'reference_no', minWidth: '100px' },
+  { text: 'Request Date', value: 'request_date' },
+  { text: 'Deadline', value: 'deadline_date' },
+  { text: 'Purpose', value: 'purpose' },
+  { text: 'Urgent', value: 'is_urgent' },
+  { text: 'Amount', value: 'amount_usd', minWidth: '100px'},
+  { text: 'Approval Status', value: 'approval_status' },
+  { text: 'Requested By', value: 'creator' },
 ]
 
 const datatableFetchUrl = '/api/purchase-requests'
-const datatableActions = ['edit', 'delete', 'preview']
-const datatableOptions = {
-  responsive: true,
-  pageLength: pageLength.value,
-  lengthMenu: [[10, 20, 50, 100, 1000], [10, 20, 50, 100, 1000]],
+const datatableActions = ['preview', 'edit', 'delete', 'restore', 'forceDelete']
+const datatableOptions = { responsive: true }
+
+/* =========================
+   Watch Filters to Reload
+========================= */
+watch(
+  () => [datatableParams.status, datatableParams.trashed],
+  () => datatableRef.value?.reload()
+)
+
+/* =========================
+   Modal Logic
+========================= */
+const openImportModal = () => window.$(importModal.value).modal('show')
+
+const handleFileChange = (e) => {
+  const file = e.target.files[0]
+  selectedFile.value = file || null
+  importFileName.value = file?.name || ''
 }
 
-// Action handlers
-const createPurchaseRequest = () => {
-  window.location.href = '/purchase-requests/create'
-}
+const importFileAction = async () => {
+  if (!selectedFile.value || importing.value) return;
+  importing.value = true;
 
-const handleEdit = (pr) => {
-  window.location.href = `/purchase-requests/${pr.id}/edit`
-}
-
-const handlePreview = (pr) => {
-  window.location.href = `/purchase-requests/${pr.id}/show`
-}
-
-const handleDelete = async (pr) => {
-  const confirmed = await confirmAction(
-    `Delete Purchase Request "${pr.reference_no}"?`,
-    '<strong>Warning:</strong> This action cannot be undone!'
-  )
-  if (!confirmed) return
+  const formData = new FormData();
+  formData.append('file', selectedFile.value);
 
   try {
-    const response = await axios.delete(`/api/purchase-requests/${pr.id}`)
-    showAlert('Deleted', response.data.message || `"${pr.reference_no}" deleted successfully.`, 'success')
-    datatableRef.value?.reload()
-  } catch (e) {
-    console.error(e)
-    showAlert('Failed to delete', e.response?.data?.message || 'Something went wrong.', 'danger')
-  }
-}
+    const response = await axios.post(
+      '/api/purchase-requests/import-purchase-requests',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
 
-const exportPurchaseRequest = () => {
-  const params = {
-    search: datatableParams.search || '',
-    sortColumn: datatableParams.sortColumn,
-    sortDirection: datatableParams.sortDirection,
-  }
-  const queryString = new URLSearchParams(params).toString()
-  window.location.href = `/api/purchase-requests/export?${queryString}`
-}
-
-const importPurchaseRequest = async () => {
-  // Open file picker and upload selected file to import endpoint
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.xlsx,.xls,.csv'
-
-  input.onchange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const form = new FormData()
-    form.append('file', file)
-
-    importing.value = true
-    try {
-      const response = await axios.post('/api/purchase-requests/import-purchase-requests', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-
-      const warnings = Array.isArray(response.data?.errors) ? response.data.errors : []
-      if (warnings.length) {
-        const shown = warnings.slice(0, 30)
-        const more = warnings.length - shown.length
-        const warningText = more > 0
-          ? `${shown.join('\n')}\n...and ${more} more warning(s).`
-          : shown.join('\n')
-        showAlert('Import completed with warnings', `${response.data.message || 'Import finished.'}\n\n${warningText}`, 'warning')
-      } else {
-        showAlert('Import completed', response.data.message || 'Import finished successfully.', 'success')
-      }
-      datatableRef.value?.reload()
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Import failed.'
-      // If validation errors exist, show the first one
-      if (err.response?.data?.errors) {
-        const errors = err.response.data.errors
-        if (Array.isArray(errors) && errors.length) {
-          showAlert('Import failed', errors.join('\n'), 'danger')
-          return
-        }
-        if (typeof errors === 'object') {
-          const flat = Object.values(errors).flat()
-          showAlert('Import failed', flat.join('\n'), 'danger')
-          return
-        }
-      }
-      showAlert('Import failed', msg, 'danger')
-    } finally {
-      importing.value = false
+    const warnings = Array.isArray(response.data?.errors) ? response.data.errors : [];
+    if (warnings.length) {
+      const warningHtml = `<ul style="text-align:left; padding-left:20px;">${warnings.slice(0,20).map(w=>`<li>${w}</li>`).join('')}</ul>${warnings.length>20?`<p>...and ${warnings.length-20} more warning(s).</p>`:''}`;
+      showAlert('Import Completed with Warnings', warningHtml, 'warning');
+    } else {
+      showAlert('Import Successful', response.data.message || 'Purchase Requests imported successfully.', 'success');
     }
-  }
 
-  input.click()
+    datatableRef.value?.reload();
+    window.$(importModal.value).modal('hide');
+
+  } catch (err) {
+    const response = err.response?.data;
+    let errorMessage = 'Failed to import file.';
+    if (response?.errors) {
+      if (typeof response.errors === 'object' && !Array.isArray(response.errors)) {
+        const flatErrors = Object.values(response.errors).flat();
+        errorMessage = `<ul style="text-align:left; padding-left:20px;">${flatErrors.map(e=>`<li>${e}</li>`).join('')}</ul>`;
+      } else if (Array.isArray(response.errors)) {
+        errorMessage = `<ul style="text-align:left; padding-left:20px;">${response.errors.map(e=>`<li>${e}</li>`).join('')}</ul>`;
+      }
+    } else if (response?.message) {
+      errorMessage = response.message;
+    }
+    showAlert('Import Failed', errorMessage, 'danger');
+  } finally {
+    importing.value = false;
+  }
 }
 
-// Datatable event handlers
+/* =========================
+   Reset Modal on Close
+========================= */
+onMounted(() => {
+  window.$(importModal.value).on('hidden.bs.modal', () => {
+    selectedFile.value = null
+    importFileName.value = ''
+  })
+})
+
+/* =========================
+   Other Actions
+========================= */
+const createPurchaseRequest = () => window.location.href = '/purchase-requests/create'
+const exportPurchaseRequest = () => window.location.href = `/api/purchase-requests/export?${new URLSearchParams(datatableParams).toString()}`
+
+const handleEdit = (pr) => window.location.href = `/purchase-requests/${pr.id}/edit`
+const handlePreview = (pr) => window.location.href = `/purchase-requests/${pr.id}/show`
+
+const handleDelete = async (pr) => {
+  const confirmed = await confirmAction(`Delete Purchase Request "${pr.reference_no}"?`, 'This action cannot be undone!')
+  if (!confirmed) return
+  try {
+    await axios.delete(`/api/purchase-requests/${pr.id}`)
+    datatableRef.value?.reload()
+    showAlert('Success','Purchase Request deleted successfully.','success');
+  } catch (err) {
+    showAlert('Error','Failed to delete Purchase Request.','danger');
+  }
+}
+
+const handleRestore = async (pr) => {
+  const confirmed = await confirmAction(`Restore Purchase Request "${pr.reference_no}"?`, 'This will bring back the record from trash.')
+  if (!confirmed) return
+  try {
+    await axios.post(`/api/purchase-requests/${pr.id}/restore`);
+    datatableRef.value?.reload();
+    showAlert('Success','Purchase Request restored successfully.','success');
+  } catch {
+    showAlert('Error','Failed to restore Purchase Request.','danger');
+  }
+}
+
+const handleForceDelete = async (pr) => {
+  const confirmed = await confirmAction(`Permanently delete Purchase Request "${pr.reference_no}"?`, 'This action cannot be undone!')
+  if (!confirmed) return
+  try {
+    await axios.delete(`/api/purchase-requests/${pr.id}/force-delete`);
+    datatableRef.value?.reload();
+    showAlert('Success','Purchase Request permanently deleted.','success');
+  } catch {
+    showAlert('Error','Failed to permanently delete Purchase Request.','danger');
+  }
+}
+
+/* =========================
+   Handlers: now always call, buttons handle disabled logic
+========================= */
+const datatableHandlers = {
+  preview: handlePreview,
+  edit: handleEdit,
+  delete: handleDelete,
+  restore: handleRestore,
+  forceDelete: handleForceDelete,
+}
+
 const handleSortChange = ({ column, direction }) => {
   datatableParams.sortColumn = column
   datatableParams.sortDirection = direction
 }
 
-const handlePageChange = (page) => {
-  // Implement if your datatable supports pagination
-  // datatableParams.page = page
-}
-
-const handleLengthChange = (length) => {
-  // Implement if your datatable supports page length
-  // datatableParams.limit = length
-}
-
-const handleSearchChange = (search) => {
-  datatableParams.search = search
-}
-
-// Map actions to handlers
-const datatableHandlers = {
-  edit: handleEdit,
-  delete: handleDelete,
-  preview: handlePreview,
-}
+const handleSearchChange = (search) => datatableParams.search = search
 </script>

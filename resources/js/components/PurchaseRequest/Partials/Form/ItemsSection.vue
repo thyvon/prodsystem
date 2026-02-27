@@ -58,124 +58,35 @@
       <span v-if="totalAmount" class="badge badge-primary ml-2">{{ totalAmount }}</span>
     </h5>
 
-    <div class="table-responsive" style="max-height: 700px; overflow-x:auto;">
-      <table class="table table-bordered table-striped table-sm table-hover">
-        <thead style="position: sticky; top: 0; background: #1E90FF; z-index: 10; text-align: center;">
+    <div class="table-responsive">
+      <table id="itemsDataTable" class="table table-bordered table-striped table-sm table-hover mb-0">
+        <thead style="background: #1E90FF; text-align: center;">
           <tr>
-            <th style="min-width: 120px;">Item Code</th>
-            <th class="d-none d-md-table-cell" style="min-width: 200px;">Description</th>
-            <th class="d-none d-md-table-cell" style="min-width: 140px;">Remarks</th>
-            <th style="min-width: 60px;">UoM</th>
-            <th style="min-width: 90px;">Currency</th>
-            <th class="d-none d-md-table-cell" style="min-width: 100px;">Ex. Rate</th>
-            <th style="min-width: 80px;">Qty</th>
-            <th style="min-width: 100px;">Price</th>
-            <th class="d-none d-lg-table-cell" style="min-width: 100px;">Value USD</th>
-            <th class="d-none d-lg-table-cell" style="min-width: 120px;">Budget</th>
-            <th class="d-none d-lg-table-cell" style="min-width: 100px;">Campus</th>
-            <th class="d-none d-lg-table-cell" style="min-width: 100px;">Dept</th>
-            <th style="min-width: 60px;">Action</th>
+            <th style="width: 120px;">Item Code</th>
+            <th style="width: 200px;">Description</th>
+            <th style="width: 140px;">Remarks</th>
+            <th style="width: 60px;">UoM</th>
+            <th style="width: 90px;">Currency</th>
+            <th style="width: 100px;">Ex. Rate</th>
+            <th style="width: 80px;">Qty</th>
+            <th style="width: 100px;">Price</th>
+            <th style="width: 100px;">Value USD</th>
+            <th style="width: 120px;">Budget</th>
+            <th style="width: 100px;">Campus</th>
+            <th style="width: 100px;">Dept</th>
+            <th style="width: 60px;">Action</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-for="(item, index) in form.items" :key="index">
-            <td>{{ item.product_code }}</td>
-            <td class="d-none d-md-table-cell">{{ item.product_description }}</td>
-            <td class="d-none d-md-table-cell">
-              <textarea
-                :name="`items[${index}][description]`"
-                v-model="item.description"
-                class="form-control form-control-sm"
-              ></textarea>
-            </td>
-            <td>{{ item.unit_name }}</td>
-            <td>
-              <select
-                :name="`items[${index}][currency]`"
-                v-model="item.currency"
-                class="form-control form-control-sm"
-              >
-                <option value="">Select</option>
-                <option value="USD">USD</option>
-                <option value="KHR">KHR</option>
-              </select>
-            </td>
-            <td class="d-none d-md-table-cell">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                :name="`items[${index}][exchange_rate]`"
-                v-model.number="item.exchange_rate"
-                class="form-control form-control-sm"
-              />
-            </td>
-            <td>
-              <input
-                type="number"
-                :name="`items[${index}][quantity]`"
-                v-model.number="item.quantity"
-                class="form-control form-control-sm"
-              />
-            </td>
-            <td>
-              <input
-                type="number"
-                :name="`items[${index}][unit_price]`"
-                v-model.number="item.unit_price"
-                class="form-control form-control-sm"
-              />
-            </td>
-            <td class="d-none d-lg-table-cell">
-              <input
-                type="text"
-                class="form-control form-control-sm"
-                :value="formatItemValueUsd(item)"
-                readonly
-              />
-            </td>
-            <td class="d-none d-lg-table-cell">
-              <select
-                class="form-control budget-select"
-                :data-index="index"
-              ></select>
-            </td>
-            <td class="d-none d-lg-table-cell">
-              <select
-                multiple
-                class="form-control campus-select"
-                :data-index="index"
-              ></select>
-            </td>
-            <td class="d-none d-lg-table-cell">
-              <select
-                multiple
-                class="form-control department-select"
-                :data-index="index"
-              ></select>
-            </td>
-            <td class="text-center">
-              <button
-                @click.prevent="$emit('remove-item', index)"
-                class="btn btn-danger btn-sm"
-              >
-                <i class="fal fa-trash"></i>
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!form.items.length">
-            <td colspan="13" class="text-center text-muted py-4">No items added</td>
-          </tr>
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 
-defineProps({
+const props = defineProps({
   form: { type: Object, required: true },
   totalAmount: { type: String, default: null },
   isImporting: { type: Boolean, required: true },
@@ -183,8 +94,253 @@ defineProps({
   formatItemValueUsd: { type: Function, required: true },
 })
 
-defineEmits(['import', 'open-products', 'remove-item'])
+const emit = defineEmits(['import', 'open-products', 'remove-item'])
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
 const importFileInput = ref(null)
-defineExpose({ importFileInput })
+let itemsDataTable = null
+let storedSelectData = { budgetCodes: [], campuses: [], departments: [] }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATATABLE INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+const initializeItemsDataTable = () => {
+  const table = $('#itemsDataTable')
+
+  if (itemsDataTable) {
+    itemsDataTable.destroy()
+  }
+
+  itemsDataTable = table.DataTable({
+    data: transformedItems(),
+    responsive: true,
+    autoWidth: false,
+    paging: true,
+    pageLength: 10,
+    searching: true,
+    ordering: true,
+    info: true,
+    columnDefs: [{ targets: 12, orderable: false, searchable: false }],
+    columns: [
+      { data: 'product_code', title: 'Item Code' },
+      { data: 'product_description', title: 'Description' },
+      { data: 'description', title: 'Remarks', render: renderRemarks },
+      { data: 'unit_name', title: 'UoM' },
+      { data: 'currency', title: 'Currency', render: renderCurrency },
+      { data: 'exchange_rate', title: 'Ex. Rate', render: renderExchangeRate },
+      { data: 'quantity', title: 'Qty', render: renderQuantity },
+      { data: 'unit_price', title: 'Price', render: renderPrice },
+      { data: null, title: 'Value USD', render: renderValueUSD },
+      { data: 'budget_code_id', title: 'Budget', render: renderBudget },
+      { data: null, title: 'Campus', render: renderCampus },
+      { data: null, title: 'Dept', render: renderDepartment },
+      { data: null, title: 'Action', render: renderAction, className: 'text-center' }
+    ],
+    drawCallback: () => {
+      attachEventHandlers()
+      if (storedSelectData.budgetCodes.length > 0) {
+        initializeSelect2ForItems(storedSelectData.budgetCodes, storedSelectData.campuses, storedSelectData.departments)
+      }
+    }
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATATABLE RENDER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+const transformedItems = () => {
+  return props.form.items.map((item, index) => ({ ...item, _index: index }))
+}
+const renderRemarks = (data, type, row) => {
+  return `<textarea class="form-control form-control-sm remarks-input" data-index="${row._index}">${data || ''}</textarea>`
+}
+
+const renderCurrency = (data, type, row) => {
+  return `<select class="form-control form-control-sm currency-select" data-index="${row._index}">
+    <option value="">Select</option>
+    <option value="USD" ${data === 'USD' ? 'selected' : ''}>USD</option>
+    <option value="KHR" ${data === 'KHR' ? 'selected' : ''}>KHR</option>
+  </select>`
+}
+
+const renderExchangeRate = (data, type, row) => {
+  return `<input type="number" step="0.01" min="0" class="form-control form-control-sm exchange-rate-input" data-index="${row._index}" value="${data || ''}" />`
+}
+
+const renderQuantity = (data, type, row) => {
+  return `<input type="number" class="form-control form-control-sm quantity-input" data-index="${row._index}" value="${data || 0}" />`
+}
+
+const renderPrice = (data, type, row) => {
+  return `<input type="number" class="form-control form-control-sm price-input" data-index="${row._index}" value="${data || 0}" />`
+}
+
+const renderValueUSD = (data, type, row) => {
+  return `<input type="text" class="form-control form-control-sm" value="${props.formatItemValueUsd(row)}" readonly />`
+}
+
+const renderBudget = (_, __, row) => {
+  return `<select class="form-control form-control-sm budget-select" data-index="${row._index}"></select>`
+}
+
+const renderCampus = (data, type, row) => {
+  return `<select multiple class="form-control form-control-sm campus-select" data-index="${row._index}"></select>`
+}
+
+const renderDepartment = (data, type, row) => {
+  return `<select multiple class="form-control form-control-sm department-select" data-index="${row._index}"></select>`
+}
+
+const renderAction = (data, type, row) => {
+  return `<button class="btn btn-danger btn-sm remove-item-btn" data-index="${row._index}">
+    <i class="fal fa-trash"></i>
+  </button>`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+const attachEventHandlers = () => {
+  const tbody = $('#itemsDataTable tbody')
+  const items = props.form.items
+
+  tbody
+    .off('change', '.remarks-input')
+    .on('change', '.remarks-input', function() {
+      const index = $(this).data('index')
+      if (items[index]) items[index].description = $(this).val()
+    })
+
+  tbody
+    .off('change', '.currency-select')
+    .on('change', '.currency-select', function() {
+      const index = $(this).data('index')
+      if (items[index]) items[index].currency = $(this).val()
+    })
+
+  tbody
+    .off('change', '.exchange-rate-input')
+    .on('change', '.exchange-rate-input', function() {
+      const index = $(this).data('index')
+      if (items[index]) items[index].exchange_rate = Number($(this).val())
+    })
+
+  tbody
+    .off('change', '.quantity-input')
+    .on('change', '.quantity-input', function() {
+      const index = $(this).data('index')
+      if (items[index]) items[index].quantity = Number($(this).val())
+    })
+
+  tbody
+    .off('change', '.price-input')
+    .on('change', '.price-input', function() {
+      const index = $(this).data('index')
+      if (items[index]) items[index].unit_price = Number($(this).val())
+    })
+
+  tbody
+    .off('click', '.remove-item-btn')
+    .on('click', '.remove-item-btn', function(e) {
+      e.preventDefault()
+      const index = $(this).data('index')
+      emit('remove-item', index)
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECT2 INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+const initializeSelect2ForItems = (budgetCodes, campuses, departments) => {
+  storedSelectData = { budgetCodes, campuses, departments }
+  const items = props.form.items
+
+  // Budget selects
+  $('#itemsDataTable tbody .budget-select').each(function() {
+    const index = $(this).data('index')
+    const select = $(this)
+    if (!items[index]) return
+
+    if (select.hasClass('select2-hidden-accessible')) {
+      select.select2('destroy')
+    }
+
+    select.html(budgetCodes.map(b => `<option value="${b.id}">${b.code}</option>`).join(''))
+      .select2({ width: '100%', allowClear: false, placeholder: 'Select Budget' })
+      .val(String(items[index].budget_code_id))
+      .trigger('change')
+      .off('change')
+      .on('change', function() {
+        items[index].budget_code_id = Number($(this).val()) || null
+      })
+  })
+
+  // Campus selects
+  $('#itemsDataTable tbody .campus-select').each(function() {
+    const index = $(this).data('index')
+    const select = $(this)
+    if (!items[index]) return
+
+    if (select.hasClass('select2-hidden-accessible')) {
+      select.select2('destroy')
+    }
+
+    const selectedIds = items[index].campus_ids || []
+    select.html(campuses.map(c => `<option value="${c.id}">${c.text}</option>`).join(''))
+      .select2({ width: '100%', multiple: true, allowClear: true, placeholder: 'Select Campus' })
+      .val(selectedIds.map(String))
+      .trigger('change')
+      .off('change')
+      .on('change', function() {
+        items[index].campus_ids = ($(this).val() || []).map(Number)
+      })
+  })
+
+  // Department selects
+  $('#itemsDataTable tbody .department-select').each(function() {
+    const index = $(this).data('index')
+    const select = $(this)
+    if (!items[index]) return
+
+    if (select.hasClass('select2-hidden-accessible')) {
+      select.select2('destroy')
+    }
+
+    const selectedIds = items[index].department_ids || []
+    select.html(departments.map(d => `<option value="${d.id}">${d.text}</option>`).join(''))
+      .select2({ width: '100%', multiple: true, allowClear: true, placeholder: 'Select Department' })
+      .val(selectedIds.map(String))
+      .trigger('change')
+      .off('change')
+      .on('change', function() {
+        items[index].department_ids = ($(this).val() || []).map(Number)
+      })
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WATCHERS & LIFECYCLE
+// ═══════════════════════════════════════════════════════════════════════════
+watch(
+  () => props.form.items,
+  () => {
+    if (itemsDataTable) {
+      nextTick(() => {
+        itemsDataTable.clear()
+        itemsDataTable.rows.add(transformedItems())
+        itemsDataTable.draw(false)
+      })
+    }
+  },
+  { deep: true }
+)
+
+onMounted(async () => {
+  await nextTick()
+  initializeItemsDataTable()
+})
+
+defineExpose({ importFileInput, initializeSelect2ForItems })
 </script>
