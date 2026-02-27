@@ -37,26 +37,28 @@
           </div>
 
           <!-- Status Dropdown -->
-          <select class="form-control w-auto ml-2" v-model="datatableParams.status">
+        <div class="custom-select-wrapper w-auto ml-2">
+        <select class="custom-select" v-model="datatableParams.status">
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+        </select>
+        </div>
 
           <!-- Trash Checkbox -->
-          <div class="custom-control custom-checkbox ml-2">
-            <input
-              class="custom-control-input"
-              type="checkbox"
-              id="trashCheckbox"
-              v-model="datatableParams.trashed"
-            />
-            <label class="custom-control-label" for="trashCheckbox">
-              Show Trash
-            </label>
-          </div>
+        <div class="custom-control custom-checkbox ml-2 custom-trash-checkbox">
+        <input
+            class="custom-control-input"
+            type="checkbox"
+            id="trashCheckbox"
+            v-model="datatableParams.trashed"
+        />
+        <label class="custom-control-label" for="trashCheckbox">
+            Show Trash <i class="fal fa-trash"></i>
+        </label>
+        </div>
         </div>
       </template>
 
@@ -331,3 +333,34 @@ const handleSortChange = ({ column, direction }) => {
 
 const handleSearchChange = (search) => datatableParams.search = search
 </script>
+
+<style>
+/* Custom style for your trash checkbox */
+.custom-trash-checkbox .custom-control-input:checked ~ .custom-control-label {
+  color: #1d4ed8; /* Blue text when checked */
+  font-weight: 600;
+}
+
+.custom-trash-checkbox .custom-control-input:checked ~ .custom-control-label i {
+  color: #dc2626; /* Red trash icon when checked */
+}
+
+.custom-trash-checkbox .custom-control-label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem; /* small space between text and icon */
+  transition: color 0.2s ease;
+}
+
+.custom-trash-checkbox .custom-control-input {
+  border-radius: 0.25rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.custom-trash-checkbox .custom-control-input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25); /* focus glow */
+}
+</style>
