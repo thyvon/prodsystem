@@ -24,11 +24,7 @@
           <!-- Buttons -->
           <div class="btn-group">
             <button class="btn btn-success" @click="createPurchaseRequest">
-              <i class="fal fa-plus"></i> Create Purchase Request
-            </button>
-
-            <button class="btn btn-primary" @click="exportPurchaseRequest">
-              <i class="fal fa-download"></i> Export
+              <i class="fal fa-plus"></i> Create
             </button>
 
             <button class="btn btn-primary" @click="openImportModal">

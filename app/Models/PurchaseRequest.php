@@ -16,6 +16,8 @@ class PurchaseRequest extends Model
     protected $fillable = [
         'reference_no',
         'request_date',
+        'received_date',
+        'received_by',
         'deadline_date',
         'purpose',
         'deadline',

@@ -169,6 +169,7 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
                         'is_urgent' => $this->toBool($first['is_urgent'] ?? false) ? 1 : 0,
                         'created_by' => $createdById,
                         'position_id' => $creator?->current_position_id ?? 5,
+                        'approval_status' => 'Approved',
                     ]);
 
                     $prId = (int) $pr->id;
@@ -280,7 +281,7 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
             'currency' => $currency,
             'exchange_rate' => $rate,
             'description' => $desc,
-            'purchasing_status' => $this->toInt($r['item_status'] ?? 0),
+            'purchasing_status' => $this->mapItemStatus($r['item_status'] ?? 0),
             'purchaser_id' => $this->resolveUser($this->cleanName($r['purchasers'] ?? null))?->id,
             'campus_ids' => $this->mapIds($r['campus_names'] ?? null, 'campus'),
             'department_ids' => $this->mapIds($r['department_names'] ?? null, 'dept'),
@@ -742,6 +743,21 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
             'approve' => 4,
             'acknowledge' => 5,
             default => 1,
+        };
+    }
+
+    private function mapItemStatus(string|int|null $status): int
+    {
+        if (is_numeric($status)) {
+            return (int) $status;
+        }
+
+        return match (strtolower(trim((string) $status))) {
+            'pending'   => 0,
+            'partial'   => 1,
+            'completed' => 2,
+            'void'      => 3,
+            default     => 0,
         };
     }
 }

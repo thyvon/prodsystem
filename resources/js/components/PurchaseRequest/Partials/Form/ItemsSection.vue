@@ -115,14 +115,23 @@ const initializeItemsDataTable = () => {
 
   itemsDataTable = table.DataTable({
     data: transformedItems(),
-    responsive: true,
+    responsive: false,
     autoWidth: false,
     paging: true,
     pageLength: 10,
     searching: true,
     ordering: true,
     info: true,
-    columnDefs: [{ targets: 12, orderable: false, searchable: false }],
+    columnDefs: [
+        { targets: 0, createdCell: (td) => $(td).css('min-width', '90px') },
+        { targets: 1, createdCell: (td) => $(td).css('min-width', '200px') },
+        { targets: 2, createdCell: (td) => $(td).css('min-width', '200px') },
+        { targets: 5, createdCell: (td) => $(td).css('min-width', '75px') },
+        { targets: 6, createdCell: (td) => $(td).css('min-width', '75px') },
+        { targets: 7, createdCell: (td) => $(td).css('min-width', '75px') },
+        { targets: 8, createdCell: (td) => $(td).css('min-width', '90px') },
+        { targets: 12, orderable: false, searchable: false }
+    ],
     columns: [
       { data: 'product_code', title: 'Item Code' },
       { data: 'product_description', title: 'Description' },
@@ -132,7 +141,7 @@ const initializeItemsDataTable = () => {
       { data: 'exchange_rate', title: 'Ex. Rate', render: renderExchangeRate },
       { data: 'quantity', title: 'Qty', render: renderQuantity },
       { data: 'unit_price', title: 'Price', render: renderPrice },
-      { data: null, title: 'Value USD', render: renderValueUSD },
+      { data: null, title: 'Value', render: renderValueUSD },
       { data: 'budget_code_id', title: 'Budget', render: renderBudget },
       { data: null, title: 'Campus', render: renderCampus },
       { data: null, title: 'Dept', render: renderDepartment },
