@@ -1626,6 +1626,7 @@ class PurchaseRequestController extends Controller
                 'total_price_khr' => ($i->currency === 'KHR' && !empty($i->exchange_rate)) ? $i->total_price : null,
                 'purchaser_id' => $i->purchaser_id,
                 'purchaser_name' => $i->purchaser?->name,
+                'purchasing_status' => $i->purchasing_status
             ]),
 
             'approvals' => $this->approvalService->mapApprovals($purchaseRequest->approvals),

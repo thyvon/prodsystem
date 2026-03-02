@@ -36,6 +36,7 @@ class PurchaseRequestItem extends Model
         'unit_price' => 'float',
         'total_price' => 'float',
         'total_price_usd' => 'float',
+        'purchasing_status' => 'integer',
     ];
 
     public function purchaseRequest()

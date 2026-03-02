@@ -169,7 +169,7 @@ class PurchaseRequestImport implements ToCollection, WithHeadingRow, WithChunkRe
                         'is_urgent' => $this->toBool($first['is_urgent'] ?? false) ? 1 : 0,
                         'created_by' => $createdById,
                         'position_id' => $creator?->current_position_id ?? 5,
-                        'approval_status' => 'Approved',
+                        'approval_status' => 'Received',
                     ]);
 
                     $prId = (int) $pr->id;

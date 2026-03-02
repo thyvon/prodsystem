@@ -75,6 +75,7 @@
             <th>Campus</th>
             <th>Budget Code</th>
             <th>Assigned Purchaser</th>
+            <th class="text-center">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -91,16 +92,29 @@
             <td>{{ item.campus_short_names }}</td>
             <td>{{ item.budget_code_ref ?? 'N/A' }}</td>
             <td>{{ item.purchaser_name ?? 'N/A' }}</td>
+            <td class="text-center">
+              <span
+                class="badge"
+                :class="{
+                  'badge-danger': item.purchasing_status == 0,
+                  'badge-warning': item.purchasing_status == 1,
+                  'badge-success': item.purchasing_status == 2,
+                  'badge-primary': item.purchasing_status == 3,
+                }"
+              >
+                {{ statusLabel(item.purchasing_status) }}
+              </span>
+            </td>
           </tr>
           <tr>
             <td colspan="6" class="text-end font-weight-bold">Total (USD)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_usd) }}</td>
-            <td colspan="5"></td>
+            <td colspan="6"></td>
           </tr>
           <tr>
             <td colspan="6" class="text-end font-weight-bold">Total (KHR)</td>
             <td class="text-end font-weight-bold">{{ format(purchaseRequest.total_value_khr) }}</td>
-            <td colspan="5"></td>
+            <td colspan="6"></td>
           </tr>
         </tbody>
       </table>
@@ -205,4 +219,18 @@ const props = defineProps({
 })
 
 const { purchaseRequest, formatDate, format, capitalize, daysBetween, openFileViewer } = props
+
+const statusMap = {
+  0: 'Pending',
+  1: 'Partial',
+  2: 'Completed',
+  3: 'Void',
+  4: 'Approved',
+  5: 'Rejected',
+  6: 'Cancelled'
+}
+
+function statusLabel(status) {
+  return statusMap[status] ?? 'Unknown';
+}
 </script>
