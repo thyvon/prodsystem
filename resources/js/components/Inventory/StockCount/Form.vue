@@ -58,50 +58,56 @@
           <div class="border rounded p-3 mb-4 bg-white">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0 text-primary">Counted Items</h5>
-              <div class="d-flex align-items-center gap-2">
-                
-                <!-- Download Sample Excel Button -->
+                <div class="d-flex flex-wrap align-items-center">
+
+                <!-- Download Sample Excel -->
                 <button
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary d-flex align-items-center"
-                  @click="downloadSampleExcel"
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary mr-2 mb-2 d-flex align-items-center"
+                    @click="downloadSampleExcel"
                 >
-                  <i class="fal fa-file-excel mr-1"></i>
-                  Download Sample Excel
+                    <i class="fal fa-file-export"></i>
                 </button>
 
-                <!-- Import Excel Button -->
-                <button 
-                  type="button" 
-                  class="btn btn-sm btn-outline-secondary d-flex align-items-center"
-                  @click="triggerFileInput" 
-                  :disabled="isImporting"
+                <!-- Import Excel -->
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary mr-2 mb-2 d-flex align-items-center"
+                    @click="triggerFileInput"
+                    :disabled="isImporting"
                 >
-                  <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
-                  <i v-else class="fal fa-file-excel mr-1"></i>
-                  Import Excel
+                    <span v-if="isImporting" class="spinner-border spinner-border-sm mr-1"></span>
+                    <i v-else class="fal fa-file-excel"></i>
                 </button>
 
                 <!-- Hidden File Input -->
-                <input 
-                  type="file" 
-                  ref="fileInput" 
-                  class="d-none" 
-                  accept=".xlsx,.xls,.csv" 
-                  @change="handleFileUpload" 
+                <input
+                    type="file"
+                    ref="fileInput"
+                    class="d-none"
+                    accept=".xlsx,.xls,.csv"
+                    @change="handleFileUpload"
                 />
 
-                <!-- Add Items Button -->
-                <button 
-                  type="button" 
-                  class="btn btn-sm btn-success d-flex align-items-center" 
-                  @click="openProductsModal"
+                <!-- Add Items -->
+                <button
+                    type="button"
+                    class="btn btn-sm btn-success mr-2 mb-2 d-flex align-items-center"
+                    @click="openProductsModal"
                 >
-                  <i class="fal fa-plus mr-1"></i>
-                  Add Items
+                    <i class="fal fa-plus"></i>
                 </button>
 
-              </div>
+                <!-- Scan Barcode -->
+                <button
+                    type="button"
+                    class="btn btn-sm btn-primary mb-2 d-flex align-items-center"
+                    @click="scanBarcode"
+                >
+                    <i class="fal fa-barcode"></i>
+                </button>
+
+                </div>
             </div>
             <div class="table-responsive">
               <table class="table table-bordered table-sm table-hover">
@@ -133,14 +139,14 @@
                         required
                       />
                     </td>
-                    <td>
+                    <!-- <td>
                       <input
                         type="hidden"
                         v-model.number="item.unit_price"
                         min="0"
                         class="form-control"
                       />
-                    </td>
+                    </td> -->
                     <td>
                       <input
                         type="number"
@@ -255,10 +261,10 @@
                   <tr>
                     <th>
                       <div class="custom-control custom-checkbox">
-                        <input 
-                          type="checkbox" 
-                          class="custom-control-input" 
-                          id="select-all" 
+                        <input
+                          type="checkbox"
+                          class="custom-control-input"
+                          id="select-all"
                           @change="toggleAll($event)"
                         />
                         <label class="custom-control-label" for="select-all"></label>
@@ -280,11 +286,74 @@
         </div>
       </div>
     </div>
+
+    <!-- Barcode Scanner Modal -->
+    <div ref="scannerModal" class="modal fade">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+
+        <div class="modal-header">
+            <h5 class="modal-title">Scan Product</h5>
+            <button class="close" @click="stopScanner">×</button>
+        </div>
+
+        <div class="modal-body text-center">
+            <div id="reader" style="width:100%"></div>
+            <p class="text-muted">Point camera at barcode</p>
+        </div>
+
+        </div>
+    </div>
+    </div>
+
+    <!-- Quantity Modal -->
+    <div ref="qtyModal" class="modal fade">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+
+        <div class="modal-header">
+            <h5 class="modal-title">Enter Quantity</h5>
+            <button class="close" @click="closeQtyModal">×</button>
+        </div>
+
+        <div class="modal-body">
+
+            <div class="mb-2">
+            <strong>Item Code:</strong> {{ scannedItem?.item_code }}
+            </div>
+
+            <div class="mb-2">
+            <strong>Description:</strong> {{ scannedItem?.description }}
+            </div>
+
+            <label>Counted Quantity</label>
+
+            <input
+            ref="qtyInput"
+            type="number"
+            v-model.number="scanQty"
+            class="form-control form-control-lg"
+            min="0"
+            />
+
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeQtyModal">Cancel</button>
+            <button class="btn btn-success" @click="saveScanQty">
+            Save
+            </button>
+        </div>
+
+        </div>
+    </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { showAlert } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import axios from 'axios'
@@ -297,6 +366,12 @@ const emit = defineEmits(['submitted'])
 const isEditMode = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
+
+const scannerModal = ref(null)
+const qtyModal = ref(null)
+const qtyInput = ref(null)
+const scannedItem = ref(null)
+const scanQty = ref(0)
 
 const form = ref({
   transaction_date: '',
@@ -314,6 +389,7 @@ const itemsModal = ref(null)
 const warehouseSelect = ref(null)
 let productsTable = null
 let approvalUsers = ref({ initial: [], approve: [] })
+let scanner = null
 
 // ==================== Navigation ====================
 const goToIndex = () => window.location.href = '/inventory/stock-counts'
@@ -340,6 +416,95 @@ const initDatepicker = () => {
   }).on('changeDate', e => {
     form.value.transaction_date = e.format()
   })
+}
+
+// ==================== Barcode Scanner ====================
+
+const scanBarcode = async () => {
+
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    showAlert("Warning", "Select warehouse and date first", "warning")
+    return
+  }
+
+  $(scannerModal.value).modal("show")
+
+  setTimeout(startScanner, 300)
+}
+
+const startScanner = async () => {
+  scanner = new Html5Qrcode("reader")
+
+  await scanner.start(
+    { facingMode: "environment" },
+    {
+      fps: 10,
+      qrbox: { width: 300, height: 100 },
+      formatsToSupport: ["CODE_39"], // string works without importing enum
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // important for 1D
+    },
+    handleScan
+  )
+}
+
+const handleScan = async (barcode) => {
+  navigator.vibrate?.(100)
+  const item = form.value.items.find(i => i.item_code === barcode)
+
+  if (!item) {
+    showAlert("Item not found", barcode, "warning")
+    return
+  }
+
+  scannedItem.value = item
+  scanQty.value = item.counted_quantity || 1  // default to 1
+
+  await scanner.pause()
+  $(qtyModal.value).modal("show")
+
+  setTimeout(() => {
+    qtyInput.value?.focus()
+  }, 300)
+}
+
+const saveScanQty = async () => {
+  if (!scannedItem.value) return
+
+  scannedItem.value.counted_quantity = parseFloat(scanQty.value)
+
+  try {
+    // optional: skip API call for now, just update local value
+    await axios.post("/api/inventory/stock-counts/scan-update", {
+      stock_count_id: props.initialData?.id || null,
+      product_id: scannedItem.value.product_id,
+      counted_quantity: scannedItem.value.counted_quantity
+    })
+  } catch (err) {
+    showAlert("Error", "Failed to save quantity", "danger")
+    return
+  }
+
+  $(qtyModal.value).modal("hide")
+  scannedItem.value = null
+  scanner.resume()
+}
+
+const closeQtyModal = () => {
+  scannedItem.value = null
+  scanQty.value = 0
+  $(qtyModal.value).modal('hide')
+  scanner?.resume()
+}
+
+const stopScanner = async () => {
+
+  if (scanner) {
+    await scanner.stop()
+    scanner = null
+  }
+
+  $(scannerModal.value).modal("hide")
+
 }
 
 // ==================== Warehouse Select2 ====================
@@ -461,32 +626,6 @@ const openProductsModal = () => {
 
   $(itemsModal.value).modal('show')
 }
-
-// const addSelectedItems = () => {
-//   const table = $(itemsModal.value).find('table').DataTable()
-//   const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
-
-//   const existingIds = new Set(form.value.items.map(i => i.product_id))
-//   selected.forEach(p => {
-//     if (!existingIds.has(p.id)) {
-//       form.value.items.push({
-//         product_id: p.id,
-//         item_code: p.item_code,
-//         product_name: p.product_name || '',
-//         description: p.description || '',
-//         unit_name: p.unit_name,
-//         ending_quantity: parseFloat(p.stock_on_hand) || 0,
-//         counted_quantity: parseFloat(p.stock_on_hand) || 0,
-//         stock_on_hand: parseFloat(p.stock_on_hand) || 0,
-//         average_price: 0,
-//         remarks: ''
-//       })
-//     }
-//   })
-
-//   $(itemsModal.value).find('.select-item').prop('checked', false)
-//   $(itemsModal.value).modal('hide')
-// }
 
 const removeItem = i => form.value.items.splice(i, 1)
 const closeItemsModal = () => $(itemsModal.value).modal('hide')
@@ -738,6 +877,6 @@ onUnmounted(() => {
 
 
 
-<style scoped>
+<!-- <style scoped>
   .table td, .table th { vertical-align: middle; }
-</style>
+</style> -->

@@ -19,7 +19,8 @@
     },
     "dependencies": {
         "@vueuse/core": "^14.0.0",
-        "html2pdf.js": "^0.12.1",
+        "html2pdf.js": "^0.14.0",
+        "html5-qrcode": "^2.3.8",
         "lodash": "^4.17.21",
         "pdf-lib": "^1.17.1",
         "pdfmake": "^0.2.20",
