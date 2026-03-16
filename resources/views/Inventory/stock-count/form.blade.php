@@ -4,7 +4,7 @@
 @section('content')
 <stock-count-form
     :initial-data='@json($initialData ?? [])'>
-/>
+</stock-count-form>
 @endsection
 
 @push('vite')

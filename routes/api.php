@@ -394,6 +394,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-counts/{stockCount}/submit-approval', [StockCountController::class, 'submitApproval'])->name('api.stock-counts.submit-approval');
         Route::post('/stock-counts/{stockCount}/reassign-approval', [StockCountController::class, 'reassignResponder'])->name('api.stock-counts.reassign-approval');
         Route::get('/stock-counts/get-products', [StockCountController::class, 'getProducts'])->name('api.stock-counts.get-products');
+        Route::post('/stock-counts/get-product-by-barcode', [StockCountController::class, 'getProductByBarcode'])->name('api.stock-counts.get-product-by-barcode');
+        Route::post('/stock-counts/scan-update', [StockCountController::class, 'scanUpdate'])->name('api.stock-counts.scan-update');
         Route::patch('/stock-counts/refresh-stock', [StockCountController::class, 'refreshStockData'])->name('api.stock-counts.refresh-stock');
 
 

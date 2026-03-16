@@ -397,7 +397,7 @@ class StockCountController extends Controller
     }
 
 
-    public function submitApproval(Request $request, StockCount $stockCount, ApprovalService $approvalService): JsonResponse 
+    public function submitApproval(Request $request, StockCount $stockCount, ApprovalService $approvalService): JsonResponse
     {
         // Validate request
         $validated = $request->validate([
@@ -614,8 +614,8 @@ class StockCountController extends Controller
     //             return response()->json([
     //                 'message' => 'Stock count updated successfully.',
     //                 'data' => $stockCount->load([
-    //                     'items.product', 
-    //                     'approvals.responder', 
+    //                     'items.product',
+    //                     'approvals.responder',
     //                     'approvals.requester.defaultPosition',
     //                     'approvals.requester.defaultDepartment',
     //                     'approvals.requester.defaultCampus'
@@ -723,8 +723,8 @@ class StockCountController extends Controller
                 return response()->json([
                     'message' => 'Stock count updated successfully.',
                     'data' => $stockCount->load([
-                        'items.product', 
-                        'approvals.responder', 
+                        'items.product',
+                        'approvals.responder',
                         'approvals.requester.defaultPosition',
                         'approvals.requester.defaultDepartment',
                         'approvals.requester.defaultCampus'
@@ -821,9 +821,12 @@ class StockCountController extends Controller
                         $transactionDate
                     );
 
-                    // Return updated stock data for frontend, no DB update needed here
+                    // Fetch item_code from product_variants table
+                    $itemCode = DB::table('product_variants')->where('id', $productId)->value('item_code');
+
                     return [
                         'product_id' => $productId,
+                        'item_code' => $itemCode,
                         'stock_on_hand' => $stockOnHand,
                         'average_price' => $avgPrice,
                     ];
@@ -847,6 +850,131 @@ class StockCountController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    // public function getProductByBarcode(Request $request): JsonResponse
+    // {
+    //     $validated = $request->validate([
+    //         'barcode' => 'required|string',
+    //         'warehouse_id' => 'required|exists:warehouses,id',
+    //         'transaction_date' => 'required|date',
+    //     ]);
+
+    //     $productvariant = ProductVariant::with([
+    //         'product:id,name,unit_id',
+    //         'product.unit:id,name'
+    //     ])->where('item_code', $validated['barcode'])->first();
+
+    //     if (!$productvariant) {
+    //         return response()->json(['message' => 'Product not found'], 404);
+    //     }
+
+    //     // Get stock & avg price from your service
+    //     $stockOnHand = $this->stockLedgerService->getStockOnHand($productvariant->id, $validated['warehouse_id'], $validated['transaction_date']);
+    //     $avgPrice = $this->stockLedgerService->getAvgPrice($productvariant->id, $validated['warehouse_id'], $validated['transaction_date']);
+
+    //     return response()->json([
+    //         'product_id' => $productvariant->id,
+    //         'item_code' => $productvariant->item_code,
+    //         'description' => ($productvariant->product->name ?? '') . ' ' . ($productvariant->description ?? ''),
+    //         'unit_name' => $productvariant->product->unit->name ?? '',
+    //         'stock_on_hand' => $stockOnHand,
+    //         'average_price' => $avgPrice,
+    //     ]);
+    // }
+
+        /**
+     * Update counted quantity and remarks for scanned item
+     */
+    public function getProductByBarcode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'barcode' => 'required|string',
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'transaction_date' => 'required|date',
+            'stock_count_id' => 'required|exists:stock_counts,id', // add this
+        ]);
+
+        $productvariant = ProductVariant::with([
+            'product:id,name,unit_id',
+            'product.unit:id,name'
+        ])->where('item_code', $validated['barcode'])->first();
+
+        if (!$productvariant) {
+            return response()->json(['message' => 'Product not found'], 404);
+        }
+
+        // Get stock & avg price from your service
+        $stockOnHand = $this->stockLedgerService->getStockOnHand(
+            $productvariant->id,
+            $validated['warehouse_id'],
+            $validated['transaction_date']
+        );
+
+        $avgPrice = $this->stockLedgerService->getAvgPrice(
+            $productvariant->id,
+            $validated['warehouse_id'],
+            $validated['transaction_date']
+        );
+
+        // Get counted quantity from StockCountItems if exists
+        $countedQty = StockCountItems::where('stock_count_id', $validated['stock_count_id'])
+            ->where('product_id', $productvariant->id)
+            ->value('counted_quantity') ?? 0;
+
+        return response()->json([
+            'product_id' => $productvariant->id,
+            'item_code' => $productvariant->item_code,
+            'description' => ($productvariant->product->name ?? '') . ' ' . ($productvariant->description ?? ''),
+            'unit_name' => $productvariant->product->unit->name ?? '',
+            'stock_on_hand' => $stockOnHand,
+            'average_price' => $avgPrice,
+            'counted_quantity' => $countedQty, // include counted qty
+        ]);
+    }
+
+    public function scanUpdate(Request $request)
+    {
+        $validated = $request->validate([
+            'stock_count_id'   => 'required|exists:stock_counts,id',
+            'product_id'       => 'required|exists:products,id',
+            'counted_quantity' => 'required|numeric|min:0',
+            'remarks'          => 'nullable|string|max:255',
+        ]);
+
+        $stockCountItem = StockCountItems::firstOrNew([
+            'stock_count_id' => $validated['stock_count_id'],
+            'product_id'     => $validated['product_id'],
+        ]);
+
+        $stockCountItem->counted_quantity = ($stockCountItem->counted_quantity ?? 0) + $validated['counted_quantity'];
+
+        $stockCountItem->remarks = trim(($stockCountItem->remarks ?? '') . "\n" . ($validated['remarks'] ?? ''));
+
+        if (is_null($stockCountItem->ending_quantity)) {
+            $product = ProductVariant::find($validated['product_id']);
+            $stockCountItem->ending_quantity = $product->stock_on_hand ?? 0;
+        }
+
+        $stockCountItem->unit_price = app()->make(StockLedgerService::class)
+            ->getAvgPrice(
+                $validated['product_id'],
+                $stockCountItem->stockCount->warehouse_id,
+                $stockCountItem->stockCount->transaction_date
+            ) ?? $stockCountItem->unit_price ?? 0;
+
+        if (!$stockCountItem->exists) {
+            $stockCountItem->created_by = auth()->id();
+        }
+
+        $stockCountItem->save();
+
+        $stockCountItem->variance = $stockCountItem->counted_quantity - $stockCountItem->ending_quantity;
+
+        return response()->json([
+            'message' => 'Stock count item updated successfully',
+            'data'    => $stockCountItem
+        ]);
     }
 
 
@@ -978,7 +1106,7 @@ class StockCountController extends Controller
 
             // Check all previous approvals (lower OR same ordinal but lower id)
             $previousApprovals = $approvals->filter(function($a) use ($currentApproval) {
-                return ($a->ordinal < $currentApproval->ordinal) || 
+                return ($a->ordinal < $currentApproval->ordinal) ||
                     ($a->ordinal === $currentApproval->ordinal && $a->id < $currentApproval->id);
             });
 
