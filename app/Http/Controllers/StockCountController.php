@@ -947,15 +947,19 @@ class StockCountController extends Controller
             'product_id'     => $validated['product_id'],
         ]);
 
-        $stockCountItem->counted_quantity = ($stockCountItem->counted_quantity ?? 0) + $validated['counted_quantity'];
-
-        $stockCountItem->remarks = trim(($stockCountItem->remarks ?? '') . "\n" . ($validated['remarks'] ?? ''));
-
+        // Set ending quantity if not set
         if (is_null($stockCountItem->ending_quantity)) {
             $product = ProductVariant::find($validated['product_id']);
             $stockCountItem->ending_quantity = $product->stock_on_hand ?? 0;
         }
 
+        $newTotal = ($stockCountItem->counted_quantity ?? 0) + $validated['counted_quantity'];
+
+        // Update counted quantity and remarks
+        $stockCountItem->counted_quantity = $newTotal;
+        $stockCountItem->remarks = trim(($stockCountItem->remarks ?? '') . "\n" . ($validated['remarks'] ?? ''));
+
+        // Calculate unit price
         $stockCountItem->unit_price = app()->make(StockLedgerService::class)
             ->getAvgPrice(
                 $validated['product_id'],
@@ -969,12 +973,22 @@ class StockCountController extends Controller
 
         $stockCountItem->save();
 
+        // Calculate variance
         $stockCountItem->variance = $stockCountItem->counted_quantity - $stockCountItem->ending_quantity;
 
-        return response()->json([
+        // Prepare response
+        $response = [
             'message' => 'Stock count item updated successfully',
-            'data'    => $stockCountItem
-        ]);
+            'data' => $stockCountItem,
+        ];
+
+        // Soft warning if exceeded
+        if ($stockCountItem->counted_quantity > $stockCountItem->ending_quantity) {
+            $response['warning'] = 'Counted quantity exceeds stock Ending quantity!';
+            $response['excess_amount'] = $stockCountItem->counted_quantity - $stockCountItem->ending_quantity;
+        }
+
+        return response()->json($response);
     }
 
 

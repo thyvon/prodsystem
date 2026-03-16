@@ -128,14 +128,14 @@
                     <td>{{ item.item_code }}</td>
                     <td>{{ item.product_name }} {{ item.description }}</td>
                     <td>{{ item.unit_name }}</td>
-                    <td><input type="number" :value="item.ending_quantity.toFixed(4)" class="form-control" readonly /></td>
+                    <td><input type="number" :value="item.ending_quantity.toFixed(2)" class="form-control" readonly /></td>
                     <td>
                       <input
                         type="number"
                         v-model.number="item.counted_quantity"
                         class="form-control"
                         min="0"
-                        step="0.0001"
+                        step="0.01"
                         required
                       />
                     </td>
@@ -150,7 +150,7 @@
                     <td>
                       <input
                         type="number"
-                        :value="(item.counted_quantity - item.ending_quantity).toFixed(4)"
+                        :value="(item.counted_quantity - item.ending_quantity).toFixed(2)"
                         :class="{
                           'text-danger font-weight-bold': item.counted_quantity < item.ending_quantity,
                           'text-success font-weight-bold': item.counted_quantity > item.ending_quantity
@@ -246,49 +246,8 @@
       </div>
     </form>
 
-    <!-- Products Modal -->
-    <!-- <div ref="itemsModal" class="modal fade" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Select Products to Count</h5>
-            <button type="button" class="close" @click="closeItemsModal">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="table-responsive">
-              <table ref="modalTable" class="table table-bordered table-sm table-hover table-striped">
-                <thead class="thead-light">
-                  <tr>
-                    <th>
-                      <div class="custom-control custom-checkbox">
-                        <input
-                          type="checkbox"
-                          class="custom-control-input"
-                          id="select-all"
-                          @change="toggleAll($event)"
-                        />
-                        <label class="custom-control-label" for="select-all"></label>
-                      </div>
-                    </th>
-                    <th>Code</th>
-                    <th>Description</th>
-                    <th>UoM</th>
-                    <th>Stock Ending</th>
-                  </tr>
-                </thead>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeItemsModal">Cancel</button>
-            <button class="btn btn-success" @click="addSelectedItems">Add Selected</button>
-          </div>
-        </div>
-      </div>
-    </div> -->
-
     <div ref="itemsModal" class="modal fade" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
         <div class="modal-header">
             <h5 class="modal-title">Select Products to Count</h5>
@@ -327,11 +286,11 @@
 
     <!-- Barcode Scanner Modal -->
     <div ref="scannerModal" class="modal fade">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-topped">
         <div class="modal-content">
 
         <div class="modal-header">
-            <h5 class="modal-title">Scan Product</h5>
+            <h5 class="modal-title">Scan Barcode or QR Code</h5>
             <button class="close" @click="stopScanner">×</button>
         </div>
 
@@ -341,20 +300,6 @@
             </div>
 
             <p class="text-muted">Point camera at barcode</p>
-
-            <!-- Zoom Control -->
-            <div class="mt-3 text-center" v-if="zoomSupported">
-                <input
-                type="range"
-                class="custom-range"
-                :min="minZoom"
-                :max="maxZoom"
-                step="0.1"
-                v-model="currentZoom"
-                @input="applyZoom"
-                />
-                <small class="text-muted">Zoom: {{ currentZoom.toFixed(1) }}x</small>
-            </div>
             </div>
 
         </div>
@@ -363,13 +308,13 @@
 
     <!-- Quantity Modal -->
     <div ref="qtyModal" class="modal fade">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-topped modal-lg">
         <div class="modal-content shadow">
 
         <!-- Header -->
-        <div class="modal-header bg-light">
+        <div class="modal-header">
             <h5 class="modal-title font-weight-bold">
-            Scan Result
+            <h2>{{ scannedItem.item_code }}</h2>
             </h5>
             <button class="close" @click="closeQtyModal">&times;</button>
         </div>
@@ -377,59 +322,59 @@
         <!-- Body -->
         <div class="modal-body" v-if="scannedItem">
 
-            <!-- Product Info Card -->
-            <div class="border rounded p-3 mb-3 bg-light">
+        <!-- Product Info Card -->
+        <div class="border rounded p-3 mb-3">
+            <div class="font-weight-bold text-center text-wrap">
+            {{ scannedItem.description }}
+            </div>
+        </div>
 
-            <div class="d-flex justify-content-between">
-                <span class="text-muted">Item Code</span>
-                <strong>{{ scannedItem.item_code }}</strong>
+        <!-- Stock Info, Quantity, Variance Row -->
+        <div class="form-row">
+            <!-- Stock Ending -->
+            <div class="form-group col-12 col-md-4 mb-3">
+            <label class="font-weight-bold">Stock Ending</label>
+            <input
+                type="text"
+                class="form-control form-control-lg text-center font-weight-bold"
+                :value="scannedItem.stock_on_hand.toFixed(2) + ' ' + scannedItem.unit_name"
+                readonly
+            />
             </div>
 
-            <div class="mt-2">
-                <div class="text-muted">Description</div>
-                <div class="font-weight-bold">
-                {{ scannedItem.description }}
-                </div>
-            </div>
-
-            </div>
-
-            <!-- Stock Info -->
-            <div class="d-flex justify-content-between align-items-center mb-3 p-2 border rounded">
-            <span class="text-muted">Stock Ending</span>
-            <span class="font-weight-bold text-primary">
-                {{ scannedItem.stock_on_hand.toFixed(4) }} {{ scannedItem.unit_name }}
-            </span>
-            </div>
-
-            <!-- Quantity Input -->
+            <!-- Counted Quantity -->
+            <div class="form-group col-12 col-md-4 mb-3">
             <label class="font-weight-bold">Counted Quantity</label>
             <input
-            ref="qtyInput"
-            type="text"
-            inputmode="decimal"
-            pattern="[0-9]*"
-            v-model.number="scanQty"
-            class="form-control form-control-lg text-center font-weight-bold mb-3"
-            placeholder="Enter quantity"
+                ref="qtyInput"
+                type="text"
+                inputmode="decimal"
+                pattern="[0-9]*"
+                v-model.number="scanQty"
+                class="form-control form-control-lg text-center font-weight-bold"
+                placeholder="Enter quantity"
             />
+            </div>
 
             <!-- Variance -->
-            <div class="border rounded p-2 mb-3 d-flex justify-content-between">
-            <strong>Variance</strong>
-            <span
-                class="font-weight-bold"
+            <div class="form-group col-12 col-md-4 mb-3">
+            <label class="font-weight-bold">Variance</label>
+            <input
+                type="text"
+                class="form-control form-control-lg text-center font-weight-bold"
                 :class="{
                 'text-success': variance > 0,
                 'text-danger': variance < 0,
                 'text-secondary': variance === 0
                 }"
-            >
-                {{ variance.toFixed(4) }}
-            </span>
+                :value="variance.toFixed(2)"
+                readonly
+            />
             </div>
+        </div>
 
-            <!-- Remarks -->
+        <!-- Remarks -->
+        <div class="form-group mb-0">
             <label class="font-weight-bold">Remarks</label>
             <textarea
             v-model="scannedItem.remarks"
@@ -437,7 +382,7 @@
             rows="2"
             placeholder="Optional notes..."
             ></textarea>
-
+        </div>
         </div>
 
         <!-- Loading -->
@@ -465,7 +410,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
-import { showAlert } from '@/Utils/bootbox'
+import { showAlert, confirmAction } from '@/Utils/bootbox'
 import { initSelect2, destroySelect2 } from '@/Utils/select2'
 import axios from 'axios'
 
@@ -485,11 +430,6 @@ const scanQty = ref(0)
 let scanner = null
 let lastBarcode = null
 let lastScanTime = 0
-
-const zoomSupported = ref(false)
-const currentZoom = ref(1)
-const minZoom = ref(1)
-const maxZoom = ref(1)
 
 const scannedItem = ref({
   product_id: null,
@@ -655,22 +595,6 @@ const scanBarcode = async () => {
           () => {}
         );
 
-        setTimeout(() => {
-            try {
-                const track = scanner.getRunningTrack()
-                const capabilities = track.getCapabilities()
-
-                if (capabilities.zoom) {
-                zoomSupported.value = true
-                minZoom.value = capabilities.zoom.min || 1
-                maxZoom.value = capabilities.zoom.max || 5
-                currentZoom.value = minZoom.value
-                }
-            } catch (err) {
-                console.warn("Zoom not supported")
-            }
-        }, 500)
-
       } catch (err) {
         console.error("Scanner start error:", err);
         showAlert("Error", "Failed to start scanner", "danger");
@@ -705,12 +629,6 @@ const stopScanner = async () => {
     // Reset scanner state
     lastBarcode = null
     lastScanTime = 0
-
-    // Reset zoom controls
-    zoomSupported.value = false
-    currentZoom.value = 1
-    minZoom.value = 1
-    maxZoom.value = 1
 
     // Close modal
     $(scannerModal.value).modal('hide')
@@ -772,21 +690,6 @@ const handleBarcodeScan = async (decodedText) => {
   }
 }
 
-const applyZoom = async () => {
-  try {
-    if (!scanner) return
-
-    const track = scanner.getRunningTrack()
-
-    await track.applyConstraints({
-      advanced: [{ zoom: currentZoom.value }]
-    })
-
-  } catch (err) {
-    console.warn("Zoom apply failed", err)
-  }
-}
-
 const saveItemQty = async () => {
   if (!scannedItem.value) return
 
@@ -794,9 +697,9 @@ const saveItemQty = async () => {
   scannedItem.value.counted_quantity = parseFloat(scanQty.value || 0)
 
   if (isEditMode.value) {
-    // --- EDIT MODE: save to backend immediately ---
+    let response
     try {
-      await axios.post('/api/inventory/stock-counts/scan-update', {
+      response = await axios.post('/api/inventory/stock-counts/scan-update', {
         stock_count_id: props.initialData?.id,
         product_id: scannedItem.value.product_id,
         counted_quantity: scannedItem.value.counted_quantity,
@@ -807,9 +710,33 @@ const saveItemQty = async () => {
       showAlert("Error", err.response?.data?.message || "Failed to save quantity", "danger")
       return
     }
+
+    // --- Handle backend warning using reusable confirmAction ---
+    if (response.data.warning) {
+      const proceed = await confirmAction(
+        'Warning',
+        `${response.data.warning}<br>Excess: ${response.data.excess_amount}<br>Do you want to continue saving?`,
+        'warning'
+      )
+
+      if (!proceed) {
+        // User canceled, do nothing
+        return
+      }
+
+      // User confirmed
+      showAlert("Info", "Item saved despite exceeding ending quantity.", "info")
+    } else {
+      showAlert("Success", "Item quantity saved!", "success")
+    }
   }
 
   // --- Both modes: update local form items ---
+  updateLocalFormItems()
+}
+
+// --- Helper to update local form items ---
+function updateLocalFormItems() {
   const existingIndex = form.value.items.findIndex(i => i.product_id === scannedItem.value.product_id)
   if (existingIndex >= 0) {
     form.value.items[existingIndex] = {
@@ -826,7 +753,6 @@ const saveItemQty = async () => {
 
   // Close qty modal
   $(qtyModal.value).modal('hide')
-  showAlert("Success", "Item quantity saved!", "success")
 
   // Reset scannedItem
   scannedItem.value = {
@@ -929,33 +855,6 @@ const updateUserSelect = (index) => {
   $(select).val(currentValue).trigger('change')
 }
 
-// ==================== Products Modal Helpers ====================
-// const addSelectedItems = () => {
-//   const table = $(itemsModal.value).find('table').DataTable()
-//   const selected = table.rows().data().toArray().filter(r => $(`#chk-${r.id}`).is(':checked'))
-
-//   const existingIds = new Set(form.value.items.map(i => i.product_id))
-//   selected.forEach(p => {
-//     if (!existingIds.has(p.id)) {
-//       form.value.items.push({
-//         product_id: p.id,
-//         item_code: p.item_code,
-//         product_name: p.product_name || '',
-//         description: p.description || '',
-//         unit_name: p.unit_name,
-//         ending_quantity: parseFloat(p.stock_on_hand) || 0,
-//         counted_quantity: parseFloat(p.stock_on_hand) || 0,
-//         stock_on_hand: parseFloat(p.stock_on_hand) || 0,
-//         unit_price: parseFloat(p.average_price) || 0,
-//         remarks: ''
-//       })
-//     }
-//   })
-
-//   $(itemsModal.value).find('.select-item').prop('checked', false)
-//   $(itemsModal.value).modal('hide')
-// }
-
 const openProductsModal = () => {
   if (!form.value.warehouse_id || !form.value.transaction_date) {
     showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
@@ -985,27 +884,28 @@ const openProductsModal = () => {
         { data: 'unit_name' },
         { data: 'stock_on_hand', className: 'text-right' }
       ],
-      rowCallback: (row, data) => {
-        // Make row clickable
+        rowCallback: (row, data) => {
         $(row).css('cursor', 'pointer')
         $(row).off('click').on('click', () => {
-          // Prepare scannedItem for qty modal
-          scannedItem.value = {
+            // Check if item already exists in form items
+            const existingItem = form.value.items?.find(i => i.product_id === data.id)
+
+            scannedItem.value = {
             product_id: data.id,
             item_code: data.item_code,
             description: data.description,
             unit_name: data.unit_name,
             stock_on_hand: parseFloat(data.stock_on_hand),
-            counted_quantity: 0,
+            counted_quantity: existingItem ? parseFloat(existingItem.counted_quantity) : 0,
             unit_price: parseFloat(data.average_price || 0),
-            remarks: ''
-          }
-          scanQty.value = 0
+            remarks: existingItem ? existingItem.remarks || '' : ''
+            }
 
-          // Open qty modal
-          $(qtyModal.value).modal('show')
+            scanQty.value = scannedItem.value.counted_quantity || 0
+
+            $(qtyModal.value).modal('show')
         })
-      }
+        }
     })
   } else {
     productsTable.ajax.reload()
