@@ -18,27 +18,118 @@ class ProductService
         $this->stockLedgerService = $stockLedgerService;
     }
 
+    // public function getStockProducts(array $params)
+    // {
+    //     $warehouseId = $params['warehouse_id'] ?? null;
+    //     $transactionDate = $params['cutoff_date'] ?? null;
+
+    //     if (!$warehouseId || !$transactionDate) {
+    //         return [
+    //             'draw' => (int) ($params['draw'] ?? 1),
+    //             'recordsTotal' => 0,
+    //             'recordsFiltered' => 0,
+    //             'data' => [],
+    //             'message' => 'Warehouse ID and transaction date are required.'
+    //         ];
+    //     }
+
+    //     $draw = (int) ($params['draw'] ?? 1);
+    //     $start = (int) ($params['start'] ?? 0);
+    //     $length = (int) ($params['length'] ?? 10);
+    //     $searchValue = $params['search']['value'] ?? null;
+    //     $orderColumnIndex = $params['order'][0]['column'] ?? 0;
+    //     $orderDirection = $params['order'][0]['dir'] ?? 'asc';
+
+    //     $columns = [
+    //         0 => 'id',
+    //         1 => 'item_code',
+    //         2 => 'description',
+    //         3 => 'estimated_price',
+    //         4 => 'is_active',
+    //         5 => 'created_at',
+    //         6 => 'updated_at',
+    //     ];
+    //     $orderColumn = $columns[$orderColumnIndex] ?? 'id';
+
+    //     $query = ProductVariant::with('product')
+    //     ->select('id', 'item_code','product_id', 'description', 'estimated_price', 'is_active',)
+    //     ->orderBy('item_code', 'asc')
+    //     ->whereNull('deleted_at');
+
+    //     if ($searchValue) {
+    //         $query->where(function ($q) use ($searchValue) {
+    //             $q->where('item_code', 'like', "%{$searchValue}%")
+    //             ->orWhere('description', 'like', "%{$searchValue}%")
+    //             ->orWhereHas('product', function ($q2) use ($searchValue) {
+    //                 $q2->where('name', 'like', "%{$searchValue}%");
+    //             });
+    //         });
+    //     }
+
+    //     $recordsFiltered = $query->count();
+
+    //     $variants = $query->orderBy($orderColumn, $orderDirection)
+    //                     ->skip($start)
+    //                     ->take($length)
+    //                     ->get();
+
+    //     $data = $variants->map(function ($variant) use ($warehouseId, $transactionDate) {
+    //         // Ensure warehouseId is int or null
+    //         $warehouseIdInt = $warehouseId !== null ? (int) $warehouseId : null;
+
+    //         $stockOnHand = $this->stockLedgerService->getStockOnHand(
+    //             $variant->id,
+    //             $warehouseIdInt,
+    //             $transactionDate
+    //         );
+
+    //         $averagePrice = $this->stockLedgerService->getAvgPrice(
+    //             $variant->id,
+    //             $warehouseIdInt,
+    //             $transactionDate
+    //         );
+
+    //         return [
+    //             'id' => $variant->id,
+    //             'item_code' => $variant->item_code,
+    //             'description' => ($variant->product->name ?? '') . ' ' . $variant->description,
+    //             'unit_name' => $variant->product->unit->name ?? '',
+    //             'estimated_price' => number_format($variant->estimated_price, 2),
+    //             'stock_on_hand' => $stockOnHand,
+    //             'average_price' => $averagePrice,
+    //         ];
+    //     });
+
+    //     return [
+    //         'draw' => $draw,
+    //         'recordsTotal' => ProductVariant::whereNull('deleted_at')->count(),
+    //         'recordsFiltered' => $recordsFiltered,
+    //         'data' => $data,
+    //     ];
+    // }
+
     public function getStockProducts(array $params)
     {
-        $warehouseId = $params['warehouse_id'] ?? null;
+        $warehouseId     = $params['warehouse_id'] ?? null;
         $transactionDate = $params['cutoff_date'] ?? null;
 
         if (!$warehouseId || !$transactionDate) {
             return [
-                'draw' => (int) ($params['draw'] ?? 1),
-                'recordsTotal' => 0,
+                'draw'            => (int) ($params['draw'] ?? 1),
+                'recordsTotal'    => 0,
                 'recordsFiltered' => 0,
-                'data' => [],
-                'message' => 'Warehouse ID and transaction date are required.'
+                'data'            => [],
+                'message'         => 'Warehouse ID and transaction date are required.'
             ];
         }
 
-        $draw = (int) ($params['draw'] ?? 1);
-        $start = (int) ($params['start'] ?? 0);
-        $length = (int) ($params['length'] ?? 10);
-        $searchValue = $params['search']['value'] ?? null;
+        $draw             = (int) ($params['draw'] ?? 1);
+        $start            = (int) ($params['start'] ?? 0);
+        $length           = (int) ($params['length'] ?? 10);
+        $searchValue      = $params['search']['value'] ?? null;
+        $keywordSearch    = $params['keyword'] ?? null;
         $orderColumnIndex = $params['order'][0]['column'] ?? 0;
-        $orderDirection = $params['order'][0]['dir'] ?? 'asc';
+        $orderDirection   = $params['order'][0]['dir'] ?? 'asc';
 
         $columns = [
             0 => 'id',
@@ -51,12 +142,34 @@ class ProductService
         ];
         $orderColumn = $columns[$orderColumnIndex] ?? 'id';
 
-        $query = ProductVariant::with('product')
-        ->select('id', 'item_code','product_id', 'description', 'estimated_price', 'is_active',)
-        ->orderBy('item_code', 'asc')
-        ->whereNull('deleted_at');
+        $warehouseIdInt = (int) $warehouseId;
 
-        if ($searchValue) {
+        $query = ProductVariant::with('product')
+            ->select('id', 'item_code', 'product_id', 'description', 'estimated_price', 'is_active')
+            ->whereNull('deleted_at')
+            ->whereHas('warehouseProducts', function ($q) use ($warehouseIdInt) {
+                $q->where('warehouse_id', $warehouseIdInt)
+                ->where('is_active', 1);
+            });
+
+        // Keyword takes priority — exact FIND_IN_SET match
+        // Falls back to general search if no keyword results found
+        if ($keywordSearch) {
+            $keywordQuery = clone $query;
+            $keywordQuery->whereRaw("FIND_IN_SET(?, REPLACE(key_words, ', ', ','))", [$keywordSearch]);
+
+            if ($keywordQuery->exists()) {
+                $query = $keywordQuery;
+            } elseif ($searchValue) {
+                $query->where(function ($q) use ($searchValue) {
+                    $q->where('item_code', 'like', "%{$searchValue}%")
+                    ->orWhere('description', 'like', "%{$searchValue}%")
+                    ->orWhereHas('product', function ($q2) use ($searchValue) {
+                        $q2->where('name', 'like', "%{$searchValue}%");
+                    });
+                });
+            }
+        } elseif ($searchValue) {
             $query->where(function ($q) use ($searchValue) {
                 $q->where('item_code', 'like', "%{$searchValue}%")
                 ->orWhere('description', 'like', "%{$searchValue}%")
@@ -73,10 +186,7 @@ class ProductService
                         ->take($length)
                         ->get();
 
-        $data = $variants->map(function ($variant) use ($warehouseId, $transactionDate) {
-            // Ensure warehouseId is int or null
-            $warehouseIdInt = $warehouseId !== null ? (int) $warehouseId : null;
-
+        $data = $variants->map(function ($variant) use ($warehouseIdInt, $transactionDate) {
             $stockOnHand = $this->stockLedgerService->getStockOnHand(
                 $variant->id,
                 $warehouseIdInt,
@@ -90,21 +200,25 @@ class ProductService
             );
 
             return [
-                'id' => $variant->id,
-                'item_code' => $variant->item_code,
-                'description' => ($variant->product->name ?? '') . ' ' . $variant->description,
-                'unit_name' => $variant->product->unit->name ?? '',
+                'id'              => $variant->id,
+                'item_code'       => $variant->item_code,
+                'description'     => ($variant->product->name ?? '') . ' ' . $variant->description,
+                'unit_name'       => $variant->product->unit->name ?? '',
                 'estimated_price' => number_format($variant->estimated_price, 2),
-                'stock_on_hand' => $stockOnHand,
-                'average_price' => $averagePrice,
+                'stock_on_hand'   => $stockOnHand,
+                'average_price'   => $averagePrice,
             ];
         });
 
         return [
-            'draw' => $draw,
-            'recordsTotal' => ProductVariant::whereNull('deleted_at')->count(),
+            'draw'            => $draw,
+            'recordsTotal'    => ProductVariant::whereNull('deleted_at')
+                                    ->whereHas('warehouseProducts', function ($q) use ($warehouseIdInt) {
+                                        $q->where('warehouse_id', $warehouseIdInt)
+                                        ->where('is_active', 1);
+                                    })->count(),
             'recordsFiltered' => $recordsFiltered,
-            'data' => $data,
+            'data'            => $data,
         ];
     }
 
@@ -223,11 +337,11 @@ class ProductService
 
             if ($searchValue) {
                 $query->where(function ($q) use ($searchValue) {
-                    $q->whereHas('variant', fn($q2) => 
+                    $q->whereHas('variant', fn($q2) =>
                             $q2->where('item_code', 'like', "%{$searchValue}%")
                             ->orWhere('description', 'like', "%{$searchValue}%")
                     )
-                    ->orWhereHas('variant.product', fn($q2) => 
+                    ->orWhereHas('variant.product', fn($q2) =>
                             $q2->where('name', 'like', "%{$searchValue}%")
                             ->orWhere('item_code', 'like', "%{$searchValue}%")
                     );

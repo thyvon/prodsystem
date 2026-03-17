@@ -889,57 +889,65 @@ class StockCountController extends Controller
     public function getProductByBarcode(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'barcode' => 'required|string',
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'barcode'          => 'required|string',
+            'warehouse_id'     => 'required|exists:warehouses,id',
             'transaction_date' => 'required|date',
-            'stock_count_id' => 'required|exists:stock_counts,id', // add this
+            'stock_count_id'   => 'nullable|exists:stock_counts,id',
         ]);
 
-        $productvariant = ProductVariant::with([
+        $productVariant = ProductVariant::with([
             'product:id,name,unit_id',
             'product.unit:id,name'
         ])->where('item_code', $validated['barcode'])->first();
 
-        if (!$productvariant) {
+        if (!$productVariant) {
             return response()->json(['message' => 'Product not found'], 404);
         }
 
-        // Get stock & avg price from your service
         $stockOnHand = $this->stockLedgerService->getStockOnHand(
-            $productvariant->id,
+            $productVariant->id,
             $validated['warehouse_id'],
             $validated['transaction_date']
-        );
+        ) ?? 0;
 
         $avgPrice = $this->stockLedgerService->getAvgPrice(
-            $productvariant->id,
+            $productVariant->id,
             $validated['warehouse_id'],
             $validated['transaction_date']
-        );
+        ) ?? 0;
 
-        // Get counted quantity from StockCountItems if exists
-        $countedQty = StockCountItems::where('stock_count_id', $validated['stock_count_id'])
-            ->where('product_id', $productvariant->id)
-            ->value('counted_quantity') ?? 0;
+        // Fetch the latest counted_quantity and remarks so all devices stay in sync
+        $stockCountItem = !empty($validated['stock_count_id'])
+            ? StockCountItems::where('stock_count_id', $validated['stock_count_id'])
+                ->where('product_id', $productVariant->id)
+                ->first()
+            : null;
 
         return response()->json([
-            'product_id' => $productvariant->id,
-            'item_code' => $productvariant->item_code,
-            'description' => ($productvariant->product->name ?? '') . ' ' . ($productvariant->description ?? ''),
-            'unit_name' => $productvariant->product->unit->name ?? '',
-            'stock_on_hand' => $stockOnHand,
-            'average_price' => $avgPrice,
-            'counted_quantity' => $countedQty, // include counted qty
+            'product_id'       => $productVariant->id,
+            'item_code'        => $productVariant->item_code,
+            'description'      => trim(($productVariant->product->name ?? '') . ' ' . ($productVariant->description ?? '')),
+            'unit_name'        => $productVariant->product->unit->name ?? '',
+            'stock_on_hand'    => $stockOnHand,
+            'average_price'    => $avgPrice,
+            'counted_quantity' => $stockCountItem?->counted_quantity ?? 0,
+            'remarks'          => $stockCountItem?->remarks ?? '',
         ]);
     }
 
-    public function scanUpdate(Request $request)
+
+    /**
+     * Save scanned quantity — frontend confirms overcount before calling this.
+     * Accumulates quantity so multiple devices can count the same item.
+     */
+    public function scanUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'stock_count_id'   => 'required|exists:stock_counts,id',
             'product_id'       => 'required|exists:products,id',
             'counted_quantity' => 'required|numeric|min:0',
             'remarks'          => 'nullable|string|max:255',
+            'force'            => 'boolean',
         ]);
 
         $stockCountItem = StockCountItems::firstOrNew([
@@ -947,25 +955,36 @@ class StockCountController extends Controller
             'product_id'     => $validated['product_id'],
         ]);
 
-        // Set ending quantity if not set
+        $stockCount = $stockCountItem->stockCount ?? StockCount::find($validated['stock_count_id']);
+
+        // Resolve ending_quantity once — use cached value if already set
         if (is_null($stockCountItem->ending_quantity)) {
-            $product = ProductVariant::find($validated['product_id']);
-            $stockCountItem->ending_quantity = $product->stock_on_hand ?? 0;
+            $stockCountItem->ending_quantity = $this->stockLedgerService->getStockOnHand(
+                $validated['product_id'],
+                $stockCount->warehouse_id,
+                $stockCount->transaction_date
+            ) ?? 0;
         }
 
         $newTotal = ($stockCountItem->counted_quantity ?? 0) + $validated['counted_quantity'];
 
-        // Update counted quantity and remarks
-        $stockCountItem->counted_quantity = $newTotal;
-        $stockCountItem->remarks = trim(($stockCountItem->remarks ?? '') . "\n" . ($validated['remarks'] ?? ''));
+        // Block overcount unless the user explicitly confirmed (force=true)
+        if (!($validated['force'] ?? false) && $newTotal > $stockCountItem->ending_quantity) {
+            return response()->json([
+                'message' => 'Counted quantity exceeds stock ending quantity.',
+                'total'   => $newTotal,
+                'ending'  => $stockCountItem->ending_quantity,
+                'excess'  => $newTotal - $stockCountItem->ending_quantity,
+            ], 409);
+        }
 
-        // Calculate unit price
-        $stockCountItem->unit_price = app()->make(StockLedgerService::class)
-            ->getAvgPrice(
-                $validated['product_id'],
-                $stockCountItem->stockCount->warehouse_id,
-                $stockCountItem->stockCount->transaction_date
-            ) ?? $stockCountItem->unit_price ?? 0;
+        $stockCountItem->counted_quantity = $newTotal;
+        $stockCountItem->remarks          = trim(($stockCountItem->remarks ?? '') . "\n" . ($validated['remarks'] ?? ''));
+        $stockCountItem->unit_price       = $this->stockLedgerService->getAvgPrice(
+            $validated['product_id'],
+            $stockCount->warehouse_id,
+            $stockCount->transaction_date
+        ) ?? $stockCountItem->unit_price ?? 0;
 
         if (!$stockCountItem->exists) {
             $stockCountItem->created_by = auth()->id();
@@ -973,22 +992,12 @@ class StockCountController extends Controller
 
         $stockCountItem->save();
 
-        // Calculate variance
-        $stockCountItem->variance = $stockCountItem->counted_quantity - $stockCountItem->ending_quantity;
-
-        // Prepare response
-        $response = [
+        return response()->json([
             'message' => 'Stock count item updated successfully',
-            'data' => $stockCountItem,
-        ];
-
-        // Soft warning if exceeded
-        if ($stockCountItem->counted_quantity > $stockCountItem->ending_quantity) {
-            $response['warning'] = 'Counted quantity exceeds stock Ending quantity!';
-            $response['excess_amount'] = $stockCountItem->counted_quantity - $stockCountItem->ending_quantity;
-        }
-
-        return response()->json($response);
+            'data'    => array_merge($stockCountItem->toArray(), [
+                'variance' => $stockCountItem->counted_quantity - $stockCountItem->ending_quantity,
+            ]),
+        ]);
     }
 
 

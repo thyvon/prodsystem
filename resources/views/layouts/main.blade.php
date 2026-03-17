@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="km">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>{{ $header ?? 'Page' }} | {{ config('app.name', 'Laravel') }}</title>

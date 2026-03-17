@@ -114,9 +114,10 @@ class ProductsImport implements ToCollection, WithHeadingRow
 
                         $variantFields = [
                             'estimated_price' => (float)($row['variant_estimated_price'] ?? null),
-                            'average_price' => (float)($row['variant_average_price'] ?? null),
-                            'description' => $row['variant_description'] ?? null,
-                            'is_active' => filter_var($row['variant_is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                            'average_price'   => (float)($row['variant_average_price'] ?? null),
+                            'description'     => $row['variant_description'] ?? null,
+                            'is_active'       => filter_var($row['variant_is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                            'key_words'       => $row['variant_key_words'] ?? null, // ← ADDED
                         ];
 
                         foreach ($variantFields as $key => $value) {
@@ -140,7 +141,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     $variant = ProductVariant::where('item_code', $itemCode)->first();
                     $variantData = [
                         'product_id' => $product->id,
-                        'item_code' => $itemCode,
+                        'item_code'  => $itemCode,
                         'updated_by' => auth()->id(),
                     ];
 
@@ -152,6 +153,9 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     }
                     if (!is_null($rowData['variant_description'] ?? null)) {
                         $variantData['description'] = $rowData['variant_description'];
+                    }
+                    if (!is_null($rowData['variant_key_words'] ?? null)) {
+                        $variantData['key_words'] = $rowData['variant_key_words']; // ← ADDED
                     }
 
                     if ($variant) {
@@ -186,18 +190,18 @@ class ProductsImport implements ToCollection, WithHeadingRow
     {
         return [
             'item_code' => ['nullable', 'string', 'max:255'],
-            'name' => ['required', 'string', 'max:255'],
-            'category' => ['required', 'string', 'max:255'],
-            'unit' => ['required', 'string', 'max:255'],
+            'name'      => ['required', 'string', 'max:255'],
+            'category'  => ['required', 'string', 'max:255'],
+            'unit'      => ['required', 'string', 'max:255'],
         ];
     }
 
     private function customValidationMessages(): array
     {
         return [
-            'name.required' => "The name field is required.",
+            'name.required'     => "The name field is required.",
             'category.required' => "The category field is required.",
-            'unit.required' => "The unit field is required.",
+            'unit.required'     => "The unit field is required.",
         ];
     }
 
