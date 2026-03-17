@@ -59,11 +59,8 @@
                   <i v-else class="fal fa-file-excel"></i>
                 </button>
                 <input type="file" ref="fileInput" class="d-none" accept=".xlsx,.xls,.csv" @change="handleFileUpload" />
-                <button type="button" class="btn btn-sm btn-success mr-2 mb-2" @click="openProductsModal" title="Add Items">
-                  <i class="fal fa-plus"></i>
-                </button>
 
-                <!-- Single Search Box (keyword priority + general fallback) -->
+                <!-- Search Box (keyword priority + general fallback) -->
                 <div class="position-relative mr-2 mb-2" style="min-width: 220px;" v-click-outside="clearSearch">
                   <div class="input-group input-group-sm">
                     <input
@@ -135,6 +132,7 @@
                     <th style="min-width: 60px;">UoM</th>
                     <th style="min-width: 100px;">Stock Ending</th>
                     <th style="min-width: 100px;">Counted Qty *</th>
+                    <th style="min-width: 100px;">Unit Price</th>
                     <th style="min-width: 100px;">Variance</th>
                     <th style="min-width: 150px;">Remarks</th>
                     <th style="min-width: 100px;">Action</th>
@@ -150,6 +148,14 @@
                     </td>
                     <td>
                       <input type="number" v-model.number="item.counted_quantity" class="form-control" min="0" step="0.01" required />
+                    </td>
+                    <td>
+                    <input
+                        type="number"
+                        v-model.number="item.unit_price"
+                        class="form-control"
+                        readonly
+                    />
                     </td>
                     <td>
                       <input
@@ -225,36 +231,6 @@
         </div>
       </div>
     </form>
-
-    <!-- Products Modal -->
-    <div ref="itemsModal" class="modal fade" tabindex="-1">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Select Products to Count</h5>
-            <button type="button" class="close" @click="closeItemsModal">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="table-responsive">
-              <table ref="modalTable" class="table table-bordered table-sm table-hover table-striped">
-                <thead class="thead-light">
-                  <tr>
-                    <th>Code</th>
-                    <th>Description</th>
-                    <th>UoM</th>
-                    <th>Stock Ending</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeItemsModal">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Barcode Scanner Modal -->
     <div ref="scannerModal" class="modal fade">
@@ -391,11 +367,9 @@ const isLoadingItem = ref(false)
 
 // Template refs
 const warehouseSelect = ref(null)
-const itemsModal = ref(null)
 const scannerModal = ref(null)
 const qtyModal = ref(null)
 const fileInput = ref(null)
-const modalTable = ref(null)
 
 // Scanner state
 let scanner = null
@@ -415,7 +389,6 @@ const form = ref({
 
 const warehouses = ref([])
 const approvalUsers = ref({ initial: [], approve: [] })
-let productsTable = null
 
 // Search state
 const productSearch = ref('')
@@ -627,52 +600,7 @@ const openQtyModal = async (itemCode) => {
   }
 }
 
-// ==================== Products Modal ====================
-const openProductsModal = () => {
-  if (!form.value.warehouse_id || !form.value.transaction_date) {
-    showAlert('Warning', 'Please select Warehouse and Count Date first.', 'warning')
-    return
-  }
-
-  if (!productsTable) {
-    productsTable = $(modalTable.value).DataTable({
-      serverSide: true,
-      processing: true,
-      responsive: true,
-      autoWidth: false,
-      ajax: {
-        url: '/api/inventory/stock-counts/get-products',
-        type: 'GET',
-        data: d => ({
-          ...d,
-          warehouse_id: form.value.warehouse_id,
-          cutoff_date:  form.value.transaction_date,
-          keyword:      d.search?.value ?? ''  // same search value sent as keyword too
-        })
-      },
-      columns: [
-        { data: 'item_code' },
-        { data: 'description', defaultContent: '' },
-        { data: 'unit_name' },
-        { data: 'stock_on_hand', className: 'text-right' }
-      ],
-      rowCallback: (row, data) => {
-        $(row).css('cursor', 'pointer').off('click').on('click', () => {
-          $(itemsModal.value).modal('hide')
-          openQtyModal(data.item_code)
-        })
-      }
-    })
-  } else {
-    productsTable.ajax.reload()
-  }
-
-  $(itemsModal.value).modal('show')
-}
-
-const closeItemsModal = () => $(itemsModal.value).modal('hide')
-
-// ==================== Product Search ====================
+// ==================== Search ====================
 const searchProducts = async () => {
   const q = productSearch.value.trim()
   if (!q) {
@@ -692,7 +620,7 @@ const searchProducts = async () => {
     const { data } = await axios.get('/api/inventory/stock-counts/get-products', {
       params: {
         'search[value]': q,
-        keyword:         q,   // same value — backend tries keyword first, falls back to general
+        keyword:         q,
         warehouse_id:    form.value.warehouse_id,
         cutoff_date:     form.value.transaction_date,
         start:           0,
@@ -804,11 +732,6 @@ const updateLocalFormItems = () => {
 
   $(qtyModal.value).modal('hide')
   resetScannedItem()
-
-  if (isEditMode.value) {
-    $(scannerModal.value).modal('show')
-    scanner?.resume()
-  }
 }
 
 // ==================== Barcode Scanner ====================
@@ -981,23 +904,21 @@ const refreshStockForProducts = async (productIds) => {
           ...item,
           ending_quantity: parseFloat(updated.stock_on_hand || 0),
           stock_on_hand:   parseFloat(updated.stock_on_hand || 0),
-          unit_price:      parseFloat(updated.average_price || 0)
+          unit_price: item.unit_price > 0
+          ? item.unit_price
+          : parseFloat(updated.average_price || 0)
         }
       : item
   })
 }
 
 const refreshStock = async () => {
-  if (!form.value.warehouse_id || !form.value.transaction_date) {
-    productsTable?.ajax.reload()
-    return
-  }
+  if (!form.value.warehouse_id || !form.value.transaction_date) return
 
   const productIds = form.value.items.map(i => i.product_id).filter(Boolean)
 
   try {
     if (productIds.length) await refreshStockForProducts(productIds)
-    productsTable?.ajax.reload()
   } catch (err) {
     console.error('Failed to refresh stock', err)
   }
