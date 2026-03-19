@@ -123,12 +123,19 @@
                 </div>
               </div>
               <div class="col-md-4">
-                <div class="border rounded bg-light h-100 px-3 py-2">
+                <button
+                  type="button"
+                  class="border rounded bg-light h-100 px-3 py-2 w-100 text-left"
+                  :class="remainingItems > 0 ? 'summary-card-button' : 'summary-card-button disabled'"
+                  :disabled="remainingItems <= 0"
+                  @click="openRemainingItemsModal"
+                >
                   <div class="small text-muted">Remaining Item</div>
                   <div class="h4 mb-0 font-weight-bold" :class="remainingItems > 0 ? 'text-warning' : 'text-success'">
                     {{ remainingItems }}
                   </div>
-                </div>
+                  <div class="small text-muted" v-if="remainingItems > 0">Click to view list</div>
+                </button>
               </div>
             </div>
 
@@ -359,6 +366,54 @@
       </div>
     </div>
 
+    <div ref="remainingItemsModal" class="modal fade">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow">
+          <div class="modal-header">
+            <h5 class="modal-title font-weight-bold">Remaining Items Not Yet Counted</h5>
+            <button class="close" @click="closeRemainingItemsModal">&times;</button>
+          </div>
+
+          <div v-if="isLoadingRemainingItems" class="modal-body text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <div class="mt-2 text-muted">Loading remaining items...</div>
+          </div>
+
+          <div v-else class="modal-body">
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm table-hover mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="min-width: 60px;">#</th>
+                    <th style="min-width: 120px;">Code</th>
+                    <th style="min-width: 280px;">Description</th>
+                    <th style="min-width: 80px;">UoM</th>
+                    <th style="min-width: 120px;">Stock Ending</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in remainingItemList" :key="item.product_id">
+                    <td>{{ index + 1 }}</td>
+                    <td>{{ item.item_code }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.unit_name }}</td>
+                    <td>{{ Number(item.stock_on_hand || 0).toFixed(2) }}</td>
+                  </tr>
+                  <tr v-if="!remainingItemList.length">
+                    <td colspan="5" class="text-center text-muted">All countable items have already been counted.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="closeRemainingItemsModal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -378,12 +433,15 @@ const isEditMode = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 const isLoadingItem = ref(false)
+const isLoadingRemainingItems = ref(false)
 const totalItemsToCount = ref(0)
+const remainingItemList = ref([])
 
 // Template refs
 const warehouseSelect = ref(null)
 const scannerModal = ref(null)
 const qtyModal = ref(null)
+const remainingItemsModal = ref(null)
 const fileInput = ref(null)
 
 // Scanner state
@@ -439,14 +497,16 @@ const varianceCount = computed(() =>
   form.value.items.filter(i => i.counted_quantity !== i.ending_quantity).length
 )
 
-const countedItems = computed(() => {
-  const countedProductIds = new Set(
+const countedProductIds = computed(() => [
+  ...new Set(
     form.value.items
       .filter(i => Number(i.ending_quantity || 0) > 0 && i.product_id)
       .map(i => i.product_id)
   )
+])
 
-  return countedProductIds.size
+const countedItems = computed(() => {
+  return countedProductIds.value.length
 })
 
 const remainingItems = computed(() =>
@@ -528,6 +588,37 @@ const fetchCountSummary = async () => {
     console.error('Failed to fetch stock count summary', err)
     totalItemsToCount.value = 0
   }
+}
+
+const openRemainingItemsModal = async () => {
+  if (!form.value.warehouse_id || !form.value.transaction_date || remainingItems.value <= 0) return
+
+  isLoadingRemainingItems.value = true
+  remainingItemList.value = []
+  $(remainingItemsModal.value).modal('show')
+
+  try {
+    const { data } = await axios.get('/api/inventory/stock-counts/count-summary', {
+      params: {
+        warehouse_id: form.value.warehouse_id,
+        transaction_date: form.value.transaction_date,
+        include_items: 1,
+      }
+    })
+
+    const countedIds = new Set(countedProductIds.value)
+    remainingItemList.value = (data.data?.countable_items || []).filter(item => !countedIds.has(item.product_id))
+  } catch (err) {
+    console.error('Failed to fetch remaining items', err)
+    $(remainingItemsModal.value).modal('hide')
+    showAlert('Error', 'Failed to load remaining items.', 'danger')
+  } finally {
+    isLoadingRemainingItems.value = false
+  }
+}
+
+const closeRemainingItemsModal = () => {
+  $(remainingItemsModal.value).modal('hide')
 }
 
 // ==================== Datepicker ====================
@@ -1121,6 +1212,19 @@ onUnmounted(() => {
 </script>
 
 <style>
+.summary-card-button {
+  border: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
+.summary-card-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.summary-card-button.disabled {
+  cursor: default;
+}
+
 .search-result-item:hover {
   background-color: #f0f4ff !important;
   cursor: pointer;

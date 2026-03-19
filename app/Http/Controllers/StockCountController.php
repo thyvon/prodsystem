@@ -820,10 +820,12 @@ class StockCountController extends Controller
         $validated = $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'transaction_date' => 'required|date',
+            'include_items' => 'nullable|boolean',
         ]);
 
         $warehouseId = (int) $validated['warehouse_id'];
         $transactionDate = $validated['transaction_date'];
+        $includeItems = (bool) ($validated['include_items'] ?? false);
 
         $productIds = ProductVariant::query()
             ->whereNull('deleted_at')
@@ -838,20 +840,41 @@ class StockCountController extends Controller
             return response()->json([
                 'data' => [
                     'total_items_to_count' => 0,
+                    'countable_items' => [],
                 ],
             ]);
         }
 
         $stocks = $this->stockLedgerService->getStockOnHandBulk($productIds, [$warehouseId], $transactionDate);
 
-        $totalItemsToCount = collect($productIds)->filter(function ($productId) use ($stocks, $warehouseId) {
+        $countableProductIds = collect($productIds)->filter(function ($productId) use ($stocks, $warehouseId) {
             return (float) ($stocks->get($productId)?->get($warehouseId)?->stock ?? 0) > 0;
-        })->count();
+        })->values();
+
+        $responseData = [
+            'total_items_to_count' => $countableProductIds->count(),
+        ];
+
+        if ($includeItems) {
+            $responseData['countable_items'] = ProductVariant::query()
+                ->with(['product:id,name,unit_id', 'product.unit:id,name'])
+                ->whereIn('id', $countableProductIds->all())
+                ->orderBy('item_code')
+                ->get()
+                ->map(function ($variant) use ($stocks, $warehouseId) {
+                    return [
+                        'product_id' => $variant->id,
+                        'item_code' => $variant->item_code,
+                        'description' => trim(($variant->product->name ?? '') . ' ' . ($variant->description ?? '')),
+                        'unit_name' => $variant->product?->unit?->name ?? '',
+                        'stock_on_hand' => (float) ($stocks->get($variant->id)?->get($warehouseId)?->stock ?? 0),
+                    ];
+                })
+                ->values();
+        }
 
         return response()->json([
-            'data' => [
-                'total_items_to_count' => $totalItemsToCount,
-            ],
+            'data' => $responseData,
         ]);
     }
 
