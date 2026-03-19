@@ -250,13 +250,13 @@
                                 </a>
                             </li>
                         @endcan -->
-                        @can('mainStockBeginning.view')
+                        <!-- @can('mainStockBeginning.view')
                             <li class="{{ request()->is('inventory/stock-beginnings*') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-beginnings') }}" title="Stock Beginning" data-filter-tags="stock beginning">
                                     <span class="nav-link-text">Stock Beginning</span>
                                 </a>
                             </li>
-                        @endcan
+                        @endcan -->
                         @can('stockIn.view')
                             <li class="{{ request()->is('inventory/stock-ins*') || request()->is('inventory/stock-in/items*') ? 'active' : '' }}">
                                 <a href="{{ url('inventory/stock-ins') }}" title="Stock Receipt" data-filter-tags="stock receipt">
