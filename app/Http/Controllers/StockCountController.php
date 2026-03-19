@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\StockCountSessionExport;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -141,6 +142,27 @@ class StockCountController extends Controller
         return view('Inventory.stock-count.show', [
             'initialData' => $initialData
         ]);
+    }
+
+    public function export(StockCount $stockCount)
+    {
+        $this->authorize('view', $stockCount);
+
+        $stockCount->load([
+            'items.product.product.unit:id,name',
+            'approvals.responder:id,name,profile_url,signature_url',
+            'warehouse:id,name,building_id',
+            'warehouse.building:id,name,campus_id',
+            'warehouse.building.campus:id,short_name',
+            'creator:id,name,profile_url,signature_url,card_number',
+            'creatorPosition:id,title',
+            'approvals.responderPosition:id,title',
+        ]);
+
+        $safeReference = preg_replace('/[^A-Za-z0-9_-]+/', '_', $stockCount->reference_no ?: 'stock_count');
+        $fileName = sprintf('stock_count_%s.xlsx', trim($safeReference, '_'));
+
+        return Excel::download(new StockCountSessionExport($stockCount), $fileName);
     }
 
 
@@ -791,6 +813,46 @@ class StockCountController extends Controller
     {
         $result = $this->productService->getStockProducts($request->all());
         return response()->json($result);
+    }
+
+    public function getCountSummary(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'transaction_date' => 'required|date',
+        ]);
+
+        $warehouseId = (int) $validated['warehouse_id'];
+        $transactionDate = $validated['transaction_date'];
+
+        $productIds = ProductVariant::query()
+            ->whereNull('deleted_at')
+            ->whereHas('warehouseProducts', function ($query) use ($warehouseId) {
+                $query->where('warehouse_id', $warehouseId)
+                    ->where('is_active', 1);
+            })
+            ->pluck('id')
+            ->all();
+
+        if (empty($productIds)) {
+            return response()->json([
+                'data' => [
+                    'total_items_to_count' => 0,
+                ],
+            ]);
+        }
+
+        $stocks = $this->stockLedgerService->getStockOnHandBulk($productIds, [$warehouseId], $transactionDate);
+
+        $totalItemsToCount = collect($productIds)->filter(function ($productId) use ($stocks, $warehouseId) {
+            return (float) ($stocks->get($productId)?->get($warehouseId)?->stock ?? 0) > 0;
+        })->count();
+
+        return response()->json([
+            'data' => [
+                'total_items_to_count' => $totalItemsToCount,
+            ],
+        ]);
     }
 
     public function refreshStockData(Request $request): JsonResponse

@@ -385,6 +385,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Stock Count
         Route::get('/stock-counts', [StockCountController::class, 'getStockCountList'])->name('api.stock-counts.index')->middleware('can:viewAny,' . StockCount::class);
         Route::get('/stock-counts/{stockCount}/show', [StockCountController::class, 'getShowData'])->name('api.stock-counts.show')->middleware('can:view,stockCount');
+        Route::get('/stock-counts/{stockCount}/export', [StockCountController::class, 'export'])->name('api.stock-counts.export')->middleware('can:view,stockCount');
         Route::post('/stock-counts/import', [StockCountController::class, 'import'])->name('api.stock-counts.import')->middleware('can:create,' . StockCount::class);
         Route::post('/stock-counts', [StockCountController::class, 'store'])->name('api.stock-counts.store')->middleware('can:create,' . StockCount::class);
         Route::delete('/stock-counts/{stockCount}', [StockCountController::class, 'destroy'])->name('api.stock-counts.destroy')->middleware('can:delete,stockCount');
@@ -394,6 +395,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/stock-counts/{stockCount}/submit-approval', [StockCountController::class, 'submitApproval'])->name('api.stock-counts.submit-approval');
         Route::post('/stock-counts/{stockCount}/reassign-approval', [StockCountController::class, 'reassignResponder'])->name('api.stock-counts.reassign-approval');
         Route::get('/stock-counts/get-products', [StockCountController::class, 'getProducts'])->name('api.stock-counts.get-products');
+        Route::get('/stock-counts/count-summary', [StockCountController::class, 'getCountSummary'])->name('api.stock-counts.count-summary');
         Route::post('/stock-counts/get-product-by-barcode', [StockCountController::class, 'getProductByBarcode'])->name('api.stock-counts.get-product-by-barcode');
         Route::post('/stock-counts/scan-update', [StockCountController::class, 'scanUpdate'])->name('api.stock-counts.scan-update');
         Route::patch('/stock-counts/refresh-stock', [StockCountController::class, 'refreshStockData'])->name('api.stock-counts.refresh-stock');

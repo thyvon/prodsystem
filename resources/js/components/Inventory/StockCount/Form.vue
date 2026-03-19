@@ -109,6 +109,29 @@
               </div>
             </div>
 
+            <div class="row mb-3">
+              <div class="col-md-4 mb-2 mb-md-0">
+                <div class="border rounded bg-light h-100 px-3 py-2">
+                  <div class="small text-muted">Total Item to Count</div>
+                  <div class="h4 mb-0 font-weight-bold text-primary">{{ totalItemsToCount }}</div>
+                </div>
+              </div>
+              <div class="col-md-4 mb-2 mb-md-0">
+                <div class="border rounded bg-light h-100 px-3 py-2">
+                  <div class="small text-muted">Total Item Counted</div>
+                  <div class="h4 mb-0 font-weight-bold text-success">{{ countedItems }}</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="border rounded bg-light h-100 px-3 py-2">
+                  <div class="small text-muted">Remaining Item</div>
+                  <div class="h4 mb-0 font-weight-bold" :class="remainingItems > 0 ? 'text-warning' : 'text-success'">
+                    {{ remainingItems }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Variance Filter Toggle -->
             <div v-if="form.items.length" class="mb-2">
               <button
@@ -132,7 +155,6 @@
                     <th style="min-width: 60px;">UoM</th>
                     <th style="min-width: 100px;">Stock Ending</th>
                     <th style="min-width: 100px;">Counted Qty *</th>
-                    <th style="min-width: 100px;">Unit Price</th>
                     <th style="min-width: 100px;">Variance</th>
                     <th style="min-width: 150px;">Remarks</th>
                     <th style="min-width: 100px;">Action</th>
@@ -148,14 +170,6 @@
                     </td>
                     <td>
                       <input type="number" v-model.number="item.counted_quantity" class="form-control" min="0" step="0.01" required />
-                    </td>
-                    <td>
-                    <input
-                        type="number"
-                        v-model.number="item.unit_price"
-                        class="form-control"
-                        readonly
-                    />
                     </td>
                     <td>
                       <input
@@ -364,6 +378,7 @@ const isEditMode = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
 const isImporting = ref(false)
 const isLoadingItem = ref(false)
+const totalItemsToCount = ref(0)
 
 // Template refs
 const warehouseSelect = ref(null)
@@ -424,6 +439,20 @@ const varianceCount = computed(() =>
   form.value.items.filter(i => i.counted_quantity !== i.ending_quantity).length
 )
 
+const countedItems = computed(() => {
+  const countedProductIds = new Set(
+    form.value.items
+      .filter(i => Number(i.ending_quantity || 0) > 0 && i.product_id)
+      .map(i => i.product_id)
+  )
+
+  return countedProductIds.size
+})
+
+const remainingItems = computed(() =>
+  Math.max(totalItemsToCount.value - countedItems.value, 0)
+)
+
 const filteredItems = computed(() =>
   varianceFilter.value === 'any'
     ? form.value.items.filter(i => i.counted_quantity !== i.ending_quantity)
@@ -437,8 +466,14 @@ watch(scanQty, val => {
   }
 })
 
-watch(() => form.value.transaction_date, (nv, ov) => { if (nv !== ov) refreshStock() })
-watch(() => form.value.warehouse_id, (nv, ov) => { if (nv !== ov) refreshStock() })
+watch(
+  [() => form.value.transaction_date, () => form.value.warehouse_id],
+  ([newTransactionDate, newWarehouseId], [oldTransactionDate, oldWarehouseId]) => {
+    if (newTransactionDate === oldTransactionDate && newWarehouseId === oldWarehouseId) return
+    refreshStock()
+    fetchCountSummary()
+  }
+)
 
 // ==================== Helpers ====================
 const resetScannedItem = () => {
@@ -471,6 +506,27 @@ const fetchApprovalUsers = async () => {
   approvalUsers.value = {
     initial: data.initial || [],
     approve: data.approve || []
+  }
+}
+
+const fetchCountSummary = async () => {
+  if (!form.value.warehouse_id || !form.value.transaction_date) {
+    totalItemsToCount.value = 0
+    return
+  }
+
+  try {
+    const { data } = await axios.get('/api/inventory/stock-counts/count-summary', {
+      params: {
+        warehouse_id: form.value.warehouse_id,
+        transaction_date: form.value.transaction_date
+      }
+    })
+
+    totalItemsToCount.value = Number(data.data?.total_items_to_count || 0)
+  } catch (err) {
+    console.error('Failed to fetch stock count summary', err)
+    totalItemsToCount.value = 0
   }
 }
 
@@ -971,6 +1027,7 @@ const loadEditDataFromProps = async () => {
   await nextTick()
   initWarehouseSelect2()
   await fetchApprovalUsers()
+  await fetchCountSummary()
   nextTick(() => initApprovalSelect2())
 }
 

@@ -2,9 +2,14 @@
   <div class="card mb-0 shadow">
     <!-- Header -->
     <div class="card-header bg-light py-2 d-flex justify-between items-center">
-      <button class="btn btn-sm btn-outline-success" @click="goBack">
-        <i class="fal fa-backward"></i> Back
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-success" @click="goBack">
+          <i class="fal fa-backward"></i> Back
+        </button>
+        <button class="btn btn-sm btn-outline-primary" @click="exportStockCount">
+          <i class="fal fa-file-export"></i> Export
+        </button>
+      </div>
       <button class="btn btn-sm btn-outline-secondary" @click="window.print()">
         <i class="fal fa-print"></i> Print
       </button>
@@ -261,6 +266,9 @@ const capitalize = s => (s && typeof s === 'string') ? s.charAt(0).toUpperCase()
 const formatDateTime = date => formatDateWithTime(date)
 const formatDate = date => formatDateShort(date)
 const goBack = () => window.history.back()
+const exportStockCount = () => {
+  window.location.href = `/api/inventory/stock-counts/${stock.value.id}/export`
+}
 const formatTotal = (items, field) => formatQty((items || []).reduce((sum, i) => sum + (i[field] || 0), 0))
 // Change formatTotal to return number
 const formatTotalVariance = (items, field) =>
