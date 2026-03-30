@@ -82,6 +82,11 @@ class DebitNoteItemsExport implements
             $transactionDate = null;
         }
 
+        $referenceNo = '';
+        if (! empty($item->reference_no) && preg_match('/\b(IO-\d+)\b/', $item->reference_no, $matches)) {
+            $referenceNo = $matches[1];
+        }
+
         return [
             $currentIndex,
             $transactionDate?->format('M d, Y') ?? '',
@@ -96,7 +101,7 @@ class DebitNoteItemsExport implements
             $item->division_name ?? '',
             $item->department_name ?? '',
             $item->remarks ?? '',
-            $item->reference_no ?? '',
+            $referenceNo,
         ];
     }
 

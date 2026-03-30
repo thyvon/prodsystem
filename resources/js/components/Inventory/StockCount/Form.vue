@@ -460,6 +460,18 @@ const form = ref({
   actionButtonText: 'Submit'
 })
 
+const showSuccessToast = () => {
+  Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon: 'success',
+    title: 'Saved',
+    showConfirmButton: false,
+    timer: 700,
+    timerProgressBar: false
+  })
+}
+
 const warehouses = ref([])
 const approvalUsers = ref({ initial: [], approve: [] })
 
@@ -811,6 +823,56 @@ const closeQtyModal = () => {
   scanner?.resume()
 }
 
+// const saveItemQty = async () => {
+//   if (!scannedItem.value) return
+
+//   const newQty = parseFloat(scanQty.value || 0)
+
+//   if (isEditMode.value) {
+//     try {
+//       await axios.post('/api/inventory/stock-counts/scan-update', {
+//         stock_count_id:   props.initialData?.id,
+//         product_id:       scannedItem.value.product_id,
+//         counted_quantity: newQty,
+//         remarks:          scannedItem.value.remarks || ''
+//       })
+//       showAlert('Success', 'Item quantity saved!', 'success')
+//     } catch (err) {
+//       console.error('[Scanner] Failed to save quantity:', err)
+//       if (err.response?.status === 409) {
+//         const excess  = err.response.data.excess?.toFixed(2) ?? '?'
+//         const total   = err.response.data.total?.toFixed(2) ?? '?'
+//         const ending  = err.response.data.ending?.toFixed(2) ?? '?'
+//         const proceed = await confirmAction(
+//           'Warning',
+//           `Total counted (${total}) will exceed stock ending (${ending})!<br>Excess: ${excess}<br><br>Do you want to continue saving?`,
+//           'warning'
+//         )
+//         if (!proceed) return
+//         try {
+//           await axios.post('/api/inventory/stock-counts/scan-update', {
+//             stock_count_id:   props.initialData?.id,
+//             product_id:       scannedItem.value.product_id,
+//             counted_quantity: newQty,
+//             remarks:          scannedItem.value.remarks || '',
+//             force:            true
+//           })
+//           showAlert('Success', 'Item quantity saved!', 'success')
+//         } catch (forceErr) {
+//           showAlert('Error', forceErr.response?.data?.message || 'Failed to save quantity', 'danger')
+//           return
+//         }
+//       } else {
+//         showAlert('Error', err.response?.data?.message || 'Failed to save quantity', 'danger')
+//         return
+//       }
+//     }
+//   }
+
+//   scannedItem.value.counted_quantity = parseFloat(scannedItem.value.server_counted_qty || 0) + newQty
+//   updateLocalFormItems()
+// }
+
 const saveItemQty = async () => {
   if (!scannedItem.value) return
 
@@ -824,7 +886,6 @@ const saveItemQty = async () => {
         counted_quantity: newQty,
         remarks:          scannedItem.value.remarks || ''
       })
-      showAlert('Success', 'Item quantity saved!', 'success')
     } catch (err) {
       console.error('[Scanner] Failed to save quantity:', err)
       if (err.response?.status === 409) {
@@ -845,7 +906,6 @@ const saveItemQty = async () => {
             remarks:          scannedItem.value.remarks || '',
             force:            true
           })
-          showAlert('Success', 'Item quantity saved!', 'success')
         } catch (forceErr) {
           showAlert('Error', forceErr.response?.data?.message || 'Failed to save quantity', 'danger')
           return

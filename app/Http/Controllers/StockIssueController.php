@@ -449,7 +449,7 @@ class StockIssueController extends Controller
                         'division_name'   => $item->department->division->short_name ?? '',
                         'department_name' => $item->department->short_name ?? '',
                         'reference_no'    => $item->stockIssue->reference_no ?? '',
-                        'remarks'         => $item->remarks,
+                        'remarks'         => $item->stockIssue->remarks ?? '',
                         'created_at'      => now(),
                         'updated_at'      => now(),
                     ])->toArray();
