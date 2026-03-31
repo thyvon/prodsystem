@@ -448,7 +448,9 @@ class StockIssueController extends Controller
                         'campus_name'     => $item->campus->short_name ?? '',
                         'division_name'   => $item->department->division->short_name ?? '',
                         'department_name' => $item->department->short_name ?? '',
-                        'reference_no'    => $item->stockIssue->reference_no ?? '',
+                        'reference_no'    => preg_match('/\b(IO-\d+)\b/', $item->stockIssue->reference_no ?? '', $matches)
+                            ? $matches[1]
+                            : ($item->stockIssue->reference_no ?? ''),
                         'remarks'         => $item->stockIssue->remarks ?? '',
                         'created_at'      => now(),
                         'updated_at'      => now(),

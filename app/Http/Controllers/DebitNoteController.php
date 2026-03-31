@@ -453,9 +453,17 @@ class DebitNoteController extends Controller
         }
 
         $logoPath = public_path('img/logo/logo-dark.png');
+        $progressKey = "debit_note_progress_{$user->id}";
 
-        // Clear previous progress
-        Cache::forget("debit_note_progress_{$user->id}");
+        $currentProgress = Cache::get($progressKey);
+        if (!empty($currentProgress['finished']) && $currentProgress['finished'] === false) {
+            return response()->json([
+                'message' => 'Email sending is already in progress. Please wait until the current batch completes.'
+            ], 409);
+        }
+
+        // Clear previous progress data and start a new send operation
+        Cache::forget($progressKey);
 
         // Dispatch job for sending emails
         SendDebitNotesEmailJob::dispatch($debitNotes, $user->id, $logoPath);

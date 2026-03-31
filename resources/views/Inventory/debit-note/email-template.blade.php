@@ -66,26 +66,32 @@
             <h2>Monthly Debit Note</h2>
             <p>From Warehouse: <strong>{{ $note->warehouse->name }}</strong></p>
         </div>
-        
+
         <p>Dear <strong>{{ $note->debitNoteEmail->receiver_name ?? '-' }}</strong>,</p>
 
         <p>I hope this message finds you well.</p>
 
+        @php
+            $mailNotes = isset($notes) ? collect($notes) : collect([$note]);
+            $departmentNames = $mailNotes->pluck('department.short_name')->filter()->unique()->values()->all();
+            $campusNames = $mailNotes->pluck('campus.short_name')->filter()->unique()->values()->all();
+        @endphp
+
         <p>
-            Please find attached the Monthly Debit Note for 
-            <strong>{{ $note->department->short_name ?? '-' }}</strong> 
-            for the period from 
-            <strong>{{ $note->start_date ? \Carbon\Carbon::parse($note->start_date)->format('M d, Y') : '-' }}</strong> 
-            to 
-            <strong>{{ $note->end_date ? \Carbon\Carbon::parse($note->end_date)->format('M d, Y') : '-' }}</strong>. 
-            This document details all materials requested from stock during the month for operational usage. 
+            Please find attached the Monthly Debit Note for
+            <strong>{{ implode(', ', $departmentNames) ?: '-' }} ({{ implode(', ', $campusNames) ?: '-' }})</strong>
+            for the period from
+            <strong>{{ $note->start_date ? \Carbon\Carbon::parse($note->start_date)->format('M d, Y') : '-' }}</strong>
+            to
+            <strong>{{ $note->end_date ? \Carbon\Carbon::parse($note->end_date)->format('M d, Y') : '-' }}</strong>.
+            This document details all materials requested from stock during the month for operational usage.
             The debit note includes quantities, item descriptions, and relevant references to help you verify the records efficiently.
         </p>
 
         <p>Kindly review the attached file at your earliest convenience. Should you have any questions, discrepancies, or require additional supporting information, please do not hesitate to contact me. I am happy to provide clarification or any further documentation needed.</p>
 
         <p>Thank you for your time and attention to this matter. I appreciate your cooperation and prompt review.</p>
-        
+
         <div class="footer">
             <!-- Footer Image -->
             <p>Best regards,<br>
