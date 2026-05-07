@@ -5,12 +5,12 @@ import path from 'path';
 
 export default defineConfig({
 
-    server: {
-        host: '0.0.0.0',
-        hmr: {
-            host: 'dev.mjqe-purchasing.site', // Change to your tunnel URL
-        },
-    },
+    // server: {
+    //     host: '0.0.0.0',
+    //     hmr: {
+    //         host: 'dev.mjqe-purchasing.site', // Change to your tunnel URL
+    //     },
+    // },
     plugins: [
         laravel({
             input: [

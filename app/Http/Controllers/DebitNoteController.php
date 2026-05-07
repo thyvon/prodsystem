@@ -2,21 +2,43 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Imports\DebitNoteEmailImport;
-use App\Models\DebitNoteEmail;
-use App\Models\DebitNote;
-use App\Models\DebitNoteItem;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Cache;
+use App\Exports\DebitNoteEmailsExport;
 use App\Exports\DebitNoteItemsExport;
+use App\Imports\DebitNoteEmailImport;
 use App\Jobs\SendDebitNotesEmailJob;
-use Throwable;
+use App\Models\DebitNote;
+use App\Models\DebitNoteEmail;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Facades\Excel;
+use ZipArchive;
 
 class DebitNoteController extends Controller
 {
+    private const DEBIT_NOTE_LIST_SORT_COLUMNS = [
+        'id' => 'debit_notes.id',
+        'reference_number' => 'debit_notes.reference_number',
+        'warehouse_name' => 'warehouses.name',
+        'campus_name' => 'campus.short_name',
+        'department_name' => 'departments.short_name',
+        'start_date' => 'debit_notes.start_date',
+        'end_date' => 'debit_notes.end_date',
+        'status' => 'debit_notes.status',
+        'created_by' => 'users.name',
+        'created_at' => 'debit_notes.created_at',
+        'updated_at' => 'debit_notes.updated_at',
+    ];
+
+    private const DEBIT_NOTE_EMAIL_SORT_COLUMNS = [
+        'campus_name' => 'campus.short_name',
+        'department_name' => 'departments.short_name',
+        'warehouse_name' => 'warehouses.name',
+        'receiver_name' => 'debit_note_emails.receiver_name',
+        'created_at' => 'debit_note_emails.created_at',
+        'updated_at' => 'debit_note_emails.updated_at',
+    ];
 
     public function debitNoteEmailIndex()
     {
@@ -25,23 +47,7 @@ class DebitNoteController extends Controller
     // Get list of Debit Note Emails
     public function getDebitNoteEmails(Request $request): JsonResponse
     {
-        $query = DebitNoteEmail::with(['department', 'warehouse', 'campus']);
-
-        // Search
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->whereHas('department', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                  ->orWhereHas('warehouse', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                  ->orWhereHas('campus', fn($q2) => $q2->where('name', 'like', "%{$search}%"))
-                  ->orWhere('send_to_email', 'like', "%{$search}%")
-                  ->orWhere('cc_to_email', 'like', "%{$search}%");
-            });
-        }
-
-        // Sorting
-        $sortColumn = $request->input('sortColumn', 'created_at');
-        $sortDirection = strtolower($request->input('sortDirection', 'desc'));
-        $query->orderBy($sortColumn, $sortDirection);
+        $query = $this->buildDebitNoteEmailQuery($request);
 
         // Pagination
         $limit = max(1, (int) $request->input('limit', 10));
@@ -57,8 +63,8 @@ class DebitNoteController extends Controller
             'warehouse_id' => $item->warehouse_id,
             'warehouse_name' => $item->warehouse?->name,
             'receiver_name' => $item->receiver_name,
-            'send_to_email' => implode(' ', array_map('trim', is_array($item->send_to_email) ? $item->send_to_email : explode(',', $item->send_to_email ?? ''))),
-            'cc_to_email' => implode(' ', array_map('trim', is_array($item->cc_to_email) ? $item->cc_to_email : explode(',', $item->cc_to_email ?? ''))),
+            'send_to_email' => $this->normalizeEmailList($item->send_to_email),
+            'cc_to_email' => $this->normalizeEmailList($item->cc_to_email),
             'created_at' => $item->created_at?->toDateTimeString(),
             'updated_at' => $item->updated_at?->toDateTimeString(),
         ]);
@@ -69,6 +75,16 @@ class DebitNoteController extends Controller
             'recordsFiltered' => $emails->total(),
             'draw' => (int) $request->input('draw', 1),
         ]);
+    }
+
+    public function exportDebitNoteEmails(Request $request)
+    {
+        $fileName = 'debit_note_emails_' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new DebitNoteEmailsExport($this->buildDebitNoteEmailQuery($request)),
+            $fileName
+        );
     }
 
     // Import Debit Note Emails from Excel
@@ -194,82 +210,10 @@ class DebitNoteController extends Controller
 
     public function getDebitNoteList(Request $request): JsonResponse
     {
-        // ----------------------------
-        // VALIDATION
-        // ----------------------------
-        $validated = $request->validate([
-            'search' => 'nullable|string|max:255',
-            'sortColumn' => 'nullable|string',
-            'sortDirection' => 'nullable|string|in:asc,desc',
-            'limit' => 'nullable|integer|min:1|max:1000',
-            'page' => 'nullable|integer|min:1',
-            'draw' => 'nullable|integer',
-
-            // Filters from frontend
-            'warehouse_ids' => 'nullable|array',
-            'warehouse_ids.*' => 'integer|exists:warehouses,id',
-            'department_ids' => 'nullable|array',
-            'department_ids.*' => 'integer|exists:departments,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-        ]);
-
-        $sortColumn = $validated['sortColumn'] ?? 'debit_notes.id';
-        $sortDirection = $validated['sortDirection'] ?? 'desc';
+        $validated = $this->validateDebitNoteListFilters($request);
         $limit = $validated['limit'] ?? 10;
         $page = $validated['page'] ?? 1;
-
-        // ----------------------------
-        // QUERY
-        // ----------------------------
-        $query = DebitNote::with([
-            'warehouse:id,name',
-            'campus:id,short_name',
-            'department:id,short_name',
-            'debitNoteEmail:id,send_to_email,cc_to_email',
-            'creator:id,name',
-            'items.stockIssueItem'
-        ])
-        // Search filter
-        ->when($validated['search'] ?? null, fn($q, $search) => $q->where(fn($subQ) =>
-            $subQ->where('reference_number', 'like', "%{$search}%")
-                ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('department', fn($dQ) => $dQ->where('name', 'like', "%{$search}%"))
-        ))
-        // Warehouse filter
-        ->when(!empty($validated['warehouse_ids']), fn($q) =>
-            $q->whereIn('warehouse_id', $validated['warehouse_ids'])
-        )
-        // Department filter
-        ->when(!empty($validated['department_ids']), fn($q) =>
-            $q->whereIn('department_id', $validated['department_ids'])
-        )
-        // Date filter
-        ->when(!empty($validated['start_date']), fn($q) =>
-            $q->whereDate('start_date', '>=', $validated['start_date'])
-        )
-        ->when(!empty($validated['end_date']), fn($q) =>
-            $q->whereDate('end_date', '<=', $validated['end_date'])
-        );
-
-        // ----------------------------
-        // SORTING
-        // ----------------------------
-        if ($sortColumn === 'warehouse_name') {
-            $query->join('warehouses', 'debit_notes.warehouse_id', '=', 'warehouses.id')
-                ->orderBy('warehouses.name', $sortDirection)
-                ->select('debit_notes.*');
-        } elseif ($sortColumn === 'department_name') {
-            $query->join('departments', 'debit_notes.department_id', '=', 'departments.id')
-                ->orderBy('departments.name', $sortDirection)
-                ->select('debit_notes.*');
-        } elseif ($sortColumn === 'created_by') {
-            $query->join('users', 'debit_notes.created_by', '=', 'users.id')
-                ->orderBy('users.name', $sortDirection)
-                ->select('debit_notes.*');
-        } else {
-            $query->orderBy($sortColumn, $sortDirection);
-        }
+        $query = $this->buildDebitNoteListQuery($validated);
 
         // ----------------------------
         // PAGINATION
@@ -315,6 +259,58 @@ class DebitNoteController extends Controller
             'recordsFiltered' => $debitNotes->total(),
             'draw' => (int) ($validated['draw'] ?? 1),
         ]);
+    }
+
+    public function exportDebitNotesBulk(Request $request)
+    {
+        $validated = $this->validateDebitNoteListFilters($request);
+        $query = $this->buildDebitNoteListQuery($validated);
+        $debitNotes = $query->get();
+
+        if ($debitNotes->isEmpty()) {
+            return response()->json([
+                'message' => 'No debit notes found for the selected filters.'
+            ], 404);
+        }
+
+        $logoPath = public_path('img/logo/logo-dark.png');
+        $tempDirectory = storage_path('app/temp');
+
+        if (!is_dir($tempDirectory) && !mkdir($tempDirectory, 0777, true) && !is_dir($tempDirectory)) {
+            return response()->json([
+                'message' => 'Failed to prepare temporary export directory.'
+            ], 500);
+        }
+
+        $zipFileName = 'debit_notes_' . now()->format('Ymd_His') . '.zip';
+        $zipPath = $tempDirectory . DIRECTORY_SEPARATOR . $zipFileName;
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            return response()->json([
+                'message' => 'Failed to create ZIP file.'
+            ], 500);
+        }
+
+        $usedNames = [];
+
+        foreach ($debitNotes as $note) {
+            $excelContent = Excel::raw(
+                new DebitNoteItemsExport($note, $logoPath),
+                \Maatwebsite\Excel\Excel::XLSX
+            );
+
+            $fileName = $this->makeUniqueFileName(
+                $this->makeDebitNoteExportFileName($note),
+                $usedNames
+            );
+
+            $zip->addFromString($fileName, $excelContent);
+        }
+
+        $zip->close();
+
+        return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
     }
 
     // public function sendDebitNoteEmails(Request $request): JsonResponse
@@ -426,6 +422,8 @@ class DebitNoteController extends Controller
             'department_ids.*' => 'exists:departments,id',
             'campus_ids'       => 'nullable|array',
             'campus_ids.*'     => 'exists:campus,id',
+            'statuses'         => 'nullable|array',
+            'statuses.*'       => 'string|in:pending,sending,sent',
             'start_date'       => 'required|date',
             'end_date'         => 'required|date|after_or_equal:start_date',
         ]);
@@ -438,10 +436,12 @@ class DebitNoteController extends Controller
         }
 
         // Fetch pending debit notes
+        $statuses = array_values(array_intersect($validated['statuses'] ?? ['pending'], ['pending']));
+
         $debitNotes = DebitNote::with('debitNoteEmail')
             ->whereIn('warehouse_id', $validated['warehouse_ids'])
             ->whereBetween('start_date', [$validated['start_date'], $validated['end_date']])
-            ->where('status', 'pending')
+            ->whereIn('status', $statuses)
             ->when(!empty($validated['department_ids']), fn($q) => $q->whereIn('department_id', $validated['department_ids']))
             ->when(!empty($validated['campus_ids']), fn($q) => $q->whereIn('campus_id', $validated['campus_ids']))
             ->get();
@@ -473,6 +473,83 @@ class DebitNoteController extends Controller
         ]);
     }
 
+    public function exportDebitNote(DebitNote $debitNote)
+    {
+        $debitNote->loadMissing(['department', 'campus']);
+
+        $logoPath = public_path('img/logo/logo-dark.png');
+        $fileName = $this->makeDebitNoteExportFileName($debitNote);
+
+        return Excel::download(
+            new DebitNoteItemsExport($debitNote, $logoPath),
+            $fileName
+        );
+    }
+
+    public function destroy(DebitNote $debitNote): JsonResponse
+    {
+        if ($debitNote->status === 'sending') {
+            return response()->json([
+                'message' => 'Cannot delete a debit note while email sending is in progress.'
+            ], 409);
+        }
+
+        $debitNote->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Debit Note deleted successfully.',
+        ]);
+    }
+
+    public function resendDebitNoteEmail(DebitNote $debitNote): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user || !$user->email) {
+            return response()->json([
+                'message' => 'Authenticated user email is required.'
+            ], 422);
+        }
+
+        if ($debitNote->status === 'sending') {
+            return response()->json([
+                'message' => 'This debit note is already being sent. Please wait until the current send completes.'
+            ], 409);
+        }
+
+        $debitNote->load('debitNoteEmail');
+
+        $toEmails = collect(optional($debitNote->debitNoteEmail)->send_to_email)
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($toEmails->isEmpty()) {
+            return response()->json([
+                'message' => 'This debit note has no recipient email configured.'
+            ], 422);
+        }
+
+        $logoPath = public_path('img/logo/logo-dark.png');
+        $progressKey = "debit_note_progress_{$user->id}";
+
+        $currentProgress = Cache::get($progressKey);
+        if (!empty($currentProgress['finished']) && $currentProgress['finished'] === false) {
+            return response()->json([
+                'message' => 'Email sending is already in progress. Please wait until the current send completes.'
+            ], 409);
+        }
+
+        Cache::forget($progressKey);
+
+        SendDebitNotesEmailJob::dispatch(collect([$debitNote]), $user->id, $logoPath, true);
+
+        return response()->json([
+            'message' => "Email resend started for debit note {$debitNote->reference_number}."
+        ]);
+    }
+
     /**
      * Get current progress of sending debit note emails
      */
@@ -485,5 +562,177 @@ class DebitNoteController extends Controller
         ]);
 
         return response()->json($progress);
+    }
+
+    private function buildDebitNoteEmailQuery(Request $request): Builder
+    {
+        $search = trim((string) $request->input('search', ''));
+        $receiverName = trim((string) $request->input('receiver_name', ''));
+        $departmentIds = collect($request->input('department_ids', []))
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+        $sortKey = (string) $request->input('sortColumn', 'created_at');
+        $sortColumn = self::DEBIT_NOTE_EMAIL_SORT_COLUMNS[$sortKey] ?? self::DEBIT_NOTE_EMAIL_SORT_COLUMNS['created_at'];
+        $sortDirection = strtolower((string) $request->input('sortDirection', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        return DebitNoteEmail::query()
+            ->with(['department', 'warehouse', 'campus'])
+            ->leftJoin('departments', 'debit_note_emails.department_id', '=', 'departments.id')
+            ->leftJoin('warehouses', 'debit_note_emails.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('campus', 'debit_note_emails.campus_id', '=', 'campus.id')
+            ->select('debit_note_emails.*')
+            ->when(!empty($departmentIds), function (Builder $query) use ($departmentIds) {
+                $query->whereIn('debit_note_emails.department_id', $departmentIds);
+            })
+            ->when($receiverName !== '', function (Builder $query) use ($receiverName) {
+                $query->where('debit_note_emails.receiver_name', 'like', "%{$receiverName}%");
+            })
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $query->where(function (Builder $subQuery) use ($search) {
+                    $subQuery->where('departments.name', 'like', "%{$search}%")
+                        ->orWhere('departments.short_name', 'like', "%{$search}%")
+                        ->orWhere('warehouses.name', 'like', "%{$search}%")
+                        ->orWhere('campus.name', 'like', "%{$search}%")
+                        ->orWhere('campus.short_name', 'like', "%{$search}%")
+                        ->orWhere('debit_note_emails.receiver_name', 'like', "%{$search}%")
+                        ->orWhere('debit_note_emails.send_to_email', 'like', "%{$search}%")
+                        ->orWhere('debit_note_emails.cc_to_email', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy($sortColumn, $sortDirection);
+    }
+
+    private function normalizeEmailList(array|string|null $emails): array
+    {
+        $values = is_array($emails)
+            ? $emails
+            : explode(',', (string) $emails);
+
+        return array_values(array_filter(array_map('trim', $values)));
+    }
+
+    private function validateDebitNoteListFilters(Request $request): array
+    {
+        return $request->validate([
+            'search' => 'nullable|string|max:255',
+            'sortColumn' => 'nullable|string',
+            'sortDirection' => 'nullable|string|in:asc,desc',
+            'limit' => 'nullable|integer|min:1|max:1000',
+            'page' => 'nullable|integer|min:1',
+            'draw' => 'nullable|integer',
+            'warehouse_ids' => 'nullable|array',
+            'warehouse_ids.*' => 'integer|exists:warehouses,id',
+            'campus_ids' => 'nullable|array',
+            'campus_ids.*' => 'integer|exists:campus,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'integer|exists:departments,id',
+            'statuses' => 'nullable|array',
+            'statuses.*' => 'string|in:pending,sending,sent',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+        ]);
+    }
+
+    private function buildDebitNoteListQuery(array $validated): Builder
+    {
+        $sortKey = $validated['sortColumn'] ?? 'id';
+        $sortColumn = self::DEBIT_NOTE_LIST_SORT_COLUMNS[$sortKey] ?? self::DEBIT_NOTE_LIST_SORT_COLUMNS['id'];
+        $sortDirection = $validated['sortDirection'] ?? 'desc';
+
+        $query = DebitNote::with([
+            'warehouse:id,name',
+            'campus:id,short_name',
+            'department:id,short_name,name',
+            'debitNoteEmail:id,send_to_email,cc_to_email',
+            'creator:id,name',
+            'items.stockIssueItem'
+        ])
+        ->when($validated['search'] ?? null, function ($q, $search) {
+            $q->where(function ($subQ) use ($search) {
+                $subQ->where('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('warehouse', fn($wQ) => $wQ->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('campus', fn($cQ) => $cQ->where('name', 'like', "%{$search}%")->orWhere('short_name', 'like', "%{$search}%"))
+                    ->orWhereHas('department', fn($dQ) => $dQ->where('name', 'like', "%{$search}%")->orWhere('short_name', 'like', "%{$search}%"))
+                    ->orWhereHas('creator', fn($uQ) => $uQ->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('debitNoteEmail', fn($eQ) => $eQ
+                        ->where('send_to_email', 'like', "%{$search}%")
+                        ->orWhere('cc_to_email', 'like', "%{$search}%")
+                    )
+                    ->orWhere('status', 'like', "%{$search}%");
+
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $search)) {
+                    $subQ->orWhereDate('start_date', $search)
+                        ->orWhereDate('end_date', $search);
+                }
+            });
+        })
+        ->when(!empty($validated['warehouse_ids']), fn($q) =>
+            $q->whereIn('warehouse_id', $validated['warehouse_ids'])
+        )
+        ->when(!empty($validated['campus_ids']), fn($q) =>
+            $q->whereIn('campus_id', $validated['campus_ids'])
+        )
+        ->when(!empty($validated['department_ids']), fn($q) =>
+            $q->whereIn('department_id', $validated['department_ids'])
+        )
+        ->when(!empty($validated['statuses']), fn($q) =>
+            $q->whereIn('status', $validated['statuses'])
+        )
+        ->when(!empty($validated['start_date']), fn($q) =>
+            $q->whereDate('start_date', '>=', $validated['start_date'])
+        )
+        ->when(!empty($validated['end_date']), fn($q) =>
+            $q->whereDate('end_date', '<=', $validated['end_date'])
+        );
+
+        if ($sortKey === 'warehouse_name') {
+            $query->join('warehouses', 'debit_notes.warehouse_id', '=', 'warehouses.id')
+                ->orderBy('warehouses.name', $sortDirection)
+                ->select('debit_notes.*');
+        } elseif ($sortKey === 'campus_name') {
+            $query->join('campus', 'debit_notes.campus_id', '=', 'campus.id')
+                ->orderBy('campus.short_name', $sortDirection)
+                ->select('debit_notes.*');
+        } elseif ($sortKey === 'department_name') {
+            $query->join('departments', 'debit_notes.department_id', '=', 'departments.id')
+                ->orderBy('departments.short_name', $sortDirection)
+                ->select('debit_notes.*');
+        } elseif ($sortKey === 'created_by') {
+            $query->join('users', 'debit_notes.created_by', '=', 'users.id')
+                ->orderBy('users.name', $sortDirection)
+                ->select('debit_notes.*');
+        } else {
+            $query->orderBy($sortColumn, $sortDirection);
+        }
+
+        return $query;
+    }
+
+    private function makeDebitNoteExportFileName(DebitNote $debitNote): string
+    {
+        $departmentShortName = $debitNote->department?->short_name ?? 'Department';
+        $campusShortName = $debitNote->campus?->short_name ?? 'Campus';
+        $referenceNumber = $debitNote->reference_number ?? $debitNote->id;
+
+        $fileName = "DebitNote_{$departmentShortName}_{$campusShortName}_{$referenceNumber}.xlsx";
+
+        return preg_replace('/[\\\\\\/:\*\?"<>\|]+/', '_', $fileName);
+    }
+
+    private function makeUniqueFileName(string $fileName, array &$usedNames): string
+    {
+        if (!isset($usedNames[$fileName])) {
+            $usedNames[$fileName] = 1;
+            return $fileName;
+        }
+
+        $usedNames[$fileName]++;
+        $pathInfo = pathinfo($fileName);
+        $name = $pathInfo['filename'] ?? 'DebitNote';
+        $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+
+        return $name . '_' . $usedNames[$fileName] . $extension;
     }
 }

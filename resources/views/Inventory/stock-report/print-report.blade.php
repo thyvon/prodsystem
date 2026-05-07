@@ -50,6 +50,8 @@
             vertical-align: middle;
             word-wrap: break-word;
             white-space: normal;
+            padding: 3px 2px;
+            line-height: 1.4;
         }
         table.items th {
             background-color: #f2f2f2;
@@ -82,6 +84,9 @@
         tbody { display: table-row-group; }
         tfoot { display: table-footer-group; }
         tr { page-break-inside: avoid; }
+        table.items tbody tr {
+            height: auto;
+        }
 
         .signature-section {
             margin-top: 20px;
@@ -179,7 +184,7 @@
         <thead>
             <tr>
                 <th class="col-no" rowspan="2">ល.រ<br>No</th>
-                <th style="min-width: 70px;" rowspan="2">Item Code</th>
+                <th style="min-width: 75px;" rowspan="2">Item Code</th>
                 <th style="min-width: 250px;" rowspan="2">Description</th>
                 <th class="col-unit" rowspan="2">Unit</th>
                 <th colspan="3">Beginning</th>

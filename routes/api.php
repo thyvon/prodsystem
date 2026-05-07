@@ -328,7 +328,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Debit Notes
         Route::post('/stock-issues/debit-notes', [StockIssueController::class, 'upsertDebitNote'])->name('api.stock-issues.debit-notes.upsert');
         Route::get('/debit-notes', [DebitNoteController::class, 'getDebitNoteList'])->name('api.inventory.debit-notes.index');
+        Route::get('/debit-notes/export/bulk', [DebitNoteController::class, 'exportDebitNotesBulk'])->name('api.inventory.debit-notes.export-bulk');
+        Route::get('/debit-notes/{debitNote}/export', [DebitNoteController::class, 'exportDebitNote'])->name('api.inventory.debit-notes.export');
+        Route::delete('/debit-notes/{debitNote}', [DebitNoteController::class, 'destroy'])->name('api.inventory.debit-notes.destroy');
         Route::post('/debit-notes/send-emails', [DebitNoteController::class, 'sendDebitNoteEmails'])->name('api.inventory.debit-notes.send-debit-note-emails');
+        Route::post('/debit-notes/{debitNote}/send-email', [DebitNoteController::class, 'resendDebitNoteEmail'])->name('api.inventory.debit-notes.resend-debit-note-email');
         Route::get('/debit-notes/email-progress', [DebitNoteController::class, 'getEmailProgress'])->name('api.inventory.debit-notes.get-email-progress');
 
         // Stock Transfer
@@ -409,6 +413,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Debit note email
         Route::get('/debit-note/emails', [DebitNoteController::class, 'getDebitNoteEmails'])->name('api.debit-note.emails.index');
+        Route::get('/debit-note/emails/export', [DebitNoteController::class, 'exportDebitNoteEmails'])->name('api.debit-note.emails.export');
         Route::post('/debit-note/emails/store', [DebitNoteController::class, 'storeDebitNoteEmail'])->name('api.debit-note.emails.store');
         Route::put('/debit-note/emails/{id}/update', [DebitNoteController::class, 'updateDebitNoteEmail'])->name('api.debit-note.emails.update');
         Route::get('/debit-note/emails/{id}/edit', [DebitNoteController::class, 'editDebitNoteEmail'])->name('api.debit-note.emails.edit');

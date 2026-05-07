@@ -73,13 +73,24 @@
 
         @php
             $mailNotes = isset($notes) ? collect($notes) : collect([$note]);
-            $departmentNames = $mailNotes->pluck('department.short_name')->filter()->unique()->values()->all();
+            $departmentNames = $mailNotes->map(function ($mailNote) {
+                $divisionShortName = $mailNote->department?->division?->short_name;
+                $departmentShortName = $mailNote->department?->short_name;
+
+                if (!$departmentShortName) {
+                    return null;
+                }
+
+                return $divisionShortName
+                    ? "{$departmentShortName} ({$divisionShortName})"
+                    : $departmentShortName;
+            })->filter()->unique()->values()->all();
             $campusNames = $mailNotes->pluck('campus.short_name')->filter()->unique()->values()->all();
         @endphp
 
         <p>
             Please find attached the Monthly Debit Note for
-            <strong>{{ implode(', ', $departmentNames) ?: '-' }} ({{ implode(', ', $campusNames) ?: '-' }})</strong>
+            <strong>{{ implode(', ', $departmentNames) ?: '-' }}, Campus ({{ implode(', ', $campusNames) ?: '-' }})</strong>
             for the period from
             <strong>{{ $note->start_date ? \Carbon\Carbon::parse($note->start_date)->format('M d, Y') : '-' }}</strong>
             to
@@ -94,11 +105,20 @@
 
         <div class="footer">
             <!-- Footer Image -->
-            <p>Best regards,<br>
+            <!-- <p>Best regards,<br>
             {{$note->creator->name ?? '-'}}<br>
             {{$note->creator->defaultPosition->title ?? '-'}}<br>
             {{$note->creator->phone ?? '-'}}<br>
             {{$note->creator->email ?? '-'}}<br>
+            </p> -->
+
+            <p>
+                Best regards,<br>
+
+                Vun Thy<br>
+                Procurement Officer<br>
+                +855 96 36 12 146<br>
+                vun.thy@mjqeducation.edu.kh<br>
             </p>
         <img src="https://ci3.googleusercontent.com/mail-sig/AIorK4zsFWN0XTmb1CVNaUS-BqiFPyZpKwge_qnFJ5x7vfn77RaF1FldZ8ebYBrhuszIuQHYxgi8l4BB7ojF" alt="Company Logo" style="max-width: 400px; margin-bottom: 10px;">
         </div>

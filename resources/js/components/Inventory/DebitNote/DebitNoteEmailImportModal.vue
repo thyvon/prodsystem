@@ -22,7 +22,7 @@
             <label class="custom-file-label" for="excelFile">Choose file...</label>
           </div>
           <small class="form-text text-muted">
-            File must contain columns: <strong>department, warehouse, send_to_email, cc_to_email</strong>
+            File must contain columns: <strong>department, warehouse, campus, receiver_name, send_to_email, cc_to_email</strong>
           </small>
           <button type="button" class="btn btn-sm btn-info mt-2" @click="exportSampleFile">
             <i class="fal fa-download mr-1"></i>

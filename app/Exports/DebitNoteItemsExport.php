@@ -104,9 +104,9 @@ class DebitNoteItemsExport implements
     {
         return [
             'B' => NumberFormat::FORMAT_TEXT,
-            'E' => NumberFormat::FORMAT_NUMBER,
-            'G' => NumberFormat::FORMAT_NUMBER_00,
-            'H' => NumberFormat::FORMAT_NUMBER_00,
+            'E' => NumberFormat::FORMAT_NUMBER_00,
+            'G' => NumberFormat::FORMAT_ACCOUNTING_USD,
+            'H' => NumberFormat::FORMAT_ACCOUNTING_USD,
         ];
     }
 
@@ -196,14 +196,14 @@ class DebitNoteItemsExport implements
 
                 $creatorName     = $this->debitNote->creator->name ?? '';
                 $creatorPosition = $this->debitNote->creator->defaultPosition->title ?? '';
-                $currentDate     = $this->debitNote->created_at->format('F d, Y');
+                $footerDate      = $endDate->format('F d, Y');
 
                 $sheet->setCellValue("A{$footerRow}", 'Prepared By:');
                 $sheet->getStyle("A{$footerRow}")->getFont()->setBold(true);
 
-                $sheet->setCellValue("A" . ($footerRow + 1), 'Name: ' . $creatorName);
-                $sheet->setCellValue("A" . ($footerRow + 2), 'Position: ' . $creatorPosition);
-                $sheet->setCellValue("A" . ($footerRow + 3), 'Date: ' . $currentDate);
+                $sheet->setCellValue("A" . ($footerRow + 1), 'Name: Vun Thy');
+                $sheet->setCellValue("A" . ($footerRow + 2), 'Position: Procurement Officer');
+                $sheet->setCellValue("A" . ($footerRow + 3), 'Date: ' . $footerDate);
 
                 $sheet->getStyle("A{$footerRow}:A" . ($footerRow + 3))
                     ->getAlignment()

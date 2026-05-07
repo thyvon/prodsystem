@@ -26,7 +26,7 @@
                 <th
                   v-for="(h, i) in headers"
                   :key="i"
-                  :style="{ width: h.width, minWidth: h.minWidth }"
+                  :style="{ width: h.width, minWidth: h.minWidth, maxWidth: h.maxWidth }"
                 >
                   {{ h.text }}
                 </th>
@@ -325,8 +325,13 @@ const dtColumns = computed(() => {
       },
       orderable: h.sortable !== false,
       createdCell: (td) => {
-     td.style.minWidth = h.minWidth || '80px'; // default fallback
-   }
+        td.style.minWidth = h.minWidth || '80px';
+        if (h.maxWidth) {
+          td.style.maxWidth = h.maxWidth;
+          td.style.whiteSpace = 'normal';
+          td.style.wordBreak = 'break-word';
+        }
+      }
     }))
   ];
 
@@ -501,4 +506,3 @@ onUnmounted(() => {
     line-height: 1;
 }
 </style>
-

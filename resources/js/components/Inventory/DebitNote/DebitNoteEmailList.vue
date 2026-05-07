@@ -13,15 +13,64 @@
       @length-change="handleLengthChange"
       @search-change="handleSearchChange"
     >
-      <!-- Create + Import buttons -->
+      <!-- Create + Import + Export buttons -->
       <template #additional-header>
-        <button class="btn btn-success mr-2" @click="openCreateModal">
-          <i class="fal fa-plus"></i> Create
-        </button>
+        <div class="d-flex flex-column mb-2">
+          <div class="d-flex mb-2 align-items-center gap-2">
+            <div class="btn-group" role="group">
+              <button class="btn btn-success" @click="openCreateModal">
+                <i class="fal fa-plus"></i> Create
+              </button>
 
-        <button class="btn btn-primary" @click="openImportModal">
-          <i class="fal fa-file-excel"></i> Import
-        </button>
+              <button class="btn btn-primary" @click="openImportModal">
+                <i class="fal fa-file-excel"></i> Import
+              </button>
+
+              <button class="btn btn-info" @click="exportDebitNoteEmails">
+                <i class="fal fa-download"></i> Export
+              </button>
+            </div>
+
+            <button
+              class="btn btn-outline-info"
+              type="button"
+              data-toggle="collapse"
+              data-target="#debitNoteEmailFilterCollapse"
+              aria-expanded="false"
+              aria-controls="debitNoteEmailFilterCollapse"
+            >
+              <i class="fal fa-filter mr-1"></i> Filters
+            </button>
+          </div>
+
+          <div class="collapse" id="debitNoteEmailFilterCollapse">
+            <div class="card card-body shadow-sm">
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <select ref="departmentSelect" class="form-select" multiple></select>
+                </div>
+                <div class="col-md-6">
+                  <input
+                    v-model.trim="receiverNameFilter"
+                    type="text"
+                    class="form-control"
+                    placeholder="Receiver Name"
+                    @keyup.enter="applyFilters"
+                  />
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-secondary" @click="resetFilters">
+                  <i class="fal fa-undo mr-1"></i> Reset
+                </button>
+                <button class="btn btn-primary" @click="applyFilters">
+                  <i class="fal fa-filter mr-1"></i> Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
 
       <!-- Send To -->
@@ -56,22 +105,28 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import axios from 'axios'
 import DebitNoteEmailModal from '@/components/Inventory/DebitNote/DebitNoteEmailModal.vue'
 import DebitNoteEmailImportModal from '@/components/Inventory/DebitNote/DebitNoteEmailImportModal.vue'
 import { confirmAction, showAlert } from '@/Utils/bootbox'
+import { initSelect2, destroySelect2 } from '@/Utils/select2.js'
 
 // Refs
 const datatableRef = ref(null)
 const debitNoteModal = ref(null)
 const importModal = ref(null)
+const departmentSelect = ref(null)
 const isEditing = ref(false)
+const selectedDepartments = ref([])
+const receiverNameFilter = ref('')
 
 // Params
 const datatableParams = reactive({
   sortColumn: 'created_at',
-  sortDirection: 'desc'
+  sortDirection: 'desc',
+  department_ids: [],
+  receiver_name: ''
 })
 
 // Headers
@@ -116,6 +171,54 @@ const openImportModal = () => {
   importModal.value.show()
 }
 
+const fetchDepartments = async () => {
+  try {
+    const res = await axios.get('/api/main-value-lists/get-departments')
+    const departments = res.data.map(d => ({ id: d.id, text: d.text }))
+
+    destroySelect2(departmentSelect.value)
+    initSelect2(
+      departmentSelect.value,
+      { placeholder: 'Department', allowClear: true, width: '100%', data: departments },
+      (value) => {
+        selectedDepartments.value = value.map(Number)
+      }
+    )
+  } catch (err) {
+    console.error('Failed to load departments:', err)
+    showAlert('Error', 'Failed to load departments.', 'danger')
+  }
+}
+
+const applyFilters = () => {
+  datatableParams.department_ids = [...selectedDepartments.value]
+  datatableParams.receiver_name = receiverNameFilter.value
+  datatableRef.value?.reload()
+}
+
+const resetFilters = () => {
+  receiverNameFilter.value = ''
+  selectedDepartments.value = []
+  datatableParams.department_ids = []
+  datatableParams.receiver_name = ''
+  destroySelect2(departmentSelect.value)
+  fetchDepartments()
+  datatableRef.value?.reload()
+}
+
+const exportDebitNoteEmails = () => {
+  const params = new URLSearchParams({
+    search: datatableParams.search || '',
+    sortColumn: datatableParams.sortColumn,
+    sortDirection: datatableParams.sortDirection,
+    receiver_name: datatableParams.receiver_name || ''
+  })
+
+  datatableParams.department_ids.forEach((id) => params.append('department_ids[]', id))
+
+  window.location.href = `/api/inventory/debit-note/emails/export?${params.toString()}`
+}
+
 // Delete
 const handleDelete = async (row) => {
   const confirmed = await confirmAction(
@@ -148,4 +251,8 @@ const handleSearchChange = (search) => (datatableParams.search = search)
 const reloadDatatable = () => {
   datatableRef.value?.reload()
 }
+
+onMounted(() => {
+  fetchDepartments()
+})
 </script>
