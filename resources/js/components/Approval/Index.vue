@@ -18,84 +18,72 @@
     >
       <!-- Additional Header Cards -->
       <template #additional-header>
-        <div class="row g-3">
-          <!-- All my approvals -->
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('all')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-primary-300 rounded position-relative mb-g text-white"
-              :class="{ active: datatableParams.filterType === 'all' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.all }}
-                <small class="m-0 l-h-n d-block">All my approvals</small>
-              </h3>
-              <i class="fal fa-tasks position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+        <div class="modern-header-container mb-4">
+          <div class="modern-grid">
+            <!-- All my approvals -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'all' }" @click="filterApprovals('all')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <i class="fal fa-tasks"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">All Approvals</h3>
+                <p class="modern-card-value">{{ statusCounts.all }}</p>
+              </div>
             </div>
-          </div>
 
-          <!-- Pending approvals -->
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('pending')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-warning-400 rounded position-relative mb-g text-white"
-              :class="{ active: datatableParams.filterType === 'pending' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.pending }}
-                <small class="m-0 l-h-n d-block">Pending approvals</small>
-              </h3>
-              <i class="fal fa-hourglass-half position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            <!-- Pending approvals -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'pending' }" @click="filterApprovals('pending')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);">
+                <i class="fal fa-hourglass-half"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">Pending</h3>
+                <p class="modern-card-value">{{ statusCounts.pending }}</p>
+              </div>
             </div>
-          </div>
 
-          <!-- Completed approvals -->
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('completed')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-success-200 rounded position-relative mb-g text-white"
-              :class="{ active: datatableParams.filterType === 'completed' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.completed }}
-                <small class="m-0 l-h-n d-block">Completed approvals</small>
-              </h3>
-              <i class="fal fa-check-circle position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            <!-- Completed approvals -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'completed' }" @click="filterApprovals('completed')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);">
+                <i class="fal fa-check-circle"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">Completed</h3>
+                <p class="modern-card-value">{{ statusCounts.completed }}</p>
+              </div>
             </div>
-          </div>
 
-          <!-- Upcoming approvals -->
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('upcoming')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-info-200 rounded position-relative mb-g text-white"
-              :class="{ active: datatableParams.filterType === 'upcoming' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.upcoming }}
-                <small class="m-0 l-h-n d-block">Upcoming approvals</small>
-              </h3>
-              <i class="fal fa-clock position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            <!-- Upcoming approvals -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'upcoming' }" @click="filterApprovals('upcoming')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);">
+                <i class="fal fa-clock"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">Upcoming</h3>
+                <p class="modern-card-value">{{ statusCounts.upcoming }}</p>
+              </div>
             </div>
-          </div>
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('returned')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-warning-200 rounded position-relative mb-g text-white border border-dark"
-              :class="{ active: datatableParams.filterType === 'returned' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.returned }}
-                <small class="m-0 l-h-n d-block">My returned Docs</small>
-              </h3>
-              <i class="fal fa-undo position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+            
+            <!-- Returned Docs -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'returned' }" @click="filterApprovals('returned')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);">
+                <i class="fal fa-undo"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">Returned</h3>
+                <p class="modern-card-value">{{ statusCounts.returned }}</p>
+              </div>
             </div>
-          </div>
-          <div class="col-sm-6 col-xl-2" @click="filterApprovals('rejected')" style="cursor: pointer">
-            <div
-              class="filter-card p-3 bg-danger-200 rounded position-relative mb-g text-white border border-dark"
-              :class="{ active: datatableParams.filterType === 'rejected' }"
-            >
-              <h3 class="display-4 d-block l-h-n m-0 fw-500">
-                {{ statusCounts.rejected }}
-                <small class="m-0 l-h-n d-block">My rejected Docs</small>
-              </h3>
-              <i class="fal fa-ban position-absolute pos-right pos-bottom opacity-25" style="font-size:4rem;"></i>
+
+            <!-- Rejected Docs -->
+            <div class="modern-card" :class="{ active: datatableParams.filterType === 'rejected' }" @click="filterApprovals('rejected')">
+              <div class="modern-card-icon" style="background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);">
+                <i class="fal fa-ban"></i>
+              </div>
+              <div class="modern-card-content">
+                <h3 class="modern-card-title">Rejected</h3>
+                <p class="modern-card-value">{{ statusCounts.rejected }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -229,61 +217,82 @@ onMounted(() => {
 </script>
 
 <style>
-/* Filter card styles */
-.filter-card {
-  position: relative;
-  z-index: 1;
+/* Modern Filter Cards */
+.modern-header-container {
+  padding: 10px 0 20px;
+}
+
+.modern-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.modern-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   cursor: pointer;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  transition: all 0.2s ease;
-  padding: 1rem;
-}
-
-.filter-card:hover {
-  box-shadow: 0 4px 8px rgba(16, 9, 209, 0.1);
-}
-
-.filter-card.active {
-  border: none;
-}
-
-.filter-card.active::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: 0.5rem;
-  padding: 2px;
-  background: linear-gradient(270deg, #ff0047, #2c34c7, #00ffe4, #ff0047);
-  background-size: 600% 600%;
-  z-index: -1;
-  animation: borderAnimation 10s linear infinite;
-}
-
-@keyframes borderAnimation {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 100% 50%;
-  }
-}
-
-.filter-card.active h3,
-.filter-card.active small {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  z-index: 1;
+  overflow: hidden;
 }
 
-.filter-card i {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+.modern-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08), 0 10px 10px rgba(0, 0, 0, 0.04);
 }
 
-.filter-card:hover i {
-  transform: scale(1.05);
-  opacity: 0.3;
+.modern-card.active {
+  background: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px #4f46e5, 0 10px 20px rgba(79, 70, 229, 0.15);
+}
+
+.modern-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.5rem;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  flex-shrink: 0;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modern-card:hover .modern-card-icon {
+  transform: rotate(5deg) scale(1.1);
+}
+
+.modern-card-title {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 4px 0;
+  transition: color 0.3s ease;
+}
+
+.modern-card.active .modern-card-title {
+  color: #4f46e5;
+}
+
+.modern-card-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 </style>

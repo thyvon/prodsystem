@@ -63,9 +63,9 @@
         <div class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
             @forelse($unseenApprovalsList as $item)
                 <a href="{{ $item['route_url'] }}" class="list-group-item list-group-item-action d-flex align-items-center">
-                    <img src="{{ asset('storage/' . $item['requester_photo']) }}" 
-                        alt="Requester Photo" 
-                        class="rounded-circle mr-2" 
+                    <img src="{{ asset('storage/' . $item['requester_photo']) }}"
+                        alt="Requester Photo"
+                        class="rounded-circle mr-2"
                         style="width: 50px; height: 50px; object-fit: cover;">
 
                     <div>

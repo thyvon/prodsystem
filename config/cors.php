@@ -40,7 +40,7 @@ return [
     'allowed_origins' => [
         'http://localhost:5173',      // Vue (Vite)
         'http://127.0.0.1:5173',
-        'https://prodsystem.mjqe-purchasing.site', // Production
+        'https://prod.systemsolution.online', // Production
         'http://10.15.36.237:8000',
         'https://rectified-handiness-daisy.ngrok-free.dev', // Local IP (for testing on other devices)
     ],
@@ -53,7 +53,7 @@ return [
     | Example: app.yourdomain.com, admin.yourdomain.com
     */
     'allowed_origins_patterns' => [
-        '/^https:\/\/.*\.mjqe-purchasing\.site$/',
+        '/^https:\/\/.*\.systemsolution\.online$/',
     ],
 
     /*

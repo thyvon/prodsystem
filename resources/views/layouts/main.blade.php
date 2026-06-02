@@ -22,6 +22,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="https://mjqeducation.edu.kh/FrontEnd/Image/logo/mjq-education-single-logo_1.ico">
     <link rel="mask-icon" href="{{ asset('template/img/favicon/safari-pinned-tab.svg') }}" color="#5bbad5">
 
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Auto Khmer / English Font -->
     <style>
         /* Khmer font for Khmer characters only */
@@ -31,19 +36,55 @@
             unicode-range: U+1780-17FF;
         }
 
-        @font-face {
-            font-family: 'Roboto';
-            src: url("{{ asset('fonts/Roboto-Regular.ttf') }}") format('truetype');
-            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        /* Global Modern Typography & Layout Overrides */
+        :root {
+            --bs-body-font-family: 'Inter', 'Khmer OS Battambang', 'Helvetica', 'Arial', sans-serif;
+            --modern-bg: #f8fafc;
+            --modern-border-radius: 12px;
         }
 
-        /* Latin / English system font */
         body {
-           font-family: 'Roboto', 'Khmer OS Battambang','Helvetica', 'Arial', sans-serif !important;
-           font-size: 12px;
+           font-family: var(--bs-body-font-family) !important;
+           font-size: 14px !important;
+           -webkit-font-smoothing: antialiased;
+           -moz-osx-font-smoothing: grayscale;
+           letter-spacing: -0.01em;
         }
+
+        .page-content-wrapper {
+            background-color: var(--modern-bg) !important;
+        }
+
         .page-content-wrapper .page-content {
-            padding: 0.5rem 0.5rem 2rem 0.5rem !important; /* top right bottom left */
+            padding: 1.5rem 2rem 2rem 2rem !important; /* increased padding for breathing room */
+        }
+
+        /* Modernize typical UI components slightly */
+        .panel, .card {
+            border-radius: var(--modern-border-radius) !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+            border: 1px solid rgba(226, 232, 240, 0.8) !important;
+        }
+
+        .btn {
+            border-radius: 6px !important;
+            font-weight: 500 !important;
+        }
+
+        .form-control {
+            border-radius: 6px !important;
+        }
+
+        /* Softer datatable borders */
+        .table-bordered th, .table-bordered td {
+            border-color: #f1f5f9 !important;
+        }
+        .table thead th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: #64748b;
         }
     </style>
 </head>
